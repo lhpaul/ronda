@@ -204,7 +204,7 @@ issue_tracker:
   # Used by workflow-lib.sh as a fallback when GITHUB_PROJECT_NUMBER env var is not set.
   # Required for tracker status updates (update_tracker_status_best_effort) and status reads
   # (get_tracker_status_for_issue) to function without setting an environment variable.
-  project_number: 1
+  project_number: 11
   # custom_fields: flat key-value map of provider-specific fields.
   # Each integration doc defines which keys are recognised and their effect.
   # Unrecognised keys are silently ignored by scripts that do not consume them.
@@ -218,8 +218,8 @@ issue_tracker:
   #   custom_fields:
   #     type_field: Custom Type
   #
-  # custom_fields:
-  #   project: ""
+  custom_fields:
+    type_field: Work type
 
 vcs:
   # Supported examples: github, gitlab, bitbucket, other
@@ -234,14 +234,14 @@ template:
   # tooling to be consumed by downstream projects). When true, Protocol 02 Step 0
   # (Template-Fit Check) is mandatory before writing any implementation plan.
   # Leave false or omit for downstream consumer repositories.
-  is_template: true
+  is_template: false
 
   # Optional: upstream template repository reference (owner/repo format for GitHub).
   # When set, the retrospective protocol (Step 3b) cross-references each finding
   # against the specified template repository's issue tracker. Leave empty or omit to skip.
   # Note: this is set by DOWNSTREAM repos pointing back to their template origin —
   # the template repo itself leaves this empty.
-  repository: ""
+  repository: lhpaul/ai-dev-framework-template
 
   # Optional: the template version last applied by the sync-template skill.
   # Written automatically by sync-template after a successful sync.

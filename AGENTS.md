@@ -8,17 +8,22 @@ This is the primary AI agent guidance file for this project. It follows the [AGE
 
 ## Project Overview
 
-> **TODO**: Fill this section via the project setup agent (`docs/workflow/setup/protocol.md`), or manually describe your project here.
->
-> - What does this project do?
-> - Who are the users?
-> - What problem does it solve?
+Reviewer is a GitHub-facing PR review bot: comment-only, one review per head
+SHA, cheap/local models. ADF/Helm consume the GitHub review; this repo owns
+the bot.
+
+Locked decisions: [`docs/constitution.md`](docs/constitution.md).
+
+Not `local-ai-reviewer`, not Fleet, not Helm.
 
 ---
 
 ## Repository Structure
 
-> **TODO**: Fill this section after running the project setup. Reference `docs/project/2-repo-architecture.md` for details.
+Single-repo ADF consumer. Webhook server not in tree yet. See
+[`docs/project/2-repo-architecture.md`](docs/project/2-repo-architecture.md).
+
+Default branch: `develop`. Tracker: GitHub Project #11, field **Work type**.
 
 ---
 
@@ -28,6 +33,7 @@ Always refer to these docs for authoritative guidance:
 
 | Document                                                                                                                                                       | Purpose                                                                                         |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [`docs/constitution.md`](docs/constitution.md)                                                                                                                 | Locked product contract (GitHub review, movable webhook URL)                                  |
 | [`docs/project/1-business-domain.md`](docs/project/1-business-domain.md)                                                                                       | Domain entities, business rules, glossary                                                       |
 | [`docs/project/2-repo-architecture.md`](docs/project/2-repo-architecture.md)                                                                                   | Repository structure, packages, apps                                                            |
 | [`docs/project/3-software-architecture.md`](docs/project/3-software-architecture.md)                                                                           | Tech stack, design patterns, architecture decisions                                             |

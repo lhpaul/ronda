@@ -6,6 +6,7 @@ These files describe your specific project. They are generated via the [project 
 
 | File                                                             | Description                                                    |
 | ---------------------------------------------------------------- | -------------------------------------------------------------- |
+| [constitution.md](constitution.md)                             | Locked product contract                                        |
 | [1-business-domain.md](project/1-business-domain.md)             | Domain entities, actors, business rules, glossary              |
 | [2-repo-architecture.md](project/2-repo-architecture.md)         | Repository structure, packages, apps, dependencies             |
 | [3-software-architecture.md](project/3-software-architecture.md) | Tech stack, design patterns, key architectural decisions       |
