@@ -1,27 +1,27 @@
-# Reviewer constitution
+# Ronda constitution
 
-Locked decisions for `lhpaul/reviewer`. Product docs (`docs/project/`) describe
+Locked decisions for `lhpaul/ronda`. Product docs (`docs/project/`) describe
 the domain. This file is the **contract**.
 
-Decided with LH on 2026-09-04.
+Decided with LH on 2026-09-04. Renamed from the working title “Reviewer”.
 
 ## One sentence
 
-A **GitHub PR reviewer**: comment-only reviews on the pull request, driven by
-cheap API models first and a local model later. ADF and Helm *consume* it; they
-do not implement it.
+**Ronda** is a GitHub PR review bot: comment-only reviews on the pull request,
+driven by cheap API models first and a local model later. ADF and Helm
+*consume* it; they do not implement it.
 
 ## Layers (do not mix)
 
 | Layer | Question it answers | Lives in |
 | --- | --- | --- |
-| **Reviewer** (this repo) | Who comments on the GitHub PR? | This repository |
+| **Ronda** (this repo) | Who comments on the GitHub PR? | This repository |
 | **ADF** | How an item is built; the *loop* that waits for this review | `lhpaul/ai-dev-framework-template` |
 | **Helm** | Product workflow; `review.external.provider` points here | `lhpaul/helm` |
 | **Fleet** | Where agents run and how LH talks to them | `lhpaul/dev-fleet` |
 
 This is **not** `local-ai-reviewer` (Codex CLI inside the ADF loop). That stays
-an in-loop check. This product is the GitHub-facing bot (Bugbot / CodeRabbit /
+an in-loop check. Ronda is the GitHub-facing bot (Bugbot / CodeRabbit /
 Codex GitHub class).
 
 This is **not** Fleet. A Fleet node may later *host* inference; the GitHub App
@@ -42,7 +42,7 @@ GitHub talks to **one webhook URL** (GitHub App setting, or a stable hostname
 in front of it). That URL is configuration, not product code.
 
 ```text
-GitHub  →  https://reviewer.example  →  tunnel  →  process on a machine
+GitHub  →  https://ronda.example  →  tunnel  →  process on a machine
 ```
 
 The hostname can point at:
@@ -69,6 +69,8 @@ ADF: a thin platform in `pr-review-loop.sh` / `.ai-dev-workflow.yaml`
 (`on_draft.github` / `on_ready.github`).  
 Helm: `review.external.provider`.  
 This repo does not copy the loop.
+
+Development of Ronda itself uses **ADF + GitHub Project #11**, same as Fleet.
 
 ## v0 vs later
 

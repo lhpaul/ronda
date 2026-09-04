@@ -3,13 +3,13 @@
 ## Overview
 
 Single-repo ADF consumer (`single_repo`). Owns tracker, specs, plans, and the
-reviewer service. Bootstrap ships constitution and domain docs; the HTTP
+Ronda service. Bootstrap ships constitution and domain docs; the HTTP
 server lands in later items.
 
 ## Directory Structure
 
 ```
-reviewer/
+ronda/
 ├── docs/
 │   ├── constitution.md
 │   ├── project/
@@ -25,7 +25,7 @@ reviewer/
 Local, never committed:
 
 ```
-~/.config/reviewer/              # webhook secret, model API keys, bind port
+~/.config/ronda/              # webhook secret, model API keys, bind port
 ```
 
 ## Applications / Services
@@ -50,13 +50,13 @@ Product commands (planned):
 
 ```bash
 # Run the server on this machine (MacBook or Mini)
-reviewer serve --port 8787
+ronda serve --port 8787
 
 # Tunnel is operator-owned (cloudflared, etc.), not this binary
 ```
 
 ## Environment Setup
 
-1. Clone `lhpaul/reviewer` (default branch `develop`).
+1. Clone `lhpaul/ronda` (default branch `develop`).
 2. Point a public HTTPS URL at `localhost:<port>` when testing on the MacBook.
 3. Put GitHub App webhook secret and model keys in local config / 1Password.

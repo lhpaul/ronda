@@ -2,7 +2,7 @@
 
 ## Overview
 
-Reviewer is a GitHub-facing code-review bot. It reads a pull request diff,
+Ronda is a GitHub-facing code-review bot. It reads a pull request diff,
 produces findings, and publishes them as a GitHub review (inline comments +
 summary + check run). Humans and the ADF reviewer-loop consume that review.
 It does not implement product features and does not merge.
@@ -12,7 +12,7 @@ It does not implement product features and does not merge.
 | Actor | Description |
 | --- | --- |
 | GitHub | Sends pull-request events to the webhook URL. |
-| Reviewer process | HTTP server that handles the event, calls inference, posts the review. |
+| Ronda process | HTTP server that handles the event, calls inference, posts the review. |
 | Inference backend | API (GLM/Qwen/…) or a local model. Swappable. |
 | ADF reviewer-loop | Waits on the check/review and drives fix cycles. |
 | Operator | Installs the App, points the webhook URL at a machine, reads findings. |
@@ -50,7 +50,7 @@ It does not implement product features and does not merge.
 
 | Term | Definition |
 | --- | --- |
-| Reviewer | This product (GitHub bot + backend). |
+| Ronda | This product (GitHub bot + backend). |
 | Reviewer-loop | ADF script that waits on GitHub reviews. |
 | `local-ai-reviewer` | In-loop Codex check; not this product. |
 | Webhook URL | Public HTTPS target in GitHub App settings. |

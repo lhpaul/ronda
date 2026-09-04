@@ -1,7 +1,7 @@
-# Reviewer
+# Ronda
 
-GitHub PR reviewer: comment-only reviews, cheap API models first, local model
-later. ADF and Helm consume it; they do not implement it.
+GitHub PR review bot: comment-only, one pass per SHA, cheap API models first,
+local model later. ADF and Helm consume it; they do not implement it.
 
 **Contract:** [`docs/constitution.md`](docs/constitution.md)
 

@@ -8,7 +8,7 @@ This is the primary AI agent guidance file for this project. It follows the [AGE
 
 ## Project Overview
 
-Reviewer is a GitHub-facing PR review bot: comment-only, one review per head
+Ronda is a GitHub-facing PR review bot: comment-only, one review per head
 SHA, cheap/local models. ADF/Helm consume the GitHub review; this repo owns
 the bot.
 

@@ -43,5 +43,5 @@ are locked:
 
 - Webhook secret verified on every request.
 - Installation tokens via GitHub App, not a PAT in git.
-- Model keys only in `~/.config/reviewer/` or 1Password.
+- Model keys only in `~/.config/ronda/` or 1Password.
 - No vault paths in versioned config.

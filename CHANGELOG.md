@@ -10,5 +10,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Project bootstrap from `lhpaul/ai-dev-framework-template`: constitution,
-  domain docs, GitHub Project #11 (`Work type` classification field), and
-  `develop` as the default integration branch.
+  domain docs, GitHub Project #11 (`Work type` classification field), product
+  name **Ronda**, and `develop` as the default integration branch.
