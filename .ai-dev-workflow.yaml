@@ -1,0 +1,307 @@
+# <!-- TEMPLATE-OWNED-START -->
+# AI Development Workflow Configuration
+#
+# This file declares which workflow integrations this repository uses.
+# Keep it declarative and repo-safe: select providers here, but do not store
+# secrets, tokens, hostnames, or other environment-specific credentials.
+#
+# Repository mode fields (`mode`, `workflow_hub.product_repos[]`, and
+# `product_repo.workflow_hub`) are documented in
+# docs/workflow/development-workflow/repository-modes.md. Omit `mode` to keep
+# the default `single_repo` behavior.
+#
+# Product release contracts are optional non-secret metadata under either
+# `workflow_hub.product_repos[].release` or `product_repo.release`. Supported
+# fields are:
+#
+#   release:
+#     base: main                         # optional; defaults to default_branch
+#     branch_pattern: release/v{version} # optional; may use {version} and {product_repo}
+#     changelog_owner: product_repo      # product_repo|hub|current_repo|hub_reference|not_applicable
+#     tag_owner: product_repo
+#     github_release_owner: product_repo
+#     deployment_evidence_owner: product_repo
+#     cleanup_evidence_owner: product_repo
+#     tracker_reconciliation_owner: hub
+#
+# Never store local checkout paths, credentials, token values, secret names,
+# secret values, or environment-specific account details in the versioned
+# release contract. Use `.ai-dev-workflow.local.yaml` for machine-local values.
+#
+# See docs/workflow/development-workflow/README.md and
+# docs/workflow/development-workflow/integrations/ for integration-specific setup.
+#
+# Important:
+# - review.on_draft.runner is consumed by the Step 7a internal review gate
+#   protocol (91-orchestrate-work-protocol.md).
+# - review.on_draft.github and review.on_ready.github are consumed by
+#   scripts/development-workflow/pr-review-loop.sh for external automated PR
+#   review (Step 7).
+# - Other sections are advisory until additional scripts or agents adopt them.
+#
+# Behavior for automated PR review:
+# - If this file is absent, or both review.on_draft.github and
+#   review.on_ready.github are omitted or empty, the review loop reports skipped
+#   (not configured).
+# <!-- TEMPLATE-OWNED-END -->
+
+schema_version: 2
+
+review:
+  on_draft:
+    # Ordered list of in-runner internal reviewers for draft PRs (Step 7a).
+    # Supported values:
+    #   claude        — dispatches the stage-appropriate reviewer agent.
+    #   cursor        — dispatches the stage-appropriate Cursor reviewer agent.
+    #   codex         — dispatches the stage-appropriate Codex review skill.
+    #   coderabbit    — triggers CodeRabbit on the draft PR when reachable.
+    runner:
+      - codex
+
+    # Ordered list of GitHub/App/CLI reviewers that can safely evaluate draft
+    # PRs. These run before the PR is converted to ready.
+    # Supported today by pr-review-loop.sh: greptile, devin, coderabbit,
+    # coderabbit-cli, local-ai-reviewer, pr-agent, codex-github,
+    # claude-code-action, haystack, copilot, bugbot.
+    github:
+      - local-ai-reviewer
+      - pr-agent
+
+  on_ready:
+    # Ordered list of GitHub/App/CLI reviewers that run only after draft gates
+    # are clean and the PR has been converted with `gh pr ready`.
+    github:
+      - bugbot
+
+  # Optional: TWO independent reviewer-loop cycle caps enforced by
+  # pr-review-loop.sh (issue #1502; dual-cap decision recorded on PR #1507's
+  # review). Neither cap resets on a HEAD SHA change alone (see the comment
+  # above reviewer_loop_history_entries_count in pr-review-loop.sh for why:
+  # a reset-on-push design would make both caps dead code for the exact
+  # motivating failure, PR #1492's 18-cycle loop, where nearly every cycle
+  # produced a new commit).
+  #
+  # max_cycles (PER-RUN cap, default 10): resets to 0 at each orchestration-
+  # run boundary. Conforms to Protocol 91:1719 verbatim ("Initialize cycle
+  # = 0 once per orchestration run ... escalate when the run reaches
+  # max_cycles"). The "run boundary" is whatever the caller's
+  # PR_REVIEW_LOOP_RUN_ID env var identifies — see pr-review-loop.sh's usage
+  # doc for RUN_ID / PR_REVIEW_LOOP_RUN_ID. When the caller does not set a
+  # stable run id, every invocation is its own isolated run, and this cap
+  # effectively never trips on its own (the lifetime ceiling below still
+  # protects in that case). Escalates with REASON=max_cycles_exceeded.
+  # PR_REVIEW_LOOP_MAX_CYCLES env var overrides this value.
+  #
+  # max_total_cycles (LIFETIME ceiling, default 25): never resets, counts
+  # across the PR's entire review-loop lifetime regardless of run
+  # boundaries. This is the structural backstop that does not depend on
+  # every caller correctly threading a stable run id through every
+  # invocation — a per-run-only cap would leave total effort unbounded for
+  # a PR resumed across many separate orchestration runs, which is exactly
+  # the "runs until someone notices" failure #1502 exists to end. Escalates
+  # with the distinct REASON=max_total_cycles_exceeded, checked only after
+  # the per-run cap does not fire, so an operator can tell "one run ran
+  # away" (max_cycles_exceeded) apart from "many runs cumulatively ran
+  # away" (max_total_cycles_exceeded). PR_REVIEW_LOOP_MAX_TOTAL_CYCLES env
+  # var overrides this value.
+  #
+  # Uncomment to override the defaults:
+  # max_cycles: 10
+  # max_total_cycles: 25
+  #
+  # Bugbot is the default ready-phase GitHub reviewer for this repository.
+  # CodeRabbit remains supported as an opt-in reviewer (`coderabbit` for the
+  # GitHub App, `coderabbit-cli` for the local CLI), but it is not a default
+  # gate because vendor rate limits/spending caps can block otherwise-clean PRs.
+  #
+  # CodeRabbit CLI platform options (local CLI reviewer; place "coderabbit-cli"
+  # in on_draft.github or on_ready.github to opt in; independent from the
+  # "coderabbit" GitHub App platform):
+  #   rate_limit_policy: warn      # warn|strict; default warn
+  #
+  # Local AI reviewer platform options (local-only CLI reviewer; enabled first
+  # in on_draft.github by default before PR-Agent and ready-phase reviewers):
+  #   LOCAL_AI_REVIEWER_COMMAND        — optional override; when unset,
+  #                                      local-ai-reviewer.sh defaults to
+  #                                      scripts/development-workflow/local-codex-review-command.sh
+  #   LOCAL_AI_REVIEWER_DISABLE_DEFAULT=1 — do not apply the bundled Codex preset
+  #   LOCAL_CODEX_REVIEWER_BIN         — Codex binary for the bundled preset (default: codex)
+  #   LOCAL_CODEX_REVIEWER_MODEL       — optional model for the bundled preset
+  #   LOCAL_AI_REVIEWER_TIMEOUT        — default local command timeout (default: 300)
+  #   LOCAL_AI_REVIEWER_GRAPH_STRATEGY — none|auto|code-review-graph|graphify
+  #   LOCAL_AI_REVIEWER_DISABLED=1     — intentionally skip with
+  #                                      REASON=disabled_by_config
+  #                                      (or override on_draft.github locally)
+  #
+  # Configurable codex-github options (set via env vars or script flags to pr-review-loop.sh / codex-github-reviewer.sh):
+  #   Setup/verification guide: docs/workflow/development-workflow/integrations/codex-github.md
+  #   CODEX_GITHUB_TRIGGER_PHRASE  — trigger phrase sent to the bot (default: "@codex review")
+  #   CODEX_GITHUB_BOT_LOGIN       — GitHub login of the Codex bot account
+  #                                  (default: "chatgpt-codex-connector[bot]"; verify from GitHub App settings)
+  #   CODEX_GITHUB_POLL_INTERVAL   — default polling interval for codex-github via pr-review-loop.sh (default: 60)
+  #   CODEX_GITHUB_MAX_WAIT        — default maximum wait for codex-github via pr-review-loop.sh (default: 1800)
+  #   CODEX_GITHUB_PRE_TRIGGER_WAIT — wait for existing current-head Codex evidence before posting a trigger; 0 disables (default: 60)
+  #
+  # Additional options available as script flags to codex-github-reviewer.sh (passed via pr-review-loop.sh):
+  #   --poll-interval <seconds>    — polling interval while waiting for bot response
+  #   --max-wait      <seconds>    — maximum total wait time for bot response
+  #   --pre-trigger-wait <seconds> — wait for existing current-head evidence before posting a trigger; 0 disables
+  #
+  # Copilot platform options:
+  #   Prerequisites: an active GitHub Copilot seat or the Copilot for Pull Requests feature
+  #                  must be enabled on the repository. GitHub Enterprise Server (GHES) is
+  #                  not supported. See docs/workflow/development-workflow/integrations/copilot.md
+  #   COPILOT_BOT_LOGIN  — override the default Copilot bot login
+  #                        (default: "copilot-pull-request-reviewer[bot]")
+  #
+  # Bugbot platform options (Cursor Bugbot — requires the Cursor GitHub App installed
+  # on the repository; place "bugbot" in on_draft.github or on_ready.github):
+  #   BUGBOT_BOT_LOGIN        — override the Bugbot bot login
+  #                             (default: "cursor[bot]")
+  #   BUGBOT_CHECK_NAME       — override the check-run name to poll
+  #                             (default: "Cursor Bugbot")
+  #   BUGBOT_TRIGGER_COMMENT  — override the trigger comment posted to start a run
+  #                             (default: "bugbot run")
+
+  # Runner-context constraint:
+  #   This template defaults to 'codex' for Codex-first workflow runs. 'codex' as
+  #   a direct CLI reviewer is NOT reliably reachable from automated subagent
+  #   runners (Claude Code subagents, Cursor subagents, or any headless
+  #   environment). It is typically only reachable when Codex is the top-level
+  #   runner itself. Protocol 91 Step 7a will classify 'codex' as unreachable in
+  #   these contexts. Because 'codex' is the only default internal reviewer, that
+  #   means zero reviewers are reachable and the gate hard-fails until the run is
+  #   retried from Codex or a local override selects a reachable reviewer. This is
+  #   expected behaviour — not a misconfiguration.
+  #
+  # Local override: developers who need a different top-level review runner can
+  # override this list locally with .ai-dev-workflow.local.yaml (gitignored).
+  # Example for Cursor in .ai-dev-workflow.local.yaml:
+  #   review:
+  #     on_draft:
+  #       runner:
+  #         - cursor
+  # The local file takes precedence over this file for the local environment.
+  # See docs/workflow/development-workflow/protocols/91-orchestrate-work-protocol.md
+  # Step 7a for the full multi-reviewer gate procedure.
+
+  # Optional: policy when a listed internal reviewer is unreachable from the current runner.
+  # Protocol 91 Step 7a enforces this policy at runtime.
+  #
+  # Allowed values:
+  #   warn                    — (default) Emit a warning comment on the PR and proceed with
+  #                             the reachable subset. Hard-fails only if zero reviewers are reachable.
+  #   fail-if-any-unavailable — Hard-fail the Step 7a gate whenever any listed reviewer is
+  #                             unreachable, even if others are reachable.
+  #
+  # Uncomment and set to override the default:
+  # internal_reviewers_unavailable_policy: warn
+
+issue_tracker:
+  # Supported examples: linear, github_projects, github_issues, jira, clickup, notion, none
+  provider: github_projects
+  # GitHub Projects project number (the integer in the project URL, e.g. /users/<owner>/projects/1).
+  # Used by workflow-lib.sh as a fallback when GITHUB_PROJECT_NUMBER env var is not set.
+  # Required for tracker status updates (update_tracker_status_best_effort) and status reads
+  # (get_tracker_status_for_issue) to function without setting an environment variable.
+  project_number: 1
+  # custom_fields: flat key-value map of provider-specific fields.
+  # Each integration doc defines which keys are recognised and their effect.
+  # Unrecognised keys are silently ignored by scripts that do not consume them.
+  # Read individual values with: workflow_issue_tracker_custom_field <key>
+  # (defined in scripts/development-workflow/workflow-lib.sh)
+  #
+  # Example (Linear):
+  #   custom_fields:
+  #     project: my-linear-project-id
+  # Example (GitHub Projects board whose classification field is not named Type):
+  #   custom_fields:
+  #     type_field: Custom Type
+  #
+  # custom_fields:
+  #   project: ""
+
+vcs:
+  # Supported examples: github, gitlab, bitbucket, other
+  provider: github
+
+browser_automation:
+  # Supported examples: cursor_ide_browser_mcp, playwright_mcp, playwright_cli, none
+  provider: playwright_cli
+
+template:
+  # Set to true when this repository IS a framework template (i.e., it ships workflow
+  # tooling to be consumed by downstream projects). When true, Protocol 02 Step 0
+  # (Template-Fit Check) is mandatory before writing any implementation plan.
+  # Leave false or omit for downstream consumer repositories.
+  is_template: true
+
+  # Optional: upstream template repository reference (owner/repo format for GitHub).
+  # When set, the retrospective protocol (Step 3b) cross-references each finding
+  # against the specified template repository's issue tracker. Leave empty or omit to skip.
+  # Note: this is set by DOWNSTREAM repos pointing back to their template origin —
+  # the template repo itself leaves this empty.
+  repository: ""
+
+  # Optional: the template version last applied by the sync-template skill.
+  # Written automatically by sync-template after a successful sync.
+  # Used by the retrospective cross-reference step to identify "already fixed upstream" findings.
+  last_synced_version: ""
+
+# guardrails — declares how much authority AI agents have when advancing work through the
+# development workflow. This section is OPTIONAL. When omitted, all values resolve to the
+# documented safe defaults below, preserving today's conservative, human-reviewed behavior
+# (agents do not merge pull requests and do not start backlog work without confirmation).
+#
+# Enforced at runtime by Protocols 90, 91, and 95 via three-layer precedence:
+# repo config (this file) → session overrides → invocation overrides (highest priority).
+#
+# See docs/workflow/development-workflow/guardrails.md for plain-language explanations,
+# mode descriptions, worked examples, stop conditions, and audit requirements.
+# See docs/workflow/development-workflow/guardrails-enforcement.md for the runtime
+# enforcement reference (effective-guardrails resolution, five enforcement gates,
+# named stop conditions, audit-evidence rules).
+#
+# Two-step lifecycle (default for this template):
+# Delegated execution permits Backlog starts and merges within the per-stage
+# risk limits below. Bounded prelude still reports the resolved policy before
+# mutation — see docs/workflow/development-workflow/bounded-run-prelude.md.
+
+guardrails:
+  # mode: delegated — agents may merge within per-stage permissions and risk limits.
+  mode: delegated
+
+  # backlog_start — agents may start eligible Backlog work without an additional
+  # policy confirmation.
+  backlog_start:
+    allow_without_confirmation: true
+
+  # stages — delegated merge authority is enabled up to medium risk.
+  stages:
+    spec:
+      may_open_pr: true
+      may_merge_pr: true
+      max_merge_risk: medium
+    plan:
+      may_open_pr: true
+      may_merge_pr: true
+      max_merge_risk: medium
+    implementation:
+      may_open_pr: true
+      may_merge_pr: true
+      max_merge_risk: medium
+
+  # stop_conditions — baseline stops that hold in all modes (additive, never removable).
+  stop_conditions:
+    - unclear_requirements
+    - architecture_decision
+    - failing_ci
+    - unresolved_blocking_review
+    - high_risk_change
+    - destructive_action
+    - missing_tracker_context
+    - missing_required_secret_or_permission
+
+  audit:
+    pr_disposition_record: required
+    work_item_ledger_record: required

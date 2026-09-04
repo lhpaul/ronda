@@ -1,0 +1,27 @@
+# System files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+!.env.example
+.ai-dev-workflow.local.yaml
+
+# Claude Code
+.claude/settings.local.json
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+
+# Agent worktrees (parallel batch isolation)
+.worktrees/
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# Temp files
+.tmp/

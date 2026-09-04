@@ -1,0 +1,318 @@
+# sync-manifest.yaml
+# Authoritative list of all framework-managed files and their sync category.
+# Consumed by sync-template artefacts (Claude Code, Cursor, Codex) at runtime.
+#
+# Schema version: 1
+#
+# Categories:
+#   always_sync       - Framework-owned files. Must be kept in sync with the upstream template.
+#                       The agent presents all out-of-date entries to the maintainer before
+#                       applying; the maintainer may decline individual files but no always-sync
+#                       file with a diff may be silently omitted from the summary (BR-2, BR-7).
+#   special_handling  - Files that may have project-specific customisations.
+#                       Always show the full diff; the maintainer decides per file.
+#   project_specific  - Files owned by the downstream project. Never overwrite.
+#                       The agent may propose additive updates but must preserve all
+#                       project-specific content. Files with mixed_content: true contain
+#                       both template-owned and project-owned sections separated by
+#                       annotation markers (see annotation_scheme below).
+#
+# Precedence: a project_specific entry for an exact file path always takes
+# precedence over any always_sync (or special_handling) directory entry whose
+# glob would otherwise match that same path. When enumerating an always_sync
+# directory (e.g. docs/workflow/**/*), skip any path that also appears as an
+# exact project_specific path — do not apply the always_sync classification to
+# it. This lets the manifest carve narrowly-scoped project-owned files (e.g.
+# append-only logs) out of an otherwise template-owned directory tree without
+# needing a separate glob-exclusion syntax.
+#
+# Mode scopes:
+#   shared                  - File applies across supported repository roles.
+#   hub_only                - File belongs only in a workflow hub repository.
+#   product_repo_injection  - File may be injected into a product repository.
+#
+# Sync-template uses mode_scope to filter the manifest by repository role before
+# comparing or applying files. Missing mode resolves to single_repo and keeps the
+# compatibility file set. workflow_hub selects shared and hub_only entries.
+# product_repo selects shared and product_repo_injection entries. Unknown roles,
+# missing mode_scope values, and unknown mode_scope values fail closed before
+# file changes are applied.
+#
+# Annotation schemes (used in mixed_content files):
+#   html_comments     - Markers in Markdown files:
+#                         <!-- TEMPLATE-OWNED-START --> ... <!-- TEMPLATE-OWNED-END -->
+#                       Markers in YAML files (must be wrapped in YAML comment syntax):
+#                         # <!-- TEMPLATE-OWNED-START --> ... # <!-- TEMPLATE-OWNED-END -->
+#
+# NOTE: If a new framework file is added to the template, add a corresponding entry here.
+# Files absent from this manifest will not be included in always-sync batches.
+# (CI-enforced manifest completeness is out of scope for this iteration — see issue #252.)
+
+schema_version: 1
+
+mode_scopes:
+  shared:
+    label: Shared
+    description: File applies across supported repository roles.
+  hub_only:
+    label: Hub only
+    description: File belongs only in a workflow hub repository.
+  product_repo_injection:
+    label: Product repository injection
+    description: File may be injected into a product repository integration.
+
+categories:
+  always_sync:
+    - path: REVIEW.md
+      mode_scope: shared
+      note: canonical review contract for spec, plan, and code review gates
+    - path: docs/workflow/
+      glob: "**/*"
+      mode_scope: hub_only
+      note: full workflow documentation tree (all files recursively)
+    - path: .claude/agents/
+      glob: "*.md"
+      mode_scope: hub_only
+      note: Claude Code agent definitions
+    - path: .claude/commands/
+      glob: "*.md"
+      mode_scope: hub_only
+      note: Claude Code slash commands
+    - path: .claude/skills/
+      glob: "*.md"
+      mode_scope: hub_only
+      note: Claude Code skills
+    - path: .codex/skills/
+      glob: "**/*"
+      mode_scope: hub_only
+      note: Codex skill trees shipped with the template (SKILL.md and assets)
+    - path: .agents/skills/
+      glob: "**/*"
+      mode_scope: hub_only
+      note: Codex repo-scoped skill discovery path and command-style aliases
+    - path: .cursor/commands/
+      glob: "*.md"
+      mode_scope: hub_only
+      note: Cursor slash commands
+    - path: .cursor/agents/
+      glob: "*.md"
+      mode_scope: hub_only
+      note: Cursor subagent definitions
+    - path: .cursor/rules/
+      glob: "*.mdc"
+      mode_scope: hub_only
+      note: Cursor rules files
+    - path: scripts/development-workflow/
+      glob: "**/*"
+      mode_scope: hub_only
+      note: workflow helper scripts (state inspection, PR/CI loops, etc.)
+    - path: scripts/development-workflow/workflow-config-resolver.py
+      mode_scope: product_repo_injection
+      note: product-repo runtime helper for repository mode and release contract resolution
+    - path: scripts/development-workflow/validate-workflow-config.sh
+      mode_scope: product_repo_injection
+      note: product-repo runtime helper for non-secret workflow configuration validation
+    - path: scripts/development-workflow/workflow-lib.sh
+      mode_scope: product_repo_injection
+      note: shared shell helpers required by product-repo runtime scripts
+    - path: scripts/development-workflow/pr-review-loop.sh
+      mode_scope: product_repo_injection
+      note: product-repo runtime reviewer loop for product-owned PRs
+    - path: scripts/development-workflow/pr-ci-loop.sh
+      mode_scope: product_repo_injection
+      note: product-repo runtime CI loop for product-owned PRs
+    - path: scripts/development-workflow/changelog-fragments.sh
+      mode_scope: product_repo_injection
+      note: product-repo release note fragment validator and release assembly helper
+    - path: scripts/development-workflow/post-merge-cleanup.sh
+      mode_scope: product_repo_injection
+      note: product-repo cleanup helper for product-owned branch and PR evidence
+    - path: scripts/lint/
+      glob: "**/*"
+      mode_scope: shared
+      note: lint helpers referenced by workflow protocols and best-practice docs
+    - path: scripts/README.md
+      mode_scope: shared
+      note: purpose and usage of scripts in scripts/
+    - path: changelog.d/README.md
+      mode_scope: shared
+      note: release note fragment authoring guide; individual fragments are project-specific pending release inputs
+    - path: docs/best-practices/1-general.md
+      mode_scope: shared
+      note: general coding standards
+    - path: docs/best-practices/2-version-control.md
+      mode_scope: shared
+      note: git and branching conventions
+    - path: docs/best-practices/3-testing.md
+      mode_scope: shared
+      note: testing standards
+    - path: template/workflow-hub/
+      glob: "**/*"
+      mode_scope: shared
+      note: inspectable workflow hub skeleton documentation and manifest
+    - path: template/product-repo-injection/
+      glob: "**/*"
+      mode_scope: shared
+      note: inspectable product repository injection skeleton documentation and manifest
+    - path: sync-manifest.yaml
+      mode_scope: shared
+      note: this manifest file itself; must be synced so downstream projects receive manifest updates
+
+  special_handling:
+    - path: .claude/settings.json
+      mode_scope: hub_only
+      note: may have project-specific tool permissions
+    - path: .claude/settings.local.json.example
+      mode_scope: hub_only
+      note: local settings example file
+    - path: .github/workflows/auto-tag-release.yml
+      mode_scope: shared
+      note: automated release tagging; add if CI is set up
+    - path: .github/workflows/deploy.yml
+      mode_scope: shared
+      note: placeholder deployment workflow; customize with project-specific deploy logic
+    - path: .github/workflows/e2e-regression.yml
+      mode_scope: shared
+      note: label-gated e2e/regression placeholder; customize with project-specific test logic
+    - path: .github/workflows/update-tracker-on-merge.yml
+      mode_scope: shared
+      note: tracker automation may be customized; review and retain graduation closeout wiring when adopted
+    - path: e2e/
+      glob: "**/*"
+      mode_scope: shared
+      note: placeholder e2e/regression test project (Playwright); customize with project-specific tests
+    - path: .cursor/BUGBOT.md
+      mode_scope: hub_only
+      note: project-specific Cursor Bugbot review rules; customize when enabling Bugbot
+
+  project_specific:
+    - path: AGENTS.md
+      mixed_content: true
+      annotation_scheme: html_comments
+      mode_scope: product_repo_injection
+      note: >
+        workflow table (## Development Workflow section) is template-owned;
+        project fills in ## Project Overview and ## Repository Structure sections
+    - path: README.md
+      mode_scope: shared
+      note: project-specific README; template version is a starting point only
+    - path: CHANGELOG.md
+      mode_scope: shared
+      note: project maintains its own changelog; never overwrite
+    - path: .ai-dev-workflow.yaml
+      mixed_content: true
+      annotation_scheme: html_comments
+      mode_scope: product_repo_injection
+      note: >
+        schema description comments are template-owned;
+        provider selections (platforms, internal_reviewers, etc.) are project-specific
+    - path: .ai-dev-workflow.local.example.yaml
+      mode_scope: product_repo_injection
+      note: placeholder-only example for local checkout roots, product paths, and secret references
+    - path: docs/project/
+      glob: "**/*"
+      mode_scope: shared
+      note: project domain docs; entirely project-specific
+    - path: docs/best-practices/STACK-SPECIFIC.md
+      mode_scope: shared
+      note: stack summary; project fills in its own technology choices
+    - path: docs/best-practices/stack/
+      glob: "**/*"
+      mode_scope: shared
+      note: per-technology convention files; project-specific
+    - path: .gitignore
+      mode_scope: shared
+      note: project-specific ignore rules
+    - path: CLAUDE.md
+      mode_scope: hub_only
+      note: symlink to AGENTS.md; project-specific
+    - path: GEMINI.md
+      mode_scope: shared
+      note: symlink to AGENTS.md; project-specific
+    - path: docs/workflow/retro-metrics.md
+      mode_scope: shared
+      note: >
+        append-only per-batch retrospective metrics log; each project's own history.
+        Takes precedence over the enclosing docs/workflow/ always_sync glob (see
+        Precedence note above) — never overwrite with the template's own rows.
+    - path: docs/workflow/retro-metrics-platforms.md
+      mode_scope: shared
+      note: >
+        append-only reviewer-platform comparison metrics log; each project's own
+        history. Takes precedence over the enclosing docs/workflow/ always_sync
+        glob (see Precedence note above) — never overwrite with the template's
+        own rows.
+
+# migration_notes: versioned manual steps required when syncing across a breaking structural change.
+#
+# Each entry is shown to the maintainer when their last_synced_version is older than
+# `applies_if_syncing_from_before` (semver comparison). If last_synced_version is absent
+# (first sync or unknown), all entries are shown.
+#
+# The agent must present all applicable notes and require explicit acknowledgment
+# before proceeding to Step 2 (file comparison). Migration steps must be completed
+# and committed before the sync diff is applied.
+#
+# Fields:
+#   version                       - template version that introduced the breaking change
+#   title                         - short label shown in the pre-sync summary
+#   description                   - what changed and why migration is needed
+#   applies_if_syncing_from_before - show this note when last_synced_version < this value
+#   manual_steps                  - ordered list of shell commands or instructions the maintainer must run
+migration_notes:
+  - version: "0.23.0"
+    title: "docs/ai/ renamed to docs/workflow/"
+    description: >
+      The framework documentation directory was renamed from docs/ai/ to docs/workflow/.
+      If the project still has a docs/ai/ directory, it must be renamed before the sync
+      diff is applied — otherwise the template files land in docs/workflow/ while the old
+      docs/ai/ tree remains, leaving both directories in place.
+    applies_if_syncing_from_before: "0.23.0"
+    manual_steps:
+      - "Check whether the old directory exists: ls docs/ai/ 2>/dev/null && echo 'exists' || echo 'already renamed'"
+      - "If it exists, rename it: git mv docs/ai docs/workflow"
+      - "Commit the rename before applying template file updates: git add -A && git commit -m 'refactor: rename docs/ai to docs/workflow (template migration to v0.23.0)'"
+  - version: "0.41.1"
+    title: "docs/workflow/retro-metrics.md and retro-metrics-platforms.md may contain inherited template history"
+    description: >
+      Before this fix, docs/workflow/retro-metrics.md and
+      docs/workflow/retro-metrics-platforms.md were swept into the docs/workflow/
+      always_sync glob for every repository role, including single_repo and
+      workflow_hub. Projects bootstrapped from the template (via a literal copy,
+      not this sync flow) may already carry the template repository's own
+      populated rows in one or both files, describing PR/batch history that
+      belongs to the template project, not this one. If left in place, this
+      inherited data silently pollutes docs/workflow/development-workflow/protocols/06b-meta-retrospective-protocol.md
+      trend analysis, and every completed retrospective's own rows get appended
+      after it with no marker distinguishing the two.
+    applies_if_syncing_from_before: "0.41.1"
+    manual_steps:
+      - "Count existing data rows in each file (a freshly-initialized file has 0; retro-metrics-platforms.md can have more than one header/separator block if platform configuration changed over time, so this locates the MOST RECENT '|---|' separator line and counts only the rows below it, and reports missing files explicitly instead of silently skipping them): for f in docs/workflow/retro-metrics.md docs/workflow/retro-metrics-platforms.md; do if [ -f \"$f\" ]; then last_sep=$(grep -nE '^\\| *-+' \"$f\" | tail -1 | cut -d: -f1); if [ -z \"$last_sep\" ]; then echo \"$f: no table header found yet (0 data rows)\"; else echo \"$f: $(( $(wc -l < \"$f\" | tr -d ' ') - last_sep )) existing data row(s)\"; fi; else echo \"$f: not found\"; fi; done"
+      - "If either count is 0, no action is needed — skip the remaining steps for that file."
+      - "For a non-zero count, first confirm the rows genuinely predate this project's own retrospective history (for example, cross-check a PR number or date mentioned in an early row against this project's own PR history) rather than assuming every existing row is inherited."
+      - "If confirmed inherited, archive each file (do not delete history) before resetting it, refusing to overwrite an existing same-day archive and stopping before any reset if archiving fails: for f in retro-metrics retro-metrics-platforms; do archive=\"docs/workflow/${f}.inherited-$(date +%Y-%m-%d).md\"; if [ -e \"$archive\" ]; then echo \"ERROR: $archive already exists\" >&2; exit 1; fi; cp \"docs/workflow/${f}.md\" \"$archive\" || exit 1; done"
+      - "Reset each file to keep only the preamble and the MOST RECENT header/separator block (the current schema — keeping only the first block would orphan a later, currently-active header), dropping every data row below it, then stage and commit: for f in docs/workflow/retro-metrics.md docs/workflow/retro-metrics-platforms.md; do last_sep=$(grep -nE '^\\| *-+' \"$f\" | tail -1 | cut -d: -f1); if [ -z \"$last_sep\" ]; then echo \"ERROR: no table header separator found in $f\" >&2; exit 1; fi; sed -n \"1,${last_sep}p\" \"$f\" > \"$f.tmp\" && mv \"$f.tmp\" \"$f\"; done && git add docs/workflow/retro-metrics.md docs/workflow/retro-metrics-platforms.md \"docs/workflow/retro-metrics.inherited-$(date +%Y-%m-%d).md\" \"docs/workflow/retro-metrics-platforms.inherited-$(date +%Y-%m-%d).md\" && git commit -m 'chore: reset inherited retro-metrics logs to this project'\\''s own header-only baseline'"
+
+# rename_detections: directories previously used for always-sync content that were renamed
+# in the template. The sync-template skill checks each entry during Step 2: if old_path
+# exists in the project while new_path is in the always_sync list, the skill records a
+# rename cleanup candidate.
+#
+# In Step 3, candidates are presented under a "Rename cleanup" section so the maintainer
+# can approve: (1) deletion of the stale old_path directory, and (2) an offer to scan
+# project-specific files for cross-references to old_path and update them to new_path.
+# The skill MUST NOT delete old_path or modify any cross-references without explicit
+# maintainer approval for each action.
+#
+# Fields:
+#   old_path      - the stale directory path that should be removed after the rename
+#   new_path      - the replacement path (must be in categories.always_sync)
+#   introduced_in - template version when the rename was introduced
+#   description   - short human-readable explanation shown in the Step 3 summary
+rename_detections:
+  - old_path: docs/ai/
+    new_path: docs/workflow/
+    introduced_in: "0.23.0"
+    description: >
+      docs/ai/ was renamed to docs/workflow/ in template v0.23.0. The stale docs/ai/
+      directory still exists in the project alongside the new docs/workflow/ tree.

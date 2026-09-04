@@ -1,0 +1,146 @@
+# Version Control Best Practices
+
+## Commit Messages
+
+This project follows the [Conventional Commits](https://www.conventionalcommits.org/) specification.
+
+### Format
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footers]
+```
+
+### Types
+
+| Type       | When to use                                |
+| ---------- | ------------------------------------------ |
+| `feat`     | A new feature                              |
+| `fix`      | A bug fix                                  |
+| `docs`     | Documentation changes only                 |
+| `style`    | Formatting, whitespace — no logic change   |
+| `refactor` | Code restructuring — no feature or bug fix |
+| `perf`     | Performance improvements                   |
+| `test`     | Adding or correcting tests                 |
+| `chore`    | Build process, tooling, dependencies       |
+| `revert`   | Reverting a previous commit                |
+
+### Examples
+
+```
+feat(auth): add email OTP login flow
+fix(payments): correct rounding on invoice totals
+docs: update setup instructions for new env vars
+chore(deps): upgrade eslint to v9
+```
+
+### Rules
+
+- Use the imperative mood in the description: "add feature" not "added feature"
+- Keep the first line under 72 characters
+- If the commit has a body, leave a blank line after the description
+- Reference issue numbers in the footer: `Closes #123`
+
+## Branching
+
+| Branch type             | Naming                       | Branch from | Merges into        |
+| ----------------------- | ---------------------------- | ----------- | ------------------ |
+| Feature (full pipeline) | `feature/[slug]`             | `develop`   | `develop`          |
+| Refactor                | `refactor/[slug]`            | `develop`   | `develop`          |
+| Bug / simple fix        | `fix/[slug]`                 | `develop`   | `develop`          |
+| Hotfix (critical prod)  | `hotfix/[slug]`              | `main`      | `main` + `develop` |
+| Spec                    | `spec/[slug]`                | `develop`   | `develop`          |
+| Implementation plan     | `implementation-plan/[slug]` | `develop`   | `develop`          |
+| Release                 | `release/v[X.Y.Z]`           | `develop`   | `main` + `develop` |
+
+### Branch Slug Convention
+
+The `[slug]` is a short kebab-case identifier for the change.
+
+**If using an issue tracker**, prefix the slug with the issue identifier:
+
+```
+feature/ENG-123-user-authentication
+fix/ENG-456-login-redirect
+spec/ENG-123-user-authentication
+implementation-plan/ENG-123-user-authentication
+```
+
+**If not using an issue tracker**, use the slug alone:
+
+```
+feature/user-authentication
+fix/login-redirect
+```
+
+The issue ID prefix is the canonical identifier when a tracker is in use. The slug portion (derived from the issue title in kebab-case) is recommended for readability but may be omitted for brevity.
+
+## Staging and Committing
+
+- Stage only files that belong to the logical change being committed
+- Review the diff before committing (`git diff --staged`)
+- One logical change per commit — don't bundle unrelated fixes
+- Don't automate commits; review staged changes manually before every commit
+
+## Pull Requests
+
+- Keep PRs focused on one logical change
+- Write a clear title following the commit message convention
+- Include context in the PR description: what, why, how to test
+- Link the relevant issue if one exists
+- Every feature/fix/refactor PR must add or update a `changelog.d/` fragment before merge (see the CHANGELOG section below for exceptions)
+- Open PRs with `gh pr create` per the implementation protocol unless the team has adopted Haystack's submit workflow (see [`docs/workflow/development-workflow/integrations/haystack.md`](../workflow/development-workflow/integrations/haystack.md))
+
+### Published branch updates
+
+Once a branch has been pushed for review, treat its published history as shared.
+Record corrections as focused follow-up commits; do not amend published commits
+or rewrite the remote branch. Amendments remain appropriate only for unpublished
+local commits that do not require changing a branch already visible to reviewers.
+
+If an amend was attempted after publication, stop before force-pushing. Preserve
+the published history and use normal follow-up commits for a coherent recovery;
+ask for human direction when no safe recovery path is clear.
+
+Workflow PR branch updates that would rewrite remote history must run through
+`scripts/development-workflow/workflow-branch-push-guard.sh`. General workflow
+approval, delegated review authority, delegated merge authority, and risk
+acceptance are not force-push authorization; the guard requires exact, trusted,
+single-use human authorization for the repository, PR, full branch ref, action,
+operator, expected remote tip, and authorized new tip from a separate GitHub
+`User` with repository `admin` permission. The executing credential cannot
+self-authorize.
+
+## Safety Rules
+
+The following actions require explicit human approval before executing:
+
+- `git push --force` or `git push --force-with-lease`
+- `git reset --hard`
+- `git rebase` on a shared (pushed) branch
+- Deleting a remote branch that others may be using
+
+When in doubt, stop and ask. The cost of confirming is low; the cost of lost work is high.
+
+## CHANGELOG
+
+This project uses [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format.
+
+- Every feature/fix/refactor PR adds a changelog fragment **before merge**, with these exceptions and rules:
+  - Spec-only or plan-only PRs (documentation artifacts for upcoming work) — no entry needed
+  - Fixes or changes to developments that have not been released yet — update the existing fragment instead of adding a duplicate; if the original fragment already describes the corrected behavior, no change is needed
+  - **Hotfix PRs** (branch prefix `hotfix/*`) — entry goes in a **new versioned section** (e.g., `[1.0.1] - YYYY-MM-DD`), **not** under `[Unreleased]`. A hotfix patches released code on `main` and is itself released immediately on merge. Determine the next patch version from the most recent released section header, then insert the new versioned section **directly below `[Unreleased]`** (above all prior versioned sections). This ensures the auto-tagging workflow extracts the correct version via the first semver header after `[Unreleased]`. Do **not** add an `[Unreleased]` entry for the hotfix; the backport PR carries the versioned entry to `develop` automatically.
+  - **Parallel batch items** (when orchestrated by protocol 90): each PR adds its own fragment as normal; Prepare Release assembles fragments into `CHANGELOG.md`.
+- Never defer writing the per-item release note fragment to release time
+- **Describe shipped behavior, not the PR's review history.** Fragment bodies are read by downstream consumers of this template after release assembly, who have no visibility into any individual PR's review cycles; phrases such as "caught in code review on this PR" or "per reviewer feedback" carry no meaning outside the PR that produced them. Attribute a change to the issue it resolves, not to the round of review that found it. This is a rule about **content, not length** — a thorough entry that explains a subtle behavior change is good.
+- Use the appropriate fragment kind: `added`, `changed`, `deprecated`, `removed`, `fixed`, `security`
+- Release PRs assemble pending `changelog.d/` fragments and any legacy `[Unreleased]` entries into a versioned section: `[X.Y.Z] - YYYY-MM-DD`
+- **Link reference definitions are mandatory**: every `## [X.Y.Z]` version heading (and `## [Unreleased]` when at least one versioned section exists) must have a corresponding link reference definition line at the bottom of the file following Keep a Changelog convention, for example:
+  ```
+  [Unreleased]: https://github.com/owner/repo/compare/vX.Y.Z...HEAD
+  [X.Y.Z]: https://github.com/owner/repo/compare/vPREV...vX.Y.Z
+  ```
+  Missing definitions cause broken links in rendered Markdown. `check-changelog-duplicate-headers.sh` enforces this in CI.

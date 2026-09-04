@@ -1,0 +1,799 @@
+#!/usr/bin/env bash
+# test-run-epic-risk-classifier.sh - Unit tests for delegated PR risk classification.
+#
+# Usage: bash scripts/development-workflow/tests/test-run-epic-risk-classifier.sh
+
+set -euo pipefail
+
+SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+REPO_ROOT="$(CDPATH='' cd -- "$SCRIPT_DIR/../../.." && pwd)"
+CLASSIFIER="$REPO_ROOT/scripts/development-workflow/run-epic-risk-classifier.sh"
+
+TMP_ROOT="$(mktemp -d)"
+MOCK_BIN="$TMP_ROOT/bin"
+CALL_LOG="$TMP_ROOT/gh-calls.log"
+mkdir -p "$MOCK_BIN"
+: > "$CALL_LOG"
+
+_harness_exit() {
+  local status=$?
+  rm -rf "$TMP_ROOT"
+  case "$status" in
+    141) exit 0 ;;
+    *)   exit "$status" ;;
+  esac
+}
+trap _harness_exit EXIT
+
+cat > "$MOCK_BIN/gh" <<'MOCK_GH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$MOCK_GH_CALL_LOG"
+
+case "$*" in
+  auth\ status)
+    if [ "${MOCK_GH_MODE:-ok}" = "auth-fail" ]; then
+      exit 1
+    fi
+    exit 0
+    ;;
+  pr\ view\ 42\ --json*)
+    if [ "${MOCK_GH_MODE:-ok}" = "view-fail" ]; then
+      exit 1
+    fi
+    if [ "${MOCK_GH_MODE:-ok}" = "view-empty" ]; then
+      exit 0
+    fi
+    cat <<'JSON'
+{
+  "number": 42,
+  "title": "Live low risk",
+  "baseRefName": "develop-delegated-epic-orchestration",
+  "headRefName": "docs/live-low",
+  "headRefOid": "42424242424242424242424242424242424242",
+  "headRepository": {"name": "ai-dev-framework-template", "owner": {"login": "lhpaul"}},
+  "mergeStateStatus": "CLEAN",
+  "isDraft": false,
+  "reviewDecision": "APPROVED",
+  "labels": [{"name": "ready-for-human-review"}],
+  "statusCheckRollup": [
+    {"__typename": "CheckRun", "name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"},
+    {"__typename": "StatusContext", "context": "Reviewer-loop completion guard (#42)", "state": "SUCCESS"}
+  ]
+}
+JSON
+    ;;
+  pr\ diff\ 42\ --name-only)
+    if [ "${MOCK_GH_MODE:-ok}" = "diff-fail" ]; then
+      exit 1
+    fi
+    printf '%s\n' 'docs/workflow/development-workflow/protocols/95-run-epic-protocol.md'
+    ;;
+  pr\ view\ 43\ --json*)
+    cat <<'JSON'
+{
+  "number": 43,
+  "title": "Live medium risk",
+  "baseRefName": "develop",
+  "headRefName": "fix/43-live-medium",
+  "headRepository": {"name": "ai-dev-framework-template", "owner": {"login": "lhpaul"}},
+  "mergeStateStatus": "CLEAN",
+  "isDraft": false,
+  "reviewDecision": "APPROVED",
+  "labels": [{"name": "ready-for-human-review"}],
+  "statusCheckRollup": [
+    {"__typename": "CheckRun", "name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}
+  ]
+}
+JSON
+    ;;
+  pr\ diff\ 43\ --name-only)
+    printf '%s\n' 'scripts/development-workflow/run-epic-risk-classifier.sh'
+    ;;
+  issue\ edit*|pr\ create*|pr\ merge*|project\ item-edit*|project\ item-add*|pr\ comment*|pr\ close*|pr\ edit*)
+    printf 'mutating gh command was called: gh %s\n' "$*" >&2
+    exit 99
+    ;;
+  *'mutation'*)
+    printf 'mutating GraphQL operation was called: gh %s\n' "$*" >&2
+    exit 99
+    ;;
+  *)
+    printf 'unexpected gh invocation: gh %s\n' "$*" >&2
+    exit 64
+    ;;
+esac
+MOCK_GH
+chmod +x "$MOCK_BIN/gh"
+
+export PATH="$MOCK_BIN:$PATH"
+export MOCK_GH_CALL_LOG="$CALL_LOG"
+
+PASS_COUNT=0
+FAIL_COUNT=0
+
+run_test() {
+  local name="$1"
+  local expected="$2"
+  local actual="$3"
+  if [ "$actual" = "$expected" ]; then
+    echo "PASS: $name"
+    PASS_COUNT=$((PASS_COUNT + 1))
+  else
+    echo "FAIL: $name - expected '${expected}', got '${actual}'"
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+  fi
+}
+
+run_fails_contains() {
+  local name="$1"
+  local expected="$2"
+  shift 2
+  local output status
+
+  set +e
+  output="$("$@" 2>&1)"
+  status=$?
+  set -e
+
+  if [ "$status" -ne 0 ] && grep -Fq -- "$expected" <<< "$output"; then
+    echo "PASS: $name"
+    PASS_COUNT=$((PASS_COUNT + 1))
+  else
+    echo "FAIL: $name - expected failure containing '${expected}'"
+    printf 'Status: %s\nOutput:\n%s\n' "$status" "$output"
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+  fi
+}
+
+write_fixture() {
+  local name="$1"
+  local content="$2"
+  local path="$TMP_ROOT/${name}.json"
+  printf '%s\n' "$content" > "$path"
+  printf '%s\n' "$path"
+}
+
+classify_fixture() {
+  "$CLASSIFIER" --input "$1" --max-risk "${2:-low}" --json
+}
+
+echo ""
+echo "=== Run epic risk classifier ==="
+
+run_fails_contains "requires_one_pr_source" "pass exactly one of --pr or --input" "$CLASSIFIER"
+run_fails_contains "rejects_conflicting_pr_sources" "not both" "$CLASSIFIER" --pr 1 --input "$TMP_ROOT/missing.json"
+run_fails_contains "rejects_invalid_pr_number" "--pr must be a positive integer" "$CLASSIFIER" --pr nope
+run_fails_contains "rejects_flag_as_pr_value" "--pr requires a value" "$CLASSIFIER" --pr --json
+run_fails_contains "rejects_flag_as_input_value" "--input requires a value" "$CLASSIFIER" --input --json
+run_fails_contains "rejects_flag_as_max_risk_value" "--max-risk requires a value" "$CLASSIFIER" --input "$TMP_ROOT/missing.json" --max-risk --json
+run_fails_contains "rejects_invalid_max_risk" "--max-risk must be one of low, medium, or high" "$CLASSIFIER" --input "$TMP_ROOT/missing.json" --max-risk blocked
+run_fails_contains "rejects_missing_fixture" "input file not found" "$CLASSIFIER" --input "$TMP_ROOT/missing.json"
+printf '{not-json\n' > "$TMP_ROOT/malformed.json"
+run_fails_contains "rejects_malformed_fixture" "not valid JSON" "$CLASSIFIER" --input "$TMP_ROOT/malformed.json"
+: > "$TMP_ROOT/empty.json"
+run_fails_contains "rejects_empty_fixture" "input file is empty" "$CLASSIFIER" --input "$TMP_ROOT/empty.json"
+printf ' \n\t\n' > "$TMP_ROOT/whitespace.json"
+run_fails_contains "rejects_whitespace_fixture" "not valid JSON" "$CLASSIFIER" --input "$TMP_ROOT/whitespace.json"
+
+low_fixture="$(write_fixture low '{
+  "pr_number": 1,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": ["docs/testing/workflow/919-pr-risk-classification.smoke-test.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+low_output="$(classify_fixture "$low_fixture" low)"
+run_test "classifies_low_docs_and_tests" "low" "$(printf '%s\n' "$low_output" | jq -r '.risk')"
+run_test "low_merge_permitted" "true" "$(printf '%s\n' "$low_output" | jq -r '.merge_permitted')"
+
+# --input carrying headRefOid directly (the same shape --pr builds internally)
+# must still surface it as head_sha, not just the normalized head_sha field.
+headrefoid_fixture="$(write_fixture headrefoid-input '{
+  "pr_number": 1,
+  "merge_state": "CLEAN",
+  "headRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": ["docs/testing/workflow/919-pr-risk-classification.smoke-test.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+headrefoid_output="$(classify_fixture "$headrefoid_fixture" low)"
+run_test "input_head_sha_falls_back_to_headrefoid" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "$(printf '%s\n' "$headrefoid_output" | jq -r '.head_sha')"
+
+# When both head_sha and headRefOid are present, the already-normalized
+# head_sha field takes precedence over a raw headRefOid.
+both_head_fields_fixture="$(write_fixture both-head-fields '{
+  "pr_number": 1,
+  "merge_state": "CLEAN",
+  "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "headRefOid": "cccccccccccccccccccccccccccccccccccccccc",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": ["docs/testing/workflow/919-pr-risk-classification.smoke-test.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+both_head_fields_output="$(classify_fixture "$both_head_fields_fixture" low)"
+run_test "input_head_sha_takes_precedence_over_headrefoid" "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" "$(printf '%s\n' "$both_head_fields_output" | jq -r '.head_sha')"
+
+no_ci_fixture="$(write_fixture no-ci '{
+  "pr_number": 1,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [],
+  "ci_policy": "none",
+  "changed_files": ["docs/readme.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+no_ci_output="$(classify_fixture "$no_ci_fixture" medium)"
+run_test "ci_policy_none_allows_missing_checks" "true" "$(printf '%s\n' "$no_ci_output" | jq -r '.merge_permitted')"
+
+hub_ci_dir="$TMP_ROOT/hub-ci-policy-none"
+mkdir -p "$hub_ci_dir"
+git -C "$hub_ci_dir" init -q -b main
+cat > "$hub_ci_dir/.ai-dev-workflow.yaml" <<'YAML'
+schema_version: 2
+mode: workflow_hub
+
+workflow_hub:
+  product_repos:
+    - name: mobile-app
+      github_repo: example/mobile-app
+      ci_policy: none
+YAML
+hub_slug_fixture="$(write_fixture hub-slug '{
+  "pr_number": 1,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [],
+  "github_repo": "example/mobile-app",
+  "changed_files": ["docs/readme.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+hub_slug_output="$("$CLASSIFIER" --input "$hub_slug_fixture" --repo-root "$hub_ci_dir" --max-risk medium --json)"
+run_test "hub_ci_policy_from_github_slug" "true" "$(printf '%s\n' "$hub_slug_output" | jq -r '.merge_permitted')"
+
+product_ci_dir="$TMP_ROOT/product-ci-none"
+mkdir -p "$product_ci_dir"
+git -C "$product_ci_dir" init -q -b main
+cat > "$product_ci_dir/.git/config" <<'GITCONFIG'
+[remote "origin"]
+	url = https://github.com/example/mobile-app
+	fetch = +refs/heads/*:refs/remotes/origin/*
+GITCONFIG
+cat > "$product_ci_dir/.ai-dev-workflow.yaml" <<'YAML'
+schema_version: 2
+mode: product_repo
+
+product_repo:
+  ci_policy: none
+  workflow_hub:
+    github_repo: example/workflow-hub
+YAML
+product_slug_fixture="$(write_fixture product-slug '{
+  "pr_number": 1,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [],
+  "changed_files": ["docs/readme.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+product_slug_output="$("$CLASSIFIER" --input "$product_slug_fixture" --repo-root "$product_ci_dir" --max-risk medium --json)"
+run_test "product_repo_ci_policy_none_from_resolver" "true" "$(printf '%s\n' "$product_slug_output" | jq -r '.merge_permitted')"
+
+hub_via_env_fixture="$(write_fixture hub-via-env '{
+  "pr_number": 1,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [],
+  "github_repo": "example/mobile-app",
+  "changed_files": ["docs/readme.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+product_hub_lookup_dir="$TMP_ROOT/product-hub-lookup"
+mkdir -p "$product_hub_lookup_dir"
+git -C "$product_hub_lookup_dir" init -q -b main
+cat > "$product_hub_lookup_dir/.git/config" <<'GITCONFIG'
+[remote "origin"]
+	url = https://github.com/example/mobile-app
+	fetch = +refs/heads/*:refs/remotes/origin/*
+GITCONFIG
+cat > "$product_hub_lookup_dir/.ai-dev-workflow.yaml" <<'YAML'
+schema_version: 2
+mode: product_repo
+
+product_repo:
+  workflow_hub:
+    github_repo: example/workflow-hub
+YAML
+hub_via_env_output="$(env WORKFLOW_HUB_REPO_ROOT="$hub_ci_dir" "$CLASSIFIER" --input "$hub_via_env_fixture" --repo-root "$product_hub_lookup_dir" --max-risk medium --json)"
+run_test "hub_ci_policy_from_workflow_hub_repo_root_env" "true" "$(printf '%s\n' "$hub_via_env_output" | jq -r '.merge_permitted')"
+
+run_test "json_output_has_reasons" "yes" "$(printf '%s\n' "$low_output" | jq -e '.reasons | length > 0' >/dev/null && echo yes || echo no)"
+run_test "json_output_shape_stable" "yes" "$(
+  printf '%s\n' "$low_output" |
+    jq -e '
+      has("pr_number") and
+      has("risk") and
+      has("max_risk") and
+      has("merge_permitted") and
+      has("gate_reason") and
+      (.reasons | type == "array") and
+      (.blockers | type == "array") and
+      has("why_safe_to_merge") and
+      has("read_only_guarantee")
+    ' >/dev/null && echo yes || echo no
+)"
+
+test_script_fixture="$(write_fixture test-script '{
+  "pr_number": 1,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": ["scripts/development-workflow/tests/test-run-epic-risk-classifier.sh"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+test_script_output="$(classify_fixture "$test_script_fixture" low)"
+run_test "classifies_workflow_test_script_low" "low" "$(printf '%s\n' "$test_script_output" | jq -r '.risk')"
+
+boundary_fixture="$(write_fixture boundary-risk '{
+  "pr_number": 1,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": ["docs/authenticate-button.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+boundary_output="$(classify_fixture "$boundary_fixture" low)"
+run_test "auth_substring_not_high_risk" "low" "$(printf '%s\n' "$boundary_output" | jq -r '.risk')"
+
+medium_fixture="$(write_fixture medium '{
+  "pr_number": 2,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": ["scripts/development-workflow/run-epic-risk-classifier.sh"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0},
+  "why_safe_to_merge": {
+    "scope": "single read-only classifier helper",
+    "tests": "fixture tests cover risk classes",
+    "reviewer_outcome": "reviewer loop clean",
+    "ci_outcome": "CI green",
+    "rollback_or_cleanup_risk": "remove helper and docs if needed"
+  }
+}')"
+medium_output="$(classify_fixture "$medium_fixture" medium)"
+run_test "classifies_medium_workflow_script_with_evidence" "medium" "$(printf '%s\n' "$medium_output" | jq -r '.risk')"
+run_test "medium_merge_permitted_with_medium_threshold" "true" "$(printf '%s\n' "$medium_output" | jq -r '.merge_permitted')"
+run_test "medium_has_why_safe" "single read-only classifier helper" "$(printf '%s\n' "$medium_output" | jq -r '.why_safe_to_merge.scope')"
+
+medium_missing_fixture="$(write_fixture medium-missing '{
+  "pr_number": 3,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": ["scripts/development-workflow/run-epic-risk-classifier.sh"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0},
+  "why_safe_to_merge": {
+    "scope": "single helper",
+    "tests": "fixture tests",
+    "reviewer_outcome": "clean",
+    "ci_outcome": "",
+    "rollback_or_cleanup_risk": "low"
+  }
+}')"
+medium_missing_output="$(classify_fixture "$medium_missing_fixture" medium)"
+run_test "blocks_medium_without_evidence" "blocked" "$(printf '%s\n' "$medium_missing_output" | jq -r '.risk')"
+run_test "missing_evidence_blocks_merge" "false" "$(printf '%s\n' "$medium_missing_output" | jq -r '.merge_permitted')"
+
+# ---------------------------------------------------------------------------
+# CI workflow granularity (issue #1565)
+#
+# Every .github/workflows change used to score `high`, so a PR that wires a
+# test suite into CI exceeded a medium ceiling and could not merge under
+# delegated policy — the risk model penalised closing a test-coverage gap.
+# Adding a test or lint job now scores medium; deployment, release, and
+# permission behavior still score high.
+# ---------------------------------------------------------------------------
+
+# ci_workflow_fixture <name> <changed-files-json> — a clean PR differing only
+# in which files it touches, with why_safe_to_merge evidence supplied so the
+# result reflects file risk rather than the separate evidence blocker.
+ci_workflow_fixture() {
+  if [ "$#" -ne 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    printf 'ERROR: ci_workflow_fixture requires <name> <changed-files-json>\n' >&2
+    exit 2
+  fi
+  write_fixture "$1" '{
+  "pr_number": 30,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": '"$2"',
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0},
+  "why_safe_to_merge": {
+    "scope": "ci workflow classification fixture",
+    "tests": "fixture tests cover risk classes",
+    "reviewer_outcome": "reviewer loop clean",
+    "ci_outcome": "CI green",
+    "rollback_or_cleanup_risk": "revert the workflow file"
+  }
+}'
+}
+
+ci_workflow_risk() {
+  [ "$#" -eq 2 ] || { printf 'ERROR: ci_workflow_risk requires <name> <changed-files-json>\n' >&2; exit 2; }
+  classify_fixture "$(ci_workflow_fixture "$1" "$2")" medium | jq -r '.risk'
+}
+
+ci_workflow_merge() {
+  [ "$#" -eq 2 ] || { printf 'ERROR: ci_workflow_merge requires <name> <changed-files-json>\n' >&2; exit 2; }
+  classify_fixture "$(ci_workflow_fixture "$1" "$2")" medium | jq -r '.merge_permitted'
+}
+
+# AC-1 / AC-2: the diff shape from PR #1536 — a test workflow plus the workflow
+# script it covers — must fit inside a medium ceiling.
+run_test "ci_test_workflow_is_medium" "medium" \
+  "$(ci_workflow_risk wf-test '[".github/workflows/workflow-tests.yml","scripts/development-workflow/batch-merge.sh"]')"
+
+run_test "ci_test_workflow_alone_is_medium" "medium" \
+  "$(ci_workflow_risk wf-test-alone '[".github/workflows/test-pr-review-loop.yml"]')"
+run_test "ci_test_workflow_merge_permitted" "true" \
+  "$(ci_workflow_merge wf-test-merge '[".github/workflows/test-pr-review-loop.yml"]')"
+run_test "ci_lint_workflow_is_medium" "medium" \
+  "$(ci_workflow_risk wf-lint '[".github/workflows/markdown-lint.yml"]')"
+run_test "ci_shellcheck_workflow_is_medium" "medium" \
+  "$(ci_workflow_risk wf-shellcheck '[".github/workflows/shellcheck.yml"]')"
+
+# AC-3: deployment, release, and permission behavior stay high.
+run_test "ci_deploy_workflow_is_high" "high" \
+  "$(ci_workflow_risk wf-deploy '[".github/workflows/deploy.yml"]')"
+run_test "ci_deploy_workflow_blocked_at_medium" "false" \
+  "$(ci_workflow_merge wf-deploy-merge '[".github/workflows/deploy.yml"]')"
+run_test "ci_release_workflow_is_high" "high" \
+  "$(ci_workflow_risk wf-release '[".github/workflows/auto-tag-release.yml"]')"
+run_test "ci_policy_workflow_is_high" "high" \
+  "$(ci_workflow_risk wf-policy '[".github/workflows/pr-policy.yml"]')"
+run_test "ci_permissions_workflow_is_high" "high" \
+  "$(ci_workflow_risk wf-permissions '[".github/workflows/permissions.yml"]')"
+run_test "ci_permission_workflow_is_high" "high" \
+  "$(ci_workflow_risk wf-permission '[".github/workflows/permission-sync.yml"]')"
+run_test "ci_token_workflow_is_high" "high" \
+  "$(ci_workflow_risk wf-token '[".github/workflows/token-refresh.yml"]')"
+
+# .yaml variants of the allowlist are accepted too.
+run_test "ci_test_workflow_yaml_ext_is_medium" "medium" \
+  "$(ci_workflow_risk wf-yaml '[".github/workflows/test-thing.yaml"]')"
+run_test "ci_singular_test_suffix_is_medium" "medium" \
+  "$(ci_workflow_risk wf-singular '[".github/workflows/smoke-test.yml"]')"
+
+# An unrecognised workflow name is not assumed safe.
+run_test "ci_unknown_workflow_is_high" "high" \
+  "$(ci_workflow_risk wf-unknown '[".github/workflows/e2e-regression.yml"]')"
+
+# The deny-list beats the allowlist: a name claiming both is not a test job.
+run_test "ci_test_named_release_workflow_is_high" "high" \
+  "$(ci_workflow_risk wf-test-release '[".github/workflows/test-release.yml"]')"
+
+# A test workflow alongside a genuinely sensitive path stays high.
+run_test "ci_test_workflow_with_auth_path_is_high" "high" \
+  "$(ci_workflow_risk wf-test-auth '[".github/workflows/workflow-tests.yml","auth/token.sh"]')"
+
+# The reason string distinguishes the two categories rather than reusing one.
+run_test "ci_test_workflow_reason_is_specific" "yes" \
+  "$(classify_fixture "$(ci_workflow_fixture wf-reason '[".github/workflows/test-pr-review-loop.yml"]')" medium \
+     | jq -e '.reasons | any(startswith("test or lint CI workflow change:"))' >/dev/null && echo yes || echo no)"
+run_test "ci_deploy_workflow_reason_is_sensitive" "yes" \
+  "$(classify_fixture "$(ci_workflow_fixture wf-reason-deploy '[".github/workflows/deploy.yml"]')" medium \
+     | jq -e '.reasons | any(startswith("sensitive or broad file category:"))' >/dev/null && echo yes || echo no)"
+
+high_fixture="$(write_fixture high '{
+  "pr_number": 4,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": [".github/workflows/release.yml", "scripts/development-workflow/auth-token-helper.sh"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+high_output="$(classify_fixture "$high_fixture" high)"
+run_test "classifies_high_sensitive_scope" "high" "$(printf '%s\n' "$high_output" | jq -r '.risk')"
+run_test "high_merge_permitted_with_high_threshold" "true" "$(printf '%s\n' "$high_output" | jq -r '.merge_permitted')"
+
+blocked_fixture="$(write_fixture blocked '{
+  "pr_number": 5,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review", "needs-setup"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "FAILURE"}],
+  "changed_files": ["docs/README.md"],
+  "reviewer": {"status": "failed", "blocking_count": 1, "unresolved_blocking_threads": 1},
+  "missing_credentials": true,
+  "ambiguous_tracker_state": true,
+  "unclear_base_branch": true,
+  "force_push_required": true,
+  "destructive_action_required": true
+}')"
+blocked_output="$(classify_fixture "$blocked_fixture" high)"
+run_test "hard_blockers_take_precedence" "blocked" "$(printf '%s\n' "$blocked_output" | jq -r '.risk')"
+run_test "blocked_not_mergeable" "false" "$(printf '%s\n' "$blocked_output" | jq -r '.merge_permitted')"
+run_test "hard_blocker_count" "yes" "$(printf '%s\n' "$blocked_output" | jq -e '.blockers | length >= 8' >/dev/null && echo yes || echo no)"
+
+authorized_push_blocker_fixture="$(write_fixture authorized-push-blocker '{
+  "pr_number": 15,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": ["docs/README.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0},
+  "force_push_required": true,
+  "destructive_action_required": true,
+  "branch_push_authorization": {
+    "authorization_id": "auth-1",
+    "canonical_repo": "lhpaul/ai-dev-framework-template",
+    "branch_ref": "refs/heads/feature/test",
+    "action": "force-with-lease",
+    "expected_remote_tip": "abc123",
+    "single_use": true
+  }
+}')"
+authorized_push_blocker_output="$(classify_fixture "$authorized_push_blocker_fixture" high)"
+run_test "push_authorization_does_not_clear_force_blocker" "yes" "$(printf '%s\n' "$authorized_push_blocker_output" | jq -e '.blockers[] | select(. == "force-push is required")' >/dev/null && echo yes || echo no)"
+run_test "push_authorization_does_not_clear_destructive_blocker" "yes" "$(printf '%s\n' "$authorized_push_blocker_output" | jq -e '.blockers[] | select(. == "destructive action is required")' >/dev/null && echo yes || echo no)"
+run_test "push_authorization_still_blocks_merge" "false" "$(printf '%s\n' "$authorized_push_blocker_output" | jq -r '.merge_permitted')"
+
+missing_check_fixture="$(write_fixture missing-check '{
+  "pr_number": 6,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard"}],
+  "changed_files": ["docs/README.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+missing_check_output="$(classify_fixture "$missing_check_fixture" high)"
+run_test "missing_check_state_blocks" "blocked" "$(printf '%s\n' "$missing_check_output" | jq -r '.risk')"
+run_test "missing_check_state_reason_clear" "yes" "$(printf '%s\n' "$missing_check_output" | jq -e '.blockers[] | select(test("missing or ambiguous"))' >/dev/null && echo yes || echo no)"
+
+incomplete_success_fixture="$(write_fixture incomplete-success '{
+  "pr_number": 6,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "IN_PROGRESS", "conclusion": "SUCCESS"}],
+  "changed_files": ["docs/README.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+incomplete_success_output="$(classify_fixture "$incomplete_success_fixture" high)"
+run_test "incomplete_success_check_blocks" "blocked" "$(printf '%s\n' "$incomplete_success_output" | jq -r '.risk')"
+
+implementation_plan_skipped_fixture="$(write_fixture implementation-plan-skipped '{
+  "pr_number": 7,
+  "head": "implementation-plan/955-run-epic-skipped-regression-checks",
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [
+    {"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"},
+    {"name": "E2E regression (placeholder)", "status": "COMPLETED", "conclusion": "SKIPPED"}
+  ],
+  "changed_files": ["docs/specs/developments/2026-06-15_run-epic-skipped-regression-checks/2_run-epic-skipped-regression-checks_implementation-plan.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+implementation_plan_skipped_output="$(classify_fixture "$implementation_plan_skipped_fixture" low)"
+run_test "implementation_plan_skipped_regression_check_allowed" "low" "$(printf '%s\n' "$implementation_plan_skipped_output" | jq -r '.risk')"
+run_test "implementation_plan_skipped_regression_merge_permitted" "true" "$(printf '%s\n' "$implementation_plan_skipped_output" | jq -r '.merge_permitted')"
+
+spec_neutral_fixture="$(write_fixture spec-neutral '{
+  "pr_number": 7,
+  "head": "spec/955-run-epic-skipped-regression-checks",
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [
+    {"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"},
+    {"name": "E2E regression (placeholder)", "status": "COMPLETED", "conclusion": "NEUTRAL"}
+  ],
+  "changed_files": ["docs/specs/developments/2026-06-15_run-epic-skipped-regression-checks/1_run-epic-skipped-regression-checks_specs.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+spec_neutral_output="$(classify_fixture "$spec_neutral_fixture" low)"
+run_test "spec_neutral_regression_check_allowed" "low" "$(printf '%s\n' "$spec_neutral_output" | jq -r '.risk')"
+run_test "spec_neutral_regression_merge_permitted" "true" "$(printf '%s\n' "$spec_neutral_output" | jq -r '.merge_permitted')"
+
+state_only_success_fixture="$(write_fixture state-only-success '{
+  "pr_number": 7,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "legacy", "conclusion": "SUCCESS"}],
+  "changed_files": ["docs/README.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+state_only_success_output="$(classify_fixture "$state_only_success_fixture" low)"
+run_test "empty_status_success_conclusion_allowed" "low" "$(printf '%s\n' "$state_only_success_output" | jq -r '.risk')"
+run_test "empty_status_success_conclusion_merge_permitted" "true" "$(printf '%s\n' "$state_only_success_output" | jq -r '.merge_permitted')"
+
+for terminal_conclusion in FAILURE CANCELLED TIMED_OUT ACTION_REQUIRED STARTUP_FAILURE ""; do
+  fixture_suffix="${terminal_conclusion:-missing}"
+  terminal_fixture="$(write_fixture "terminal-${fixture_suffix}" "{
+    \"pr_number\": 7,
+    \"merge_state\": \"CLEAN\",
+    \"labels\": [\"ready-for-human-review\"],
+    \"status_checks\": [{\"name\": \"guard\", \"status\": \"COMPLETED\", \"conclusion\": \"${terminal_conclusion}\"}],
+    \"changed_files\": [\"docs/README.md\"],
+    \"reviewer\": {\"status\": \"clean\", \"blocking_count\": 0, \"unresolved_blocking_threads\": 0}
+  }")"
+  terminal_output="$(classify_fixture "$terminal_fixture" high)"
+  run_test "completed_${fixture_suffix}_check_blocks" "blocked" "$(printf '%s\n' "$terminal_output" | jq -r '.risk')"
+done
+
+for pending_state in IN_PROGRESS QUEUED PENDING EXPECTED; do
+  pending_fixture="$(write_fixture "pending-${pending_state}" "{
+    \"pr_number\": 7,
+    \"merge_state\": \"CLEAN\",
+    \"labels\": [\"ready-for-human-review\"],
+    \"status_checks\": [{\"name\": \"guard\", \"status\": \"${pending_state}\", \"conclusion\": \"SUCCESS\"}],
+    \"changed_files\": [\"docs/README.md\"],
+    \"reviewer\": {\"status\": \"clean\", \"blocking_count\": 0, \"unresolved_blocking_threads\": 0}
+  }")"
+  pending_output="$(classify_fixture "$pending_fixture" high)"
+  run_test "${pending_state}_check_blocks" "blocked" "$(printf '%s\n' "$pending_output" | jq -r '.risk')"
+done
+
+dedupe_checks_fixture="$(write_fixture dedupe-checks '{
+  "pr_number": 8,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [
+    {"name": "guard", "status": "COMPLETED", "conclusion": "FAILURE", "completed_at": "2026-06-12T10:00:00Z"},
+    {"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS", "completed_at": "2026-06-12T10:05:00Z"}
+  ],
+  "changed_files": ["docs/README.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+dedupe_checks_output="$(classify_fixture "$dedupe_checks_fixture" low)"
+run_test "stale_check_failure_deduped_by_latest_success" "low" "$(printf '%s\n' "$dedupe_checks_output" | jq -r '.risk')"
+run_test "stale_check_failure_does_not_block" "true" "$(printf '%s\n' "$dedupe_checks_output" | jq -r '.merge_permitted')"
+
+mixed_timestamp_fixture="$(write_fixture mixed-timestamp-checks '{
+  "pr_number": 8,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [
+    {"name": "guard", "status": "COMPLETED", "conclusion": "FAILURE", "completed_at": "2026-06-12T10:00:00Z"},
+    {"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}
+  ],
+  "changed_files": ["docs/README.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+mixed_timestamp_output="$(classify_fixture "$mixed_timestamp_fixture" low)"
+run_test "mixed_timestamp_checks_use_latest_input_entry" "low" "$(printf '%s\n' "$mixed_timestamp_output" | jq -r '.risk')"
+run_test "mixed_timestamp_checks_merge_permitted" "true" "$(printf '%s\n' "$mixed_timestamp_output" | jq -r '.merge_permitted')"
+
+reviewer_available_fixture="$(write_fixture reviewer-available '{
+  "pr_number": 9,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": ["docs/README.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+reviewer_available_output="$(classify_fixture "$reviewer_available_fixture" low)"
+run_test "reviewer_clean_zero_threads_allowed" "low" "$(printf '%s\n' "$reviewer_available_output" | jq -r '.risk')"
+run_test "reviewer_clean_zero_threads_merge_permitted" "true" "$(printf '%s\n' "$reviewer_available_output" | jq -r '.merge_permitted')"
+
+reviewer_unavailable_fixture="$(write_fixture reviewer-unavailable '{
+  "pr_number": 10,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": ["docs/README.md"],
+  "reviewer": {"status": "unavailable", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+reviewer_unavailable_output="$(classify_fixture "$reviewer_unavailable_fixture" low)"
+run_test "reviewer_unavailable_blocks" "blocked" "$(printf '%s\n' "$reviewer_unavailable_output" | jq -r '.risk')"
+
+one_thread_fixture="$(write_fixture one-thread '{
+  "pr_number": 11,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": ["docs/README.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 1}
+}')"
+one_thread_output="$(classify_fixture "$one_thread_fixture" low)"
+run_test "one_unresolved_blocking_thread_blocks" "blocked" "$(printf '%s\n' "$one_thread_output" | jq -r '.risk')"
+
+for blocker_flag in ambiguous_tracker_state unclear_base_branch missing_credentials destructive_action_required force_push_required; do
+  blocker_fixture="$(write_fixture "blocker-${blocker_flag}" "{
+    \"pr_number\": 12,
+    \"merge_state\": \"CLEAN\",
+    \"labels\": [\"ready-for-human-review\"],
+    \"status_checks\": [{\"name\": \"guard\", \"status\": \"COMPLETED\", \"conclusion\": \"SUCCESS\"}],
+    \"changed_files\": [\"docs/README.md\"],
+    \"reviewer\": {\"status\": \"clean\", \"blocking_count\": 0, \"unresolved_blocking_threads\": 0},
+    \"${blocker_flag}\": true
+  }")"
+  blocker_output="$(classify_fixture "$blocker_fixture" high)"
+  run_test "${blocker_flag}_blocks" "blocked" "$(printf '%s\n' "$blocker_output" | jq -r '.risk')"
+done
+
+needs_setup_fixture="$(write_fixture needs-setup '{
+  "pr_number": 13,
+  "merge_state": "CLEAN",
+  "labels": ["ready-for-human-review", "needs-setup"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": ["docs/README.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+needs_setup_output="$(classify_fixture "$needs_setup_fixture" high)"
+run_test "needs_setup_label_blocks" "blocked" "$(printf '%s\n' "$needs_setup_output" | jq -r '.risk')"
+
+dirty_merge_fixture="$(write_fixture dirty-merge '{
+  "pr_number": 14,
+  "merge_state": "DIRTY",
+  "labels": ["ready-for-human-review"],
+  "status_checks": [{"name": "guard", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+  "changed_files": ["docs/README.md"],
+  "reviewer": {"status": "clean", "blocking_count": 0, "unresolved_blocking_threads": 0}
+}')"
+dirty_merge_output="$(classify_fixture "$dirty_merge_fixture" high)"
+run_test "dirty_merge_state_blocks" "blocked" "$(printf '%s\n' "$dirty_merge_output" | jq -r '.risk')"
+
+threshold_output="$(classify_fixture "$medium_fixture" low)"
+run_test "max_risk_gate_blocks_excess_risk" "false" "$(printf '%s\n' "$threshold_output" | jq -r '.merge_permitted')"
+run_test "max_risk_gate_reason" "yes" "$(printf '%s\n' "$threshold_output" | jq -e '.gate_reason | test("exceeds max risk")' >/dev/null && echo yes || echo no)"
+
+live_output="$("$CLASSIFIER" --pr 42 --max-risk low --json)"
+run_test "live_pr_path_read_only_classifies" "low" "$(printf '%s\n' "$live_output" | jq -r '.risk')"
+run_test "live_pr_path_merge_permitted" "true" "$(printf '%s\n' "$live_output" | jq -r '.merge_permitted')"
+run_test "live_pr_path_head_sha_from_headrefoid" "42424242424242424242424242424242424242" "$(printf '%s\n' "$live_output" | jq -r '.head_sha')"
+run_test "json_read_only_guarantee" "yes" "$(printf '%s\n' "$live_output" | jq -e '.read_only_guarantee | test("No tracker status")' >/dev/null && echo yes || echo no)"
+run_fails_contains "live_pr_view_failure_errors" "failed to read PR #42" env MOCK_GH_MODE=view-fail "$CLASSIFIER" --pr 42 --json
+run_fails_contains "live_pr_empty_response_errors" "empty PR response for #42" env MOCK_GH_MODE=view-empty "$CLASSIFIER" --pr 42 --json
+run_fails_contains "live_pr_diff_failure_errors" "failed to read changed files for PR #42" env MOCK_GH_MODE=diff-fail "$CLASSIFIER" --pr 42 --json
+
+# --- issue #1497: --pr cannot attach why_safe_to_merge, so a medium-risk PR
+# --- classified via --pr always ends up "blocked" without --why-safe-file ---
+live_medium_no_evidence_output="$("$CLASSIFIER" --pr 43 --max-risk medium --json)"
+run_test "live_pr_medium_risk_without_why_safe_file_is_blocked" "blocked" "$(printf '%s\n' "$live_medium_no_evidence_output" | jq -r '.risk')"
+run_test "live_pr_medium_risk_without_why_safe_file_reason" "yes" "$(printf '%s\n' "$live_medium_no_evidence_output" | jq -e '.blockers[] | select(test("why_safe_to_merge"))' >/dev/null && echo yes || echo no)"
+
+why_safe_fixture="$(write_fixture why-safe '{
+  "scope": "single read-only classifier helper",
+  "tests": "fixture tests cover risk classes",
+  "reviewer_outcome": "reviewer loop clean",
+  "ci_outcome": "CI green",
+  "rollback_or_cleanup_risk": "remove helper and docs if needed"
+}')"
+live_medium_with_evidence_output="$("$CLASSIFIER" --pr 43 --why-safe-file "$why_safe_fixture" --max-risk medium --json)"
+run_test "live_pr_medium_risk_with_why_safe_file_reaches_medium" "medium" "$(printf '%s\n' "$live_medium_with_evidence_output" | jq -r '.risk')"
+run_test "live_pr_medium_risk_with_why_safe_file_merge_permitted" "true" "$(printf '%s\n' "$live_medium_with_evidence_output" | jq -r '.merge_permitted')"
+run_test "live_pr_why_safe_file_carried_through" "single read-only classifier helper" "$(printf '%s\n' "$live_medium_with_evidence_output" | jq -r '.why_safe_to_merge.scope')"
+
+# --why-safe-file also works with --input mode, and overrides any
+# why_safe_to_merge already embedded in the --input file's contents.
+why_safe_override_fixture="$(write_fixture why-safe-override '{
+  "scope": "overridden via --why-safe-file",
+  "tests": "overridden",
+  "reviewer_outcome": "overridden",
+  "ci_outcome": "overridden",
+  "rollback_or_cleanup_risk": "overridden"
+}')"
+input_with_why_safe_override_output="$("$CLASSIFIER" --input "$medium_fixture" --why-safe-file "$why_safe_override_fixture" --max-risk medium --json)"
+run_test "why_safe_file_overrides_input_why_safe" "overridden via --why-safe-file" "$(printf '%s\n' "$input_with_why_safe_override_output" | jq -r '.why_safe_to_merge.scope')"
+
+non_object_why_safe_fixture="$(write_fixture why-safe-non-object '["not", "an", "object"]')"
+run_fails_contains "rejects_non_object_why_safe_file" "--why-safe-file must contain a JSON object" \
+  "$CLASSIFIER" --pr 43 --why-safe-file "$non_object_why_safe_fixture" --max-risk medium --json
+run_fails_contains "rejects_missing_why_safe_file" "input file not found" \
+  "$CLASSIFIER" --pr 43 --why-safe-file "$TMP_ROOT/missing-why-safe.json" --max-risk medium --json
+run_fails_contains "rejects_flag_as_why_safe_file_value" "--why-safe-file requires a value" \
+  "$CLASSIFIER" --pr 43 --why-safe-file --max-risk medium --json
+
+run_test "no_mutating_gh_commands" "no" "$(
+  grep -Eq '(^issue edit|^pr create|^pr merge|^project item-edit|^project item-add|^pr comment|^pr close|^pr edit|mutation)' "$CALL_LOG" && echo yes || echo no
+)"
+
+echo ""
+echo "=== Summary ==="
+echo "Passed: $PASS_COUNT"
+echo "Failed: $FAIL_COUNT"
+
+if [ "$FAIL_COUNT" -ne 0 ]; then
+  exit 1
+fi

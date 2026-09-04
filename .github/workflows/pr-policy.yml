@@ -1,0 +1,478 @@
+# Consolidated lightweight PR policy workflow.
+#
+# Recommendation: keep reviewer-loop readiness, regression-readiness labeling,
+# fork safety, and PR-scoped guard statuses in one API-only workflow instead of
+# running three short policy workflows on common PR events.
+#
+# Event routing:
+#   pull_request_target opened/reopened/ready_for_review
+#     - all same-repository PRs: evaluate reviewer-loop guard status
+#   pull_request_target synchronize
+#     - same-repository implementation PRs: remove stale ready-for-regression
+#       when current-head reviewer-loop clean evidence is absent
+#     - all same-repository PRs: evaluate reviewer-loop guard status
+#   issue_comment created/edited
+#     - non-summary comments: exit without label or status mutation
+#     - clean current-head canonical summaries: dispatch regression and apply
+#       ready-for-regression
+#     - all canonical summary comments: refresh the PR-scoped guard status
+#
+# Fork-head PRs are skipped before any label or status mutation. This workflow
+# does not checkout PR code and does not execute untrusted fork content.
+name: PR policy
+
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, synchronize]
+  issue_comment:
+    types: [created, edited]
+
+concurrency:
+  group: >-
+    pr-policy-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}-${{
+      github.event_name == 'issue_comment' &&
+      contains(github.event.comment.body, '### Automated Reviewer Loop Summary') &&
+      'summary-comment' ||
+      github.event_name == 'issue_comment' &&
+      'non-summary' ||
+      github.event_name == 'pull_request_target' &&
+      github.event.action == 'synchronize' &&
+      'pr-synchronize' ||
+      github.event_name == 'pull_request_target' &&
+      'pr-label-and-guard' ||
+      'pr-event'
+    }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      issues: write
+      pull-requests: write
+      statuses: write
+
+    steps:
+      - name: Apply PR policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_BRANCH: ${{ github.event.pull_request.head.ref }}
+          EVENT_BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          EVENT_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          REGRESSION_DISPATCH_ENABLED: ${{ vars.PR_POLICY_REGRESSION_DISPATCH_ENABLED || 'true' }}
+          REGRESSION_WORKFLOW: ${{ vars.PR_POLICY_REGRESSION_WORKFLOW || 'e2e-regression.yml' }}
+          # Override IN_SCOPE_PREFIXES in your repository to customise which branches
+          # are subject to implementation PR policy. Default covers the four standard
+          # implementation prefixes. Branches outside this list always pass the guard
+          # and never receive implementation-only regression labels.
+          IN_SCOPE_PREFIXES: "feature/ fix/ refactor/ hotfix/"
+        run: |
+          set -euo pipefail
+
+          LABEL_NAME="ready-for-regression"
+          MARKER1="### Automated Reviewer Loop Summary"
+          # shellcheck disable=SC2016
+          MARKER2='*Posted automatically by `pr-review-loop.sh`.*'
+          GUARD_CONTEXT="Reviewer-loop completion guard (#${PR_NUMBER})"
+          EVENT_COMMENT_HAS_SUMMARY=false
+          COMMENTS_FETCH_FAILED=false
+          LABEL_POLICY_FAILED=false
+          FOUND=0
+          LATEST_SUMMARY_BODY=""
+          LATEST_SUMMARY_RESULT="missing"
+          LATEST_SUMMARY_HEAD_SHA=""
+          LATEST_SUMMARY_HEAD_MATCHES=false
+
+          post_failure_status_if_possible() {
+            local sha="$1"
+            local description="$2"
+
+            if [ -z "${sha:-}" ]; then
+              echo "WARN: cannot post guard failure status because the PR head SHA is unavailable." >&2
+              return 0
+            fi
+
+            gh api \
+              --method POST \
+              "repos/$REPO/statuses/$sha" \
+              -f state="failure" \
+              -f description="$description" \
+              -f context="$GUARD_CONTEXT"
+          }
+
+          ensure_regression_label_exists() {
+            if gh label list --repo "$REPO" --search "$LABEL_NAME" --json name \
+                | jq -e --arg name "$LABEL_NAME" '.[] | select(.name == $name)' > /dev/null 2>&1; then
+              return 0
+            fi
+
+            if ! gh label create "$LABEL_NAME" \
+              --repo "$REPO" \
+              --color "e4e669" \
+              --description "PR is ready for regression testing"; then
+              # Concurrent creator race: accept if the label now exists.
+              if ! gh label list --repo "$REPO" --search "$LABEL_NAME" --json name \
+                  | jq -e --arg name "$LABEL_NAME" '.[] | select(.name == $name)' > /dev/null 2>&1; then
+                echo "ERROR: Failed to create ${LABEL_NAME} label." >&2
+                return 1
+              fi
+            fi
+          }
+
+          dispatch_regression_workflow() {
+            gh workflow run "$REGRESSION_WORKFLOW" \
+              --repo "$REPO" \
+              --ref "$BRANCH" \
+              -f pr_number="$PR_NUMBER" \
+              -f head_sha="$HEAD_SHA" \
+              -f head_ref="$BRANCH" \
+              -f base_ref="$BASE_BRANCH"
+          }
+
+          branch_is_in_scope() {
+            local candidate="$1"
+            local prefix
+
+            for prefix in $IN_SCOPE_PREFIXES; do
+              if [[ "$candidate" == "${prefix}"* ]]; then
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          refresh_pr_metadata() {
+            local latest_pr_json
+
+            if ! latest_pr_json="$(gh api "repos/$REPO/pulls/$PR_NUMBER")"; then
+              echo "WARN: failed to refresh PR #${PR_NUMBER} metadata before applying ${LABEL_NAME}." >&2
+              return 1
+            fi
+
+            if ! latest_head_sha="$(printf '%s\n' "$latest_pr_json" | jq -er '.head.sha')" ||
+               ! latest_branch="$(printf '%s\n' "$latest_pr_json" | jq -er '.head.ref')" ||
+               ! latest_base_branch="$(printf '%s\n' "$latest_pr_json" | jq -er '.base.ref')" ||
+               ! latest_head_repo="$(printf '%s\n' "$latest_pr_json" | jq -er '.head.repo.full_name')"; then
+              echo "WARN: failed to parse refreshed PR #${PR_NUMBER} metadata before applying ${LABEL_NAME}." >&2
+              return 1
+            fi
+          }
+
+          refreshed_metadata_matches_current_head() {
+            refresh_pr_metadata &&
+              [ "$latest_head_sha" = "$HEAD_SHA" ] &&
+              [ "$latest_branch" = "$BRANCH" ] &&
+              [ "$latest_base_branch" = "$BASE_BRANCH" ] &&
+              [ "$latest_head_repo" = "$HEAD_REPO" ]
+          }
+
+          fetch_reviewer_loop_summary_count() {
+            local comments_output
+            local latest_summary_json
+
+            if comments_output=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate 2>&1); then
+              if ! FOUND=$(printf '%s\n' "$comments_output" \
+                | jq -rs --arg m1 "$MARKER1" --arg m2 "$MARKER2" \
+                  'add // []
+                  | [.[] | select(
+                    (.body // "" | contains($m1)) and
+                    (.body // "" | contains($m2))
+                  )] | length'); then
+                echo "ERROR: failed to parse PR comments for reviewer-loop summary." >&2
+                COMMENTS_FETCH_FAILED=true
+                FOUND=0
+              fi
+              if [ "${FOUND:-0}" -gt 0 ]; then
+                if latest_summary_json=$(printf '%s\n' "$comments_output" \
+                  | jq -crs --arg m1 "$MARKER1" --arg m2 "$MARKER2" \
+                    'add // []
+                    | [.[] | select(
+                      (.body // "" | contains($m1)) and
+                      (.body // "" | contains($m2))
+                    )]
+                    | sort_by(.updated_at // .created_at // "")
+                    | last // empty'); then
+                  LATEST_SUMMARY_BODY="$(printf '%s\n' "$latest_summary_json" | jq -r '.body // ""')"
+                else
+                  echo "ERROR: failed to identify latest reviewer-loop summary." >&2
+                  COMMENTS_FETCH_FAILED=true
+                fi
+              fi
+            else
+              echo "WARN: Failed to check for reviewer loop summary comment on PR #${PR_NUMBER}." >&2
+              COMMENTS_FETCH_FAILED=true
+              FOUND=0
+            fi
+
+            if [ "$EVENT_COMMENT_HAS_SUMMARY" = "true" ] && [ "${FOUND:-0}" -eq 0 ]; then
+              echo "Fresh comment listing did not include triggering summary comment; counting event payload."
+              FOUND=1
+              LATEST_SUMMARY_BODY="$COMMENT_BODY"
+            fi
+          }
+
+          summarize_reviewer_loop_result() {
+            if [ -z "${LATEST_SUMMARY_BODY:-}" ]; then
+              LATEST_SUMMARY_RESULT="missing"
+              LATEST_SUMMARY_HEAD_SHA=""
+              LATEST_SUMMARY_HEAD_MATCHES=false
+              return 0
+            fi
+
+            if printf '%s\n' "$LATEST_SUMMARY_BODY" |
+              grep -Eiq '(^|[ *[:space:]])Result:([ *[:space:]])*(clean)([^[:alnum:]_]|$)'; then
+              LATEST_SUMMARY_RESULT="clean"
+            elif printf '%s\n' "$LATEST_SUMMARY_BODY" |
+              grep -Eiq '(^|[ *[:space:]])Result:([ *[:space:]])*(skipped)([^[:alnum:]_]|$)'; then
+              LATEST_SUMMARY_RESULT="skipped"
+            else
+              LATEST_SUMMARY_RESULT="non_clean"
+            fi
+
+            LATEST_SUMMARY_HEAD_SHA="$(
+              printf '%s\n' "$LATEST_SUMMARY_BODY" |
+                awk 'in_json && /^```/ {exit} in_json {print} /^```json$/ {in_json=1}' |
+                jq -r '.entries[-1].head_sha // ""' 2>/dev/null || true
+            )"
+
+            if [ -n "$LATEST_SUMMARY_HEAD_SHA" ] &&
+              [ "$LATEST_SUMMARY_HEAD_SHA" = "$HEAD_SHA" ]; then
+              LATEST_SUMMARY_HEAD_MATCHES=true
+            else
+              LATEST_SUMMARY_HEAD_MATCHES=false
+            fi
+          }
+
+          reviewer_summary_allows_regression() {
+            { [ "$LATEST_SUMMARY_RESULT" = "clean" ] ||
+              [ "$LATEST_SUMMARY_RESULT" = "skipped" ]; } &&
+              [ "$LATEST_SUMMARY_HEAD_MATCHES" = "true" ]
+          }
+
+          apply_regression_policy_after_clean_summary() {
+            local should_apply_regression_label=true
+
+            echo "Reviewer-loop summary result '${LATEST_SUMMARY_RESULT}' for PR #${PR_NUMBER}; head match: ${LATEST_SUMMARY_HEAD_MATCHES}."
+
+            if ! reviewer_summary_allows_regression; then
+              echo "Reviewer-loop summary is not clean/skipped for the live head; skipping ${LABEL_NAME} and regression dispatch."
+              return 0
+            fi
+
+            if [ "$REGRESSION_DISPATCH_ENABLED" != "true" ]; then
+              echo "Regression workflow dispatch disabled by PR_POLICY_REGRESSION_DISPATCH_ENABLED='${REGRESSION_DISPATCH_ENABLED}'; skipping ${LABEL_NAME}."
+              should_apply_regression_label=false
+            elif [ "$regression_base_in_scope" != "true" ]; then
+              echo "PR #${PR_NUMBER} targets '${BASE_BRANCH}', which is outside regression workflow branch scope. Skipping ${LABEL_NAME}."
+              should_apply_regression_label=false
+            else
+              if ! dispatch_regression_workflow; then
+                echo "WARN: Failed to dispatch '${REGRESSION_WORKFLOW}' for PR #${PR_NUMBER}. Skipping ${LABEL_NAME} and continuing to reviewer-loop guard status." >&2
+                should_apply_regression_label=false
+              else
+                echo "Dispatched '${REGRESSION_WORKFLOW}' for PR #${PR_NUMBER} at ${HEAD_SHA}."
+                if ! refresh_pr_metadata; then
+                  echo "WARN: Could not verify PR head after dispatch. Skipping ${LABEL_NAME} to avoid a stale regression-readiness signal." >&2
+                  should_apply_regression_label=false
+                elif [ "$latest_head_sha" != "$HEAD_SHA" ] ||
+                  [ "$latest_branch" != "$BRANCH" ] ||
+                  [ "$latest_base_branch" != "$BASE_BRANCH" ] ||
+                  [ "$latest_head_repo" != "$HEAD_REPO" ]; then
+                  echo "PR #${PR_NUMBER} changed after regression dispatch (${HEAD_SHA} -> ${latest_head_sha}). Skipping ${LABEL_NAME} until reviewer-loop clean evidence exists for the new head."
+                  should_apply_regression_label=false
+                fi
+              fi
+            fi
+
+            if [ "$should_apply_regression_label" != "true" ]; then
+              :
+            elif ! ensure_regression_label_exists; then
+              echo "WARN: Failed to ensure ${LABEL_NAME} label exists. Continuing to reviewer-loop guard status." >&2
+              LABEL_POLICY_FAILED=true
+            elif ! refreshed_metadata_matches_current_head; then
+              echo "WARN: PR #${PR_NUMBER} changed immediately before applying ${LABEL_NAME}. Skipping label to avoid a stale regression-readiness signal." >&2
+            elif ! gh pr edit "$PR_NUMBER" \
+              --repo "$REPO" \
+              --add-label "$LABEL_NAME"; then
+              echo "WARN: Failed to apply ${LABEL_NAME} to PR #${PR_NUMBER}. Continuing to reviewer-loop guard status." >&2
+              LABEL_POLICY_FAILED=true
+            else
+              echo "Label '${LABEL_NAME}' applied to PR #${PR_NUMBER}."
+            fi
+          }
+
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            case "$COMMENT_BODY" in
+              *"$MARKER1"*"$MARKER2"*|*"$MARKER2"*"$MARKER1"*) EVENT_COMMENT_HAS_SUMMARY=true ;;
+              *)
+                echo "Issue comment does not contain the canonical reviewer-loop summary markers; skipping."
+                exit 0
+                ;;
+            esac
+          fi
+
+          if ! pr_json="$(gh api "repos/$REPO/pulls/$PR_NUMBER")"; then
+            echo "ERROR: failed to fetch PR #${PR_NUMBER} metadata."
+            post_failure_status_if_possible \
+              "${EVENT_HEAD_SHA:-}" \
+              "Could not fetch PR metadata. Re-run the workflow to retry."
+            exit 1
+          fi
+
+          if ! HEAD_SHA="$(printf '%s\n' "$pr_json" | jq -er '.head.sha')"; then
+            echo "ERROR: pull request head SHA is missing for PR #${PR_NUMBER}." >&2
+            post_failure_status_if_possible \
+              "${EVENT_HEAD_SHA:-}" \
+              "Could not resolve PR head SHA. Re-run the workflow to retry."
+            exit 1
+          fi
+          if ! BRANCH="$(printf '%s\n' "$pr_json" | jq -er '.head.ref')"; then
+            echo "ERROR: pull request head branch is missing for PR #${PR_NUMBER}." >&2
+            post_failure_status_if_possible \
+              "$HEAD_SHA" \
+              "Could not resolve PR head branch. Re-run the workflow to retry."
+            exit 1
+          fi
+          if ! BASE_BRANCH="$(printf '%s\n' "$pr_json" | jq -er '.base.ref')"; then
+            echo "ERROR: pull request base branch is missing for PR #${PR_NUMBER}." >&2
+            post_failure_status_if_possible \
+              "$HEAD_SHA" \
+              "Could not resolve PR base branch. Re-run the workflow to retry."
+            exit 1
+          fi
+          if ! HEAD_REPO="$(printf '%s\n' "$pr_json" | jq -er '.head.repo.full_name')"; then
+            echo "ERROR: pull request head repository is missing for PR #${PR_NUMBER}." >&2
+            post_failure_status_if_possible \
+              "$HEAD_SHA" \
+              "Could not resolve PR head repository. Re-run the workflow to retry."
+            exit 1
+          fi
+
+          if [ "$EVENT_NAME" != "issue_comment" ]; then
+            HEAD_SHA="${EVENT_HEAD_SHA:-$HEAD_SHA}"
+            BRANCH="${EVENT_BRANCH:-$BRANCH}"
+            BASE_BRANCH="${EVENT_BASE_BRANCH:-$BASE_BRANCH}"
+            HEAD_REPO="${EVENT_HEAD_REPO:-$HEAD_REPO}"
+          fi
+
+          echo "PR #${PR_NUMBER}: evaluating branch '${BRANCH}' targeting '${BASE_BRANCH}' against in-scope prefixes: ${IN_SCOPE_PREFIXES}"
+
+          if [ "$HEAD_REPO" != "$REPO" ]; then
+            echo "PR #${PR_NUMBER} head repository '${HEAD_REPO}' differs from base '${REPO}'; skipping privileged PR policy mutation."
+            exit 0
+          fi
+
+          if ! branch_is_in_scope "$BRANCH"; then
+            echo "Branch '${BRANCH}' is not in scope; posting success status (guard skipped)."
+            gh api \
+              --method POST \
+              "repos/$REPO/statuses/$HEAD_SHA" \
+              -f state="success" \
+              -f description="Not an implementation branch; guard skipped." \
+              -f context="$GUARD_CONTEXT"
+            exit 0
+          fi
+
+          regression_base_in_scope=false
+          case "$BASE_BRANCH" in
+            develop|develop-*|main) regression_base_in_scope=true ;;
+          esac
+
+          if [ "$EVENT_NAME" != "issue_comment" ]; then
+            case "$EVENT_ACTION" in
+              opened|reopened|ready_for_review)
+                echo "Branch '${BRANCH}' is in scope; regression waits for current-head reviewer-loop clean evidence."
+                ;;
+            esac
+          fi
+
+          echo "Branch '${BRANCH}' is in scope; inspecting PR comments for reviewer-loop summary."
+          fetch_reviewer_loop_summary_count
+          summarize_reviewer_loop_result
+
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            apply_regression_policy_after_clean_summary
+          fi
+
+          if [ "$EVENT_NAME" != "issue_comment" ] && [ "$EVENT_ACTION" = "synchronize" ]; then
+            if ! labels_json=$(gh pr view "$PR_NUMBER" \
+              --repo "$REPO" \
+              --json labels); then
+              echo "ERROR: Failed to read labels for PR #${PR_NUMBER}." >&2
+              LABEL_POLICY_FAILED=true
+              LABEL=""
+            elif ! LABEL=$(printf '%s\n' "$labels_json" \
+              | jq -r --arg name "$LABEL_NAME" '.labels[].name | select(. == $name)'); then
+              echo "ERROR: Failed to parse labels for PR #${PR_NUMBER}." >&2
+              LABEL_POLICY_FAILED=true
+              LABEL=""
+            fi
+
+            if [ -z "$LABEL" ]; then
+              echo "Label '${LABEL_NAME}' is not present on PR #${PR_NUMBER}; nothing to remove."
+            elif [ "$COMMENTS_FETCH_FAILED" = "true" ]; then
+              echo "WARN: Comment lookup failed. Skipping label removal to avoid dropping a loop-applied label on API failure." >&2
+            elif reviewer_summary_allows_regression; then
+              echo "Reviewer loop has already run clean for current head on PR #${PR_NUMBER} (found ${FOUND} summary comment(s)). Skipping label removal."
+            else
+              echo "Label '${LABEL_NAME}' found without current-head reviewer-loop clean evidence. Removing it."
+              if ! gh pr edit "$PR_NUMBER" \
+                --repo "$REPO" \
+                --remove-label "$LABEL_NAME"; then
+                echo "WARN: Failed to remove stale ${LABEL_NAME} from PR #${PR_NUMBER}. Continuing to reviewer-loop guard status." >&2
+                LABEL_POLICY_FAILED=true
+              else
+                echo "Label removed successfully."
+              fi
+            fi
+          fi
+
+          if [ "$COMMENTS_FETCH_FAILED" = "true" ] && [ "$EVENT_COMMENT_HAS_SUMMARY" != "true" ]; then
+            echo "ERROR: failed to fetch PR comments; posting retry-oriented failure status."
+            gh api \
+              --method POST \
+              "repos/$REPO/statuses/$HEAD_SHA" \
+              -f state="failure" \
+              -f description="Could not fetch PR comments. Re-run the workflow to retry." \
+              -f context="$GUARD_CONTEXT"
+            exit 1
+          fi
+
+          echo "Reviewer-loop summary comments found: ${FOUND}"
+
+          if [ "${FOUND:-0}" -gt 0 ]; then
+            STATE="success"
+            DESCRIPTION="Reviewer-loop summary present."
+          else
+            STATE="failure"
+            DESCRIPTION="No reviewer-loop summary found. Run the automated reviewer loop before merging."
+          fi
+
+          gh api \
+            --method POST \
+            "repos/$REPO/statuses/$HEAD_SHA" \
+            -f state="$STATE" \
+            -f description="$DESCRIPTION" \
+            -f context="$GUARD_CONTEXT"
+
+          echo "Posted commit status '${STATE}' for SHA ${HEAD_SHA} with context '${GUARD_CONTEXT}'."
+
+          if [ "$LABEL_POLICY_FAILED" = "true" ]; then
+            echo "PR policy label mutation failed after reviewer-loop guard status was posted."
+            exit 1
+          fi
+
+          if [ "$STATE" = "failure" ]; then
+            echo "Guard FAILED: the automated reviewer loop must run to completion before this PR is treated as ready."
+            exit 1
+          fi
+
+          echo "Guard PASSED: reviewer-loop summary is present."

@@ -1,0 +1,52 @@
+# CodeRabbit configuration
+#
+# This file controls CodeRabbit's behavior for this repository.
+# Docs: https://docs.coderabbit.ai/reference/configuration
+#
+# This repository keeps CodeRabbit available for explicit, manual review only.
+# The official ready-phase reviewer is configured in .ai-dev-workflow.yaml.
+# Keep auto_review disabled unless "coderabbit" is also restored to a workflow
+# lifecycle bucket; otherwise CodeRabbit may spend quota on every pushed PR.
+#
+# This file is NOT in sync-manifest.yaml, so it is repository-local and does not
+# change the CodeRabbit defaults inherited by projects created from this template.
+
+reviews:
+  tools:
+    github-checks:
+      enabled: true
+      timeout_ms: 600000
+  auto_review:
+    enabled: false
+    # drafts stays false because this repository does not use CodeRabbit as an
+    # automatic draft or ready-phase reviewer by default.
+    drafts: false
+    # Raised from 1. CodeRabbit pauses auto review after this many reviewed commits
+    # arrive without human interaction; at 1, every reviewer-loop fix commit tripped
+    # the pause banner and cost a full poll cycle for pr-review-loop.sh to post
+    # "@coderabbitai resume". Reviewer-loop convergence routinely needs several fix
+    # rounds, so the cap has to sit above a normal round count.
+    auto_pause_after_reviewed_commits: 10
+    # Both the integration branch (develop) and epic integration branches
+    # (develop-<slug>, per protocol 05b) must be listed. A sub-item PR whose base is
+    # absent here gets a "Review skipped" banner rather than a review — the exact
+    # false-clean that issue #1531 fixed the loop to catch. Entries are regexes.
+    base_branches:
+      - develop
+      - develop-.*
+  path_filters:
+    - "!dist/**"
+    - "!**/*.generated.*"
+    - "!**/*.lock"
+    - "!**/node_modules/**"
+  profile: "assertive"
+  # Scope restriction: restrict CodeRabbit's review to files in the PR diff.
+  # When set to true, CodeRabbit only comments on files that appear in the PR's
+  # changed files list. It will not expand its review to files outside the diff
+  # (e.g., tangentially related documentation or config files).
+  # This prevents scope inflation where CodeRabbit flags unrelated files and
+  # causes agents to make unintended edits that increase PR diff size and risk.
+  changed_files_only: true
+  path_instructions:
+    - path: "**/*.sh"
+      instructions: "Do not report on docstring coverage. Bash and shell scripts have no formal docstring standard; skip any docstring-coverage warnings for these files."

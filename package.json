@@ -1,0 +1,14 @@
+{
+  "name": "ai-dev-framework-template",
+  "version": "0.44.0",
+  "private": true,
+  "description": "Root package for markdown lint tooling",
+  "scripts": {
+    "format": "prettier --write \"**/*.md\""
+  },
+  "devDependencies": {
+    "markdownlint-cli2": "0.22.0",
+    "markdownlint-rule-relative-links": "5.1.0",
+    "prettier": "^3.8.3"
+  }
+}

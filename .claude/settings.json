@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh issue:*)",
+      "Bash(gh pr:*)",
+      "Bash(git add:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git commit:*)",
+      "Bash(git diff:*)",
+      "Bash(git fetch:*)",
+      "Bash(git log:*)",
+      "Bash(git pull:*)",
+      "Bash(git push:*)",
+      "Bash(git stash:*)",
+      "Bash(git status:*)",
+      "Bash(pnpm:*)",
+      "Edit(.claude/agents/**)",
+      "Write(.claude/agents/**)",
+      "Edit(.cursor/agents/**)",
+      "Write(.cursor/agents/**)",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}

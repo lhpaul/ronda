@@ -1,0 +1,67 @@
+name: Deploy (Template Placeholder)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy"
+        required: true
+        default: "develop"
+        type: choice
+        options:
+          - develop
+          - production
+      confirm_placeholder:
+        description: "Run the template placeholder deploy job"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-develop:
+    name: Deploy to develop (placeholder)
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.environment == 'develop' &&
+      inputs.confirm_placeholder == true
+    runs-on: ubuntu-latest
+    environment: develop
+    concurrency:
+      group: deploy-develop
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+
+      - name: Placeholder deploy step (develop)
+        run: |
+          echo "Template placeholder: deploy to develop environment."
+          echo "Replace this step with project-specific deployment logic."
+          echo "Suggested: install dependencies, build artifacts, authenticate provider, deploy."
+
+  deploy-production:
+    name: Deploy to production (placeholder)
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.environment == 'production' &&
+      inputs.confirm_placeholder == true
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+
+      - name: Placeholder deploy step (production)
+        run: |
+          echo "Template placeholder: deploy to production environment."
+          echo "Replace this step with project-specific deployment logic."
+          echo "Suggested: install dependencies, build artifacts, authenticate provider, deploy."

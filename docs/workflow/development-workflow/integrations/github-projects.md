@@ -1,0 +1,622 @@
+# Integration: GitHub Projects (Tracker Work Items)
+
+This document describes how to connect the AI development workflow with [GitHub Projects (v2)](https://docs.github.com/en/issues/planning-and-tracking-with-projects) as the tracker system for workflow work items.
+
+GitHub Projects is **optional**. The workflow functions without it — the **Portfolio Orchestrator** simply requires human input to determine what to work on next.
+
+---
+
+## What GitHub Projects Adds
+
+- The **Portfolio Orchestrator** can read work item status, priority, and iteration autonomously via `gh` CLI
+- A custom **Status** field on the project board maps directly to workflow stages
+- Custom fields (Priority, Due date, Type / Custom Type) drive automated
+  prioritization
+- Labels on issues map to work item types and scope
+- Agents will read the **current brief** following tracker-agnostic rules in [`issue-tracker.md`](issue-tracker.md)
+
+---
+
+## Concepts
+
+GitHub Projects v2 sits on top of GitHub Issues:
+
+- **Issues** are the work items (title, body, comments, labels, assignees)
+- **Project** is the workflow layer (custom fields like Status, Priority, Due date, views)
+- Each issue added to the project gets project-specific field values (e.g., Status = "Spec Ready")
+- The `gh` CLI and GraphQL API are used to read and update both issues and project fields
+
+---
+
+## Project Setup
+
+### 1. Create the Project
+
+Create a GitHub Project (v2) linked to your repository:
+
+```bash
+# Create a project owned by the repo owner (user or org)
+gh project create --owner <OWNER> --title "<Project Name>"
+```
+
+Note the **project number** returned — you will use it in all `gh project` commands.
+
+### 2. Configure the Status Field
+
+GitHub Projects v2 creates a default **Status** single-select field. Configure it with the following options to match workflow stages:
+
+| Status Option         | Workflow Stage                                               |
+| --------------------- | ------------------------------------------------------------ |
+| Backlog               | Backlog                                                      |
+| Writing Spec          | Spec is being drafted                                        |
+| Spec in Review        | Spec PR is ready for human review / merge                    |
+| Spec Ready            | Spec approved and merged. Implementation plan pending        |
+| Writing Plan          | Implementation plan is being drafted                         |
+| Plan in Review        | Plan PR is ready for human review / merge                    |
+| Plan Ready            | Implementation plan approved and merged. Development pending |
+| In Development        | Development in progress                                      |
+| Development in Review | Development PR is ready for human review / merge             |
+| Merged                | Development PR merged to `develop`                           |
+| Released              | Released to production                                       |
+
+To add or rename status options, use the project settings UI at `https://github.com/users/<OWNER>/projects/<NUMBER>/settings` (or the equivalent org URL).
+
+### 2.1 Configure Built-In Project Workflows
+
+GitHub Projects can run its own built-in workflow when an item is closed. Configure
+that workflow so it does not override the AI development workflow's merge state:
+
+- Preferred: set the built-in "item closed" workflow to update Status to `Merged`.
+- Also acceptable: disable the built-in "item closed" Status update entirely.
+- Do not configure the built-in workflow to set Status to `Released` when an item
+  is closed.
+
+Implementation PR merges follow this sequence:
+
+1. The workflow closes the GitHub issue for the merged implementation branch.
+2. `update-tracker-on-merge.yml` or `post-merge-cleanup.sh` sets the issue's
+   project Status to `Merged` after the close action, so this repo-owned update
+   is the last write in the normal merge path.
+3. A later release workflow moves shipped issues from `Merged` to `Released`.
+
+If the built-in "item closed" workflow sets Status to `Released`, it races with
+and overrides the intended `Merged` status immediately after every implementation
+merge. The repository merge-cleanup paths now compensate by reasserting `Merged`
+after closing implementation issues, but the Project workflow should still be
+configured correctly so UI-driven closes and downstream projects do not drift.
+
+### 3. Add Custom Fields
+
+Add these custom fields to the project (via project settings UI or GraphQL):
+
+| Field    | Type                                                         | Purpose                                                                                 |
+| -------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Priority | Single select: `Urgent`, `High`, `Medium`, `Low`             | Drives orchestrator prioritization                                                      |
+| Size     | Single select: `XS`, `S`, `M`, `L`, `XL`                    | Drives work sizing and sprint planning                                                  |
+| Due date | Date                                                         | Items due within 2 weeks get priority boost                                             |
+| Type     | Single select: `Feature`, `Bug`, `Refactor`, `Workflow`      | Source of truth for work-item classification and workflow path routing                  |
+
+The classification field is the source of truth for GitHub Projects
+integrations. By default the workflow looks for `Custom Type`, `CustomType`,
+then `Type`. If your board uses a different name, set
+`issue_tracker.custom_fields.type_field` in `.ai-dev-workflow.yaml`.
+
+- `Feature` routes through the full pipeline: spec, plan, implementation.
+- `Bug` routes through the fast-track fix path when the scope check allows it.
+- `Refactor` routes through the plan-only refactor path.
+- `Workflow` marks AI-development-framework/tooling work. In downstream product
+  repositories, reserve `Feature` and `Bug` for product work and use `Workflow`
+  for framework/process/tooling items. In this template repository, workflow
+  framework work also uses `Workflow`.
+
+### 4. Issue Labels (on the Repository)
+
+Labels live on the repository, not the project. Keep labels for operational
+automation and optional scope markers:
+
+```bash
+gh label create "scope:api" --description "API / backend"
+gh label create "scope:frontend" --description "Frontend / UI"
+# Add more as needed for your project's components
+```
+
+Operational labels such as `ready-for-human-review`, `needs-fixes`,
+`ready-for-regression`, `reviewer-failed`, `feedback-staging`, and
+`integration-branch:<slug>` remain labels because workflow automation consumes
+them directly.
+
+Do **not** use repository labels as classification source of truth when
+GitHub Projects is configured. Labels such as `bug`, `enhancement`,
+`type:feature`, `type:bug`, `type:refactor`, and `workflow` are legacy
+classification labels; new workflow automation should set/read the project
+**Type** field instead.
+
+Migration checklist:
+
+1. Add the `Workflow` option to the project **Type** field.
+2. Backfill Type values for open items from current labels and issue context.
+3. Verify open workflow/framework items have `Type = Workflow`.
+4. Remove retired classification labels from open issues after Type is set.
+
+---
+
+## Status: Tracker as Source of Truth
+
+Workflow status (Spec Ready, Plan Ready, In Development) is **not** stored in the spec document. The project item's Status field is the source of truth. The helper script `workflow-next-action.sh --development <path>` derives the next action from **repo state** (presence of implementation plan file, feature branch) so it works without reading a status field from the spec. See `scripts/development-workflow/README.md` and `workflow-next-action.sh` for the logic. Orchestrators and agents with `gh` CLI access should read and update work item status in the project at stage transitions.
+
+When `gh` is available, the script detects merged PRs via `gh pr list --state merged` and returns `NEXT_ACTION=skip` for items whose branch has already been merged — so calling it on Merged or Released items is safe in that configuration. Without `gh` CLI access, the script cannot distinguish a not-yet-created branch from a deleted one; in that case, prefer filtering work items by tracker status (e.g. exclude Merged/Released) before invoking the script.
+
+---
+
+## CLI Update Patterns for Agents and Subagents
+
+GitHub Projects status updates can be performed entirely via `gh` CLI and Bash — no MCP server is required. This means subagent Work Item Runners dispatched from parallel batch runs can update tracker status directly at Step 8b without deferring to the orchestrator.
+
+For workflow-hub product releases, tracker reconciliation evidence is
+hub-owned. Product repositories may own product branch, PR, deployment, tag, and
+GitHub Release evidence, but the project Status transition and durable tracker
+reconciliation note stay with the hub tracker item.
+
+### Board membership check (ensure_on_project_board)
+
+Before updating tracker status, each stage agent (spec-writer, plan-writer, developer) must ensure the issue is registered on the project board. The `ensure_on_project_board` function in `scripts/development-workflow/workflow-lib.sh` handles this idempotently:
+
+```bash
+# Source workflow-lib.sh to get ensure_on_project_board
+# shellcheck source=scripts/development-workflow/workflow-lib.sh
+source scripts/development-workflow/workflow-lib.sh
+
+# Call before tracker status update in the agent completion sequence.
+# initial_status: "Writing Spec" (spec agent), "Writing Plan" (plan agent), "In Development" (developer agent)
+ensure_on_project_board "$ISSUE_NUMBER" "$INITIAL_STATUS"
+```
+
+The function is **fail-open**: if the issue is already on the board it returns 0 immediately without modifying the existing status; if the board-add API call fails for any reason (rate limit, permissions error) it logs a warning and returns 0 so the agent can continue to open the PR. The initial status is only applied when the issue is newly added to the board — the subsequent `update_tracker_status_best_effort` call handles the normal stage-progression update independently.
+
+### One-shot status update (recommended pattern)
+
+Use the shared helper when a stage completes and the tracker status must advance. It performs a targeted `repository.issue(...).projectItems` lookup for the single issue and avoids `gh project item-list`, which paginates the whole board and can drain the GraphQL rate-limit bucket.
+
+```bash
+# Source workflow-lib.sh to get the targeted GitHub Projects helpers.
+# shellcheck source=scripts/development-workflow/workflow-lib.sh
+source scripts/development-workflow/workflow-lib.sh
+
+ISSUE_NUMBER=<ISSUE>                         # GitHub issue number to update
+TARGET_STATUS="Development in Review"        # Use a value from the table below
+
+update_tracker_status_best_effort "$ISSUE_NUMBER" "$TARGET_STATUS"
+```
+
+For manual debugging, call `workflow_github_project_item_for_issue <issue> <project-number>` after sourcing `workflow-lib.sh`; it returns the project item ID, project ID, current Status, and current Type for exactly one issue.
+
+### One-shot Type update and discovery
+
+Use the shared Type helpers when GitHub Projects is the configured tracker:
+
+```bash
+# shellcheck source=scripts/development-workflow/workflow-lib.sh
+source scripts/development-workflow/workflow-lib.sh
+
+get_tracker_type_for_issue "$ISSUE_NUMBER"
+update_tracker_type_best_effort "$ISSUE_NUMBER" "Workflow"
+list_open_workflow_type_issues
+```
+
+`get_tracker_type_for_issue` and `update_tracker_type_best_effort` use the same
+targeted `repository.issue(...).projectItems` lookup as the Status helpers.
+The targeted Type read honors `issue_tracker.custom_fields.type_field`, then
+GitHub's native Issue Type, then `Custom Type`, `CustomType`, and `Type`.
+Type writes remain limited to configured project fields; this does not add
+native Issue Type mutation support.
+`list_open_workflow_type_issues` fetches open issues first and then
+cross-references a single project item-list result, so callers do not perform
+one full-board scan per issue.
+
+### Status values by workflow stage (Step 8b targets)
+
+| PR type                                                                  | Target status string    |
+| ------------------------------------------------------------------------ | ----------------------- |
+| `spec/*` PR ready for human review                                       | `Spec in Review`        |
+| `implementation-plan/*` PR ready for human review                        | `Plan in Review`        |
+| `feature/*`, `fix/*`, `refactor/*`, `hotfix/*` PR ready for human review | `Development in Review` |
+
+### Caching field and option IDs
+
+Field IDs and option IDs are stable within a project.
+`update_tracker_status_best_effort` and `update_tracker_type_best_effort` cache
+field metadata in memory for the current shell process after the first targeted
+lookup, so repeated updates in the same run do not need repeated field metadata
+queries. The Type cache is scoped by the configured classification field name.
+Re-run the helper in a fresh shell if the project field configuration changes.
+
+---
+
+## Orchestrator Instructions (with GitHub Projects)
+
+When the **Portfolio Orchestrator** has `gh` CLI access, it should:
+
+1. Query project items by status to find items eligible for advancement
+2. Check for linked issues or task lists for dependencies
+3. Sort eligible items: due within 2 weeks -> priority -> creation date
+4. Update the project item's Status field as stages complete
+
+### Reading Project Items
+
+**Performance note**: `gh project item-list` paginates all board items, including closed and merged
+ones. On boards with 300+ items this exhausts the 5 000-point GraphQL rate limit, causing a
+~3.5-minute pause that grows as more items accumulate. Prefer the open-issue approach below.
+
+**Recommended: query open issues first, then cross-reference with a single item-list call**
+
+GitHub Projects v2 has no server-side open-issue filter on the items node, so a full `item-list`
+fetch is unavoidable. The key optimisation is to fetch open issues from the GitHub Issues API
+(which supports state filtering) and then cross-reference them against the project board items
+client-side — this ensures downstream processing only touches open candidates:
+
+```bash
+# Step 1: list open issues only (the only candidates for orchestrator advancement)
+OPEN_ISSUES=$(gh issue list --state open --limit 1000 --json number,title,labels,createdAt)
+
+# Step 2: fetch all project board items once and filter to only open-issue candidates
+gh project item-list <PROJECT_NUMBER> --owner <OWNER> --limit 10000 --format json \
+  | jq --argjson open "$OPEN_ISSUES" \
+    '[.items[] | . as $item | ($open[] | select(.number == $item.content.number)) // empty | {number: .number, title: .title, status: $item.status}]'
+```
+
+**Alternative: client-side terminal-status filter (simpler, same single item-list call)**
+
+When you want a simpler filter without loading the open-issue list separately, fetch all items
+and immediately discard terminal-status entries client-side:
+
+```bash
+# Fetch all items and filter out terminal statuses client-side
+gh project item-list <PROJECT_NUMBER> --owner <OWNER> --limit 10000 --format json \
+  | jq '[.items[] | select(.status != null and (.status | IN("Done","Merged","Released","Cancelled")) | not)]'
+```
+
+**Rate-limit check**: check remaining GraphQL quota before and after large pagination:
+
+```bash
+gh api rate_limit --jq '.resources.graphql | {limit, remaining, used, reset: (.reset | todate)}'
+```
+
+Warn the human when `remaining` falls below 1 000 points. Pause dispatch when below 200 points
+and report the reset time. See Protocol 90 Step 1a for the full rate-limit guidance.
+
+### Updating Status via GraphQL
+
+Updating project item fields requires GraphQL. For agent and script use, prefer `update_tracker_status_best_effort` from `workflow-lib.sh`; it resolves the item ID through a targeted single-issue query and caches Status field metadata for the run.
+
+If you must issue the GraphQL manually, do not use `gh project item-list` for a single issue. Resolve the item through the issue's projectItems connection:
+
+```bash
+gh api graphql \
+  -f owner=<REPO_OWNER> \
+  -f repo=<REPO_NAME> \
+  -F issueNumber=<ISSUE_NUMBER> \
+  -F projectNumber=<PROJECT_NUMBER> \
+  -f query='
+    query($owner: String!, $repo: String!, $issueNumber: Int!, $projectNumber: Int!) {
+      repository(owner: $owner, name: $repo) {
+        issue(number: $issueNumber) {
+          projectItems(first: 50) {
+            nodes {
+              id
+              project { id number }
+              status: fieldValueByName(name: "Status") {
+                ... on ProjectV2ItemFieldSingleSelectValue { name }
+              }
+              type: fieldValueByName(name: "Type") {
+                ... on ProjectV2ItemFieldSingleSelectValue { name }
+              }
+            }
+          }
+        }
+      }
+    }' \
+  | jq --argjson projectNumber <PROJECT_NUMBER> \
+    '.data.repository.issue.projectItems.nodes[]
+     | select(.project.number == $projectNumber)
+     | {item_id: .id, project_id: .project.id, status: .status.name, type: .type.name}'
+```
+
+Then use the returned `project_id` with a Status field/option lookup and apply the mutation:
+
+```bash
+gh api graphql -f query='
+  mutation {
+    updateProjectV2ItemFieldValue(input: {
+      projectId: "<PROJECT_ID>"
+      itemId: "<ITEM_ID>"
+      fieldId: "<STATUS_FIELD_ID>"
+      value: { singleSelectOptionId: "<OPTION_ID>" }
+    }) {
+      projectV2Item { id }
+    }
+  }'
+```
+
+### Closing Issues
+
+When a work item reaches **Merged** status, close the corresponding GitHub issue:
+
+```bash
+gh issue close <ISSUE_NUMBER>
+```
+
+### Release Milestones
+
+For GitHub Issues and GitHub Projects providers, the release-stamp operation uses
+GitHub Milestones as the native "shipped in version" marker.
+
+Convention:
+
+- Milestone titles match production tags, for example `v1.2.0`.
+- `prepare-release-post-merge-cleanup.sh` creates a missing milestone when an
+  explicit released issue set is supplied.
+- The helper assigns the milestone to each shipped issue before or alongside the
+  `Merged` -> `Released` project Status transition.
+- After at least one issue is stamped, the helper closes the release milestone as
+  part of post-merge cleanup.
+- GitHub Projects can display the built-in Milestone field in board views, so no
+  custom project field is required to group or filter shipped issues by release.
+
+Release stamping is best effort. A milestone create or assignment failure is
+reported in the cleanup summary as `STAMP_FAILED`, but it does not block the
+existing tracker Status transition.
+
+---
+
+## Branch Naming with GitHub Issues
+
+When a GitHub issue exists, use the issue number as the branch slug prefix:
+
+| Branch type         | Pattern                                     | Example                            |
+| ------------------- | ------------------------------------------- | ---------------------------------- |
+| Spec                | `spec/<issue-number>-<slug>`                | `spec/42-user-auth`                |
+| Implementation plan | `implementation-plan/<issue-number>-<slug>` | `implementation-plan/42-user-auth` |
+| Feature             | `feature/<issue-number>-<slug>`             | `feature/42-user-auth`             |
+| Refactor            | `refactor/<issue-number>-<slug>`            | `refactor/33-extract-auth-service` |
+| Bug fix             | `fix/<issue-number>-<slug>`                 | `fix/56-login-redirect`            |
+| Hotfix              | `hotfix/<issue-number>-<slug>`              | `hotfix/89-payment-crash`          |
+
+The `<slug>` is a short kebab-case description derived from the issue title.
+
+---
+
+## Workflow: Advancing Statuses
+
+The **Portfolio Orchestrator**, **Work Item Runner**, or stage agent updates the project item Status at each stage transition:
+
+| Action                                                                                          | Status transition                                                |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Human or Portfolio Orchestrator selects the item; Work Item Runner dispatches `product-manager` | -> Writing Spec                                                  |
+| Spec PR is human-ready (automation clean; ready for humans)                                     | -> Spec in Review                                                |
+| Spec PR merged                                                                                  | -> Spec Ready                                                    |
+| Human or Portfolio Orchestrator selects the item; Work Item Runner dispatches `tech-lead`       | -> Writing Plan (Refactor items skip directly here from Backlog) |
+| Plan PR is human-ready (automation clean)                                                       | -> Plan in Review                                                |
+| Plan PR merged                                                                                  | -> Plan Ready                                                    |
+| Human or Portfolio Orchestrator selects the item; Work Item Runner dispatches `developer`       | -> In Development                                                |
+| Feature/fix PR is human-ready (automation clean)                                                | -> Development in Review                                         |
+| Feature/fix PR merged to develop                                                                | -> Merged                                                        |
+| Release deployed to production                                                                  | -> Released                                                      |
+
+---
+
+## Automated Tracker Updates on PR Merge (GitHub Projects + GitHub Actions)
+
+GitHub Projects-backed repositories may include a GitHub Actions workflow
+(`.github/workflows/update-tracker-on-merge.yml`) that automatically updates the
+GitHub Projects status whenever a workflow PR is merged to `develop`. This
+automation applies only when `.ai-dev-workflow.yaml` declares
+`issue_tracker.provider: github_projects` and the repository has configured the
+project variables listed below.
+
+For Linear-backed repositories, do not add this GitHub Projects workflow. Use
+the Linear MCP/API closeout path described in [`linear.md`](linear.md) instead.
+For GitHub Issues without Projects, PR merge cleanup can close issues, but there
+is no Project Status field to update. This provider-specific scoping avoids the
+stale-status problem that occurs between orchestrator runs in GitHub Projects
+repositories without implying equivalent behavior for every tracker provider.
+
+### Branch-to-status mapping
+
+| Branch prefix           | Status after merge | Issue closed? |
+| ----------------------- | ------------------ | ------------- |
+| `spec/*`                | Spec Ready         | No            |
+| `implementation-plan/*` | Plan Ready         | No            |
+| `feature/*`             | Merged             | Yes           |
+| `fix/*`                 | Merged             | Yes           |
+| `refactor/*`            | Merged             | Yes           |
+| `hotfix/*`              | Merged             | Yes           |
+| `develop-<slug>`        | Graduation closeout fallback (same reconciler as Protocol 05b Step 5) | Via closeout helper |
+
+Non-graduation mappings above are unchanged. Graduation heads no longer silently
+skip: the workflow runs
+`scripts/development-workflow/graduation-closeout-from-merged-pr.sh`, which
+discovers slug/epic/deferral signals and invokes `graduation-closeout.sh`.
+
+### How it works
+
+1. Triggered on `pull_request` closed events targeting `develop` where `merged == true`
+2. Extracts the branch prefix to determine the stage type
+3. For non-graduation branches: extracts the issue number from the branch name (e.g., `fix/463-some-slug` → `463`)
+4. Queries the GitHub Projects v2 GraphQL API to find the project item for that issue
+5. Updates the `Status` field to the appropriate value
+6. For implementation branches (`feature/*`, `fix/*`, `refactor/*`, `hotfix/*`): also closes the GitHub issue
+7. For graduation heads (`develop-<slug>`): checks out the repo and runs the
+   graduation closeout fallback instead of the per-issue status mapping
+
+### Required configuration (GitHub Projects only)
+
+Set the following as **repository variables** (not secrets — these are not sensitive):
+
+| Variable                | Description                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------- |
+| `GITHUB_PROJECT_NUMBER` | The integer project number (e.g. `1`)                                                          |
+| `GITHUB_PROJECT_OWNER`  | The GitHub user or org owning the project (falls back to `github.repository_owner` when unset) |
+
+To set them via CLI:
+
+```bash
+gh variable set GITHUB_PROJECT_NUMBER --body "1"
+gh variable set GITHUB_PROJECT_OWNER --body "<your-github-username-or-org>"
+```
+
+### Security model
+
+- Uses the built-in `GITHUB_TOKEN` — no personal access token (PAT) required
+- Minimum permissions: `pull-requests: read`, `issues: write`, `projects: write`
+- All external action SHAs are pinned to exact commit hashes (no floating `@v7` tags)
+
+### Relationship to `post-merge-cleanup` (GitHub Projects only)
+
+The GitHub Actions workflow and the `post-merge-cleanup` CLI command perform the same tracker
+update logic. They are complementary:
+
+- **GitHub Actions workflow**: runs automatically on every PR merge, no human action needed
+- **`post-merge-cleanup` command**: run manually by a developer or orchestrator after merging;
+  also handles local branch deletion and `develop` pull
+
+If both are active, the tracker update from `post-merge-cleanup` is idempotent (same status
+written twice is harmless). For implementation branches, cleanup also reasserts `Merged` after
+closing the issue so a built-in "item closed" Project workflow cannot leave the item at
+`Released`.
+
+---
+
+## Post-Merge Cleanup
+
+When a PR is merged, the `post-merge-cleanup` command will:
+
+1. Extract the issue number from the branch name (e.g., `feature/42-user-auth` -> `42`)
+2. Apply the action appropriate for the branch type:
+   - `spec/*`: issue stays open; update project item Status to **Spec Ready**
+   - `implementation-plan/*`: issue stays open; update project item Status to **Plan Ready**
+   - `feature/*`, `fix/*`, `refactor/*`, `hotfix/*`: close the GitHub issue (`gh issue close 42`) and update project item Status to **Merged** after close
+3. Each tracker update is best-effort: if `GITHUB_PROJECT_NUMBER` is unset or the API call fails, a warning is logged and the script continues without aborting
+
+---
+
+## Release Post-Merge Cleanup
+
+After a release branch has merged to both `main` and `develop`, use:
+
+```bash
+./scripts/development-workflow/prepare-release-post-merge-cleanup.sh vX.Y.Z --issues 101,102
+```
+
+This script:
+
+1. Verifies both release PRs are merged before any branch deletion
+2. Deletes `release/vX.Y.Z` on `origin` and locally (when safe)
+3. Transitions explicit scoped issues from merged-to-integration to released-to-production
+
+Status label defaults and overrides:
+
+- `GITHUB_PROJECT_STATUS_MERGED` (default: `Merged`)
+- `GITHUB_PROJECT_STATUS_RELEASED` (default: `Released`)
+
+Use explicit issue numbers to avoid accidental broad transitions. Items not included in the shipped release should remain unchanged.
+
+---
+
+## Graduation Closeout Status
+
+After an integration branch graduation PR merges from `develop-<slug>` to
+`develop`, Protocol 05b Step 5 remains the **primary** closeout path:
+
+```bash
+./scripts/development-workflow/graduation-closeout.sh \
+  --slug <slug> \
+  --graduation-pr <graduation-pr-number> \
+  --epic <epic-issue-number>
+```
+
+Merge-time automation is a **fallback**: `update-tracker-on-merge.yml` invokes
+`graduation-closeout-from-merged-pr.sh` for merged graduation heads, which
+discovers the slug/epic and calls the same reconciler. Operator controls:
+
+- CLI `--defer-epic-close` / `--exclude-issue` on Step 5
+- Durable epic label `defer-epic-close` (applied automatically when Step 5 uses
+  `--defer-epic-close`; also honored when present before automation runs)
+- Sub-item skip labels already honored by the reconciler (`optional`,
+  `deferred`, `cancelled`, `excluded-from-graduation`,
+  `exclude-from-graduation`)
+
+The helper validates that the graduation PR already merged from
+`develop-<slug>` to `develop`, then reconciles delivered planned sub-items
+before closing the parent epic. It discovers planned work from native GitHub
+sub-issues, the legacy `integration-branch:<slug>` label fallback, and closing
+keywords in merged PRs that targeted `develop-<slug>`. If discovery is
+incomplete or no delivered sub-items can be identified, closeout fails and holds
+the parent epic open.
+
+For each delivered sub-item, it closes the GitHub issue when needed and then
+reasserts the terminal Project status so built-in GitHub Projects close
+automation cannot leave stale tracker state behind. Closed but non-terminal
+items receive only the Project status update. Already terminal items are
+reported without moving them backward. Optional, deferred, cancelled, or
+explicitly excluded sub-items remain open and are listed for human disposition.
+
+Terminal status is resolved in this order:
+
+- `GITHUB_PROJECT_STATUS_GRADUATED`
+- `GITHUB_PROJECT_STATUS_MERGED`
+- `Merged`
+
+Use `GITHUB_PROJECT_STATUS_GRADUATED=Done` or
+`GITHUB_PROJECT_STATUS_GRADUATED=Released` in repositories whose Project board
+uses those labels for completed graduation work. The configured option must
+exist in the Project `Status` field. If closeout prints
+`GRADUATION_CLOSEOUT_RESULT=failed`, repair the listed `failed` items or
+discovery problem and rerun the helper before treating the graduation as
+complete.
+
+---
+
+## Prerequisites
+
+- **`gh` CLI** authenticated with a token that has `project` and `repo` scopes:
+  ```bash
+  gh auth login
+  # Verify access:
+  gh project list --owner <OWNER>
+  ```
+- **Project number** — find it via `gh project list --owner <OWNER>` or from the project URL
+
+---
+
+## Custom Fields
+
+The `issue_tracker.custom_fields` flat map in `.ai-dev-workflow.yaml` is
+available for provider-specific configuration extensions. For the
+`github_projects` provider, workflow scripts currently recognize:
+
+| Key | Purpose |
+| --- | --- |
+| `type_field` | Overrides the GitHub Projects classification field name used by Type helpers, for example `Custom Type`. |
+
+Key points:
+
+- The `project_number` field is a standard top-level `issue_tracker` field — it is not a custom field and must remain under `issue_tracker` directly, not under `custom_fields`.
+- Unrecognized keys placed under `custom_fields` are silently ignored by current GitHub Projects scripts.
+- Future provider-specific fields (e.g., additional project metadata) may be added here as the integration evolves.
+
+Read the `workflow_issue_tracker_custom_field` helper documentation in `scripts/development-workflow/workflow-lib.sh` for the parsing API available to future consumers.
+
+---
+
+## Without GitHub Projects
+
+If you don't use GitHub Projects, the **Portfolio Orchestrator** asks the human:
+
+> "What should I work on next? Please provide:
+>
+> - Feature name and slug
+> - Path: Full Pipeline / Refactor / Fast Track / Hotfix
+> - Priority context (if any)
+> - Dependencies (if any)"
+
+This works fine for small teams or early-stage projects.
