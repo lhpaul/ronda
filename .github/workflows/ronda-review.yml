@@ -1,0 +1,83 @@
+name: Ronda review
+
+on:
+  workflow_call:
+    inputs:
+      model_base_url:
+        description: >-
+          OpenAI-compatible base URL for the model API. Defaults to Ronda's
+          built-in DashScope endpoint when omitted.
+        type: string
+        required: false
+      model_name:
+        description: Model name to request. Defaults to Ronda's built-in default when omitted.
+        type: string
+        required: false
+      pass_timeout_minutes:
+        description: >-
+          In-process pass budget, in minutes. The job's own `timeout-minutes`
+          is set to this value plus two, as an outer backstop.
+        type: number
+        required: false
+        default: 10
+      ronda_ref:
+        description: Ref of lhpaul/ronda to check out and run.
+        type: string
+        required: false
+        default: main
+    secrets:
+      model_api_key:
+        description: Model API credential. Supplied by the calling repository's own secret.
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  review:
+    name: Ronda review pass
+    runs-on: ubuntu-latest
+    # v0 only recommends `pull_request` (never `pull_request_target`) in the
+    # caller snippet, so a fork-originated automatic pass already receives a
+    # read-only GITHUB_TOKEN from GitHub itself. This guard just fails fast
+    # instead of attempting (and being rejected on) the write calls. It does
+    # not gate `issue_comment` (the manual `/ronda review` command), which is
+    # scoped by comment access on the base repository, not by the PR's fork
+    # origin — see the Risks table in the implementation plan.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    # Outer backstop behind the in-process deadline (src/core/pass-deadline.ts).
+    # A cancelled run here is exactly the supersede path — it must never leave
+    # a pending check run, which is why the check run is only ever created at
+    # terminal time (see the implementation plan's "check run is created only
+    # at terminal time" note).
+    timeout-minutes: ${{ inputs.pass_timeout_minutes + 2 }}
+
+    steps:
+      - name: Checkout Ronda
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          repository: lhpaul/ronda
+          ref: ${{ inputs.ronda_ref }}
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run review pass
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RONDA_MODEL_API_KEY: ${{ secrets.model_api_key }}
+          RONDA_MODEL_BASE_URL: ${{ inputs.model_base_url }}
+          RONDA_MODEL_NAME: ${{ inputs.model_name }}
+          RONDA_PASS_TIMEOUT_MS: ${{ inputs.pass_timeout_minutes * 60000 }}
+        run: npm run review

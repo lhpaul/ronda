@@ -12,7 +12,7 @@ It does not implement product features and does not merge.
 | Actor | Description |
 | --- | --- |
 | GitHub | Sends pull-request events to the webhook URL. |
-| Ronda process | HTTP server that handles the event, calls inference, posts the review. |
+| Ronda process | In v0, one run of the reusable GitHub Actions workflow per pass (`src/cli/review-pr.ts` → `runReviewPass`) — not yet a long-running HTTP server. The later webhook process reuses the same `runReviewPass` core unchanged. |
 | Inference backend | API (GLM/Qwen/…) or a local model. Swappable. |
 | ADF reviewer-loop | Waits on the check/review and drives fix cycles. |
 | Operator | Installs the App, points the webhook URL at a machine, reads findings. |

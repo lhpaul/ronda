@@ -10,8 +10,14 @@ testing, later at the Mini or MiniPC. Same App.
 
 ## Status
 
-Bootstrap: constitution and domain docs. First slice is the spec on
-[Project #11](https://github.com/users/lhpaul/projects/11).
+v0 ships as a reusable GitHub Actions workflow: it reads a pull request over
+the REST API, asks a configured model for findings, and publishes one
+comment-only review plus one check run per head commit. No webhook, no App,
+no push to the reviewed branch. See
+[Project #11](https://github.com/users/lhpaul/projects/11) for what's next.
+
+**Adopting Ronda in another repository**: see
+[`docs/adoption/ronda-review-adoption.md`](docs/adoption/ronda-review-adoption.md).
 
 ## Development
 

@@ -107,14 +107,17 @@ See `REVIEW.md` → Code Review Checklist → Pass 2 → "PRs that add a feature
 
 ```bash
 # Run all tests
-[command]
+npm test
 
 # Run a specific test file
-[command path/to/test]
+npx tsx --test tests/unit/core/run-review-pass.test.ts
 
-# Run tests in watch mode
-[command --watch]
+# Typecheck and lint (both must be clean before opening a PR)
+npm run typecheck
+npm run lint
 ```
+
+There is no watch mode configured; re-run `npm test` after each change.
 
 ## CI Integration
 

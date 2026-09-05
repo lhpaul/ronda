@@ -121,21 +121,28 @@ For normal Codex usage, use `/run-work` to scan the portfolio and discover what 
 
 ## Common Commands
 
-> **TODO**: Fill with your project's actual commands after setup.
-
 <!-- workflow-shell-contract: bash -->
 ```bash
-# Development
-# [your dev server command]
+# Install dependencies
+npm ci
+
+# Run one review pass locally against a real pull request (requires
+# GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_EVENT_NAME, GITHUB_EVENT_PATH, and
+# a model credential — see docs/adoption/ronda-review-adoption.md)
+npm run review
 
 # Build
-# [your build command]
+# No build step — TypeScript runs directly via tsx; there is no committed
+# build artifact (dist/ is gitignored).
+
+# Typecheck
+npm run typecheck
 
 # Test
-# [your test command]
+npm test
 
-# Lint / Format
-# [your lint/format commands]
+# Lint
+npm run lint
 
 # Markdown lint (spec, plan, changelog fragment, and CHANGELOG files)
 # Standard rules (trailing whitespace, relative links, files end with newline):
@@ -213,4 +220,8 @@ Read [`docs/best-practices/STACK-SPECIFIC.md`](docs/best-practices/STACK-SPECIFI
 
 ## Troubleshooting
 
-> **TODO**: Add project-specific troubleshooting tips here after setup.
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| A pass reports "Review failed — model credential missing" | `RONDA_MODEL_API_KEY` is unset and no operator config file supplies `modelApiKey` | Set the `RONDA_MODEL_API_KEY` repository/organization secret (Actions path) or `modelApiKey` in `~/.config/ronda/config.json` (local path) — see `docs/adoption/ronda-review-adoption.md` |
+| A pass reports "Review failed — model credential invalid" | The credential is present but the model API rejected it (HTTP 401/403) | Re-check the key value and that it is valid for the configured `RONDA_MODEL_BASE_URL` / `RONDA_MODEL_NAME` |
+| `npm run typecheck` or `npm run lint` fails only in CI, not locally | `node-ci.yml`'s `paths:` filter did not trigger, or a stale `package-lock.json` | Confirm the changed files are under the workflow's `paths:` list; run `npm ci` (not `npm install`) locally to match CI exactly |
