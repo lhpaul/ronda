@@ -5,6 +5,10 @@ export interface MockModelServerOptions {
   responseContent?: string;
   /** Delays the response by this many milliseconds — used to exercise the timeout and supersede cases. */
   delayMs?: number;
+  /** HTTP status code to respond with. Defaults to 200. Used to exercise credential and availability failures. */
+  statusCode?: number;
+  /** When true, respond with a 200 body that has no `choices[0].message.content`. */
+  omitContent?: boolean;
 }
 
 export interface MockModelServer {
@@ -22,6 +26,8 @@ export async function startMockModelServer(
   const modelName = options.modelName ?? "mock-model";
   const responseContent = options.responseContent ?? '{"findings":[]}';
   const delayMs = options.delayMs ?? 0;
+  const statusCode = options.statusCode ?? 200;
+  const omitContent = options.omitContent ?? false;
 
   const server: Server = createServer((req, res) => {
     if (req.method !== "POST" || !req.url?.endsWith("/chat/completions")) {
@@ -31,12 +37,16 @@ export async function startMockModelServer(
     req.on("data", () => undefined);
     req.on("end", () => {
       const send = () => {
-        res.writeHead(200, { "Content-Type": "application/json" });
+        res.writeHead(statusCode, { "Content-Type": "application/json" });
         res.end(
-          JSON.stringify({
-            model: modelName,
-            choices: [{ message: { role: "assistant", content: responseContent } }],
-          }),
+          JSON.stringify(
+            omitContent
+              ? { model: modelName, choices: [{ message: { role: "assistant" } }] }
+              : {
+                  model: modelName,
+                  choices: [{ message: { role: "assistant", content: responseContent } }],
+                },
+          ),
         );
       };
       if (delayMs > 0) {

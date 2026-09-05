@@ -96,7 +96,10 @@ export async function main(): Promise<number> {
   return result.outcome === "failed" ? 1 : 0;
 }
 
-/* c8 ignore start -- process wiring; exercised by the smoke runbook, not unit tests. */
+// Process wiring below (signal handlers, invoking main(), exit code) is
+// exercised by the smoke runbook against a real GitHub Actions run, not by
+// unit tests — the guard keeps it from running when this module is only
+// imported (for example, if a future test imports `main` directly).
 if (process.argv[1] && process.argv[1].endsWith("review-pr.ts")) {
   process.on("unhandledRejection", (reason) => {
     console.error("Ronda: unhandled rejection", reason);
@@ -117,4 +120,3 @@ if (process.argv[1] && process.argv[1].endsWith("review-pr.ts")) {
       process.exitCode = 1;
     });
 }
-/* c8 ignore stop */
