@@ -178,7 +178,7 @@ that Ronda has already attempted.
 **Information shown**:
 
 - The failure reason in plain language: timed out, model unavailable, credential
-  missing, changes too large, or unexpected error.
+  missing or invalid, changes too large, or unexpected error.
 - Guidance to re-run with the review command comment.
 
 **Actions available**:
@@ -241,6 +241,10 @@ Ronda's reusable review workflow.
 - Ronda publishes at most one review per head commit automatically. Additional
   passes on the same head commit happen only when a person asks for one with the
   review command comment.
+- The review command comment is one specific, documented phrase. Ronda ignores
+  ordinary pull-request conversation and reacts only to that exact phrase; the
+  literal wording is fixed and published alongside the reusable review workflow,
+  not invented ad hoc by whoever is asking for a re-run.
 - When multiple reviews exist for one head commit, the newest is authoritative.
 - Every finding a pass produces goes into that pass's single review. Ronda does
   not stop at the first finding and does not split findings across reviews.
@@ -371,6 +375,10 @@ blocking finding belongs to the human or the consuming workflow.
 - [ ] Searching this repository finds no credential value, credential name,
       account identifier, hostname, or personal filesystem path belonging to a
       specific operator.
+- [ ] If the head commit changes again while a pass for the previous head
+      commit is still running, the abandoned pass publishes no review and no
+      check run for the superseded commit; only the new head commit ends up
+      with a review and a check run.
 
 ---
 
@@ -407,7 +415,7 @@ updated during alignment.
 | # | Brief objective | Covered by |
 | - | --------------- | ---------- |
 | 1 | Ingress: reusable GitHub Action only; ready PRs (`ready_for_review` + new head SHA on a ready PR) plus manual re-trigger; drafts not reviewed | Use Cases 1, 2, 3; business rules on draft pull requests and on one automatic pass per head commit; ACs 1, 2, 3, 10, 11 |
-| 2 | Comment-only GitHub review + check run, one pass per head SHA, all findings in that review | Use Case 1; business rules on one review per head commit and on all findings in one review; Operational Visibility; ACs 1, 4, 5, 6, 7 |
+| 2 | Comment-only GitHub review + check run, one pass per head SHA, all findings in that review | Use Case 1; business rules on one review per head commit, on all findings in one review, and on abandoning a superseded pass; Operational Visibility; ACs 1, 4, 5, 6, 7, 16 |
 | 3 | No pushes or fixes from this bot | Business rule "never pushes commits"; ACs 1, 13; Out of Scope entry on pushing fixes |
 | 4 | Inference via an API model, vendor behind an interface | Business rule "the model vendor is configuration"; AC 12; Out of Scope entry on local model serving |
 | 5 | How ADF and Helm attach — adapter only, no loop copy | Use Case 5; AC 14; Out of Scope entry on replacing the ADF loop |
