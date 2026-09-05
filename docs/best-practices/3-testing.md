@@ -105,6 +105,7 @@ See `REVIEW.md` → Code Review Checklist → Pass 2 → "PRs that add a feature
 
 ## Running Tests
 
+<!-- workflow-shell-contract: bash-zsh -->
 ```bash
 # Run all tests
 npm test
