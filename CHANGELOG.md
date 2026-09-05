@@ -13,4 +13,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   domain docs, GitHub Project #11 (`Work type` classification field), product
   name **Ronda**, and `develop` as the default integration branch.
 - Consumer ADF config: internal reviewer `claude`, GitHub reviewer Bugbot
-  after ready, guardrails `assisted` (open PRs, human merge).
+  after ready, guardrails `delegated` (merge spec/plan/implementation up to
+  medium risk).

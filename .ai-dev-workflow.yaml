@@ -262,29 +262,33 @@ template:
 # enforcement reference (effective-guardrails resolution, five enforcement gates,
 # named stop conditions, audit-evidence rules).
 #
-# First-days policy: Claude Code opens PRs and runs review loops; humans merge.
-# Bounded prelude still reports the resolved policy before mutation — see
-# docs/workflow/development-workflow/bounded-run-prelude.md.
+# First-days policy: Claude Code may merge clean spec/plan/implementation PRs
+# up to medium risk. High-risk, unclear requirements, and blocked reviews still
+# stop. Bounded prelude still reports the resolved policy before mutation —
+# see docs/workflow/development-workflow/bounded-run-prelude.md.
 
 guardrails:
-  # mode: assisted — agents prepare PRs and gather review evidence; humans merge.
-  mode: assisted
+  # mode: delegated — agents may merge within per-stage permissions and risk limits.
+  mode: delegated
 
   # backlog_start — wait for an explicit /run-item (or equivalent) per item.
   backlog_start:
     allow_without_confirmation: false
 
-  # stages — agents may open PRs; they may not merge.
+  # stages — agents may open and merge PRs at or below medium risk.
   stages:
     spec:
       may_open_pr: true
-      may_merge_pr: false
+      may_merge_pr: true
+      max_merge_risk: medium
     plan:
       may_open_pr: true
-      may_merge_pr: false
+      may_merge_pr: true
+      max_merge_risk: medium
     implementation:
       may_open_pr: true
-      may_merge_pr: false
+      may_merge_pr: true
+      max_merge_risk: medium
 
   # stop_conditions — baseline stops that hold in all modes (additive, never removable).
   stop_conditions:
