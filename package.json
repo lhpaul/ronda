@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "format": "prettier --write \"**/*.md\"",
-    "test": "tsx --test \"tests/**/*.test.ts\"",
+    "test": "tsx --test $(find tests -name '*.test.ts' | sort)",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
     "review": "tsx src/cli/review-pr.ts"
