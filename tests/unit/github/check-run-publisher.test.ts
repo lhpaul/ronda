@@ -79,3 +79,16 @@ test("the output carries the caller's title and summary verbatim, for both creat
   assert.equal(call.output.title, "Review failed — timed out");
   assert.equal(call.output.summary, "Reason: timed out");
 });
+
+test("forwards the given signal as request.signal on both create and update", async () => {
+  const fake = createFakeOctokit();
+  const controller = new AbortController();
+
+  await publishCheckRun(fake.octokit, baseInput({ existingCheckRunId: null }), controller.signal);
+  await publishCheckRun(fake.octokit, baseInput({ existingCheckRunId: 555 }), controller.signal);
+
+  const createCall = fake.createCalls[0] as { request?: { signal?: AbortSignal } };
+  const updateCall = fake.updateCalls[0] as { request?: { signal?: AbortSignal } };
+  assert.equal(createCall.request?.signal, controller.signal);
+  assert.equal(updateCall.request?.signal, controller.signal);
+});

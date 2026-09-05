@@ -11,6 +11,7 @@ import type {
   FailureReason,
   Finding,
   InlineComment,
+  PublishCheckRunInput,
   ReviewPassDeps,
   ReviewPassInput,
   ReviewPassResult,
@@ -26,6 +27,12 @@ import { createPassDeadline } from "./pass-deadline.js";
  * findings, re-read the head SHA, then publish the review followed by the
  * check run. Every failure path is mapped to a `FailureReason` before
  * publication, so a failure is always visible.
+ *
+ * The deadline is armed before the *first* GitHub call and its signal is
+ * threaded through every GitHub read in this function (not only the model
+ * call), so GitHub API latency or retries — not just a slow model — can
+ * trip the in-process budget. See the plan's "a pass always terminates
+ * within its budget" guarantee.
  */
 export async function runReviewPass(
   input: ReviewPassInput,
@@ -41,196 +48,285 @@ export async function runReviewPass(
     trigger: input.trigger,
   });
 
-  const pr = await deps.github.readPullRequest(input.owner, input.repo, input.pullNumber);
-
-  if (pr.draft) {
-    deps.logger.event("pass_skipped", { reason: "draft_pull_request", headSha: pr.headSha });
-    return skippedResult("draft_pull_request", startMs, deps);
-  }
-
-  let existingCheckRunId: number | null = null;
-  try {
-    existingCheckRunId = await deps.github.findExistingCheckRun(
-      input.owner,
-      input.repo,
-      pr.headSha,
-    );
-  } catch (error) {
-    // Non-fatal: the pass still proceeds. In the rare case this lookup
-    // fails, a manual re-trigger may create a second check run rather than
-    // updating the existing one — an accepted degradation, not a pass
-    // failure, since the review itself can still be published.
-    deps.logger.event("check_run_lookup_failed", { message: String(error) });
-  }
-
-  if (input.trigger === "automatic" && existingCheckRunId !== null) {
-    deps.logger.event("pass_skipped", {
-      reason: "already_reviewed_automatically",
-      headSha: pr.headSha,
-    });
-    return skippedResult("already_reviewed_automatically", startMs, deps);
-  }
-
   const deadline = createPassDeadline(deps.config.passTimeoutMs, deps.deadlineClock);
   try {
-    if (deps.config.loadError) {
-      return await finalizeFailure(deps, input, {
-        headSha: pr.headSha,
-        existingCheckRunId,
-        startedAt,
-        startMs,
-        reason: "unexpected_error",
-        logMessage: deps.config.loadError,
-      });
-    }
-
-    if (deps.config.model.apiKey.trim() === "") {
-      return await finalizeFailure(deps, input, {
-        headSha: pr.headSha,
-        existingCheckRunId,
-        startedAt,
-        startMs,
-        reason: "credential_missing",
-        logMessage: "RONDA_MODEL_API_KEY (or the operator config file's modelApiKey) is not set",
-      });
-    }
-
-    const changedFiles = await deps.github.readChangedFiles(
+    const pr = await deps.github.readPullRequest(
       input.owner,
       input.repo,
       input.pullNumber,
+      deadline.signal,
     );
 
-    const prompt = buildReviewPrompt({
-      title: pr.title,
-      body: pr.body,
-      changedFiles,
-      maxPatchChars: deps.config.maxPatchChars,
-    });
-
-    const raw = await deps.model.complete(prompt, deadline.signal);
-    const parsed = parseModelResponse(raw, changedFiles);
-
-    const commentableByFile = buildCommentableLinesByFile(changedFiles);
-    const inlineComments: InlineComment[] = [];
-    const unmappedFindings: Finding[] = [];
-    for (const finding of parsed.findings) {
-      const commentableLines = commentableByFile.get(finding.path);
-      if (finding.line !== null && commentableLines?.has(finding.line)) {
-        inlineComments.push({
-          path: finding.path,
-          line: finding.line,
-          body: renderFindingBody(finding),
-        });
-      } else {
-        unmappedFindings.push(finding);
-      }
+    if (pr.draft) {
+      deps.logger.event("pass_skipped", { reason: "draft_pull_request", headSha: pr.headSha });
+      return skippedResult("draft_pull_request", startMs, deps);
     }
 
-    // Re-read the pull request immediately before publication. A head SHA
-    // that moved means this pass is superseded; publish nothing for it.
-    const latest = await deps.github.readPullRequest(
-      input.owner,
-      input.repo,
-      input.pullNumber,
-    );
-    if (latest.headSha !== pr.headSha) {
+    let existingCheckRunId: number | null = null;
+    try {
+      existingCheckRunId = await deps.github.findExistingCheckRun(
+        input.owner,
+        input.repo,
+        pr.headSha,
+        deadline.signal,
+      );
+    } catch (error) {
+      // Non-fatal: the pass still proceeds. In the rare case this lookup
+      // fails, a manual re-trigger may create a second check run rather than
+      // updating the existing one — an accepted degradation, not a pass
+      // failure, since the review itself can still be published.
+      deps.logger.event("check_run_lookup_failed", { message: String(error) });
+    }
+
+    if (input.trigger === "automatic" && existingCheckRunId !== null) {
       deps.logger.event("pass_skipped", {
-        reason: "superseded_head_sha",
+        reason: "already_reviewed_automatically",
         headSha: pr.headSha,
-        newHeadSha: latest.headSha,
       });
-      return skippedResult("superseded_head_sha", startMs, deps);
+      return skippedResult("already_reviewed_automatically", startMs, deps);
     }
 
-    const totals = fileTotals(changedFiles);
-    const summaryBody = buildReviewSummary({
-      changedFileCount: changedFiles.length,
-      additions: totals.additions,
-      deletions: totals.deletions,
-      findings: parsed.findings,
-      unmappedFindings,
-      modelName: deps.model.modelName,
-      durationMs: deps.clock.now() - startMs,
-      trigger: input.trigger,
-      malformedCount: parsed.malformedCount,
-      coercedSeverityCount: parsed.coercedSeverityCount,
-      duplicateCount: parsed.duplicateCount,
-    });
-    const fallbackSummaryBody = buildReviewSummary({
-      changedFileCount: changedFiles.length,
-      additions: totals.additions,
-      deletions: totals.deletions,
-      findings: parsed.findings,
-      unmappedFindings: parsed.findings,
-      modelName: deps.model.modelName,
-      durationMs: deps.clock.now() - startMs,
-      trigger: input.trigger,
-      malformedCount: parsed.malformedCount,
-      coercedSeverityCount: parsed.coercedSeverityCount,
-      duplicateCount: parsed.duplicateCount,
-    });
+    // Set once the review has been published. The catch block below checks
+    // this first: once the review is public, a subsequent check-run write
+    // failure must never be reported through `finalizeFailure`, which would
+    // publish a contradictory "Review failed" check run for a pass whose
+    // review a reader can already see. See the plan's markPublishing
+    // guarantee and the constitution's "every pass ends in a definite
+    // outcome" rule — that rule is about the check run never being silently
+    // left pending, not about manufacturing a false outcome once the truth
+    // (the published review) is already public.
+    let reviewPublished = false;
 
-    deadline.markPublishing();
+    try {
+      if (deps.config.loadError) {
+        return await finalizeFailure(deps, input, {
+          headSha: pr.headSha,
+          existingCheckRunId,
+          startedAt,
+          startMs,
+          reason: "unexpected_error",
+          logMessage: deps.config.loadError,
+        });
+      }
 
-    await deps.github.publishReview({
-      owner: input.owner,
-      repo: input.repo,
-      pullNumber: input.pullNumber,
-      headSha: pr.headSha,
-      summaryBody,
-      inlineComments,
-      fallbackSummaryBody,
-    });
+      if (deps.config.model.apiKey.trim() === "") {
+        return await finalizeFailure(deps, input, {
+          headSha: pr.headSha,
+          existingCheckRunId,
+          startedAt,
+          startMs,
+          reason: "credential_missing",
+          logMessage: "RONDA_MODEL_API_KEY (or the operator config file's modelApiKey) is not set",
+        });
+      }
 
-    const findingCounts = countBySeverity(parsed.findings);
-    const durationMs = deps.clock.now() - startMs;
-    const checkRunOutput = buildCheckRunOutput({
-      outcome: "succeeded",
-      findingCounts,
-      modelName: deps.model.modelName,
-      durationMs,
-    });
+      const changedFiles = await deps.github.readChangedFiles(
+        input.owner,
+        input.repo,
+        input.pullNumber,
+        deadline.signal,
+      );
 
-    await deps.github.publishCheckRun({
-      owner: input.owner,
-      repo: input.repo,
-      headSha: pr.headSha,
-      existingCheckRunId,
-      title: checkRunOutput.title,
-      summary: checkRunOutput.summary,
-      conclusion: "success",
-      startedAt,
-      completedAt: deps.clock.isoNow(),
-      detailsUrl: deps.detailsUrl,
-    });
+      const prompt = buildReviewPrompt({
+        title: pr.title,
+        body: pr.body,
+        changedFiles,
+        maxPatchChars: deps.config.maxPatchChars,
+      });
 
-    deps.logger.event("pass_succeeded", {
-      headSha: pr.headSha,
-      findingCount: parsed.findings.length,
-      durationMs,
-    });
+      const raw = await deps.model.complete(prompt, deadline.signal);
+      const parsed = parseModelResponse(raw, changedFiles);
 
-    return {
-      outcome: "succeeded",
-      findings: parsed.findings,
-      malformedCount: parsed.malformedCount,
-      coercedSeverityCount: parsed.coercedSeverityCount,
-      duplicateCount: parsed.duplicateCount,
-      durationMs,
-    };
-  } catch (error) {
-    const reason = mapErrorToFailureReason(error, deadline.expired());
-    return await finalizeFailure(deps, input, {
-      headSha: pr.headSha,
-      existingCheckRunId,
-      startedAt,
-      startMs,
-      reason,
-      logMessage: String(error),
-    });
+      const commentableByFile = buildCommentableLinesByFile(changedFiles);
+      const inlineComments: InlineComment[] = [];
+      const unmappedFindings: Finding[] = [];
+      for (const finding of parsed.findings) {
+        const commentableLines = commentableByFile.get(finding.path);
+        if (finding.line !== null && commentableLines?.has(finding.line)) {
+          inlineComments.push({
+            path: finding.path,
+            line: finding.line,
+            body: renderFindingBody(finding),
+          });
+        } else {
+          unmappedFindings.push(finding);
+        }
+      }
+
+      // Re-read the pull request immediately before publication. A head SHA
+      // that moved means this pass is superseded; publish nothing for it.
+      const latest = await deps.github.readPullRequest(
+        input.owner,
+        input.repo,
+        input.pullNumber,
+        deadline.signal,
+      );
+      if (latest.headSha !== pr.headSha) {
+        deps.logger.event("pass_skipped", {
+          reason: "superseded_head_sha",
+          headSha: pr.headSha,
+          newHeadSha: latest.headSha,
+        });
+        return skippedResult("superseded_head_sha", startMs, deps);
+      }
+
+      const totals = fileTotals(changedFiles);
+      const summaryBody = buildReviewSummary({
+        changedFileCount: changedFiles.length,
+        additions: totals.additions,
+        deletions: totals.deletions,
+        findings: parsed.findings,
+        unmappedFindings,
+        modelName: deps.model.modelName,
+        durationMs: deps.clock.now() - startMs,
+        trigger: input.trigger,
+        malformedCount: parsed.malformedCount,
+        coercedSeverityCount: parsed.coercedSeverityCount,
+        duplicateCount: parsed.duplicateCount,
+      });
+      const fallbackSummaryBody = buildReviewSummary({
+        changedFileCount: changedFiles.length,
+        additions: totals.additions,
+        deletions: totals.deletions,
+        findings: parsed.findings,
+        unmappedFindings: parsed.findings,
+        modelName: deps.model.modelName,
+        durationMs: deps.clock.now() - startMs,
+        trigger: input.trigger,
+        malformedCount: parsed.malformedCount,
+        coercedSeverityCount: parsed.coercedSeverityCount,
+        duplicateCount: parsed.duplicateCount,
+      });
+
+      deadline.markPublishing();
+
+      await deps.github.publishReview(
+        {
+          owner: input.owner,
+          repo: input.repo,
+          pullNumber: input.pullNumber,
+          headSha: pr.headSha,
+          summaryBody,
+          inlineComments,
+          fallbackSummaryBody,
+        },
+        deadline.signal,
+      );
+      // The review is now public. Nothing below this line may route through
+      // the shared `catch` into `finalizeFailure`.
+      reviewPublished = true;
+
+      const findingCounts = countBySeverity(parsed.findings);
+      const durationMs = deps.clock.now() - startMs;
+      const checkRunOutput = buildCheckRunOutput({
+        outcome: "succeeded",
+        findingCounts,
+        modelName: deps.model.modelName,
+        durationMs,
+      });
+
+      const checkRunInput: PublishCheckRunInput = {
+        owner: input.owner,
+        repo: input.repo,
+        headSha: pr.headSha,
+        existingCheckRunId,
+        title: checkRunOutput.title,
+        summary: checkRunOutput.summary,
+        conclusion: "success",
+        startedAt,
+        completedAt: deps.clock.isoNow(),
+        detailsUrl: deps.detailsUrl,
+      };
+
+      const checkRunResult = await publishSuccessCheckRun(deps, input, checkRunInput, deadline.signal);
+      if (!checkRunResult.ok) {
+        // The review is already public and correct. Do not synthesize a
+        // "Review failed" check run for it — that would contradict what a
+        // reader can already see. Surface the problem loudly instead (it is
+        // already logged by `publishSuccessCheckRun`) by throwing, which
+        // propagates out of this function uncaught, the same way an
+        // unrecoverable failure to even identify the head SHA already does
+        // above. The caller (the CLI entrypoint) turns this into a non-zero
+        // process exit, so the failure is visible in the Actions run rather
+        // than silently swallowed.
+        throw new Error(
+          `Review was published for ${pr.headSha} but the check run could not be ` +
+            `published after retrying: ${checkRunResult.message}`,
+        );
+      }
+
+      deps.logger.event("pass_succeeded", {
+        headSha: pr.headSha,
+        findingCount: parsed.findings.length,
+        durationMs,
+      });
+
+      return {
+        outcome: "succeeded",
+        findings: parsed.findings,
+        malformedCount: parsed.malformedCount,
+        coercedSeverityCount: parsed.coercedSeverityCount,
+        duplicateCount: parsed.duplicateCount,
+        durationMs,
+      };
+    } catch (error) {
+      if (reviewPublished) {
+        throw error;
+      }
+      const reason = mapErrorToFailureReason(error, deadline.expired());
+      return await finalizeFailure(deps, input, {
+        headSha: pr.headSha,
+        existingCheckRunId,
+        startedAt,
+        startMs,
+        reason,
+        logMessage: String(error),
+      });
+    }
   } finally {
     deadline.dispose();
+  }
+}
+
+/**
+ * Publishes the terminal "succeeded" check run with one extra attempt
+ * beyond `publishCheckRun`'s own internal bounded retry (fixed 2s/5s
+ * backoff on HTTP 5xx or a secondary rate limit) — belt-and-suspenders for
+ * the exact write that must not be silently dropped once the review it
+ * describes is already public. Never throws: every failure is caught and
+ * logged here so the caller can decide the terminal behaviour itself
+ * without accidentally routing through the pass's generic failure path.
+ */
+async function publishSuccessCheckRun(
+  deps: ReviewPassDeps,
+  input: ReviewPassInput,
+  checkRunInput: PublishCheckRunInput,
+  signal: AbortSignal,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    await deps.github.publishCheckRun(checkRunInput, signal);
+    return { ok: true };
+  } catch (firstError) {
+    deps.logger.event("check_run_publish_failed_after_review", {
+      owner: input.owner,
+      repo: input.repo,
+      headSha: checkRunInput.headSha,
+      message: String(firstError),
+    });
+  }
+
+  try {
+    await deps.github.publishCheckRun(checkRunInput, signal);
+    return { ok: true };
+  } catch (secondError) {
+    const message = String(secondError);
+    deps.logger.event("check_run_publish_failed_after_review_retry", {
+      owner: input.owner,
+      repo: input.repo,
+      headSha: checkRunInput.headSha,
+      message,
+    });
+    return { ok: false, message };
   }
 }
 
@@ -314,6 +410,12 @@ async function finalizeFailure(
     failureReason: failure.reason,
   });
 
+  // Deliberately no `signal` here: a `timed_out` failure reaches this
+  // function precisely because the deadline's `AbortSignal` already fired.
+  // Passing that same (already-aborted) signal into this write would make
+  // the failure check run's own publish attempt abort immediately —
+  // reintroducing exactly the "no check run at all" silence this fix
+  // exists to prevent. This call must run to completion unconditionally.
   await deps.github.publishCheckRun({
     owner: input.owner,
     repo: input.repo,

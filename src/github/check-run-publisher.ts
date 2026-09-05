@@ -14,6 +14,7 @@ import { withRetry } from "./github-client.js";
 export async function publishCheckRun(
   octokit: Octokit,
   input: PublishCheckRunInput,
+  signal?: AbortSignal,
 ): Promise<void> {
   const output = { title: input.title, summary: input.summary };
 
@@ -29,6 +30,7 @@ export async function publishCheckRun(
         conclusion: input.conclusion,
         details_url: input.detailsUrl,
         output,
+        request: { signal },
       }),
     );
     return;
@@ -46,6 +48,7 @@ export async function publishCheckRun(
       conclusion: input.conclusion,
       details_url: input.detailsUrl,
       output,
+      request: { signal },
     }),
   );
 }

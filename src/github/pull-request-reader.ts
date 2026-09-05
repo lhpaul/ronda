@@ -8,9 +8,10 @@ export async function readPullRequest(
   owner: string,
   repo: string,
   pullNumber: number,
+  signal?: AbortSignal,
 ): Promise<PullRequestMetadata> {
   const response = await withRetry(() =>
-    octokit.pulls.get({ owner, repo, pull_number: pullNumber }),
+    octokit.pulls.get({ owner, repo, pull_number: pullNumber, request: { signal } }),
   );
   const data = response.data;
   return {
@@ -22,18 +23,31 @@ export async function readPullRequest(
   };
 }
 
+/**
+ * Paginated: `octokit.paginate` fetches every page of
+ * `GET .../pulls/{number}/files` internally. Wrapping the *whole* call in
+ * `withRetry` (rather than retrying page-by-page) is what keeps retry safe
+ * to compose with pagination — each attempt starts a fresh page-1 walk and
+ * either returns one complete, consistent array or throws, so a retry can
+ * never duplicate a page already collected by a failed attempt nor leave a
+ * later page missing.
+ */
 export async function readChangedFiles(
   octokit: Octokit,
   owner: string,
   repo: string,
   pullNumber: number,
+  signal?: AbortSignal,
 ): Promise<ChangedFile[]> {
-  const files = await octokit.paginate(octokit.pulls.listFiles, {
-    owner,
-    repo,
-    pull_number: pullNumber,
-    per_page: 100,
-  });
+  const files = await withRetry(() =>
+    octokit.paginate(octokit.pulls.listFiles, {
+      owner,
+      repo,
+      pull_number: pullNumber,
+      per_page: 100,
+      request: { signal },
+    }),
+  );
   return files.map((file) => ({
     path: file.filename,
     previousPath: file.previous_filename,
@@ -56,6 +70,7 @@ export async function findExistingCheckRun(
   owner: string,
   repo: string,
   headSha: string,
+  signal?: AbortSignal,
 ): Promise<number | null> {
   const response = await withRetry(() =>
     octokit.checks.listForRef({
@@ -63,6 +78,7 @@ export async function findExistingCheckRun(
       repo,
       ref: headSha,
       check_name: CHECK_RUN_NAME,
+      request: { signal },
     }),
   );
   const run = response.data.check_runs[0];

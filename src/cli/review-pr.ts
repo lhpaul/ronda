@@ -58,11 +58,11 @@ export async function main(): Promise<number> {
 
   const { octokit } = createGithubClient({ token: githubToken, apiUrl });
   const github: GithubOperations = {
-    readPullRequest: (o, r, n) => readPullRequest(octokit, o, r, n),
-    readChangedFiles: (o, r, n) => readChangedFiles(octokit, o, r, n),
-    findExistingCheckRun: (o, r, sha) => findExistingCheckRun(octokit, o, r, sha),
-    publishReview: (reviewInput) => publishReview(octokit, reviewInput),
-    publishCheckRun: (checkRunInput) => publishCheckRun(octokit, checkRunInput),
+    readPullRequest: (o, r, n, signal) => readPullRequest(octokit, o, r, n, signal),
+    readChangedFiles: (o, r, n, signal) => readChangedFiles(octokit, o, r, n, signal),
+    findExistingCheckRun: (o, r, sha, signal) => findExistingCheckRun(octokit, o, r, sha, signal),
+    publishReview: (reviewInput, signal) => publishReview(octokit, reviewInput, signal),
+    publishCheckRun: (checkRunInput, signal) => publishCheckRun(octokit, checkRunInput, signal),
   };
 
   let config: RondaConfig;
@@ -96,19 +96,54 @@ export async function main(): Promise<number> {
   return result.outcome === "failed" ? 1 : 0;
 }
 
-// Process wiring below (signal handlers, invoking main(), exit code) is
-// exercised by the smoke runbook against a real GitHub Actions run, not by
-// unit tests — the guard keeps it from running when this module is only
-// imported (for example, if a future test imports `main` directly).
+/**
+ * A minimal `process`-shaped seam so the handlers below can be unit tested
+ * without ever calling the real `process.exit` (which would terminate the
+ * test runner). Only the two members each handler actually needs.
+ */
+export type ExitingProcess = Pick<NodeJS.Process, "exitCode" | "exit">;
+
+/**
+ * Handles an unhandled promise rejection outside `main()`. Setting
+ * `exitCode` alone is not enough: Node keeps the event loop — and the
+ * process — alive after this event fires unless something explicitly calls
+ * `exit()`. Per the constitution ("Timeout in minutes, not hours. Silence
+ * is a failure, not a hang."), a broken pass must terminate promptly rather
+ * than sit until the Actions `timeout-minutes` backstop kills the job with
+ * no check run ever published.
+ */
+export function handleUnhandledRejection(reason: unknown, proc: ExitingProcess = process): void {
+  console.error("Ronda: unhandled rejection", reason);
+  proc.exitCode = 1;
+  proc.exit(1);
+}
+
+/** Same reasoning as `handleUnhandledRejection`, for a thrown exception with no `catch`. */
+export function handleUncaughtException(error: unknown, proc: ExitingProcess = process): void {
+  console.error("Ronda: uncaught exception", error);
+  proc.exitCode = 1;
+  proc.exit(1);
+}
+
+/** Same reasoning again: a rejected `main()` must not merely set `exitCode` and hope nothing else keeps the loop alive. */
+export function handleMainRejection(error: unknown, proc: ExitingProcess = process): void {
+  console.error("Ronda: fatal error", error);
+  proc.exitCode = 1;
+  proc.exit(1);
+}
+
+// Process wiring below (registering the handlers, invoking main(), exit
+// code) is exercised by the smoke runbook against a real GitHub Actions
+// run, not by unit tests — the guard keeps it from running when this
+// module is only imported (for example, if a future test imports `main`
+// directly). The handler functions themselves are unit tested directly.
 if (process.argv[1] && process.argv[1].endsWith("review-pr.ts")) {
   process.on("unhandledRejection", (reason) => {
-    console.error("Ronda: unhandled rejection", reason);
-    process.exitCode = 1;
+    handleUnhandledRejection(reason);
   });
 
   process.on("uncaughtException", (error) => {
-    console.error("Ronda: uncaught exception", error);
-    process.exitCode = 1;
+    handleUncaughtException(error);
   });
 
   main()
@@ -116,7 +151,6 @@ if (process.argv[1] && process.argv[1].endsWith("review-pr.ts")) {
       process.exitCode = code;
     })
     .catch((error) => {
-      console.error("Ronda: fatal error", error);
-      process.exitCode = 1;
+      handleMainRejection(error);
     });
 }

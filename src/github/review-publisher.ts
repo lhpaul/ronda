@@ -29,6 +29,7 @@ function statusOf(error: unknown): number | undefined {
 export async function publishReview(
   octokit: Octokit,
   input: PublishReviewInput,
+  signal?: AbortSignal,
 ): Promise<void> {
   try {
     await withRetry(() =>
@@ -45,6 +46,7 @@ export async function publishReview(
           side: "RIGHT" as const,
           body: comment.body,
         })),
+        request: { signal },
       }),
     );
     return;
@@ -65,6 +67,7 @@ export async function publishReview(
         event: "COMMENT",
         body: input.fallbackSummaryBody,
         comments: [],
+        request: { signal },
       }),
     );
   } catch (error) {

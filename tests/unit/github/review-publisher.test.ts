@@ -113,3 +113,12 @@ test("when the fallback attempt also fails, the pass fails with ReviewPublishErr
   );
   assert.equal(fake.calls.length, 2);
 });
+
+test("forwards the given signal as request.signal on the primary call", async () => {
+  const fake = createFakeOctokit(async () => ({ data: {} }));
+  const controller = new AbortController();
+
+  await publishReview(fake.octokit, baseInput(), controller.signal);
+
+  assert.equal((fake.calls[0].request as { signal?: AbortSignal } | undefined)?.signal, controller.signal);
+});

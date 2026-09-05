@@ -121,25 +121,35 @@ export interface PublishCheckRunInput {
  * The GitHub-facing port `runReviewPass` depends on. Implemented in
  * `src/github/` and composed from `src/cli/review-pr.ts`; every method is
  * injected so tests run with no network.
+ *
+ * Every method accepts an optional `signal` so `run-review-pass.ts` can
+ * thread the pass deadline's `AbortSignal` through the GitHub phase, not
+ * just the model call — otherwise GitHub API latency or retries could push
+ * a pass past its budget with the in-process deadline never firing. Passing
+ * `undefined` (the default) preserves today's unbounded behaviour for any
+ * caller that does not have a deadline to offer.
  */
 export interface GithubOperations {
   readPullRequest(
     owner: string,
     repo: string,
     pullNumber: number,
+    signal?: AbortSignal,
   ): Promise<PullRequestMetadata>;
   readChangedFiles(
     owner: string,
     repo: string,
     pullNumber: number,
+    signal?: AbortSignal,
   ): Promise<ChangedFile[]>;
   findExistingCheckRun(
     owner: string,
     repo: string,
     headSha: string,
+    signal?: AbortSignal,
   ): Promise<number | null>;
-  publishReview(input: PublishReviewInput): Promise<void>;
-  publishCheckRun(input: PublishCheckRunInput): Promise<void>;
+  publishReview(input: PublishReviewInput, signal?: AbortSignal): Promise<void>;
+  publishCheckRun(input: PublishCheckRunInput, signal?: AbortSignal): Promise<void>;
 }
 
 export interface Clock {
