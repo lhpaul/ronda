@@ -56,16 +56,16 @@ review:
     #   codex         — dispatches the stage-appropriate Codex review skill.
     #   coderabbit    — triggers CodeRabbit on the draft PR when reachable.
     runner:
-      - codex
+      - claude
 
     # Ordered list of GitHub/App/CLI reviewers that can safely evaluate draft
     # PRs. These run before the PR is converted to ready.
     # Supported today by pr-review-loop.sh: greptile, devin, coderabbit,
     # coderabbit-cli, local-ai-reviewer, pr-agent, codex-github,
     # claude-code-action, haystack, copilot, bugbot.
-    github:
-      - local-ai-reviewer
-      - pr-agent
+    # Empty on purpose: draft GitHub bots stay off. Internal review is Claude
+    # Code (Step 7a). Bugbot runs after `gh pr ready`.
+    github: []
 
   on_ready:
     # Ordered list of GitHub/App/CLI reviewers that run only after draft gates
@@ -262,34 +262,29 @@ template:
 # enforcement reference (effective-guardrails resolution, five enforcement gates,
 # named stop conditions, audit-evidence rules).
 #
-# Two-step lifecycle (default for this template):
-# Delegated execution permits Backlog starts and merges within the per-stage
-# risk limits below. Bounded prelude still reports the resolved policy before
-# mutation — see docs/workflow/development-workflow/bounded-run-prelude.md.
+# First-days policy: Claude Code opens PRs and runs review loops; humans merge.
+# Bounded prelude still reports the resolved policy before mutation — see
+# docs/workflow/development-workflow/bounded-run-prelude.md.
 
 guardrails:
-  # mode: delegated — agents may merge within per-stage permissions and risk limits.
-  mode: delegated
+  # mode: assisted — agents prepare PRs and gather review evidence; humans merge.
+  mode: assisted
 
-  # backlog_start — agents may start eligible Backlog work without an additional
-  # policy confirmation.
+  # backlog_start — wait for an explicit /run-item (or equivalent) per item.
   backlog_start:
-    allow_without_confirmation: true
+    allow_without_confirmation: false
 
-  # stages — delegated merge authority is enabled up to medium risk.
+  # stages — agents may open PRs; they may not merge.
   stages:
     spec:
       may_open_pr: true
-      may_merge_pr: true
-      max_merge_risk: medium
+      may_merge_pr: false
     plan:
       may_open_pr: true
-      may_merge_pr: true
-      max_merge_risk: medium
+      may_merge_pr: false
     implementation:
       may_open_pr: true
-      may_merge_pr: true
-      max_merge_risk: medium
+      may_merge_pr: false
 
   # stop_conditions — baseline stops that hold in all modes (additive, never removable).
   stop_conditions:
