@@ -71,7 +71,7 @@ export async function runReviewPass(
     return skippedResult("already_reviewed_automatically", startMs, deps);
   }
 
-  const deadline = createPassDeadline(deps.config.passTimeoutMs);
+  const deadline = createPassDeadline(deps.config.passTimeoutMs, deps.deadlineClock);
   try {
     if (deps.config.loadError) {
       return await finalizeFailure(deps, input, {

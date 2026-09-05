@@ -13,6 +13,31 @@ import type {
 } from "../../../src/domain/review-pass.types.js";
 import type { ModelClient } from "../../../src/inference/model-client.js";
 import type { RondaConfig } from "../../../src/config/config.types.js";
+import type { DeadlineClock, DeadlineTimerHandle } from "../../../src/core/pass-deadline.js";
+
+/**
+ * A short, real timer that the process treats as an active handle (unlike
+ * production's `unref`-ed deadline timer). `createPassDeadline` always
+ * calls `timer.unref?.()` on whatever `setTimeout` returns; here that call
+ * hits this wrapper's no-op instead of `Timeout.prototype.unref`, so the
+ * real underlying timer keeps the event loop alive for the few milliseconds
+ * the test needs. Without this, an `unref`-ed real timer as the *only*
+ * active handle in an idle test process can trigger Node's test runner to
+ * treat the process as exiting before the timer callback ever runs
+ * ("Promise resolution is still pending but the event loop has already
+ * resolved") — a test-process artifact, not a product bug.
+ */
+function createFastDeadlineClock(fireAfterMs: number): DeadlineClock {
+  return {
+    setTimeout: (callback) => {
+      const real = setTimeout(callback, fireAfterMs);
+      return { real, unref: () => undefined } as DeadlineTimerHandle & { real: NodeJS.Timeout };
+    },
+    clearTimeout: (handle) => {
+      clearTimeout((handle as DeadlineTimerHandle & { real: NodeJS.Timeout }).real);
+    },
+  };
+}
 
 const HEAD_SHA = "a".repeat(40);
 
@@ -262,7 +287,12 @@ test("Scenario 7: an expired deadline fails with timed_out and publishes only a 
 
   const result = await runReviewPass(
     { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
-    baseDeps({ github: github.ops, model, config: createConfig({ passTimeoutMs: 20 }) }),
+    baseDeps({
+      github: github.ops,
+      model,
+      config: createConfig({ passTimeoutMs: 5 }),
+      deadlineClock: createFastDeadlineClock(5),
+    }),
   );
 
   assert.equal(result.outcome, "failed");

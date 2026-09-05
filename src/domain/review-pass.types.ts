@@ -1,4 +1,5 @@
 import type { RondaConfig } from "../config/config.types.js";
+import type { DeadlineClock } from "../core/pass-deadline.js";
 import type { ModelClient } from "../inference/model-client.js";
 import type { Severity } from "./severity.js";
 
@@ -158,6 +159,17 @@ export interface ReviewPassDeps {
   logger: Logger;
   /** Actions run URL used as the check run's "details" link, when known. */
   detailsUrl?: string;
+  /**
+   * Overrides the timer implementation `createPassDeadline` uses. Absent in
+   * production (the real, `unref`-ed system timer is used). Tests that need
+   * to exercise a real elapsed-time expiry inject a short, non-`unref`-able
+   * timer here instead — a real `unref`-ed timer as the sole active handle
+   * in an otherwise-idle test process can trigger Node's test runner to
+   * treat the process as exiting early (`beforeExit` firing before the
+   * timer callback runs), which is an artifact of the test process having
+   * nothing else keeping the event loop alive, not a product bug.
+   */
+  deadlineClock?: DeadlineClock;
 }
 
 export interface ReviewPassResult {
