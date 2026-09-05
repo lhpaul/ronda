@@ -11,6 +11,22 @@ test("redacts a value equal to a supplied secret, anywhere in the fields object"
   assert.equal(parsed.other, "fine");
 });
 
+test("redacts a secret embedded inside a larger string, not only an exact-match value", () => {
+  // Reproduces a realistic case: a thrown error's message wraps the
+  // credential inside a longer sentence (e.g. an upstream error echoing an
+  // Authorization header), rather than the field being the bare secret.
+  const lines: string[] = [];
+  const logger = createLogger(["sk-supersecretkeyvalue"], (line) => lines.push(line));
+  logger.event("pass_failed", {
+    reason: "model_unavailable",
+    message:
+      "Error: Model request failed: Authorization: Bearer sk-supersecretkeyvalue was rejected by upstream",
+  });
+  const parsed = JSON.parse(lines[0]);
+  assert.doesNotMatch(parsed.message, /sk-supersecretkeyvalue/);
+  assert.match(parsed.message, /\[REDACTED\]/);
+});
+
 test("redacts any field literally named authorization regardless of value", () => {
   const lines: string[] = [];
   const logger = createLogger([], (line) => lines.push(line));
