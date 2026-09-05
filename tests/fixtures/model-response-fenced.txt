@@ -1,0 +1,7 @@
+Here is my review:
+
+```json
+{"findings":[{"path":"src/example.ts","line":42,"severity":"blocking","title":"Off-by-one","body":"The loop condition should be <= not <."}]}
+```
+
+Let me know if you have questions.

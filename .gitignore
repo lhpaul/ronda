@@ -18,6 +18,10 @@ Thumbs.db
 
 # Node
 node_modules/
+dist/
+
+# Ronda local operator config (never committed — see ronda.config.example.json)
+ronda.config.json
 
 # Python
 __pycache__/
