@@ -97,10 +97,10 @@ call it directly.
 | `src/domain/review-pass.types.ts` | `PassOutcome`, `FailureReason`, `SkipReason`, `TriggerMode`, `Finding`, `ChangedFile`, `ReviewPassInput`, `ReviewPassDeps`, `ReviewPassResult` |
 | `src/domain/severity.ts` | `Severity` type plus `severityLabel` (code value to display label) |
 | `src/github/github-client.ts` | Thin authenticated REST wrapper built on `@octokit/rest` |
-| `src/github/pull-request-reader.ts` | Read pull-request metadata and changed files; re-read head SHA for the supersede check |
+| `src/github/pull-request-reader.ts` | Read pull-request metadata and changed files; find an existing `Ronda review` check run on the head SHA; re-read head SHA for the supersede check |
 | `src/github/diff-lines.ts` | `parseCommentableLines` — unified-diff hunk parser |
 | `src/github/review-publisher.ts` | `publishReview` — one review with inline comments and summary, with the oversize/invalid-line fallback |
-| `src/github/check-run-publisher.ts` | `publishCheckRun` — one terminal check run |
+| `src/github/check-run-publisher.ts` | `publishCheckRun` — one terminal check run, created or updated in place |
 | `src/inference/model-client.ts` | `ModelClient` interface and request/response types — the vendor seam |
 | `src/inference/openai-compatible-client.ts` | `createOpenAiCompatibleClient` — Qwen/DashScope and any other OpenAI-compatible endpoint |
 | `src/inference/review-prompt.ts` | `buildReviewPrompt` — prompt and output-contract construction |
@@ -159,9 +159,10 @@ what a pass publishes; every other section of this plan defers to it.
 | --- | --- | --- | --- | --- |
 | `pull_request` (`opened`, `reopened`, `ready_for_review`, `synchronize`) | draft | any | `skipped` (`draft_pull_request`) | Nothing |
 | `pull_request` | ready | present | `skipped` (`already_reviewed_automatically`) | Nothing |
-| `pull_request` | ready | absent | `running`, then terminal | Review + check run |
+| `pull_request` | ready | absent | `running`, then terminal | Review + check run (new check run) |
 | `issue_comment` matching `REVIEW_COMMAND` | draft | any | `skipped` (`draft_pull_request`) | Nothing |
-| `issue_comment` matching `REVIEW_COMMAND` | ready | any | `running`, then terminal | Review + check run |
+| `issue_comment` matching `REVIEW_COMMAND` | ready | absent | `running`, then terminal | Review + check run (new check run) |
+| `issue_comment` matching `REVIEW_COMMAND` | ready | present | `running`, then terminal | New review + same check run updated in place |
 | `issue_comment` not matching `REVIEW_COMMAND` | any | any | No pass starts | Nothing |
 | Any | ready, head SHA changed before publication | any | `skipped` (`superseded_head_sha`) | Nothing |
 | Any | ready, pass reached a failure | n/a | `failed` (reason named) | Check run only |
@@ -193,6 +194,7 @@ documentation states this explicitly so a waiting loop treats absence as
 | --- | --- |
 | At most one automatic review per head SHA | `pull-request-reader.ts` queries `GET /repos/{owner}/{repo}/commits/{sha}/check-runs?check_name=Ronda review` before an automatic pass; any hit yields `skipped`. Manual passes deliberately bypass this query. |
 | A superseded pass publishes nothing | `run-review-pass.ts` re-reads `GET /repos/{owner}/{repo}/pulls/{number}` immediately before publication and compares `head.sha`; a mismatch yields `skipped`. The recommended caller-side `concurrency` block with `cancel-in-progress: true` is an optimisation on top of this, not the guarantee. |
+| Exactly one `Ronda review` check-run identity per head SHA | `run-review-pass.ts` calls `findExistingCheckRun` on every pass, automatic or manual, before publication (not only as the automatic-skip gate). When an id is found, `publishCheckRun` issues `PATCH .../check-runs/{check_run_id}`; when none is found, it issues `POST .../check-runs`. A manual re-trigger therefore updates the same check run to the newest pass's outcome rather than creating a second one, which is what AC10's "the check run for that head commit reflects the newest pass" requires. |
 | Every finding reaches the reader | Findings whose line maps into the diff become inline comments; all others go into the review summary list. Nothing is filtered on severity or count. |
 | Exactly one review per pass | A single `POST .../pulls/{number}/reviews` call carries the summary and all inline comments atomically. |
 | Bounded retries | `github-client.ts` retries at most twice, with fixed 2s then 5s backoff, and only on HTTP 5xx or a secondary-rate-limit response. `publishReview` additionally makes at most one fallback attempt after a 422. No other call is retried. |
@@ -237,8 +239,10 @@ passes" makes persistence unnecessary. No migration, no schema, no seed table.
 - [ ] `src/github/pull-request-reader.ts` — `readPullRequest` (metadata: title,
       body, `draft`, `head.sha`), `readChangedFiles` (paginated
       `GET .../pulls/{number}/files`, mapped to `ChangedFile`), and
-      `findExistingCheckRun` for the automatic-duplicate guard.
-      *(Spec: Use Cases 1-3; ACs 1, 2, 3.)*
+      `findExistingCheckRun`, called on every pass (automatic or manual) both as
+      the automatic-duplicate guard and to retrieve the existing check run's id
+      so a manual re-trigger can update it in place instead of creating a
+      second one. *(Spec: Use Cases 1-3; ACs 1, 2, 3, 10.)*
 - [ ] `src/github/diff-lines.ts` — `parseCommentableLines(patch)` returns the set
       of right-side line numbers a comment may attach to. See the parser-risk
       addendum for the full edge-case list. *(Spec: inline-versus-summary
@@ -248,13 +252,22 @@ passes" makes persistence unnecessary. No migration, no schema, no seed table.
       to the pass head SHA, the summary body, and one entry per mapped finding
       (`path`, `line`, `side: RIGHT`, `body`). On HTTP 422 it makes exactly one
       fallback attempt with no inline comments and every finding rendered into
-      the summary, so no finding is lost to a rejected payload.
+      the summary, so no finding is lost to a rejected payload. If that fallback
+      attempt also returns a 4xx (for example the consolidated summary itself
+      exceeds GitHub's body-size limit), the pass fails with `unexpected_error`
+      naming the HTTP status rather than retrying again or silently dropping
+      findings — this is the documented edge of the "no finding is dropped"
+      guarantee for passes with an unusually large number of large findings.
       *(Spec: all findings in one review; ACs 4, 5.)*
-- [ ] `src/github/check-run-publisher.ts` — `publishCheckRun` issues one
-      `POST .../check-runs` with `status: completed`, `head_sha`, `started_at`,
-      `completed_at`, `details_url` pointing at the Actions run, `conclusion`
-      `success` for `succeeded` and `failure` for `failed`, and the output built
-      by `buildCheckRunOutput`. *(Spec: Operational Visibility; ACs 1, 7, 8, 9.)*
+- [ ] `src/github/check-run-publisher.ts` — `publishCheckRun` takes an optional
+      `existingCheckRunId`. When present it issues
+      `PATCH .../check-runs/{existingCheckRunId}`; when absent it issues
+      `POST .../check-runs`. Either call carries `status: completed`, `head_sha`,
+      `started_at`, `completed_at`, `details_url` pointing at the Actions run,
+      `conclusion` `success` for `succeeded` and `failure` for `failed`, and the
+      output built by `buildCheckRunOutput`. Updating in place on a manual
+      re-trigger keeps exactly one `Ronda review` check run per head SHA.
+      *(Spec: Operational Visibility; ACs 1, 7, 8, 9, 10.)*
 - [ ] `src/inference/model-client.ts` — the vendor seam:
       `interface ModelClient { readonly modelName: string; complete(request: ModelRequest, signal: AbortSignal): Promise<string>; }`.
       Nothing outside `src/inference/` may reference a vendor by name.
@@ -297,11 +310,15 @@ passes" makes persistence unnecessary. No migration, no schema, no seed table.
       *(Spec: Operational Visibility logs rule.)*
 - [ ] `src/core/run-review-pass.ts` — `runReviewPass` implements the pass outcome
       decision matrix in order: read the pull request, apply the draft gate,
-      apply the automatic-duplicate gate, arm the deadline, read changed files,
+      look up any existing `Ronda review` check run for the head SHA (used as
+      the automatic-duplicate gate on the automatic path, and carried through as
+      `existingCheckRunId` on both paths), arm the deadline, read changed files,
       build the prompt, call the model, parse the response, map findings to
       inline or summary placement, re-read the head SHA, then publish the review
-      followed by the check run. Every failure path is caught and mapped to a
-      `FailureReason` before publication so a failure is always visible.
+      followed by the check run, passing `existingCheckRunId` through so a
+      manual re-trigger updates rather than duplicates. Every failure path is
+      caught and mapped to a `FailureReason` before publication so a failure is
+      always visible.
       *(Spec: Use Cases 1-4; ACs 1-12, 16.)*
 
 ### CLI / Action entrypoint
@@ -361,6 +378,13 @@ GitHub pull-request review and check run.
       `pass_timeout_minutes` plus two, as the outer backstop behind the
       in-process deadline. The workflow declares
       `permissions: { contents: read, pull-requests: write, checks: write }`.
+      `ronda_ref: main` is the documented production default, valid once this
+      feature has been released to `main`; it is not usable during this plan's
+      own implementation, because the dogfood smoke test (Implementation Order
+      step 14) runs before that release, and `lhpaul/ronda`'s `main` branch is
+      still the unmodified template bootstrap with no `ronda-review.yml` and no
+      `src/` at all. The smoke test runbook overrides both the `uses:` ref and
+      the `ronda_ref` input to the implementation branch for that run.
       Note that the reviewed repository is never checked out — the pass reads it
       through the REST API only. *(Spec: Use Cases 1-3; ACs 1, 2, 13.)*
 - [ ] `.github/workflows/node-ci.yml` — pull-request and `develop` push CI
@@ -420,8 +444,9 @@ the `tsx` precedent already present in `hooks/`.
 7. An expired deadline produces a `Review failed` check run naming the timeout
    reason — maps to acceptance criterion 9.
 8. A manual `/ronda review` pass on a head SHA that already has a check run runs
-   anyway and its summary says the pass was manually requested — maps to
-   acceptance criterion 10.
+   anyway, its summary says the pass was manually requested, and the check run
+   is updated in place (same `id`, new outcome) rather than a second check run
+   being created — maps to acceptance criterion 10.
 9. A head SHA that differs at the pre-publication re-read publishes neither a
    review nor a check run — maps to acceptance criterion 16.
 10. `runReviewPass` composed with a different `ModelClient` (different model
@@ -660,6 +685,7 @@ tests require are:
 | Very large diffs exhaust the model context or the time budget | Med | Med | `DEFAULT_MAX_PATCH_CHARS` fails the pass with `changes_too_large` before the model is called, which is the failure reason the spec already names |
 | Adding a root TypeScript project disturbs the template-owned `hooks/` and `e2e/` trees | Low | Med | The root `tsconfig.json` includes only `src` and `tests`, and `eslint.config.js` ignores `hooks`, `e2e`, `template`, and `docs` |
 | The check run is absent rather than pending while a pass runs, confusing a waiting consumer | Med | Low | Documented explicitly in the adoption guide's consumption contract, and asserted by smoke test step 9 |
+| A very high volume of large findings makes even the 422 fallback's consolidated summary exceed GitHub's review body size limit | Low | Low | `MAX_FINDING_BODY_CHARS` bounds each individual finding; a fallback that still fails on size maps to `unexpected_error` naming the HTTP status rather than looping or dropping findings silently — a documented edge of "no finding is dropped" for v0 |
 
 ---
 

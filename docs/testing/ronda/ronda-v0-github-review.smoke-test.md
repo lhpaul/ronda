@@ -30,6 +30,17 @@ Before running this smoke test:
       `RONDA_MODEL_API_KEY` on `lhpaul/ai-dev-framework-template` for the
       dogfood steps.
 - [ ] `gh` is authenticated for both repositories.
+- [ ] The dogfood caller workflow committed on
+      `lhpaul/ai-dev-framework-template` for this run points at the
+      **implementation branch under test**, not the documented `main` default:
+      both `uses: lhpaul/ronda/.github/workflows/ronda-review.yml@<implementation-branch>`
+      and the `ronda_ref: <implementation-branch>` input must be overridden.
+      `lhpaul/ronda`'s `main` branch is still the unmodified template bootstrap
+      at this point in the workflow (this feature has not been released yet),
+      so it has neither `ronda-review.yml` nor any `src/` to check out; using
+      the documented `@main` / default `ronda_ref` here would fail to resolve
+      the workflow rather than exercise it. Revert both to `main` once the
+      feature has actually been released.
 
 Two environments are used:
 
@@ -66,7 +77,8 @@ Two environments are used:
 1. On `lhpaul/ai-dev-framework-template`, push `smoke/ronda-dogfood` and open a
    pull request as a **draft**.
 2. Confirm the caller workflow file from `docs/adoption/ronda-review-adoption.md`
-   is committed on that repository's default branch.
+   is committed on that repository's default branch, with the `uses:` ref and
+   `ronda_ref` input overridden per the Prerequisites section above.
 3. Mark the pull request ready for review.
 4. Wait for the `Ronda review` workflow run to finish.
 5. Record the head SHA:
@@ -128,14 +140,19 @@ head SHA still has its original check run.
 
 **Maps to**: Acceptance criterion 10
 
-1. Without pushing anything, post the comment `/ronda review` on the ready pull
+1. Record the check run `id` for the head SHA from step 1's check-run list.
+2. Without pushing anything, post the comment `/ronda review` on the ready pull
    request.
-2. Wait for the workflow run to finish.
-3. List reviews and read the newest one.
+3. Wait for the workflow run to finish.
+4. List reviews and read the newest one.
+5. List check runs for the head SHA again and compare the `id` to the one
+   recorded in step 1.
 
 **Expected result**: A newer Ronda review exists for the same head SHA, and its
-summary states that the pass was manually requested. The check run for that head
-SHA reflects the newest pass.
+summary states that the pass was manually requested. Exactly one `Ronda review`
+check run still exists for that head SHA, its `id` is unchanged from step 1, and
+its status/conclusion reflect the newest pass — the manual re-trigger updates
+the existing check run rather than adding a second one.
 
 ### Step 6: Zero findings
 
@@ -282,7 +299,8 @@ complete Ronda review, and Ronda pushed nothing to its branch.
       timeout reason, never pending with no explanation (step 9).
 - [ ] `/ronda review` on a ready pull request whose head SHA already has a
       review produces a newer review whose summary says the pass was manually
-      requested (step 5).
+      requested, and updates the existing `Ronda review` check run in place
+      rather than creating a second one (step 5).
 - [ ] `/ronda review` on a draft pull request produces no review and no check
       run (step 3).
 - [ ] Pointing Ronda at a different model produces the same review shape with the
