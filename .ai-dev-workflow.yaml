@@ -56,16 +56,16 @@ review:
     #   codex         — dispatches the stage-appropriate Codex review skill.
     #   coderabbit    — triggers CodeRabbit on the draft PR when reachable.
     runner:
-      - codex
+      - claude
 
     # Ordered list of GitHub/App/CLI reviewers that can safely evaluate draft
     # PRs. These run before the PR is converted to ready.
     # Supported today by pr-review-loop.sh: greptile, devin, coderabbit,
     # coderabbit-cli, local-ai-reviewer, pr-agent, codex-github,
     # claude-code-action, haystack, copilot, bugbot.
-    github:
-      - local-ai-reviewer
-      - pr-agent
+    # Empty on purpose: draft GitHub bots stay off. Internal review is Claude
+    # Code (Step 7a). Bugbot runs after `gh pr ready`.
+    github: []
 
   on_ready:
     # Ordered list of GitHub/App/CLI reviewers that run only after draft gates
@@ -204,7 +204,7 @@ issue_tracker:
   # Used by workflow-lib.sh as a fallback when GITHUB_PROJECT_NUMBER env var is not set.
   # Required for tracker status updates (update_tracker_status_best_effort) and status reads
   # (get_tracker_status_for_issue) to function without setting an environment variable.
-  project_number: 1
+  project_number: 11
   # custom_fields: flat key-value map of provider-specific fields.
   # Each integration doc defines which keys are recognised and their effect.
   # Unrecognised keys are silently ignored by scripts that do not consume them.
@@ -218,8 +218,8 @@ issue_tracker:
   #   custom_fields:
   #     type_field: Custom Type
   #
-  # custom_fields:
-  #   project: ""
+  custom_fields:
+    type_field: Work type
 
 vcs:
   # Supported examples: github, gitlab, bitbucket, other
@@ -234,14 +234,14 @@ template:
   # tooling to be consumed by downstream projects). When true, Protocol 02 Step 0
   # (Template-Fit Check) is mandatory before writing any implementation plan.
   # Leave false or omit for downstream consumer repositories.
-  is_template: true
+  is_template: false
 
   # Optional: upstream template repository reference (owner/repo format for GitHub).
   # When set, the retrospective protocol (Step 3b) cross-references each finding
   # against the specified template repository's issue tracker. Leave empty or omit to skip.
   # Note: this is set by DOWNSTREAM repos pointing back to their template origin —
   # the template repo itself leaves this empty.
-  repository: ""
+  repository: lhpaul/ai-dev-framework-template
 
   # Optional: the template version last applied by the sync-template skill.
   # Written automatically by sync-template after a successful sync.
@@ -262,21 +262,20 @@ template:
 # enforcement reference (effective-guardrails resolution, five enforcement gates,
 # named stop conditions, audit-evidence rules).
 #
-# Two-step lifecycle (default for this template):
-# Delegated execution permits Backlog starts and merges within the per-stage
-# risk limits below. Bounded prelude still reports the resolved policy before
-# mutation — see docs/workflow/development-workflow/bounded-run-prelude.md.
+# First-days policy: Claude Code may merge clean spec/plan/implementation PRs
+# up to medium risk. High-risk, unclear requirements, and blocked reviews still
+# stop. Bounded prelude still reports the resolved policy before mutation —
+# see docs/workflow/development-workflow/bounded-run-prelude.md.
 
 guardrails:
   # mode: delegated — agents may merge within per-stage permissions and risk limits.
   mode: delegated
 
-  # backlog_start — agents may start eligible Backlog work without an additional
-  # policy confirmation.
+  # backlog_start — wait for an explicit /run-item (or equivalent) per item.
   backlog_start:
-    allow_without_confirmation: true
+    allow_without_confirmation: false
 
-  # stages — delegated merge authority is enabled up to medium risk.
+  # stages — agents may open and merge PRs at or below medium risk.
   stages:
     spec:
       may_open_pr: true
