@@ -1,0 +1,7 @@
+{
+  "modelApiKey": "",
+  "modelBaseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+  "modelName": "qwen-plus",
+  "passTimeoutMs": 600000,
+  "maxPatchChars": 400000
+}
