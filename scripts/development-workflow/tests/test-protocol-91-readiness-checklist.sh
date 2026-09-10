@@ -113,7 +113,8 @@ run_test "target_repo_resolved_in_checklist" "yes" "$_target_repo_defined"
 # The CI loop dedupes by check key before deciding green/red. Step 8a must do
 # the same so a superseded failed check-run does not disagree with the CI loop
 # for the same head SHA.
-if grep -q 'CHECK_RUNS_JSON=' "$PROTOCOL" &&
+if grep -q 'NORMALIZED_CHECKS_JSON=' "$PROTOCOL" &&
+   grep -q '"check:" + .workflowName + "/" + .name' "$PROTOCOL" &&
    grep -q 'group_by(.__check_key)' "$PROTOCOL" &&
    grep -q 'map(last | del(.__check_key, .__check_ts))' "$PROTOCOL"; then
   _dedupes_check_runs="yes"
