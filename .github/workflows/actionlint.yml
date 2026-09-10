@@ -1,0 +1,44 @@
+name: Workflow lint
+
+# An unparseable workflow file is invisible to every other gate in this
+# repository: unit tests, ShellCheck, and the reviewer loop all pass, and the
+# failure only appears when another repository tries to call the reusable
+# workflow, where it surfaces as a startup failure with zero jobs and no logs.
+# That is how issue #9 shipped. actionlint parses every workflow the way
+# GitHub does, including expression syntax.
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+  push:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          persist-credentials: false
+
+      - name: Run actionlint
+        uses: raven-actions/actionlint@3a24062651993d40fed1019b58ac6fbdfbf276cc # v2.0.1
+        with:
+          fail-on-error: true
+          # This repository already runs ShellCheck as its own job over
+          # scripts/development-workflow/. actionlint's embedded ShellCheck
+          # would duplicate that and additionally fail on pre-existing
+          # findings in template-owned workflow files, which sync-template
+          # would reintroduce on the next update. Workflow and expression
+          # syntax is the class of bug this gate exists for.
+          shellcheck: ""
