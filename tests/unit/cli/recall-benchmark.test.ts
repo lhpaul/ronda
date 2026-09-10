@@ -300,6 +300,39 @@ test("review comparison records clean agreement and false-clean candidates", () 
   assert.equal(falseCleanSummary.falseCleanCandidate, true);
 });
 
+test("review comparison treats unclear same-head external findings as false-clean candidates", () => {
+  const cleanAgreement = readJson<ReviewComparisonRecord[]>(
+    "comparisons/clean-agreement.json",
+  )[0];
+  const unclearExternalFinding: ReviewComparisonRecord = {
+    ...cleanAgreement,
+    id: "unclear-external-finding",
+    pullNumber: 41,
+    otherReviewer: {
+      ...cleanAgreement.otherReviewer,
+      result: "findings",
+      findings: [
+        {
+          path: "src/example.ts",
+          line: 14,
+          severity: "important",
+          title: "External reviewer found a possible defect",
+          body: "The sample still needs human adjudication.",
+        },
+      ],
+    },
+    adjudications: [{ outcome: "unclear" }],
+  };
+
+  const summary = summarizeReviewComparison(unclearExternalFinding);
+
+  assert.equal(summary.sameHead, true);
+  assert.equal(summary.rondaFindingCount, 0);
+  assert.equal(summary.otherReviewerFindingCount, 1);
+  assert.equal(summary.adjudicationCounts.unclear, 1);
+  assert.equal(summary.falseCleanCandidate, true);
+});
+
 test("review comparison counts every adjudication outcome", () => {
   const record = readJson<ReviewComparisonRecord[]>("comparisons/all-outcomes.json")[0];
   const summary = summarizeReviewComparison(record);

@@ -35,7 +35,7 @@ test("comparison records default clean same-head reviews to clean agreement", ()
   assert.equal(summarizeReviewComparison(record).falseCleanCandidate, false);
 });
 
-test("comparison records leave non-clean outcomes for human adjudication", () => {
+test("comparison records queue non-clean external findings for human adjudication", () => {
   const record = buildReviewComparisonRecord({
     id: "ronda-pr-31-bugbot-20260910",
     repository: "lhpaul/ronda",
@@ -56,7 +56,7 @@ test("comparison records leave non-clean outcomes for human adjudication", () =>
   });
 
   assert.equal(record.adjudications[0]?.outcome, "unclear");
-  assert.equal(summarizeReviewComparison(record).falseCleanCandidate, false);
+  assert.equal(summarizeReviewComparison(record).falseCleanCandidate, true);
 });
 
 test("same-head default adjudication rejects stale reviewer evidence", () => {
