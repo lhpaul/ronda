@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildPullRequestViewArgs,
   buildReviewComparisonRecord,
   defaultAdjudicationOutcome,
   defaultComparisonId,
@@ -80,6 +81,26 @@ test("default comparison id is stable and filesystem-friendly", () => {
       timestamp: new Date("2026-09-10T20:00:00.000Z"),
     }),
     "lhpaul-ronda-pr-30-cursor-bugbot-20260910",
+  );
+});
+
+test("PR metadata lookup is scoped to the selected repository", () => {
+  assert.deepEqual(
+    buildPullRequestViewArgs({
+      pullNumber: 30,
+      repository: "other-owner/other-repo",
+    }),
+    [
+      "pr",
+      "view",
+      "30",
+      "--repo",
+      "other-owner/other-repo",
+      "--json",
+      "headRefOid",
+      "--jq",
+      ".headRefOid",
+    ],
   );
 });
 

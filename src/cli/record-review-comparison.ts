@@ -141,6 +141,23 @@ export function writeComparisonRecord(
   writeFileSync(path, `${JSON.stringify(records, null, 2)}\n`);
 }
 
+export function buildPullRequestViewArgs(input: {
+  pullNumber: number;
+  repository: string;
+}): string[] {
+  return [
+    "pr",
+    "view",
+    String(input.pullNumber),
+    "--repo",
+    input.repository,
+    "--json",
+    "headRefOid",
+    "--jq",
+    ".headRefOid",
+  ];
+}
+
 function defaultAdjudicationNotes(
   outcome: ComparisonAdjudicationOutcome,
 ): string {
@@ -276,15 +293,7 @@ function readPullRequestMetadata(options: CliOptions): PullRequestMetadata {
     options.headSha ??
     execFileSync(
       "gh",
-      [
-        "pr",
-        "view",
-        String(options.pr),
-        "--json",
-        "headRefOid",
-        "--jq",
-        ".headRefOid",
-      ],
+      buildPullRequestViewArgs({ pullNumber: options.pr, repository }),
       {
         encoding: "utf8",
       },
