@@ -34,5 +34,18 @@ Run the recall benchmark with deterministic fixtures:
 npm run benchmark:recall -- --response-file tests/fixtures/recall-benchmark/model-responses/passing.json
 ```
 
+Run the broader quality benchmark, including precision and second-reviewer
+comparison fixtures:
+
+```bash
+npm run benchmark:quality -- \
+  --response-file tests/fixtures/recall-benchmark/model-responses/passing.json \
+  --precision-response-file tests/fixtures/recall-benchmark/model-responses/precision-clean.json \
+  --comparison-file tests/fixtures/recall-benchmark/comparisons/clean-agreement.json
+```
+
 Omit `--response-file` to run against the configured real model. Real-model
 benchmark evidence requires `RONDA_MODEL_API_KEY` or the local operator config.
+Second-reviewer evidence requires a same-head review from the comparison
+platform and human adjudication before external-only findings count as Ronda
+misses.

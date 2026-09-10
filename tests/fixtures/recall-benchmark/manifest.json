@@ -1,5 +1,24 @@
 {
   "benchmarkId": "issue-15-recall-benchmark",
+  "qualityCategories": [
+    "security",
+    "authorization",
+    "data-loss",
+    "async/race",
+    "configuration",
+    "stale-SHA",
+    "sorting",
+    "text-normalization",
+    "multi-finding"
+  ],
+  "precisionFixtures": [
+    {
+      "id": "harmless-session-refactor",
+      "description": "A small changed-file fixture that should not require a Ronda finding.",
+      "expected": "clean",
+      "forbiddenValues": ["sk_live_seeded_secret_value"]
+    }
+  ],
   "seededDefects": [
     {
       "id": "expired-session-inversion",
@@ -112,6 +131,71 @@
         ["empty", "input", "throw"],
         ["word[0]", "undefined"],
         ["empty", "strings"]
+      ]
+    },
+    {
+      "id": "authorization-bypass",
+      "category": "authorization bypass",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/authorization.ts",
+      "description": "A user can access an admin action without the required role.",
+      "matchTerms": ["authorization", "admin", "bypass"],
+      "matchTermGroups": [
+        ["authorization", "admin", "bypass"],
+        ["admin", "role", "missing"],
+        ["permission", "check"]
+      ]
+    },
+    {
+      "id": "data-loss-overwrite",
+      "category": "data-loss overwrite",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/storage.ts",
+      "description": "A partial profile update overwrites existing stored data.",
+      "matchTerms": ["data", "loss", "overwrite"],
+      "matchTermGroups": [
+        ["data", "loss", "overwrite"],
+        ["partial", "update", "overwrite"],
+        ["existing", "profile", "lost"]
+      ]
+    },
+    {
+      "id": "async-race-duplicate-processing",
+      "category": "async race duplicate processing",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/jobs.ts",
+      "description": "Concurrent job handlers can process the same job twice.",
+      "matchTerms": ["race", "duplicate", "job"],
+      "matchTermGroups": [
+        ["race", "duplicate", "job"],
+        ["concurrent", "process", "same"],
+        ["in-flight", "tracking"]
+      ]
+    },
+    {
+      "id": "configuration-debug-default",
+      "category": "configuration debug default",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/config.ts",
+      "description": "Production debug logging is enabled by default when the environment variable is absent.",
+      "matchTerms": ["debug", "default", "production"],
+      "matchTermGroups": [
+        ["debug", "default", "production"],
+        ["logging", "enabled", "default"],
+        ["configuration", "unsafe", "default"]
+      ]
+    },
+    {
+      "id": "stale-sha-review-publication",
+      "category": "stale-SHA review publication",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/stale-sha.ts",
+      "description": "A review can be published after the pull request head changed.",
+      "matchTerms": ["stale", "sha", "review"],
+      "matchTermGroups": [
+        ["stale", "sha", "review"],
+        ["head", "changed", "publish"],
+        ["superseded", "head", "review"]
       ]
     }
   ]

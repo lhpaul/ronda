@@ -33,6 +33,12 @@ smoke runbook as the second tier — see
   against `tests/fixtures/recall-benchmark/`. A `--response-file` fixture mode
   proves benchmark mechanics in CI-safe tests; real recall evidence requires a
   configured model credential and is recorded in the smoke runbook/PR evidence.
+- **Quality benchmark** (operator evidence tier):
+  `npm run benchmark:quality` extends the recall evidence with required quality
+  categories, precision fixtures, same-head variance comparison, and
+  second-reviewer comparison records. Other reviewer output is treated as a
+  second opinion, not truth; external-only findings count as Ronda misses only
+  after human adjudication.
 - **Smoke** (manual, against real GitHub): `docs/testing/ronda/ronda-v0-github-review.smoke-test.md`,
   covering the dogfood run against `lhpaul/ai-dev-framework-template` and
   cases impractical to stage in CI (missing credential, timeout, supersede).
@@ -51,6 +57,7 @@ npm run typecheck
 npm run lint
 npm test
 npm run benchmark:recall -- --response-file tests/fixtures/recall-benchmark/model-responses/passing.json
+npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/model-responses/passing.json --precision-response-file tests/fixtures/recall-benchmark/model-responses/precision-clean.json --comparison-file tests/fixtures/recall-benchmark/comparisons/clean-agreement.json
 ```
 
 ## Key Architectural Decisions

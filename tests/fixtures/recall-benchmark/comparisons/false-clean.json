@@ -1,0 +1,34 @@
+[
+  {
+    "id": "bugbot-false-clean-candidate",
+    "repository": "lhpaul/ronda",
+    "pullNumber": 27,
+    "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "ronda": {
+      "result": "clean",
+      "reviewedHeadSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "findings": []
+    },
+    "otherReviewer": {
+      "name": "Cursor Bugbot",
+      "result": "findings",
+      "reviewedHeadSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "findings": [
+        {
+          "path": "src/benchmark/auth.ts",
+          "line": 3,
+          "severity": "blocking",
+          "title": "Do not expose sensitive tokens",
+          "body": "The change exposes token material and needs a fix."
+        }
+      ]
+    },
+    "adjudications": [
+      {
+        "outcome": "ronda_miss",
+        "findingTitle": "Do not expose sensitive tokens",
+        "notes": "Human adjudication confirmed the external-only finding is actionable."
+      }
+    ]
+  }
+]
