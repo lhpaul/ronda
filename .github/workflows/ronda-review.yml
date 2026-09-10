@@ -36,8 +36,54 @@ permissions:
   checks: write
 
 jobs:
+  # GitHub Actions expressions have no arithmetic operators, and
+  # `timeout-minutes` is evaluated before any step runs, so neither the outer
+  # backstop nor the millisecond budget can be computed inline or in shell
+  # within the review job. This job derives both once and publishes them as
+  # outputs the review job consumes. Keeping the derivation here is what lets
+  # `pass_timeout_minutes` stay the single public knob (issue #9).
+  setup:
+    name: Resolve pass budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # This job only computes derived values in shell; it checks nothing out
+    # and calls no GitHub API. Without this override it would inherit the
+    # workflow-level `pull-requests: write` / `checks: write` permissions the
+    # review job needs, which it has no use for.
+    permissions:
+      contents: read
+    outputs:
+      pass_timeout_ms: ${{ steps.budget.outputs.pass_timeout_ms }}
+      job_timeout_minutes: ${{ steps.budget.outputs.job_timeout_minutes }}
+    steps:
+      - name: Derive budget
+        id: budget
+        env:
+          PASS_TIMEOUT_MINUTES: ${{ inputs.pass_timeout_minutes }}
+        run: |
+          set -euo pipefail
+          minutes="$PASS_TIMEOUT_MINUTES"
+          case "$minutes" in
+            ''|*[!0-9]*)
+              echo "pass_timeout_minutes must be a positive whole number of minutes; got '$minutes'" >&2
+              exit 1
+              ;;
+          esac
+          if [ "$minutes" -lt 1 ]; then
+            echo "pass_timeout_minutes must be at least 1; got '$minutes'" >&2
+            exit 1
+          fi
+          # The outer backstop is deliberately strictly greater than the
+          # in-process budget, so the in-process deadline always fires first
+          # and publishes a failure check run. A backstop that fired first
+          # would kill the job with no check run at all - the silent hang the
+          # constitution forbids.
+          echo "pass_timeout_ms=$(( minutes * 60000 ))" >> "$GITHUB_OUTPUT"
+          echo "job_timeout_minutes=$(( minutes + 2 ))" >> "$GITHUB_OUTPUT"
+
   review:
     name: Ronda review pass
+    needs: setup
     runs-on: ubuntu-latest
     # v0 only recommends `pull_request` (never `pull_request_target`) in the
     # caller snippet, so a fork-originated automatic pass already receives a
@@ -54,7 +100,7 @@ jobs:
     # a pending check run, which is why the check run is only ever created at
     # terminal time (see the implementation plan's "check run is created only
     # at terminal time" note).
-    timeout-minutes: ${{ inputs.pass_timeout_minutes + 2 }}
+    timeout-minutes: ${{ fromJSON(needs.setup.outputs.job_timeout_minutes) }}
 
     steps:
       - name: Checkout Ronda
@@ -79,5 +125,5 @@ jobs:
           RONDA_MODEL_API_KEY: ${{ secrets.model_api_key }}
           RONDA_MODEL_BASE_URL: ${{ inputs.model_base_url }}
           RONDA_MODEL_NAME: ${{ inputs.model_name }}
-          RONDA_PASS_TIMEOUT_MS: ${{ inputs.pass_timeout_minutes * 60000 }}
+          RONDA_PASS_TIMEOUT_MS: ${{ needs.setup.outputs.pass_timeout_ms }}
         run: npm run review
