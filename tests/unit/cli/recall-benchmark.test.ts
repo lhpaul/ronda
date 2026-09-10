@@ -143,6 +143,27 @@ test("classification records non-sensitive findings even when severity is lower 
   assert.equal(summary.falsePositives.length, 0);
 });
 
+test("classification credits job deduplication wording as the async-race seed", () => {
+  const summary = classifyFindings({
+    manifest,
+    findings: [
+      {
+        path: "src/benchmark/jobs.ts",
+        line: 5,
+        severity: "important",
+        title: "Race condition in job deduplication",
+        body: "The deduplication guard is not atomic.",
+      },
+    ],
+    model: "fixture",
+    reviewedTarget: "quality-same-head-smoke",
+    timestamp: "2026-09-10T00:00:00.000Z",
+  });
+
+  assert.ok(summary.foundSeededDefects.includes("async-race-duplicate-processing"));
+  assert.equal(summary.falsePositives.length, 0);
+});
+
 test("quality summary reports categories, missed categories, and same-head variance", async () => {
   const baseline = await runRecallBenchmark({
     manifest,
