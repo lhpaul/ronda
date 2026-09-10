@@ -45,6 +45,7 @@ export interface PrecisionFixture {
   id: string;
   description: string;
   expected: "clean";
+  changedFiles: ChangedFile[];
   forbiddenValues?: string[];
 }
 
@@ -128,6 +129,13 @@ export interface RunRecallBenchmarkInput {
   signal?: AbortSignal;
 }
 
+export interface RunPrecisionFixtureInput {
+  fixture: PrecisionFixture;
+  model: ModelClient;
+  maxPatchChars: number;
+  signal?: AbortSignal;
+}
+
 interface CliOptions {
   manifestPath: string;
   patchesPath: string;
@@ -160,6 +168,23 @@ export async function runRecallBenchmark(
     model: input.model.modelName,
     reviewedTarget: input.reviewedTarget,
     timestamp: input.timestamp,
+  });
+}
+
+export async function runPrecisionFixture(
+  input: RunPrecisionFixtureInput,
+): Promise<PrecisionFixtureSummary> {
+  const prompt = buildReviewPrompt({
+    title: `Precision benchmark: ${input.fixture.id}`,
+    body: input.fixture.description,
+    changedFiles: input.fixture.changedFiles,
+    maxPatchChars: input.maxPatchChars,
+  });
+  const raw = await input.model.complete(prompt, input.signal ?? new AbortController().signal);
+  const parsed = parseModelResponse(raw, input.fixture.changedFiles);
+  return classifyPrecisionFixture({
+    fixture: input.fixture,
+    findings: parsed.findings,
   });
 }
 
@@ -443,22 +468,33 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       timestamp: new Date().toISOString(),
       signal: controller.signal,
     });
+    const precisionFixtures =
+      options.quality && manifest.precisionFixtures
+        ? await Promise.all(
+            manifest.precisionFixtures.map((fixture) =>
+              options.precisionResponsePath
+                ? classifyPrecisionFixture({
+                    fixture,
+                    findings: parsedResponseFindings(
+                      options.precisionResponsePath as string,
+                      fixture.changedFiles,
+                    ),
+                  })
+                : runPrecisionFixture({
+                    fixture,
+                    model,
+                    maxPatchChars: options.maxPatchChars ?? config.maxPatchChars,
+                    signal: controller.signal,
+                  }),
+            ),
+          )
+        : [];
+
     const output = options.quality
       ? buildQualityBenchmarkSummary({
           recall: summary,
           manifest,
-          precisionFixtures:
-            options.precisionResponsePath && manifest.precisionFixtures
-              ? manifest.precisionFixtures.map((fixture) =>
-                  classifyPrecisionFixture({
-                    fixture,
-                    findings: parsedResponseFindings(
-                      options.precisionResponsePath as string,
-                      changedFiles,
-                    ),
-                  }),
-                )
-              : [],
+          precisionFixtures,
           comparisons: options.comparisonPath
             ? readJsonFile<ReviewComparisonRecord[]>(options.comparisonPath).map(
                 summarizeReviewComparison,

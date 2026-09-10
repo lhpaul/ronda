@@ -16,6 +16,12 @@
       "id": "harmless-session-refactor",
       "description": "A small changed-file fixture that should not require a Ronda finding.",
       "expected": "clean",
+      "changedFiles": [
+        {
+          "path": "src/benchmark/session.ts",
+          "patch": "@@ -0,0 +1,5 @@\n+export function normalizeSessionName(name: string): string {\n+  return name.trim().replace(/\\s+/g, \" \");\n+}\n+"
+        }
+      ],
       "forbiddenValues": ["sk_live_seeded_secret_value"]
     }
   ],
@@ -194,6 +200,7 @@
       "matchTerms": ["stale", "sha", "review"],
       "matchTermGroups": [
         ["stale", "sha", "review"],
+        ["stale", "sha", "publish"],
         ["head", "changed", "publish"],
         ["superseded", "head", "review"]
       ]

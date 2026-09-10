@@ -7,12 +7,13 @@ import {
   classifyPrecisionFixture,
   classifyFindings,
   runRecallBenchmark,
+  runPrecisionFixture,
   summarizeReviewComparison,
   type RecallBenchmarkManifest,
   type ReviewComparisonRecord,
 } from "../../../src/cli/recall-benchmark.js";
 import type { ChangedFile } from "../../../src/domain/review-pass.types.js";
-import type { ModelClient } from "../../../src/inference/model-client.js";
+import type { ModelClient, ModelRequest } from "../../../src/inference/model-client.js";
 
 function fixturePath(name: string): string {
   return fileURLToPath(new URL(`../../fixtures/recall-benchmark/${name}`, import.meta.url));
@@ -212,6 +213,30 @@ test("precision fixture reports clean and noisy outcomes", () => {
       title: "Rename harmless helper",
     },
   ]);
+});
+
+test("precision fixture runs clean patches through the model path", async () => {
+  const fixture = manifest.precisionFixtures?.[0];
+  assert.ok(fixture);
+  const prompts: ModelRequest[] = [];
+  const model: ModelClient = {
+    modelName: "fixture:precision-clean",
+    async complete(prompt) {
+      prompts.push(prompt);
+      return readFileSync(fixturePath("model-responses/precision-clean.json"), "utf8");
+    },
+  };
+
+  const summary = await runPrecisionFixture({
+    fixture,
+    model,
+    maxPatchChars: 400_000,
+  });
+
+  assert.equal(summary.clean, true);
+  assert.equal(summary.falsePositiveCount, 0);
+  assert.equal(prompts.length, 1);
+  assert.match(prompts[0]?.userPrompt ?? "", /normalizeSessionName/);
 });
 
 test("precision fixture summaries redact forbidden values from false positives", () => {
