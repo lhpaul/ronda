@@ -1,6 +1,6 @@
 {
   "name": "ronda",
-  "version": "0.44.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Ronda — a comment-only GitHub pull-request review bot",
   "type": "module",
