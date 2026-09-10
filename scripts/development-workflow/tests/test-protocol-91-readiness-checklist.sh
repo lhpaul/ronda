@@ -99,7 +99,7 @@ _derives_repo="$(grep -c 'GRAPHQL_REPO="${TARGET_REPO#\*/}"' "$PROTOCOL" || true
 run_test "runnable_gates_derive_repo_from_target_repo" "2" "$_derives_repo"
 
 _uses_derived="$(grep -c -- '-f owner="\$GRAPHQL_OWNER" -f repo="\$GRAPHQL_REPO"' "$PROTOCOL" || true)"
-run_test "runnable_gates_pass_derived_owner_repo" "3" "$_uses_derived"
+run_test "runnable_gates_pass_derived_owner_repo" "4" "$_uses_derived"
 
 # TARGET_REPO must actually be defined by the checklist that uses it.
 if grep -q 'TARGET_REPO=$(repo_slug)' "$PROTOCOL"; then
@@ -114,7 +114,7 @@ run_test "target_repo_resolved_in_checklist" "yes" "$_target_repo_defined"
 # the same so a superseded failed check-run does not disagree with the CI loop
 # for the same head SHA.
 if grep -q 'NORMALIZED_CHECKS_JSON=' "$PROTOCOL" &&
-   grep -q '"check:" + .workflowName + "/" + .name' "$PROTOCOL" &&
+   grep -q '"check:" + .checkSuite.workflowRun.workflow.name + "/" + .name' "$PROTOCOL" &&
    grep -q 'contexts(first:100,after:$cursor)' "$PROTOCOL" &&
    grep -q 'group_by(.__check_key)' "$PROTOCOL" &&
    grep -q 'map(last | del(.__check_key, .__check_ts))' "$PROTOCOL"; then
