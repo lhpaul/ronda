@@ -1,0 +1,25 @@
+[
+  {
+    "id": "lhpaul-ronda-pr-32-cursor-bugbot-20260910",
+    "repository": "lhpaul/ronda",
+    "pullNumber": 32,
+    "headSha": "aca550e37cc6e2412710c619639aab7d54fa5c98",
+    "ronda": {
+      "result": "clean",
+      "reviewedHeadSha": "aca550e37cc6e2412710c619639aab7d54fa5c98",
+      "findings": []
+    },
+    "otherReviewer": {
+      "name": "Cursor Bugbot",
+      "result": "clean",
+      "reviewedHeadSha": "aca550e37cc6e2412710c619639aab7d54fa5c98",
+      "findings": []
+    },
+    "adjudications": [
+      {
+        "outcome": "clean_agreement",
+        "notes": "Both reviewers reported clean on the same head."
+      }
+    ]
+  }
+]
