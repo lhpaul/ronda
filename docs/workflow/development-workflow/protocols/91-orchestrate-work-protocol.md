@@ -2606,17 +2606,42 @@ esac
 # failing or still pending. Run Step 8 (pr-ci-loop.sh) first if CI is not green.
 HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid')
 REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
-# Match Step 8's `pr-ci-loop.sh` surface instead of reading raw REST check-runs:
+# Match Step 8's `pr-ci-loop.sh` key semantics while still reading every page.
 # statusCheckRollup carries both GitHub/App check-runs and plain commit statuses,
 # and exposes `workflowName` so duplicate historical entries can be normalized by
 # the same check key (`workflowName/name` for checks, `context` for statuses).
-if ! CHECKS_JSON=$(gh pr view "$PR_NUMBER" --json statusCheckRollup); then
-  echo "ERROR: could not read status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
-  exit 5
-fi
+GRAPHQL_OWNER="${REPO%%/*}"
+GRAPHQL_REPO="${REPO#*/}"
+CHECKS_JSON="[]"
+CHECKS_CURSOR=""
+while :; do
+  if ! CHECKS_PAGE=$(gh api graphql \
+    -f owner="$GRAPHQL_OWNER" -f repo="$GRAPHQL_REPO" -F number="$PR_NUMBER" \
+    -f cursor="$CHECKS_CURSOR" \
+    -f query='query($owner:String!,$repo:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){statusCheckRollup{contexts(first:100,after:$cursor){nodes{__typename ... on CheckRun{name workflowName status conclusion startedAt completedAt} ... on StatusContext{context state startedAt}} pageInfo{hasNextPage endCursor}}}}}}'); then
+    echo "ERROR: could not read status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
+    exit 5
+  fi
+  if ! CHECKS_NODES=$(printf '%s' "$CHECKS_PAGE" | jq -c '.data.repository.pullRequest.statusCheckRollup.contexts.nodes // []'); then
+    echo "ERROR: could not parse status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
+    exit 5
+  fi
+  if ! CHECKS_JSON=$(jq -cn --argjson existing "$CHECKS_JSON" --argjson nodes "$CHECKS_NODES" '$existing + $nodes'); then
+    echo "ERROR: could not aggregate status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
+    exit 5
+  fi
+  CHECKS_HAS_NEXT=$(printf '%s' "$CHECKS_PAGE" | jq -r '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.hasNextPage // false')
+  if [ "$CHECKS_HAS_NEXT" != "true" ]; then
+    break
+  fi
+  CHECKS_CURSOR=$(printf '%s' "$CHECKS_PAGE" | jq -r '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.endCursor // ""')
+  if [ -z "$CHECKS_CURSOR" ] || [ "$CHECKS_CURSOR" = "null" ]; then
+    echo "ERROR: status check rollup pagination did not provide an end cursor."
+    exit 5
+  fi
+done
 if ! NORMALIZED_CHECKS_JSON="$(
   printf '%s\n' "$CHECKS_JSON" | jq '
-  (.statusCheckRollup // [])
   | map(
       . + {
         __check_key: (
