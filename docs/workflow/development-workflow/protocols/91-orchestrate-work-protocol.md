@@ -2622,6 +2622,27 @@ if ! CHECKS_PAGES=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=10
   echo "ERROR: could not read check-runs for $HEAD_SHA — refusing to label on an incomplete CI read."
   exit 5
 fi
+if ! CHECK_RUNS_JSON="$(printf '%s' "$CHECKS_PAGES" | jq '
+  [.[].check_runs[]]
+  | map(
+      . + {
+        __check_key: (
+          if (.name // "") != "" then
+            "check:" + .name
+          else
+            "check:unknown"
+          end
+        ),
+        __check_ts: (.started_at // .completed_at // "")
+      }
+    )
+  | sort_by(.__check_key, .__check_ts)
+  | group_by(.__check_key)
+  | map(last | del(.__check_key, .__check_ts))
+')"; then
+  echo "ERROR: could not normalize check-runs for $HEAD_SHA — refusing to label on an incomplete CI read."
+  exit 5
+fi
 # check-runs is GitHub Actions/App checks only — it does not include plain
 # commit statuses (CodeRabbit, Devin Review, and this repo's own
 # "Reviewer-loop completion guard" all post as statuses, not check-runs). A
@@ -2632,9 +2653,9 @@ if ! STATUS_PAGES=$(gh api "repos/$REPO/commits/$HEAD_SHA/status?per_page=100" -
   echo "ERROR: could not read commit statuses for $HEAD_SHA — refusing to label on an incomplete CI read."
   exit 5
 fi
-CI_FAILING=$(printf '%s' "$CHECKS_PAGES" | jq '[.[].check_runs[] | select(.status == "completed" and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral")] | length')
-CI_PENDING=$(printf '%s' "$CHECKS_PAGES" | jq '[.[].check_runs[] | select(.status != "completed")] | length')
-CI_TOTAL=$(printf '%s' "$CHECKS_PAGES" | jq '[.[].check_runs[]] | length')
+CI_FAILING=$(printf '%s' "$CHECK_RUNS_JSON" | jq '[.[] | select(.status == "completed" and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral")] | length')
+CI_PENDING=$(printf '%s' "$CHECK_RUNS_JSON" | jq '[.[] | select(.status != "completed")] | length')
+CI_TOTAL=$(printf '%s' "$CHECK_RUNS_JSON" | jq '[.[]] | length')
 CI_FAILING=$((CI_FAILING + $(printf '%s' "$STATUS_PAGES" | jq '[.[].statuses[]? | select(.state == "failure" or .state == "error")] | length')))
 CI_PENDING=$((CI_PENDING + $(printf '%s' "$STATUS_PAGES" | jq '[.[].statuses[]? | select(.state == "pending")] | length')))
 CI_TOTAL=$((CI_TOTAL + $(printf '%s' "$STATUS_PAGES" | jq '[.[].statuses[]?] | length')))

@@ -6,7 +6,9 @@
 #
 # Event routing:
 #   pull_request_target opened/reopened/ready_for_review
-#     - all same-repository PRs: evaluate reviewer-loop guard status
+#     - all same-repository PRs: evaluate reviewer-loop guard status without
+#       failing the workflow while reviewer-loop evidence is still expectedly
+#       absent
 #   pull_request_target synchronize
 #     - same-repository implementation PRs: remove stale ready-for-regression
 #       when current-head reviewer-loop clean evidence is absent
@@ -257,6 +259,13 @@ jobs:
               [ "$LATEST_SUMMARY_HEAD_MATCHES" = "true" ]
           }
 
+          missing_summary_is_expected_for_event() {
+            [ "$EVENT_NAME" = "pull_request_target" ] &&
+              { [ "$EVENT_ACTION" = "opened" ] ||
+                [ "$EVENT_ACTION" = "reopened" ] ||
+                [ "$EVENT_ACTION" = "ready_for_review" ]; }
+          }
+
           apply_regression_policy_after_clean_summary() {
             local should_apply_regression_label=true
 
@@ -471,6 +480,10 @@ jobs:
           fi
 
           if [ "$STATE" = "failure" ]; then
+            if missing_summary_is_expected_for_event; then
+              echo "Guard status is failing because the automated reviewer loop has not run yet; keeping the workflow check green for this early PR lifecycle event."
+              exit 0
+            fi
             echo "Guard FAILED: the automated reviewer loop must run to completion before this PR is treated as ready."
             exit 1
           fi

@@ -109,7 +109,20 @@ else
 fi
 run_test "target_repo_resolved_in_checklist" "yes" "$_target_repo_defined"
 
-# --- 3. The Step 8a checklist parses as bash --------------------------------
+# --- 3. Step 8a normalizes stale duplicate check-runs ------------------------
+# The CI loop dedupes by check key before deciding green/red. Step 8a must do
+# the same so a superseded failed check-run does not disagree with the CI loop
+# for the same head SHA.
+if grep -q 'CHECK_RUNS_JSON=' "$PROTOCOL" &&
+   grep -q 'group_by(.__check_key)' "$PROTOCOL" &&
+   grep -q 'map(last | del(.__check_key, .__check_ts))' "$PROTOCOL"; then
+  _dedupes_check_runs="yes"
+else
+  _dedupes_check_runs="no"
+fi
+run_test "step_8a_dedupes_check_runs_by_key" "yes" "$_dedupes_check_runs"
+
+# --- 4. The Step 8a checklist parses as bash --------------------------------
 # Extracts the fenced block that opens the label readiness checklist and runs
 # `bash -n` on it. This would not have caught the GraphQL brace (it lives
 # inside a single-quoted string), which is why check 1 above exists; it does
