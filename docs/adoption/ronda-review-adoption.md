@@ -21,6 +21,10 @@ concurrency:
   cancel-in-progress: true
 jobs:
   ronda:
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
     # Cheap caller-side pre-filter. Not load-bearing for correctness — Ronda
     # re-checks the draft state and the exact comment text itself, so this
     # only saves CI minutes on requests Ronda would immediately skip anyway.
@@ -32,9 +36,48 @@ jobs:
       model_api_key: ${{ secrets.RONDA_MODEL_API_KEY }}
 ```
 
-`lhpaul/ronda/.github/workflows/ronda-review.yml` declares its own
-`permissions: { contents: read, pull-requests: write, checks: write }` — you
-do not need to add a `permissions:` block to the caller job for that reason.
+The `permissions:` block on the caller job above is **required, not
+optional**. A called reusable workflow can only **narrow** the caller's
+`GITHUB_TOKEN`, never widen it — `lhpaul/ronda/.github/workflows/ronda-review.yml`
+declaring its own `permissions: { contents: read, pull-requests: write,
+checks: write }` does not grant those scopes to a caller that does not also
+request them. GitHub's default for new repositories is
+`default_workflow_permissions: "read"`, so without the block above the
+reusable workflow's request for `pull-requests: write` and `checks: write`
+is unreachable and the run fails at **startup with zero jobs, no logs, and
+no annotations reachable from the REST API** — the real error is visible
+only in the Actions web UI, as `error parsing called workflow` or a
+permissions rejection. This was reproduced on `lhpaul/helm-playground`
+(`{"default_workflow_permissions":"read"}`): four consecutive runs failed
+with zero jobs until the caller-side `permissions:` block above was added.
+
+As an alternative, you can raise the repository-wide default under
+**Settings → Actions → General → Workflow permissions**. The per-job block
+above is recommended instead: it is narrower (it grants only what this job
+needs) and works regardless of the repository's default setting.
+
+### Prerequisite: reusable-workflow access (private repositories only)
+
+`lhpaul/ronda` is public today, so this does not block adoption right now.
+If you run a private fork or your own instance of Ronda, GitHub separately
+requires the repository that **hosts** the reusable workflow to explicitly
+allow the **calling** repository to use it — independent of the
+`permissions:` block above. Without this, the caller run fails with the
+same zero-jobs, no-logs startup failure described above, for a different
+reason: while `lhpaul/ronda` was private during development, `gh api
+repos/lhpaul/ronda/actions/permissions/access` returned
+`{"access_level":"none"}`, meaning no other repository could call its
+reusable workflow at all.
+
+Configure this under **Settings → Actions → General → Access** on the
+repository that hosts the reusable workflow, and verify with:
+
+```bash
+gh api repos/<owner>/<reusable-workflow-repo>/actions/permissions/access
+```
+
+An `"access_level"` of `"none"` means no other repository can call the
+reusable workflow yet.
 
 Only `pull_request` is used, never `pull_request_target`. Fork pull requests
 therefore receive GitHub's normal read-only `GITHUB_TOKEN` on the automatic
