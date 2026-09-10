@@ -48,6 +48,41 @@
       "severity": "important",
       "title": "Handle empty title words",
       "body": "Empty words make word[0] undefined, so title casing can throw on repeated spaces."
+    },
+    {
+      "path": "src/benchmark/authorization.ts",
+      "line": 3,
+      "severity": "blocking",
+      "title": "Fix authorization bypass",
+      "body": "This admin-like action is allowed for any non-guest user. Require the admin role or an explicit permission check."
+    },
+    {
+      "path": "src/benchmark/storage.ts",
+      "line": 3,
+      "severity": "blocking",
+      "title": "Avoid data loss on partial overwrite",
+      "body": "The partial update overwrites the whole existing profile, so existing profile fields can be lost."
+    },
+    {
+      "path": "src/benchmark/jobs.ts",
+      "line": 4,
+      "severity": "important",
+      "title": "Track in-flight jobs before awaiting",
+      "body": "The in-flight marker is added after await, so concurrent callers can process the same job twice."
+    },
+    {
+      "path": "src/benchmark/config.ts",
+      "line": 2,
+      "severity": "important",
+      "title": "Use a safe debug default in production",
+      "body": "Debug logging is enabled by default when configuration is absent, which is unsafe for production."
+    },
+    {
+      "path": "src/benchmark/stale-sha.ts",
+      "line": 3,
+      "severity": "blocking",
+      "title": "Do not publish stale SHA reviews",
+      "body": "The review publishes to the event SHA even when the current head changed, creating a stale review publication."
     }
   ]
 }

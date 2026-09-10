@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
     "review": "tsx src/cli/review-pr.ts",
-    "benchmark:recall": "tsx src/cli/recall-benchmark.ts"
+    "benchmark:recall": "tsx src/cli/recall-benchmark.ts",
+    "benchmark:quality": "tsx src/cli/recall-benchmark.ts --quality"
   },
   "dependencies": {
     "@octokit/rest": "22.0.1"

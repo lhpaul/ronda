@@ -1,0 +1,11 @@
+{
+  "findings": [
+    {
+      "path": "src/benchmark/session.ts",
+      "line": 1,
+      "severity": "nit",
+      "title": "Rename harmless helper",
+      "body": "The helper name could be shorter."
+    }
+  ]
+}
