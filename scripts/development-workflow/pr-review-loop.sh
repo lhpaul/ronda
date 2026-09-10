@@ -12106,6 +12106,24 @@ done
 # updated in place, so posting on fixable `needs_fixes` cycles does not create
 # duplicates and prevents stale clean summaries from masking active findings.
 # `skipped` exits (no platforms configured) also do not post per protocol spec.
+post_reviewer_loop_completion_guard_status() {
+  local repo="$1"
+  local pr_number_arg="$2"
+  local head_sha="$3"
+
+  if [ -z "$repo" ] || [ -z "$pr_number_arg" ] || [ -z "$head_sha" ]; then
+    echo "WARN: cannot refresh reviewer-loop completion guard status; missing repo, PR number, or head SHA" >&2
+    return 0
+  fi
+
+  gh api \
+    --method POST \
+    "repos/$repo/statuses/$head_sha" \
+    -f state="success" \
+    -f description="Reviewer-loop summary present." \
+    -f context="Reviewer-loop completion guard (#${pr_number_arg})" >/dev/null
+}
+
 _post_review_summary() {
   local result="$1"
   local reason="$2"
@@ -12595,6 +12613,15 @@ EOF
       echo "WARN: failed to post reviewer loop summary comment for PR ${pr_number}" >&2
     fi
     rm -f "$_body_tmpfile"
+  fi
+
+  if [ "$_comment_posted" -eq 1 ] && [ "$_existing_read_failed" -eq 0 ]; then
+    if ! post_reviewer_loop_completion_guard_status \
+      "${_repo:-}" \
+      "$pr_number" \
+      "${loop_head_sha:-}"; then
+      echo "WARN: failed to refresh reviewer-loop completion guard status for PR ${pr_number}" >&2
+    fi
   fi
 
   set -e
