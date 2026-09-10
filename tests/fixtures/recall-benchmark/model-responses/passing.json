@@ -1,0 +1,53 @@
+{
+  "findings": [
+    {
+      "path": "src/benchmark/session.ts",
+      "line": 2,
+      "severity": "blocking",
+      "title": "Fix expired session inversion",
+      "body": "The expired session check is inverted, so active sessions are rejected while expired sessions pass."
+    },
+    {
+      "path": "src/benchmark/auth.ts",
+      "line": 3,
+      "severity": "blocking",
+      "title": "Stop logging sensitive token material",
+      "body": "This logs sensitive token material. Remove the token from logs or redact it before emitting telemetry."
+    },
+    {
+      "path": "src/benchmark/cache.ts",
+      "line": 4,
+      "severity": "blocking",
+      "title": "Fix cache capacity off-by-one",
+      "body": "The cache capacity check allows one extra entry before eviction."
+    },
+    {
+      "path": "src/benchmark/users.ts",
+      "line": 2,
+      "severity": "blocking",
+      "title": "Avoid SQL interpolation",
+      "body": "Interpolating user input into SQL makes the query injectable. Use parameters."
+    },
+    {
+      "path": "src/benchmark/median.ts",
+      "line": 2,
+      "severity": "blocking",
+      "title": "Use numeric sort",
+      "body": "Array sort without a comparator performs lexicographic ordering, not numeric sorting."
+    },
+    {
+      "path": "src/benchmark/median.ts",
+      "line": 4,
+      "severity": "blocking",
+      "title": "Average the median pair",
+      "body": "For even-length input, median should average the middle pair instead of returning the lower element."
+    },
+    {
+      "path": "src/benchmark/title.ts",
+      "line": 2,
+      "severity": "important",
+      "title": "Handle empty title words",
+      "body": "Empty words make word[0] undefined, so title casing can throw on repeated spaces."
+    }
+  ]
+}

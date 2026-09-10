@@ -144,8 +144,10 @@ write_config "$TMP_ROOT/commented-consumer.yaml" 'template: # framework settings
 run_test "is_template_commented_header_consumer_stays_false" "false" \
   "$(workflow_template_is_template "$TMP_ROOT/commented-consumer.yaml")"
 
-# The repository's own config is the live contract this template ships.
-run_test "is_template_live_repo_config" "true" \
+# The repository's own config is the live contract for this checkout. Ronda is
+# a downstream ADF consumer that points back to the upstream template; it must
+# not run template-only assertions as if it were `lhpaul/ai-dev-framework-template`.
+run_test "is_template_live_repo_config" "false" \
   "$(workflow_template_is_template "$REPO_ROOT/.ai-dev-workflow.yaml")"
 
 # ---------------------------------------------------------------------------

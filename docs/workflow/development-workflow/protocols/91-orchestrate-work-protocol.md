@@ -102,17 +102,22 @@ restate this rule for those two specifically):**
   the turn is not a way to make the wait "free"; it is a way to lose the run.
 
 **Never re-invoke `pr-review-loop.sh` for a PR whose loop is already running.**
-The script takes a per-PR single-instance lock; a second concurrent invocation
-exits `75` with `REASON=lock_contention` and gives no review information at
-all — it will not tell the runner anything about the PR's actual state. If
-re-entering this item after a backgrounded or interrupted `pr-review-loop.sh`
-run, do not start a new one. Instead, poll for the prior process to finish (or
-confirm it is genuinely gone), then read the outcome directly from PR state —
-`gh pr view`, the "Automated Reviewer Loop Summary" comment, and the GraphQL
-review-thread query — rather than launching a duplicate run. Use
+The script takes a single-instance lock keyed by target repository and PR
+number; a second concurrent invocation exits `75` with
+`REASON=lock_contention` and gives no review information at all — it will not
+tell the runner anything about the PR's actual state. If re-entering this item
+after a backgrounded or interrupted `pr-review-loop.sh` run, do not start a new
+one. Instead, poll for the prior process to finish (or confirm it is genuinely
+gone), then read the outcome directly from PR state — `gh pr view`, the
+"Automated Reviewer Loop Summary" comment, and the GraphQL review-thread query
+— rather than launching a duplicate run. Use
 `pr-review-loop.sh unlock <pr-number>` only after confirming the recorded lock
 PID is no longer alive; it is a stale-lock recovery command, not a way to force
-a second run alongside a live one.
+a second run alongside a live one. Pass `unlock` the same
+`--repo`/`--product-repo`/`--repo-root` options the blocked run used, or it
+resolves a different lock than the one reported — the contention message prints
+the exact recovery command, and `LOCK_REPO_KEY` names the repository the lock
+belongs to.
 
 ---
 
@@ -1861,7 +1866,7 @@ If one or more automated code review platforms are configured (see [`integration
 
 1. **Do not race ahead.** Do not run Step 7 in the background while proceeding to Step 8 without its result.
 2. **Do not background-and-yield.** Do not start `pr-review-loop.sh` in the background and then **end your turn** to wait for it. A backgrounded process's completion notification is delivered to whatever dispatched *you* (the parent orchestrator, or a human) — never back to you. If you end your turn while the loop is still running in the background, you park permanently: not blocked, not escalated, not dead, just structurally unable to ever observe your own process finishing. A parked runner is indistinguishable from a terminated one from the outside, which means it will not be recovered automatically. Run Step 7 in the foreground, or if you must background it, keep polling it yourself **in the same turn** until it returns. The review loop can take several minutes (poll interval × wait for bot); that is expected — stay with it. Only when the script exits with `clean` or `skipped`, observed by you in-turn, may you continue to Step 8.
-3. **Never launch a second `pr-review-loop.sh` for the same PR while one is already running.** The script holds a per-PR single-instance lock; a concurrent invocation exits `75` with `REASON=lock_contention` and reports nothing about the PR's actual review state. If you are re-entering this step after a backgrounded or interrupted run (including after a compaction or a fresh session resuming this item), do not start a new invocation to "check." Poll for the earlier process to finish, or confirm via the lock file / process table that it is genuinely gone, and read the outcome from PR state directly (`gh pr view`, the reviewer-loop summary comment, the GraphQL review-thread query). Reserve `pr-review-loop.sh unlock <pr-number>` for a confirmed-stale lock (recorded PID no longer alive) — never as a way to run two instances at once. See the "Execution Discipline" section above the Step 0 heading for the general foreground/poll rule this specializes.
+3. **Never launch a second `pr-review-loop.sh` for the same PR while one is already running.** The script holds a single-instance lock keyed by target repository and PR number; a concurrent invocation exits `75` with `REASON=lock_contention` and reports nothing about the PR's actual review state. If you are re-entering this step after a backgrounded or interrupted run (including after a compaction or a fresh session resuming this item), do not start a new invocation to "check." Poll for the earlier process to finish, or confirm via the lock file / process table that it is genuinely gone, and read the outcome from PR state directly (`gh pr view`, the reviewer-loop summary comment, the GraphQL review-thread query). Reserve `pr-review-loop.sh unlock <pr-number>` for a confirmed-stale lock (recorded PID no longer alive) — never as a way to run two instances at once, and pass it the same `--repo`/`--product-repo`/`--repo-root` options the blocked run used so it resolves the same lock. The contention output prints the exact recovery command along with `LOCK_DIR` and `LOCK_REPO_KEY`; use those rather than reconstructing the path by hand. See the "Execution Discipline" section above the Step 0 heading for the general foreground/poll rule this specializes.
 
 The helper script evaluates configured platforms sequentially. For each platform it checks for **existing** blocking findings from the bot (e.g. from a review that already ran on PR open) before posting a new trigger. If it finds any, it exits with `needs_fixes` without moving on to later platforms — so the fixer addresses them first; after a push, the next run starts again from the first configured platform. Supported platforms include `greptile`, `devin`, `coderabbit`, and `codex-github` (Codex GitHub App — async bot reviewer handled deterministically by `pr-review-loop.sh`).
 
@@ -2601,38 +2606,81 @@ esac
 # failing or still pending. Run Step 8 (pr-ci-loop.sh) first if CI is not green.
 HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid')
 REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
-# Read every page. The REST default page size is 30 and this repository
-# routinely exceeds it: the test matrix is diff-driven and adds one job per
-# selected suite, so PR #1568 carried 75 check-runs. A single-page read of
-# that head sees 30 of them, and a failure among the other 45 is invisible to
-# the very gate that decides "CI is green".
-#
-# `--slurp` cannot be combined with `--jq`, so each call returns an array of
-# whole pages and the aggregation is done by an external jq.
-#
-# Both reads fail closed. If either endpoint cannot be read, the gate does not
-# know the CI state, and "unknown" must never be labelled as green — the same
-# rule the CI_TOTAL check below applies to an empty check set.
-if ! CHECKS_PAGES=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" --paginate --slurp); then
-  echo "ERROR: could not read check-runs for $HEAD_SHA — refusing to label on an incomplete CI read."
+# Match Step 8's `pr-ci-loop.sh` key semantics while still reading every page.
+# statusCheckRollup carries both GitHub/App check-runs and plain commit statuses,
+# and exposes `workflowName` so duplicate historical entries can be normalized by
+# the same check key (`workflowName/name` for checks, `context` for statuses).
+GRAPHQL_OWNER="${REPO%%/*}"
+GRAPHQL_REPO="${REPO#*/}"
+CHECKS_JSON="[]"
+CHECKS_CURSOR=""
+CHECKS_QUERY='query($owner:String!,$repo:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){statusCheckRollup{contexts(first:100,after:$cursor){nodes{__typename ... on CheckRun{name checkSuite{workflowRun{workflow{name}}} status conclusion startedAt completedAt} ... on StatusContext{context state createdAt}} pageInfo{hasNextPage endCursor}}}}}}'
+while :; do
+  if [ -z "$CHECKS_CURSOR" ]; then
+    CHECKS_PAGE=$(gh api graphql \
+      -f owner="$GRAPHQL_OWNER" -f repo="$GRAPHQL_REPO" -F number="$PR_NUMBER" \
+      -F cursor=null \
+      -f query="$CHECKS_QUERY") || {
+        echo "ERROR: could not read status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
+        exit 5
+      }
+  else
+    CHECKS_PAGE=$(gh api graphql \
+      -f owner="$GRAPHQL_OWNER" -f repo="$GRAPHQL_REPO" -F number="$PR_NUMBER" \
+      -f cursor="$CHECKS_CURSOR" \
+      -f query="$CHECKS_QUERY") || {
+        echo "ERROR: could not read status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
+        exit 5
+      }
+  fi
+  if ! CHECKS_NODES=$(printf '%s' "$CHECKS_PAGE" | jq -c '.data.repository.pullRequest.statusCheckRollup.contexts.nodes // []'); then
+    echo "ERROR: could not parse status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
+    exit 5
+  fi
+  if ! CHECKS_JSON=$(jq -cn --argjson existing "$CHECKS_JSON" --argjson nodes "$CHECKS_NODES" '$existing + $nodes'); then
+    echo "ERROR: could not aggregate status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
+    exit 5
+  fi
+  CHECKS_HAS_NEXT=$(printf '%s' "$CHECKS_PAGE" | jq -r '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.hasNextPage // false')
+  if [ "$CHECKS_HAS_NEXT" != "true" ]; then
+    break
+  fi
+  CHECKS_CURSOR=$(printf '%s' "$CHECKS_PAGE" | jq -r '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.endCursor // ""')
+  if [ -z "$CHECKS_CURSOR" ] || [ "$CHECKS_CURSOR" = "null" ]; then
+    echo "ERROR: status check rollup pagination did not provide an end cursor."
+    exit 5
+  fi
+done
+if ! NORMALIZED_CHECKS_JSON="$(
+  printf '%s\n' "$CHECKS_JSON" | jq '
+  .
+  | map(
+      . + {
+        __check_key: (
+          if (.context // "") != "" then
+            "status:" + .context
+          elif (.checkSuite.workflowRun.workflow.name // "") != "" and (.name // "") != "" then
+            "check:" + .checkSuite.workflowRun.workflow.name + "/" + .name
+          elif (.name // "") != "" then
+            "check:" + .name
+          else
+            "unknown"
+          end
+        ),
+        __check_ts: (.startedAt // .completedAt // .createdAt // "")
+      }
+    )
+  | sort_by(.__check_key, .__check_ts)
+  | group_by(.__check_key)
+  | map(last | del(.__check_key, .__check_ts))
+'
+)"; then
+  echo "ERROR: could not normalize status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
   exit 5
 fi
-# check-runs is GitHub Actions/App checks only — it does not include plain
-# commit statuses (CodeRabbit, Devin Review, and this repo's own
-# "Reviewer-loop completion guard" all post as statuses, not check-runs). A
-# PR whose CI signal is entirely statuses would otherwise read CI_TOTAL=0
-# below and be refused even when green, and a failing status would not count
-# toward CI_FAILING at all. Fold the combined-status endpoint in too.
-if ! STATUS_PAGES=$(gh api "repos/$REPO/commits/$HEAD_SHA/status?per_page=100" --paginate --slurp); then
-  echo "ERROR: could not read commit statuses for $HEAD_SHA — refusing to label on an incomplete CI read."
-  exit 5
-fi
-CI_FAILING=$(printf '%s' "$CHECKS_PAGES" | jq '[.[].check_runs[] | select(.status == "completed" and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral")] | length')
-CI_PENDING=$(printf '%s' "$CHECKS_PAGES" | jq '[.[].check_runs[] | select(.status != "completed")] | length')
-CI_TOTAL=$(printf '%s' "$CHECKS_PAGES" | jq '[.[].check_runs[]] | length')
-CI_FAILING=$((CI_FAILING + $(printf '%s' "$STATUS_PAGES" | jq '[.[].statuses[]? | select(.state == "failure" or .state == "error")] | length')))
-CI_PENDING=$((CI_PENDING + $(printf '%s' "$STATUS_PAGES" | jq '[.[].statuses[]? | select(.state == "pending")] | length')))
-CI_TOTAL=$((CI_TOTAL + $(printf '%s' "$STATUS_PAGES" | jq '[.[].statuses[]?] | length')))
+CI_FAILING=$(printf '%s' "$NORMALIZED_CHECKS_JSON" | jq '[.[] | select((.conclusion == "FAILURE") or (.conclusion == "CANCELLED") or (.conclusion == "TIMED_OUT") or (.conclusion == "ACTION_REQUIRED") or (.conclusion == "STARTUP_FAILURE") or (.state == "FAILURE") or (.state == "ERROR"))] | length')
+CI_PENDING=$(printf '%s' "$NORMALIZED_CHECKS_JSON" | jq '[.[] | select(((.status // "") != "" and (.status != "COMPLETED")) or (.state == "EXPECTED") or (.state == "PENDING") or (.state == "IN_PROGRESS") or (.state == "QUEUED"))] | length')
+CI_TOTAL=$(printf '%s' "$NORMALIZED_CHECKS_JSON" | jq '[.[]] | length')
 if [ "$CI_FAILING" -gt 0 ] || [ "$CI_PENDING" -gt 0 ]; then
   echo "ERROR: CI is not green — ${CI_FAILING} failing and ${CI_PENDING} pending check(s) on $HEAD_SHA."
   echo "Run Step 8 (pr-ci-loop.sh) and resolve all failures before applying ready-for-human-review."
@@ -2947,6 +2995,12 @@ else
           | select((.isOutdated // false) == false)
           | select(.comments.nodes[0].author.login as \$a | [\"coderabbitai\",\"devin-ai-integration\",\"greptile-apps\",\"$CODEX_BOT_LOGIN\"] | index(\$a) != null)
           | select((.comments.nodes[0].body // \"\") | test(\"✅ Addressed\") | not)] | length"
+  # Split the owner and name out of TARGET_REPO (resolved at the top of this
+  # checklist). Do not leave <owner>/<repo> placeholders here — gh passes them
+  # through literally and the gate silently queries a repository that does not
+  # exist.
+  GRAPHQL_OWNER="${TARGET_REPO%%/*}"
+  GRAPHQL_REPO="${TARGET_REPO#*/}"
   UNRESOLVED_COUNT=$(gh api graphql -f query='
     query($owner:String!, $repo:String!, $number:Int!) {
       repository(owner:$owner, name:$repo) {
@@ -2956,8 +3010,7 @@ else
           }
         }
       }
-    }
-  }' -f owner="<owner>" -f repo="<repo>" -F number="$PR_NUMBER" \
+    }' -f owner="$GRAPHQL_OWNER" -f repo="$GRAPHQL_REPO" -F number="$PR_NUMBER" \
     --jq "$JQ_FILTER")
 
   if [ "$UNRESOLVED_COUNT" -gt 0 ]; then
@@ -3065,6 +3118,8 @@ a wait of its own (issue #1574).
          | select((.isOutdated // false) == false)
          | select(.comments.nodes[0].author.login as \$a | [\"coderabbitai\",\"devin-ai-integration\",\"greptile-apps\",\"$CODEX_BOT_LOGIN\"] | index(\$a) != null)
          | select((.comments.nodes[0].body // \"\") | test(\"✅ Addressed\") | not)] | length"
+   GRAPHQL_OWNER="${TARGET_REPO%%/*}"
+   GRAPHQL_REPO="${TARGET_REPO#*/}"
    UNRESOLVED_RECHECK=$(gh api graphql -f query='
      query($owner:String!, $repo:String!, $number:Int!) {
        repository(owner:$owner, name:$repo) {
@@ -3074,7 +3129,7 @@ a wait of its own (issue #1574).
            }
          }
        }
-     }' -f owner="<owner>" -f repo="<repo>" -F number="$PR_NUMBER" \
+     }' -f owner="$GRAPHQL_OWNER" -f repo="$GRAPHQL_REPO" -F number="$PR_NUMBER" \
      --jq "$JQ_FILTER")
    ```
 

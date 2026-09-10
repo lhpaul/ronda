@@ -37,31 +37,44 @@ as the end-to-end lifecycle runbook.
 Before writing any code, check whether a committed automated spec already exists for the feature under test.
 
 ```
-Does [path/to/committed/spec/for/feature] exist?
+Does tests/integration/[feature].test.ts (or a scenario in
+tests/unit/core/run-review-pass.test.ts) exist for the feature under test?
   │
   ├─ YES → Run the committed test suite (preferred)
-  │         [your e2e suite command]
+  │         npm test
   │
-  └─ NO  → Write an ad-hoc script (fallback — see Section 3 below)
-            After validating, consider promoting the script to a committed spec.
+  └─ NO  → Follow the smoke test runbook manually (fallback — Section 3 does
+            not apply to this repository; Ronda has no browser UI)
 ```
 
-> **TODO**: Define the path convention for committed specs (e.g. `apps/e2e/src/[portal]/[feature].spec.ts`) and the run commands for your project.
+Ronda's committed-spec path convention: `tests/unit/[layer]/[module].test.ts`
+for unit coverage against injected fakes, and
+`tests/integration/[feature].test.ts` for a full pass exercised against
+`tests/support/mock-model-server.ts` with only the GitHub layer faked. There
+is no browser-based E2E suite for Ronda (no UI) — the `e2e/` Playwright
+placeholder in this repository is not extended by product features; see
+`docs/project/3-software-architecture.md` → Testing Strategy.
 
-If the spec exists, run it and report results directly. Do not write a duplicate ad-hoc script.
+If the automated suite exists for the feature, run it and report results
+directly. Sections 3 onward in this guide describe a browser-automation
+fallback that does not apply to Ronda; go straight to the feature's smoke
+test runbook under `docs/testing/ronda/` instead when automated coverage is
+insufficient.
 
 ---
 
 ## 2a. Run the Committed Test Suite
 
-> **TODO**: Fill in your project's test runner commands and any notes about what setup is handled automatically vs. manually.
-
 ```bash
-# [your e2e suite command]
-[command]
+# All unit and integration tests
+npm test
 
-# [headed/debug mode if applicable]
-[command]
+# One test file
+npx tsx --test tests/unit/core/run-review-pass.test.ts
+
+# Typecheck and lint (run alongside tests before every PR)
+npm run typecheck
+npm run lint
 ```
 
 ---

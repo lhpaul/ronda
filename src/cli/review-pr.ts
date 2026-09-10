@@ -1,0 +1,156 @@
+import { readFileSync } from "node:fs";
+import { createSystemClock } from "../core/clock.js";
+import { createLogger } from "../core/logger.js";
+import { runReviewPass } from "../core/run-review-pass.js";
+import { ConfigLoadError, loadConfig } from "../config/load-config.js";
+import { createGithubClient } from "../github/github-client.js";
+import {
+  findExistingCheckRun,
+  readChangedFiles,
+  readPullRequest,
+} from "../github/pull-request-reader.js";
+import { publishReview } from "../github/review-publisher.js";
+import { publishCheckRun } from "../github/check-run-publisher.js";
+import { createOpenAiCompatibleClient } from "../inference/openai-compatible-client.js";
+import type { GithubOperations } from "../domain/review-pass.types.js";
+import type { RondaConfig } from "../config/config.types.js";
+import { resolveTrigger } from "./resolve-trigger.js";
+
+/**
+ * Action entrypoint. Translates GitHub Actions environment variables and
+ * the event payload into one `runReviewPass` call, then maps the outcome to
+ * a process exit code. Contains no review logic of its own — everything
+ * product-relevant lives in `src/core/`, `src/github/`, and `src/inference/`
+ * so the later long-running webhook process can reuse it unchanged.
+ */
+export async function main(): Promise<number> {
+  const githubToken = process.env.GITHUB_TOKEN ?? "";
+  const repository = process.env.GITHUB_REPOSITORY ?? "";
+  const eventName = process.env.GITHUB_EVENT_NAME ?? "";
+  const eventPath = process.env.GITHUB_EVENT_PATH ?? "";
+  const runId = process.env.GITHUB_RUN_ID ?? "";
+  const serverUrl = process.env.GITHUB_SERVER_URL ?? "https://github.com";
+  const apiUrl = process.env.GITHUB_API_URL;
+
+  const [owner, repo] = repository.split("/");
+  if (!owner || !repo) {
+    console.error(`GITHUB_REPOSITORY is not set to an "owner/repo" value: "${repository}"`);
+    return 1;
+  }
+  if (!eventPath) {
+    console.error("GITHUB_EVENT_PATH is not set.");
+    return 1;
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(readFileSync(eventPath, "utf8"));
+  } catch (error) {
+    console.error(`Failed to read or parse GITHUB_EVENT_PATH: ${String(error)}`);
+    return 1;
+  }
+
+  const decision = resolveTrigger(eventName, payload);
+  if (!decision.shouldRun || decision.pullNumber === undefined || decision.trigger === undefined) {
+    console.log(`Ronda: no pass started (${decision.reason ?? "trigger did not match"})`);
+    return 0;
+  }
+
+  const { octokit } = createGithubClient({ token: githubToken, apiUrl });
+  const github: GithubOperations = {
+    readPullRequest: (o, r, n, signal) => readPullRequest(octokit, o, r, n, signal),
+    readChangedFiles: (o, r, n, signal) => readChangedFiles(octokit, o, r, n, signal),
+    findExistingCheckRun: (o, r, sha, signal) => findExistingCheckRun(octokit, o, r, sha, signal),
+    publishReview: (reviewInput, signal) => publishReview(octokit, reviewInput, signal),
+    publishCheckRun: (checkRunInput, signal) => publishCheckRun(octokit, checkRunInput, signal),
+  };
+
+  let config: RondaConfig;
+  try {
+    config = loadConfig();
+  } catch (error) {
+    const path = error instanceof ConfigLoadError ? error.path : "unknown path";
+    config = {
+      model: { apiKey: "", baseUrl: "", modelName: "" },
+      passTimeoutMs: 600_000,
+      maxPatchChars: 400_000,
+      loadError: `Failed to load Ronda config file at ${path}`,
+    };
+  }
+
+  const model = createOpenAiCompatibleClient({
+    apiKey: config.model.apiKey,
+    baseUrl: config.model.baseUrl,
+    modelName: config.model.modelName,
+  });
+
+  const detailsUrl = runId ? `${serverUrl}/${owner}/${repo}/actions/runs/${runId}` : undefined;
+  const logger = createLogger([config.model.apiKey, githubToken]);
+
+  const result = await runReviewPass(
+    { owner, repo, pullNumber: decision.pullNumber, trigger: decision.trigger, headSha: decision.headSha },
+    { github, model, config, clock: createSystemClock(), logger, detailsUrl },
+  );
+
+  console.log(`Ronda: pass outcome = ${result.outcome}`);
+  return result.outcome === "failed" ? 1 : 0;
+}
+
+/**
+ * A minimal `process`-shaped seam so the handlers below can be unit tested
+ * without ever calling the real `process.exit` (which would terminate the
+ * test runner). Only the two members each handler actually needs.
+ */
+export type ExitingProcess = Pick<NodeJS.Process, "exitCode" | "exit">;
+
+/**
+ * Handles an unhandled promise rejection outside `main()`. Setting
+ * `exitCode` alone is not enough: Node keeps the event loop — and the
+ * process — alive after this event fires unless something explicitly calls
+ * `exit()`. Per the constitution ("Timeout in minutes, not hours. Silence
+ * is a failure, not a hang."), a broken pass must terminate promptly rather
+ * than sit until the Actions `timeout-minutes` backstop kills the job with
+ * no check run ever published.
+ */
+export function handleUnhandledRejection(reason: unknown, proc: ExitingProcess = process): void {
+  console.error("Ronda: unhandled rejection", reason);
+  proc.exitCode = 1;
+  proc.exit(1);
+}
+
+/** Same reasoning as `handleUnhandledRejection`, for a thrown exception with no `catch`. */
+export function handleUncaughtException(error: unknown, proc: ExitingProcess = process): void {
+  console.error("Ronda: uncaught exception", error);
+  proc.exitCode = 1;
+  proc.exit(1);
+}
+
+/** Same reasoning again: a rejected `main()` must not merely set `exitCode` and hope nothing else keeps the loop alive. */
+export function handleMainRejection(error: unknown, proc: ExitingProcess = process): void {
+  console.error("Ronda: fatal error", error);
+  proc.exitCode = 1;
+  proc.exit(1);
+}
+
+// Process wiring below (registering the handlers, invoking main(), exit
+// code) is exercised by the smoke runbook against a real GitHub Actions
+// run, not by unit tests — the guard keeps it from running when this
+// module is only imported (for example, if a future test imports `main`
+// directly). The handler functions themselves are unit tested directly.
+if (process.argv[1] && process.argv[1].endsWith("review-pr.ts")) {
+  process.on("unhandledRejection", (reason) => {
+    handleUnhandledRejection(reason);
+  });
+
+  process.on("uncaughtException", (error) => {
+    handleUncaughtException(error);
+  });
+
+  main()
+    .then((code) => {
+      process.exitCode = code;
+    })
+    .catch((error) => {
+      handleMainRejection(error);
+    });
+}

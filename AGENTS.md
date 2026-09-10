@@ -8,17 +8,22 @@ This is the primary AI agent guidance file for this project. It follows the [AGE
 
 ## Project Overview
 
-> **TODO**: Fill this section via the project setup agent (`docs/workflow/setup/protocol.md`), or manually describe your project here.
->
-> - What does this project do?
-> - Who are the users?
-> - What problem does it solve?
+Ronda is a GitHub-facing PR review bot: comment-only, one review per head
+SHA, cheap/local models. ADF/Helm consume the GitHub review; this repo owns
+the bot.
+
+Locked decisions: [`docs/constitution.md`](docs/constitution.md).
+
+Not `local-ai-reviewer`, not Fleet, not Helm.
 
 ---
 
 ## Repository Structure
 
-> **TODO**: Fill this section after running the project setup. Reference `docs/project/2-repo-architecture.md` for details.
+Single-repo ADF consumer. Webhook server not in tree yet. See
+[`docs/project/2-repo-architecture.md`](docs/project/2-repo-architecture.md).
+
+Default branch: `develop`. Tracker: GitHub Project #11, field **Work type**.
 
 ---
 
@@ -28,6 +33,7 @@ Always refer to these docs for authoritative guidance:
 
 | Document                                                                                                                                                       | Purpose                                                                                         |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [`docs/constitution.md`](docs/constitution.md)                                                                                                                 | Locked product contract (GitHub review, movable webhook URL)                                  |
 | [`docs/project/1-business-domain.md`](docs/project/1-business-domain.md)                                                                                       | Domain entities, business rules, glossary                                                       |
 | [`docs/project/2-repo-architecture.md`](docs/project/2-repo-architecture.md)                                                                                   | Repository structure, packages, apps                                                            |
 | [`docs/project/3-software-architecture.md`](docs/project/3-software-architecture.md)                                                                           | Tech stack, design patterns, architecture decisions                                             |
@@ -115,21 +121,28 @@ For normal Codex usage, use `/run-work` to scan the portfolio and discover what 
 
 ## Common Commands
 
-> **TODO**: Fill with your project's actual commands after setup.
-
 <!-- workflow-shell-contract: bash -->
 ```bash
-# Development
-# [your dev server command]
+# Install dependencies
+npm ci
+
+# Run one review pass locally against a real pull request (requires
+# GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_EVENT_NAME, GITHUB_EVENT_PATH, and
+# a model credential — see docs/adoption/ronda-review-adoption.md)
+npm run review
 
 # Build
-# [your build command]
+# No build step — TypeScript runs directly via tsx; there is no committed
+# build artifact (dist/ is gitignored).
+
+# Typecheck
+npm run typecheck
 
 # Test
-# [your test command]
+npm test
 
-# Lint / Format
-# [your lint/format commands]
+# Lint
+npm run lint
 
 # Markdown lint (spec, plan, changelog fragment, and CHANGELOG files)
 # Standard rules (trailing whitespace, relative links, files end with newline):
@@ -207,4 +220,8 @@ Read [`docs/best-practices/STACK-SPECIFIC.md`](docs/best-practices/STACK-SPECIFI
 
 ## Troubleshooting
 
-> **TODO**: Add project-specific troubleshooting tips here after setup.
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| A pass reports "Review failed — model credential missing" | `RONDA_MODEL_API_KEY` is unset and no operator config file supplies `modelApiKey` | Set the `RONDA_MODEL_API_KEY` repository/organization secret (Actions path) or `modelApiKey` in `~/.config/ronda/config.json` (local path) — see `docs/adoption/ronda-review-adoption.md` |
+| A pass reports "Review failed — model credential invalid" | The credential is present but the model API rejected it (HTTP 401/403) | Re-check the key value and that it is valid for the configured `RONDA_MODEL_BASE_URL` / `RONDA_MODEL_NAME` |
+| `npm run typecheck` or `npm run lint` fails only in CI, not locally | `node-ci.yml`'s `paths:` filter did not trigger, or a stale `package-lock.json` | Confirm the changed files are under the workflow's `paths:` list; run `npm ci` (not `npm install`) locally to match CI exactly |

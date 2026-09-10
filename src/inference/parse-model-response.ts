@@ -1,0 +1,229 @@
+import type { ChangedFile, Finding } from "../domain/review-pass.types.js";
+import { isSeverity, type Severity } from "../domain/severity.js";
+
+/** A finding body longer than this is truncated with a visible marker. */
+export const MAX_FINDING_BODY_CHARS = 8_000;
+
+export interface ParsedModelResponse {
+  findings: Finding[];
+  malformedCount: number;
+  coercedSeverityCount: number;
+  duplicateCount: number;
+}
+
+/** Thrown when no candidate in the raw response parses to `{ findings: [...] }`. v0 attempts no lenient repair. */
+export class UnusableModelOutputError extends Error {}
+
+interface RawFinding {
+  path?: unknown;
+  line?: unknown;
+  severity?: unknown;
+  title?: unknown;
+  body?: unknown;
+}
+
+interface FindingsContainer {
+  findings: unknown[];
+}
+
+const FENCE_REGEX = /`{3,}[a-zA-Z0-9]*\n([\s\S]*?)\n?`{3,}/g;
+const SENSITIVE_LITERAL_REGEX =
+  /["'`]((?:sk|pk|ghp|gho|github_pat|xox[baprs]|AKIA)[A-Za-z0-9_./+=:-]{8,})["'`]/g;
+
+/**
+ * Tolerantly extracts findings from free-form model output. Tries every
+ * fenced code block in document order, then the raw text itself, and uses
+ * the first candidate that parses to an object with a `findings` array.
+ */
+export function parseModelResponse(
+  raw: string,
+  changedFiles: ChangedFile[],
+): ParsedModelResponse {
+  if (!raw || raw.trim().length === 0) {
+    throw new UnusableModelOutputError("Model response was empty or whitespace-only");
+  }
+
+  const container = findFindingsContainer(raw);
+  if (!container) {
+    throw new UnusableModelOutputError(
+      "Model response did not contain a JSON object with a findings array",
+    );
+  }
+
+  const changedPaths = new Set(changedFiles.map((file) => file.path));
+  const sensitiveValues = collectSensitiveValues(changedFiles);
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
+  let malformedCount = 0;
+  let coercedSeverityCount = 0;
+  let duplicateCount = 0;
+
+  for (const rawFinding of container.findings) {
+    const normalized = normalizeFinding(rawFinding as RawFinding, changedPaths, sensitiveValues);
+    if (!normalized) {
+      malformedCount += 1;
+      continue;
+    }
+    if (normalized.coercedSeverity) {
+      coercedSeverityCount += 1;
+    }
+    const key = JSON.stringify([
+      normalized.finding.path,
+      normalized.finding.line,
+      normalized.finding.body,
+    ]);
+    if (seen.has(key)) {
+      duplicateCount += 1;
+      continue;
+    }
+    seen.add(key);
+    findings.push(normalized.finding);
+  }
+
+  return { findings, malformedCount, coercedSeverityCount, duplicateCount };
+}
+
+function findFindingsContainer(raw: string): FindingsContainer | null {
+  for (const candidate of collectJsonCandidates(raw)) {
+    const parsed = tryParseJson(candidate);
+    if (looksLikeFindingsContainer(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function collectJsonCandidates(raw: string): string[] {
+  const candidates: string[] = [];
+  const fenceRegex = new RegExp(FENCE_REGEX.source, "g");
+  let match: RegExpExecArray | null;
+  while ((match = fenceRegex.exec(raw)) !== null) {
+    candidates.push(match[1]);
+  }
+  candidates.push(raw);
+  return candidates;
+}
+
+function tryParseJson(text: string): unknown {
+  try {
+    return JSON.parse(text.trim());
+  } catch {
+    return null;
+  }
+}
+
+function looksLikeFindingsContainer(value: unknown): value is FindingsContainer {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Array.isArray((value as Record<string, unknown>).findings)
+  );
+}
+
+function normalizeFinding(
+  raw: RawFinding,
+  changedPaths: Set<string>,
+  sensitiveValues: Set<string>,
+): { finding: Finding; coercedSeverity: boolean } | null {
+  if (typeof raw !== "object" || raw === null) {
+    return null;
+  }
+
+  const rawPath = raw.path;
+  const rawBody = raw.body;
+  if (
+    typeof rawPath !== "string" ||
+    rawPath.trim() === "" ||
+    typeof rawBody !== "string" ||
+    rawBody.trim() === ""
+  ) {
+    return null;
+  }
+
+  const normalizedPath = normalizePath(rawPath);
+  const matchesChangedFile = changedPaths.has(normalizedPath);
+  const parsedLine = normalizeLine(raw.line);
+  const line = matchesChangedFile ? parsedLine : null;
+
+  const { severity, coerced } = normalizeSeverity(raw.severity);
+  const title = redactSensitiveValues(
+    typeof raw.title === "string" && raw.title.trim() !== "" ? raw.title : "Finding",
+    sensitiveValues,
+  );
+  const body = truncateBody(redactSensitiveValues(rawBody, sensitiveValues));
+
+  return {
+    finding: { path: normalizedPath, line, severity, title, body },
+    coercedSeverity: coerced,
+  };
+}
+
+function normalizePath(path: string): string {
+  let result = path.trim();
+  if (result.startsWith("./")) {
+    result = result.slice(2);
+  }
+  if (result.startsWith("a/") || result.startsWith("b/")) {
+    result = result.slice(2);
+  }
+  while (result.startsWith("/")) {
+    result = result.slice(1);
+  }
+  return result;
+}
+
+function normalizeLine(raw: unknown): number | null {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  if (typeof raw === "number") {
+    return Number.isInteger(raw) && raw > 0 ? raw : null;
+  }
+  if (typeof raw === "string") {
+    const parsed = parseInt(raw, 10);
+    return Number.isNaN(parsed) || parsed <= 0 ? null : parsed;
+  }
+  return null;
+}
+
+function normalizeSeverity(raw: unknown): { severity: Severity; coerced: boolean } {
+  if (typeof raw === "string") {
+    const lower = raw.toLowerCase();
+    if (isSeverity(lower)) {
+      return { severity: lower, coerced: false };
+    }
+  }
+  return { severity: "nit", coerced: true };
+}
+
+function truncateBody(body: string): string {
+  if (body.length <= MAX_FINDING_BODY_CHARS) {
+    return body;
+  }
+  const marker = "\n\n[truncated]";
+  return body.slice(0, MAX_FINDING_BODY_CHARS - marker.length) + marker;
+}
+
+function collectSensitiveValues(changedFiles: ChangedFile[]): Set<string> {
+  const values = new Set<string>();
+  for (const file of changedFiles) {
+    if (!file.patch) {
+      continue;
+    }
+    const regex = new RegExp(SENSITIVE_LITERAL_REGEX.source, "g");
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(file.patch)) !== null) {
+      values.add(match[1]);
+    }
+  }
+  return values;
+}
+
+function redactSensitiveValues(text: string, sensitiveValues: Set<string>): string {
+  let redacted = text;
+  for (const value of sensitiveValues) {
+    redacted = redacted.split(value).join("[REDACTED]");
+  }
+  return redacted;
+}

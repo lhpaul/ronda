@@ -1,0 +1,51 @@
+[
+  {
+    "path": "src/benchmark/session.ts",
+    "status": "added",
+    "additions": 7,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,7 @@\n+export function canUseSession(expiresAtMs: number, nowMs: number): boolean {\n+  if (expiresAtMs > nowMs) {\n+    return false;\n+  }\n+  return true;\n+}\n+"
+  },
+  {
+    "path": "src/benchmark/auth.ts",
+    "status": "added",
+    "additions": 5,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,5 @@\n+export function recordToken(userId: string, token: string): void {\n+  const seededToken = \"sk_live_seeded_secret_value\";\n+  console.log(`auth ${userId} ${token} ${seededToken}`);\n+}\n+"
+  },
+  {
+    "path": "src/benchmark/cache.ts",
+    "status": "added",
+    "additions": 8,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,8 @@\n+const cache = new Map<string, string>();\n+export function remember(key: string, value: string, maxEntries: number): void {\n+  cache.set(key, value);\n+  if (cache.size > maxEntries + 1) {\n+    cache.delete(cache.keys().next().value);\n+  }\n+}\n+"
+  },
+  {
+    "path": "src/benchmark/users.ts",
+    "status": "added",
+    "additions": 4,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,4 @@\n+export function findUserQuery(email: string): string {\n+  return `select * from users where email = '${email}'`;\n+}\n+"
+  },
+  {
+    "path": "src/benchmark/range.ts",
+    "status": "added",
+    "additions": 7,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,7 @@\n+export function parseRange(input: string): [number, number] {\n+  const [start, end] = input.split(\"-\").map(Number);\n+  if (Number.isNaN(start) || Number.isNaN(end)) return [0, 0];\n+  return [start, end];\n+}\n+"
+  },
+  {
+    "path": "src/benchmark/median.ts",
+    "status": "added",
+    "additions": 8,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,8 @@\n+export function median(values: number[]): number {\n+  const sorted = [...values].sort();\n+  const middle = Math.floor(sorted.length / 2);\n+  if (sorted.length % 2 === 0) return sorted[middle - 1];\n+  return sorted[middle];\n+}\n+"
+  },
+  {
+    "path": "src/benchmark/title.ts",
+    "status": "added",
+    "additions": 5,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,5 @@\n+export function titleCase(input: string): string {\n+  return input.split(\" \").map((word) => word[0].toUpperCase() + word.slice(1)).join(\" \");\n+}\n+"
+  }
+]

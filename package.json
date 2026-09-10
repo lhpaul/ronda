@@ -1,14 +1,29 @@
 {
-  "name": "ai-dev-framework-template",
-  "version": "0.44.0",
+  "name": "ronda",
+  "version": "0.1.0",
   "private": true,
-  "description": "Root package for markdown lint tooling",
+  "description": "Ronda — a comment-only GitHub pull-request review bot",
+  "type": "module",
   "scripts": {
-    "format": "prettier --write \"**/*.md\""
+    "format": "prettier --write \"**/*.md\"",
+    "test": "tsx --test $(find tests -name '*.test.ts' | sort)",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src tests",
+    "review": "tsx src/cli/review-pr.ts",
+    "benchmark:recall": "tsx src/cli/recall-benchmark.ts"
+  },
+  "dependencies": {
+    "@octokit/rest": "22.0.1"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "20.19.43",
+    "eslint": "10.10.0",
     "markdownlint-cli2": "0.22.0",
     "markdownlint-rule-relative-links": "5.1.0",
-    "prettier": "^3.8.3"
+    "prettier": "^3.8.3",
+    "tsx": "4.23.13",
+    "typescript": "5.8.3",
+    "typescript-eslint": "8.69.0"
   }
 }

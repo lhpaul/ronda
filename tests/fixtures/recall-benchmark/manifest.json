@@ -1,0 +1,118 @@
+{
+  "benchmarkId": "issue-15-recall-benchmark",
+  "seededDefects": [
+    {
+      "id": "expired-session-inversion",
+      "category": "expired-session inversion",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/session.ts",
+      "description": "Expired sessions are accepted while active sessions are rejected.",
+      "matchTerms": ["expired", "session", "inversion"],
+      "matchTermGroups": [
+        ["expired", "session", "inversion"],
+        ["session", "expiration", "logic"],
+        ["active", "sessions", "expired"]
+      ]
+    },
+    {
+      "id": "sensitive-value-exposure",
+      "category": "sensitive-value exposure",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/auth.ts",
+      "description": "A token is logged directly instead of being redacted.",
+      "matchTerms": ["token", "log", "sensitive"],
+      "matchTermGroups": [
+        ["token", "log", "sensitive"],
+        ["secret", "token", "exposed"],
+        ["sensitive", "token"]
+      ],
+      "forbiddenValue": "sk_live_seeded_secret_value"
+    },
+    {
+      "id": "cache-capacity-off-by-one",
+      "category": "cache-capacity off-by-one",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/cache.ts",
+      "description": "The cache evicts only after it grows beyond one item over the configured maximum.",
+      "matchTerms": ["cache", "capacity", "off-by-one"],
+      "matchTermGroups": [
+        ["cache", "capacity", "off-by-one"],
+        ["cache", "eviction", "incorrect"],
+        ["cache", "extra", "entry"],
+        ["cache", "eviction", "logic", "error"],
+        ["cache", "eviction", "bug"],
+        ["cache", "overflows", "entry"]
+      ]
+    },
+    {
+      "id": "sql-interpolation",
+      "category": "SQL interpolation",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/users.ts",
+      "description": "User input is interpolated into a SQL query string.",
+      "matchTerms": ["sql", "interpolation"],
+      "matchTermGroups": [
+        ["sql", "interpolation"],
+        ["sql", "injection"],
+        ["query", "injectable"]
+      ]
+    },
+    {
+      "id": "invalid-range-parsing",
+      "category": "invalid range parsing",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/range.ts",
+      "description": "Invalid numeric ranges are accepted instead of rejected.",
+      "matchTerms": ["invalid", "range"],
+      "matchTermGroups": [
+        ["invalid", "range"],
+        ["range", "accept"],
+        ["range", "fallback"],
+        ["range", "bounds"],
+        ["parsing", "input", "validation"],
+        ["range", "error", "handling"],
+        ["range", "parsing", "validation"]
+      ]
+    },
+    {
+      "id": "lexicographic-numeric-sort",
+      "category": "lexicographic numeric sort",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/median.ts",
+      "description": "Numeric values are sorted lexicographically.",
+      "matchTerms": ["lexicographic", "numeric", "sort"],
+      "matchTermGroups": [
+        ["lexicographic", "numeric", "sort"],
+        ["sort", "comparator"],
+        ["sort", "numeric"]
+      ]
+    },
+    {
+      "id": "lower-element-median",
+      "category": "lower-element median",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/median.ts",
+      "description": "Even-length median returns the lower element instead of averaging the middle pair.",
+      "matchTerms": ["median", "lower"],
+      "matchTermGroups": [
+        ["median", "lower"],
+        ["median", "even-length"],
+        ["median", "middle", "pair"]
+      ]
+    },
+    {
+      "id": "empty-word-title-casing",
+      "category": "empty-word title casing",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/title.ts",
+      "description": "Title casing can throw when input contains empty words.",
+      "matchTerms": ["empty", "word", "title"],
+      "matchTermGroups": [
+        ["empty", "word", "title"],
+        ["empty", "input", "throw"],
+        ["word[0]", "undefined"],
+        ["empty", "strings"]
+      ]
+    }
+  ]
+}

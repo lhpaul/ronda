@@ -1,0 +1,61 @@
+name: Workflow lint
+
+# An unparseable workflow file is invisible to every other gate in this
+# repository: unit tests, ShellCheck, and the reviewer loop all pass, and the
+# failure only appears when another repository tries to call the reusable
+# workflow, where it surfaces as a startup failure with zero jobs and no logs.
+# That is how issue #9 shipped. actionlint parses every workflow the way
+# GitHub does, including expression syntax.
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+  push:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+env:
+  # Pinned release, verified by checksum below. Bump both together.
+  ACTIONLINT_VERSION: 1.7.12
+  ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          persist-credentials: false
+
+      # Installed directly rather than via a wrapper action. The wrapper
+      # resolves its Node dependencies against the workspace and aborted with
+      # ERR_PACKAGE_PATH_NOT_EXPORTED on this repository; a pinned, checksum-
+      # verified binary has no such coupling and makes the exact flags visible.
+      - name: Install actionlint
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 \
+            -o "$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum --check --strict -
+          tar -xzf "$archive" actionlint
+          ./actionlint --version
+
+      - name: Run actionlint
+        # -shellcheck= disables actionlint's embedded ShellCheck. This
+        # repository already runs ShellCheck as its own job over
+        # scripts/development-workflow/, and actionlint's copy additionally
+        # reports pre-existing findings in template-owned workflow files that
+        # sync-template would reintroduce. Workflow and expression syntax is
+        # the class of bug this gate exists for.
+        run: ./actionlint -color -shellcheck=
