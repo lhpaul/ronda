@@ -2036,8 +2036,14 @@ unset _policy_status_summary_count
 
 # Test 10.7: blocking, platform advisory, and project advisory findings remain
 # visible in the summary in the required order.
-_post_summary_source="$(awk '/^_post_review_summary\(\)/,/^}$/' \
-  "$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh")"
+_post_summary_source="$(
+  {
+    awk '/^post_reviewer_loop_completion_guard_status\(\)/,/^}$/' \
+      "$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh"
+    awk '/^_post_review_summary\(\)/,/^}$/' \
+      "$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh"
+  }
+)"
 eval "$_post_summary_source"
 # shellcheck disable=SC2329 # Invoked indirectly by the eval-loaded function.
 repo_slug() { printf "owner/repo\n"; }
@@ -13178,6 +13184,8 @@ platform_policy_status_notes=()
 pr_number=42
 # shellcheck disable=SC2034 # Read by the eval-loaded _post_review_summary function.
 branch_name="fix/42-summary"
+# shellcheck disable=SC2034 # Read by the eval-loaded _post_review_summary function.
+loop_head_sha="abc123"
 MOCK_GH_COMMENTS_OUTPUT='[]'
 export MOCK_GH_COMMENTS_OUTPUT
 
@@ -13199,6 +13207,10 @@ else
   _body_file_removed="no"
 fi
 run_test "post_summary_removes_body_file_on_success" "yes" "$_body_file_removed"
+_completion_guard_status_calls="$(grep_count_or_zero 'api --method POST repos/owner/repo/statuses/abc123' "$_summary_call_log")"
+run_test "post_summary_refreshes_completion_guard_on_success" "1" "$_completion_guard_status_calls"
+_completion_guard_context_calls="$(grep_count_or_zero 'Reviewer-loop completion guard (#42)' "$_summary_call_log")"
+run_test "post_summary_refreshes_pr_scoped_completion_guard" "1" "$_completion_guard_context_calls"
 rm -f "$_summary_call_log"
 
 _summary_call_log="$(mktemp)"
@@ -13217,6 +13229,8 @@ else
   _body_file_removed="no"
 fi
 run_test "post_summary_removes_body_file_on_failure" "yes" "$_body_file_removed"
+_completion_guard_status_calls="$(grep_count_or_zero 'api --method POST repos/owner/repo/statuses/abc123' "$_summary_call_log")"
+run_test "post_summary_does_not_refresh_completion_guard_on_persist_failure" "0" "$_completion_guard_status_calls"
 rm -f "$_summary_call_log"
 
 MOCK_GH_EXIT=0
@@ -13248,8 +13262,9 @@ rm -f "$_summary_call_log"
 
 unset MOCK_GH_CALL_LOG MOCK_GH_EXIT MOCK_GH_COMMENTS_OUTPUT
 unset _post_summary_source _summary_call_log _body_file _body_file_used _body_file_removed
+unset _completion_guard_status_calls _completion_guard_context_calls
 unset _needs_fixes_create_calls _needs_fixes_patch_calls
-unset -f _post_review_summary repo_slug
+unset -f _post_review_summary post_reviewer_loop_completion_guard_status repo_slug
 
 # ---------------------------------------------------------------------------
 # Area 14: _check_release_pr_guard — release PR early-exit guard (#960)
