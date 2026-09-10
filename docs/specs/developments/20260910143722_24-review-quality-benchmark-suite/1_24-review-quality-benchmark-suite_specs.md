@@ -226,6 +226,10 @@ use to decide whether a model, prompt, or release is good enough to trust.
 - A second reviewer is treated as a comparison signal, not absolute truth.
 - External-only findings require human adjudication before they count as Ronda
   misses.
+- The second-opinion gate may trigger another reviewer directly or record an
+  operator-triggered reviewer run, but the evidence must show that the reviewed
+  repository, pull request, and head match Ronda's clean result.
+- The second-opinion gate runs only after Ronda reports clean for the same head.
 - The primary quality metric is the false-clean rate: how often Ronda reports a
   head as clean when a human-adjudicated second opinion identifies a real issue.
 - Confirmed Ronda misses should be candidates for future benchmark fixtures.
@@ -298,9 +302,9 @@ use to decide whether a model, prompt, or release is good enough to trust.
       pull request, and head that Ronda reviewed.
 - [ ] Operators can classify mismatches as Ronda miss, Ronda better signal,
       duplicate finding, clean agreement, or unclear.
-- [ ] When Ronda reports a head as clean, operators can record whether a
-      second-opinion reviewer later found an actionable issue, producing a
-      false-clean candidate.
+- [ ] When Ronda reports a head as clean, operators can trigger or record a
+      second-opinion reviewer run for the same head and capture whether it found
+      an actionable issue, producing a false-clean candidate.
 - [ ] Confirmed Ronda misses can be traced back to the source comparison so they
       can become future seeded benchmark cases.
 - [ ] Existing Ronda GitHub review output, check-run behavior, draft skip
@@ -330,7 +334,7 @@ use to decide whether a model, prompt, or release is good enough to trust.
 | Cover additional seeded defect categories. | AC1 | Categories include the requested security, authorization, data-loss, async/race, config, and stale-SHA cases plus existing review-risk categories. |
 | Add precision/noise fixture coverage. | AC3, AC7 | Precision is measured directly and mismatch classifications separate noise from misses. |
 | Capture recall, missed categories, false positives, model identity, target, timestamp, and same-head variance. | AC2, AC5 | These are required evidence fields for each benchmark run. |
-| Support comparison with another reviewer platform after Ronda reports clean. | AC6, AC7, AC8 | The second-opinion gate is explicitly represented and produces false-clean candidates. |
+| Support comparison with another reviewer platform after Ronda reports clean. | AC6, AC7, AC8 | The second-opinion gate can trigger or record same-head reviewer evidence and produces false-clean candidates. |
 | Preserve Ronda's existing GitHub review output contract. | AC10 | The feature measures quality without changing Ronda's review/check-run contract. |
 
 ---
