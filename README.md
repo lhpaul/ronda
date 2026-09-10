@@ -27,3 +27,12 @@ classification field **Work type**.
 ```text
 /run-item <ISSUE>
 ```
+
+Run the recall benchmark with deterministic fixtures:
+
+```bash
+npm run benchmark:recall -- --response-file tests/fixtures/recall-benchmark/model-responses/passing.json
+```
+
+Omit `--response-file` to run against the configured real model. Real-model
+benchmark evidence requires `RONDA_MODEL_API_KEY` or the local operator config.

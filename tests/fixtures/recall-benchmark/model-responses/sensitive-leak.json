@@ -1,0 +1,11 @@
+{
+  "findings": [
+    {
+      "path": "src/benchmark/auth.ts",
+      "line": 3,
+      "severity": "blocking",
+      "title": "Stop logging sensitive token material",
+      "body": "This logs the sensitive token sk_live_seeded_secret_value and should redact it."
+    }
+  ]
+}

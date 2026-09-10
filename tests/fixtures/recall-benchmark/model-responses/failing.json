@@ -1,0 +1,11 @@
+{
+  "findings": [
+    {
+      "path": "src/benchmark/session.ts",
+      "line": 2,
+      "severity": "blocking",
+      "title": "Fix expired session inversion",
+      "body": "The expired session check is inverted."
+    }
+  ]
+}

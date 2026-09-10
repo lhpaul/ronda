@@ -35,6 +35,7 @@ export function createOpenAiCompatibleClient(
           },
           body: JSON.stringify({
             model: config.modelName,
+            temperature: 0,
             messages: [
               { role: "system", content: request.systemPrompt },
               { role: "user", content: request.userPrompt },

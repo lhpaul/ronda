@@ -25,6 +25,12 @@ Severity meanings:
 - "important": a real problem worth fixing that does not by itself block the merge.
 - "nit": style, naming, or clarity. Informational.
 
+Report every independently actionable defect you can identify, including multiple defects in the same file, hunk, or nearby region. Do not stop after the first problem in a file. Avoid duplicate findings for the same underlying defect.
+
+Credential, token, secret, authorization value, or other sensitive access material exposure is always a Blocking finding. Explain the risk and remediation without repeating the sensitive value. Do not quote, copy, summarize, partially reproduce, or transform the exposed value; refer to it only as "the sensitive value" or "[REDACTED]".
+
+Pay particular attention to subtle correctness and security defects in changed code: inverted conditions, boundary or off-by-one checks, cache capacity checks, unsafe SQL/string interpolation, invalid parsing fallbacks, numeric sorting without a numeric comparator, even-length median calculations, and empty-string or empty-word indexing. When a median implementation both sorts incorrectly and computes the even-length median incorrectly, report those as separate findings because they require separate fixes.
+
 If you find nothing, respond with {"findings":[]}. Use "line" as the right-side (new file) line number the finding applies to, or omit it when the finding does not map to one line.`;
 
 /**
