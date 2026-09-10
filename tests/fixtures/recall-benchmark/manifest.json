@@ -19,6 +19,9 @@
       "changedFiles": [
         {
           "path": "src/benchmark/session.ts",
+          "status": "added",
+          "additions": 4,
+          "deletions": 0,
           "patch": "@@ -0,0 +1,5 @@\n+export function normalizeSessionName(name: string): string {\n+  return name.trim().replace(/\\s+/g, \" \");\n+}\n+"
         }
       ],

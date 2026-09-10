@@ -237,6 +237,7 @@ test("precision fixture runs clean patches through the model path", async () => 
   assert.equal(summary.falsePositiveCount, 0);
   assert.equal(prompts.length, 1);
   assert.match(prompts[0]?.userPrompt ?? "", /normalizeSessionName/);
+  assert.doesNotMatch(prompts[0]?.userPrompt ?? "", /\(undefined\)/);
 });
 
 test("precision fixture summaries redact forbidden values from false positives", () => {
