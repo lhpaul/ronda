@@ -40,6 +40,7 @@
         ["cache", "eviction", "incorrect"],
         ["cache", "extra", "entry"],
         ["cache", "eviction", "logic", "error"],
+        ["cache", "eviction", "bug"],
         ["cache", "overflows", "entry"]
       ]
     },
