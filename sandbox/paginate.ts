@@ -33,3 +33,4 @@ export function pageSlice<T>(items: T[], pageNumber: number, perPage: number): T
   const start = pageNumber * perPage;
   return items.slice(start, start + perPage);
 }
+// step 10: supersede the head
