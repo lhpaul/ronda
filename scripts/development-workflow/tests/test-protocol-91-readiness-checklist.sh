@@ -99,7 +99,7 @@ _derives_repo="$(grep -c 'GRAPHQL_REPO="${TARGET_REPO#\*/}"' "$PROTOCOL" || true
 run_test "runnable_gates_derive_repo_from_target_repo" "2" "$_derives_repo"
 
 _uses_derived="$(grep -c -- '-f owner="\$GRAPHQL_OWNER" -f repo="\$GRAPHQL_REPO"' "$PROTOCOL" || true)"
-run_test "runnable_gates_pass_derived_owner_repo" "2" "$_uses_derived"
+run_test "runnable_gates_pass_derived_owner_repo" "4" "$_uses_derived"
 
 # TARGET_REPO must actually be defined by the checklist that uses it.
 if grep -q 'TARGET_REPO=$(repo_slug)' "$PROTOCOL"; then
@@ -109,7 +109,22 @@ else
 fi
 run_test "target_repo_resolved_in_checklist" "yes" "$_target_repo_defined"
 
-# --- 3. The Step 8a checklist parses as bash --------------------------------
+# --- 3. Step 8a normalizes stale duplicate check-runs ------------------------
+# The CI loop dedupes by check key before deciding green/red. Step 8a must do
+# the same so a superseded failed check-run does not disagree with the CI loop
+# for the same head SHA.
+if grep -q 'NORMALIZED_CHECKS_JSON=' "$PROTOCOL" &&
+   grep -q '"check:" + .checkSuite.workflowRun.workflow.name + "/" + .name' "$PROTOCOL" &&
+   grep -q 'contexts(first:100,after:$cursor)' "$PROTOCOL" &&
+   grep -q 'group_by(.__check_key)' "$PROTOCOL" &&
+   grep -q 'map(last | del(.__check_key, .__check_ts))' "$PROTOCOL"; then
+  _dedupes_check_runs="yes"
+else
+  _dedupes_check_runs="no"
+fi
+run_test "step_8a_dedupes_check_runs_by_key" "yes" "$_dedupes_check_runs"
+
+# --- 4. The Step 8a checklist parses as bash --------------------------------
 # Extracts the fenced block that opens the label readiness checklist and runs
 # `bash -n` on it. This would not have caught the GraphQL brace (it lives
 # inside a single-quoted string), which is why check 1 above exists; it does
