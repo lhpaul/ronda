@@ -28,6 +28,11 @@ smoke runbook as the second tier — see
   runs a full pass against `tests/support/mock-model-server.ts` (a local
   OpenAI-compatible stub) with only the GitHub layer faked, asserting the
   exact review and check-run payloads.
+- **Recall benchmark** (model-dependent quality tier):
+  `npm run benchmark:recall` reuses the normal prompt, model, and parser path
+  against `tests/fixtures/recall-benchmark/`. A `--response-file` fixture mode
+  proves benchmark mechanics in CI-safe tests; real recall evidence requires a
+  configured model credential and is recorded in the smoke runbook/PR evidence.
 - **Smoke** (manual, against real GitHub): `docs/testing/ronda/ronda-v0-github-review.smoke-test.md`,
   covering the dogfood run against `lhpaul/ai-dev-framework-template` and
   cases impractical to stage in CI (missing credential, timeout, supersede).
@@ -45,6 +50,7 @@ Run commands:
 npm run typecheck
 npm run lint
 npm test
+npm run benchmark:recall -- --response-file tests/fixtures/recall-benchmark/model-responses/passing.json
 ```
 
 ## Key Architectural Decisions

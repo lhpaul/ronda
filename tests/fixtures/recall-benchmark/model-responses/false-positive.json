@@ -1,0 +1,18 @@
+{
+  "findings": [
+    {
+      "path": "src/benchmark/session.ts",
+      "line": 2,
+      "severity": "blocking",
+      "title": "Fix expired session inversion",
+      "body": "The expired session check is inverted."
+    },
+    {
+      "path": "src/benchmark/range.ts",
+      "line": 1,
+      "severity": "nit",
+      "title": "Rename parseRange",
+      "body": "The function name is too short."
+    }
+  ]
+}

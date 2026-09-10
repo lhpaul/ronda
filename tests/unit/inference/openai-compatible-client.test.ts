@@ -22,6 +22,36 @@ test("a successful response returns the message content", async () => {
   }
 });
 
+test("the request fixes temperature at zero to reduce same-head variance", async () => {
+  let requestBody: unknown;
+  const client = createOpenAiCompatibleClient({
+    apiKey: "test-key",
+    baseUrl: "https://example.test",
+    modelName: "mock-model",
+    fetchImpl: async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body));
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '{"findings":[]}' } }] }),
+        { status: 200 },
+      );
+    },
+  });
+
+  await client.complete(
+    { systemPrompt: "sys", userPrompt: "user" },
+    new AbortController().signal,
+  );
+
+  assert.deepEqual(requestBody, {
+    model: "mock-model",
+    temperature: 0,
+    messages: [
+      { role: "system", content: "sys" },
+      { role: "user", content: "user" },
+    ],
+  });
+});
+
 test("HTTP 401 maps to credential_invalid", async () => {
   const server = await startMockModelServer({ statusCode: 401 });
   try {

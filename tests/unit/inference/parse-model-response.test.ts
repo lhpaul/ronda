@@ -200,3 +200,57 @@ test("M19: a body longer than MAX_FINDING_BODY_CHARS is truncated with a visible
   assert.equal(result.findings[0].body.length, MAX_FINDING_BODY_CHARS);
   assert.ok(result.findings[0].body.endsWith("[truncated]"));
 });
+
+test("M20: sensitive literals from changed patches are redacted from model findings", () => {
+  const result = parseModelResponse(
+    JSON.stringify({
+      findings: [
+        {
+          path: "src/example.ts",
+          title: "Do not expose sk_live_seeded_secret_value",
+          body: "The value sk_live_seeded_secret_value is logged.",
+          severity: "blocking",
+        },
+      ],
+    }),
+    [
+      {
+        path: "src/example.ts",
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        patch: "@@ -1 +1 @@\n+const token = 'sk_live_seeded_secret_value';",
+      },
+    ],
+  );
+
+  assert.equal(result.findings[0].title, "Do not expose [REDACTED]");
+  assert.equal(result.findings[0].body, "The value [REDACTED] is logged.");
+});
+
+test("M21: sensitive literals are redacted before body truncation", () => {
+  const sensitiveValue = "sk_live_seeded_secret_value";
+  const longBody = `${"x".repeat(MAX_FINDING_BODY_CHARS - 5)}${sensitiveValue}`;
+  const result = parseModelResponse(
+    JSON.stringify({
+      findings: [
+        {
+          path: "src/example.ts",
+          body: longBody,
+          severity: "blocking",
+        },
+      ],
+    }),
+    [
+      {
+        path: "src/example.ts",
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        patch: `@@ -1 +1 @@\n+const token = '${sensitiveValue}';`,
+      },
+    ],
+  );
+
+  assert.doesNotMatch(result.findings[0].body, /sk_live_seeded_secret_value/);
+});

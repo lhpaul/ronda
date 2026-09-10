@@ -1,0 +1,1 @@
+- **Improve review recall** (#15): Add a recall benchmark and tune Ronda to catch more seeded defects while preserving the comment-only review contract.
