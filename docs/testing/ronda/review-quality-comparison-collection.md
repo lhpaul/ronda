@@ -49,6 +49,10 @@ After five records exist, run:
 npm run benchmark:quality -- --comparison-file docs/testing/ronda/comparisons/<file>.json --reviewed-target ronda-quality-batch-1
 ```
 
+For a quick rollup across all committed comparison files, run
+`npm run quality:summary`. Use `--file path.json` one or more times to summarize
+specific files, or `--dir path` to summarize a different comparison directory.
+
 Look for:
 
 - Clean agreements.
