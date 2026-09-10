@@ -196,7 +196,9 @@ confirmed live by steps 1, 4, and 5, which run through the Actions path.
 2. Read the structured log line the process emits.
 
 **Expected result**: The process emits a `pass_failed` event naming the
-missing-credential reason in plain language, not a generic error:
+missing-credential reason in plain language, not a generic error. The real
+log line also carries a `timestamp` field (`src/core/logger.ts` adds one to
+every event); the JSON below shows only the fields this runbook checks:
 
 ```json
 {"event":"pass_failed","reason":"credential_missing","message":"RONDA_MODEL_API_KEY (or the operator config file's modelApiKey) is not set"}
@@ -291,12 +293,23 @@ rather than waiting ten real minutes.
 2. Start `npm run review` against the sandbox pull request and note the head SHA
    it reports in its first log line.
 3. While that pass is still running, push a new commit to the sandbox branch.
-4. Let the pass finish, then list reviews and list check runs for both the old
-   and the new head SHA.
+4. Let the pass finish, then read its structured log line, and list reviews
+   and check runs for the old head SHA.
+5. Run `npm run review` again against the sandbox pull request — now pointing
+   at the new head SHA — and read the published review.
 
-**Expected result**: The superseded pass published no review and no check run
-for the old head SHA. Only the new head SHA ends up with a review and a check
-run, produced by the pass started for it.
+**Expected result**: The first pass logs a `pass_skipped` event with
+`"reason":"superseded_head_sha"` and publishes no review and no check run for
+the old head SHA. This negative result is verifiable locally with a personal
+access token, because it asserts the *absence* of a publication rather than
+the presence of a check run. The second invocation (step 5) publishes its own
+fresh review for the new head SHA. **Not locally verifiable**: whether that
+second pass's check run is created — a personal access token cannot create a
+check run (see the App-token requirement in Prerequisites). Confirm the full
+supersede-then-fresh-pass sequence, including the new head SHA's check run,
+via the Actions path (steps 1 and 4) instead, where pushing a commit to an
+already-reviewed pull request already exercises exactly this: the old head
+SHA keeps its review and check run, and the new head SHA gets its own.
 
 ### Step 11: A consuming project can wait on the check run
 
@@ -436,5 +449,8 @@ No database is involved. The data this runbook needs is created by hand:
   Steps 6, 7, and 9 therefore assert on Ronda's structured log output
   instead of the check run; the `Review posted` / `Review failed` check-run
   outcomes those events correspond to are covered live by steps 1, 4, and 5,
-  which run through the Actions path with an App-issued token.
+  which run through the Actions path with an App-issued token. Step 10
+  asserts on the *absence* of a review or check run for the superseded head
+  SHA, which a personal access token can verify like any other read; the
+  new head SHA's check run is confirmed live by the same Actions steps.
 - Fork pull requests are out of scope for v0 and are not exercised here.
