@@ -23,9 +23,22 @@ Before running this smoke test:
 - [ ] A model API credential is exported as `RONDA_MODEL_API_KEY` in the shell
       used for the local steps. It is never written to a file inside the
       repository.
-- [ ] A GitHub token with `pull-requests: write`, `checks: write`, and
-      `contents: read` on `lhpaul/ronda` is exported as `GITHUB_TOKEN` for the
-      local steps.
+- [ ] A GitHub token with `pull-requests: write` and `contents: read` on
+      `lhpaul/ronda` is exported as `GITHUB_TOKEN` for the local steps. A
+      classic or fine-grained personal access token (PAT) works for this —
+      see the App-token requirement below for what it cannot do.
+- [ ] **App-token requirement for check runs (read before running steps 6,
+      7, and 9)**: `POST /repos/{owner}/{repo}/check-runs` requires a GitHub
+      App installation token. A personal access token — regardless of its
+      `checks:` scope — is rejected with exactly `403 You must authenticate
+      via a GitHub App`. Locally, with `GITHUB_TOKEN` set to a PAT, `npm run
+      review` publishes its review successfully and then fails to publish
+      the check run with that 403. This is the expected, documented outcome
+      of the local path, not a defect: steps 6, 7, and 9 assert on Ronda's
+      structured log output instead of the check run for this reason. The
+      check run itself is published only through the Actions path (steps 1,
+      4, and 5), which runs with the reusable workflow's own
+      Actions-issued `GITHUB_TOKEN`, not a PAT.
 - [ ] The same model credential is stored as the repository secret
       `RONDA_MODEL_API_KEY` on `lhpaul/ai-dev-framework-template` for the
       dogfood steps.
@@ -45,8 +58,11 @@ Before running this smoke test:
 Two environments are used:
 
 - **Local**: `npm run review` invoked from a shell, driving a sandbox pull
-  request on `lhpaul/ronda`. Used for the credential, timeout, alternate-vendor,
-  and supersede cases, which are impractical to stage inside a hosted runner.
+  request on `lhpaul/ronda`. Used for the zero-findings, credential, timeout,
+  alternate-vendor, and supersede cases; several of these are impractical to
+  stage inside a hosted runner, and all of them run against a personal
+  access token, which can publish a review but cannot create a check run
+  (see the App-token requirement in Prerequisites).
 - **Actions**: the reusable workflow called from
   `lhpaul/ai-dev-framework-template`. Used for the trigger, dogfood, and
   consumption cases.
@@ -160,10 +176,15 @@ the existing check run rather than adding a second one.
 
 1. Create a pull request on `lhpaul/ronda` whose only change is a trivial
    comment or whitespace edit in one file.
-2. Mark it ready for review and wait for the pass.
+2. Locally, run `npm run review` against that pull request.
+3. Read the published review: `gh api repos/lhpaul/ronda/pulls/<pr>/reviews`.
 
-**Expected result**: A review is published that says no findings were produced,
-and the check run reports `Review posted`.
+**Expected result**: A review is published that says no findings were
+produced. This is locally verifiable from the review body. **Not locally
+verifiable**: the check run reporting `Review posted` — a personal access
+token cannot create a check run (see the App-token requirement in
+Prerequisites). The `Review posted` check-run outcome for a clean pass is
+confirmed live by steps 1, 4, and 5, which run through the Actions path.
 
 ### Step 7: Missing credential
 
@@ -172,12 +193,27 @@ and the check run reports `Review posted`.
 1. Locally, against the sandbox pull request on `lhpaul/ronda`, run
    `npm run review` with `RONDA_MODEL_API_KEY` unset (and with no
    `~/.config/ronda/config.json` supplying it).
-2. Inspect the resulting check run for the sandbox head SHA.
+2. Read the structured log line the process emits.
 
-**Expected result**: The check run reports `Review failed` and names the
-missing-credential reason in plain language, not a generic error. No inline
-findings were published by that pass. Repeat with a deliberately wrong key and
-confirm the reason names an invalid credential.
+**Expected result**: The process emits a `pass_failed` event naming the
+missing-credential reason in plain language, not a generic error:
+
+```json
+{"event":"pass_failed","reason":"credential_missing","message":"RONDA_MODEL_API_KEY (or the operator config file's modelApiKey) is not set"}
+```
+
+No inline findings were published by that pass. Repeat with a deliberately
+wrong key and confirm a `credential_invalid` event instead:
+
+```json
+{"event":"pass_failed","reason":"credential_invalid","message":"ModelClientError: Model API rejected the credential (HTTP 401)"}
+```
+
+**Not locally verifiable**: the corresponding `Review failed` check run for
+either case — a personal access token cannot create a check run (see the
+App-token requirement in Prerequisites). Confirming the published check run
+for a credential failure requires the Actions path, which this runbook does
+not stage separately for this failure mode.
 
 ### Step 8: Alternate model vendor, same review shape
 
@@ -199,15 +235,52 @@ vendor's base URL and model name and confirm the same outcome.
 
 **Maps to**: Acceptance criterion 9
 
+Two independent phases can exceed the pass deadline and are both classified
+as `timed_out`: a slow model response (model phase), and a slow or aborted
+GitHub API call (GitHub phase, added by #11). Exercise both.
+
+#### 9a. Model-phase timeout
+
 1. Configure the mock model server to delay its response well beyond the budget.
 2. Run `npm run review` against the sandbox pull request with
    `RONDA_PASS_TIMEOUT_MS` set to a short value such as `5000`.
+3. Read the structured log line the process emits.
 
-**Expected result**: The pass ends with a check run reporting `Review failed`
-and naming the timeout reason. The check run is never left pending with no
-explanation. Confirm separately that `tests/unit/config/load-config.test.ts`
-asserts the default budget is ten minutes, since the runbook exercises the
-mechanism rather than waiting ten real minutes.
+**Expected result**:
+
+```json
+{"event":"pass_failed","reason":"timed_out","message":"ModelClientError: Model request was aborted before it completed"}
+```
+
+#### 9b. GitHub-phase timeout
+
+1. Run `npm run review` against the sandbox pull request with
+   `RONDA_PASS_TIMEOUT_MS` set low enough (for example, `1`) that the pass
+   deadline is already expired before or during the very first GitHub API
+   call (`readPullRequest`), before any model call happens.
+2. Read the structured log line the process emits.
+
+**Expected result**:
+
+```json
+{"event":"pass_failed","reason":"timed_out","message":"GithubClientError: GitHub request was aborted before it completed"}
+```
+
+This path is classified once, in `withAbortMapping` in
+`src/github/github-client.ts`, and is unit-tested in
+`tests/unit/github/pull-request-reader.test.ts`. Before #11 merged, a
+GitHub-phase abort was not classified as `timed_out` and could crash the
+process instead — confirm the current behaviour matches the JSON above, not
+that older behaviour.
+
+**Both cases**: the pass never ends silently pending — a `pass_failed` event
+is always emitted before the process exits. **Not locally verifiable**: the
+corresponding `Review failed` check run for either phase — a personal access
+token cannot create a check run (see the App-token requirement in
+Prerequisites); confirm the check-run outcome via the Actions path instead.
+Confirm separately that `tests/unit/config/load-config.test.ts` asserts the
+default budget is ten minutes, since this runbook exercises the mechanism
+rather than waiting ten real minutes.
 
 ### Step 10: Superseded head SHA publishes nothing
 
@@ -291,12 +364,16 @@ complete Ronda review, and Ronda pushed nothing to its branch.
       summary, and the summary total matches what was published (step 2).
 - [ ] Every finding shows `Blocking`, `Important`, or `Nit`, and the summary
       reports counts per label (step 2).
-- [ ] A pass with no findings publishes a review saying so and a check run
-      reporting `Review posted` (step 6).
-- [ ] A missing or invalid credential produces `Review failed` naming that
-      specific reason, with no inline findings (step 7).
-- [ ] A pass that exceeds its budget ends with `Review failed` naming the
-      timeout reason, never pending with no explanation (step 9).
+- [ ] A pass with no findings publishes a review saying so (step 6); the
+      corresponding `Review posted` check run is confirmed via the Actions
+      path (steps 1, 4, 5).
+- [ ] A missing or invalid credential emits a `pass_failed` event naming that
+      specific reason, with no inline findings; the corresponding
+      `Review failed` check run requires the Actions path (step 7).
+- [ ] A pass that exceeds its budget — in the model phase or the GitHub
+      phase — emits a `pass_failed` event naming the timeout reason, never
+      pending with no explanation; the corresponding `Review failed` check
+      run is confirmed via the Actions path (step 9).
 - [ ] `/ronda review` on a ready pull request whose head SHA already has a
       review produces a newer review whose summary says the pass was manually
       requested, and updates the existing `Ronda review` check run in place
@@ -336,10 +413,12 @@ No database is involved. The data this runbook needs is created by hand:
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | No workflow run starts at all | The caller workflow is not on the adopting repository's default branch, or its event or draft guard excluded the event | Compare the committed caller workflow with the snippet in `docs/adoption/ronda-review-adoption.md` |
-| The run starts and fails immediately with a permission error | The caller workflow does not grant `pull-requests: write` and `checks: write` | Add the `permissions` block from the adoption snippet |
+| The run fails at startup with **zero jobs, no logs, and no annotations reachable from the REST API** — the real error is visible only in the Actions web UI, as `error parsing called workflow` or a permissions rejection | The caller job does not declare its own `permissions:` block. A called reusable workflow can only narrow the caller's `GITHUB_TOKEN`, never widen it, and GitHub's default for new repositories (`default_workflow_permissions: "read"`) makes the reusable workflow's request for `pull-requests: write` and `checks: write` unreachable | Add the `permissions:` block from the adoption snippet to the caller job; alternatively raise the repository-wide default under Settings → Actions → General, though the per-job block is preferred |
+| The same zero-jobs, no-logs startup failure as above, even though the caller-side `permissions:` block is already correct | The repository hosting the reusable workflow is private and has not granted Actions access to the calling repository | Grant access under Settings → Actions → General → Access on the repository hosting the reusable workflow (see the adoption guide's prerequisite); confirm with `gh api repos/<owner>/<repo>/actions/permissions/access` |
 | The check run appears but the review does not | The review call was rejected and the fallback also failed | Read the Actions run log for the response status; confirm the head SHA had not moved |
 | Inline comments are missing but the same findings appear in the summary | The model returned lines outside the diff, or the fallback path was taken after a rejected payload | Expected behaviour, not a defect — confirm the summary total still matches |
 | The pass fails with an invalid-credential reason on the Actions path | The repository secret is absent or was not passed through the `secrets:` block | Re-check the secret name and the caller workflow's `secrets:` mapping |
+| A local `npm run review` run (steps 6, 7, 9) publishes its review but then fails with `403 You must authenticate via a GitHub App` | `POST /repos/{owner}/{repo}/check-runs` requires a GitHub App installation token; a personal access token is rejected regardless of its scopes | Expected for the local path — the review publishing is the assertion that matters locally; confirm the check-run outcome via the Actions path (steps 1, 4, 5) instead |
 | A fork pull request produces nothing | Fork pull requests receive a read-only token in v0 | Known limitation, documented in the adoption guide; use a same-repository branch |
 
 ---
@@ -348,7 +427,14 @@ No database is involved. The data this runbook needs is created by hand:
 
 - Step 9 exercises the deadline mechanism with a shortened budget rather than
   waiting ten real minutes; the ten-minute default is asserted by a unit test.
-- Steps 7 through 10 run the review core locally rather than through the
+- Steps 6 through 10 run the review core locally rather than through the
   reusable workflow, because staging a missing credential, a hung model, or a
-  mid-pass push inside a hosted runner is not reliably reproducible.
+  mid-pass push inside a hosted runner is not reliably reproducible. All of
+  them run against a personal access token, which can publish a review but
+  cannot create a check run (`POST .../check-runs` requires a GitHub App
+  installation token — see the App-token requirement in Prerequisites).
+  Steps 6, 7, and 9 therefore assert on Ronda's structured log output
+  instead of the check run; the `Review posted` / `Review failed` check-run
+  outcomes those events correspond to are covered live by steps 1, 4, and 5,
+  which run through the Actions path with an App-issued token.
 - Fork pull requests are out of scope for v0 and are not exercised here.
