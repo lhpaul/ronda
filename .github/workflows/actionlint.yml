@@ -41,4 +41,12 @@ jobs:
           # findings in template-owned workflow files, which sync-template
           # would reintroduce on the next update. Workflow and expression
           # syntax is the class of bug this gate exists for.
-          shellcheck: ""
+          #
+          # This must be the literal string "false", not "". The composite
+          # action (raven-actions/actionlint@v2.0.1, action.yml around line
+          # 362) only appends the underlying `-shellcheck ''` disable flag to
+          # the actionlint binary when `inputs.shellcheck === 'false'`; any
+          # other value (including "") leaves that flag unset, and
+          # GitHub-hosted runners ship shellcheck pre-installed, so actionlint
+          # auto-detects it on PATH and runs it anyway.
+          shellcheck: "false"

@@ -46,6 +46,12 @@ jobs:
     name: Resolve pass budget
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # This job only computes derived values in shell; it checks nothing out
+    # and calls no GitHub API. Without this override it would inherit the
+    # workflow-level `pull-requests: write` / `checks: write` permissions the
+    # review job needs, which it has no use for.
+    permissions:
+      contents: read
     outputs:
       pass_timeout_ms: ${{ steps.budget.outputs.pass_timeout_ms }}
       job_timeout_minutes: ${{ steps.budget.outputs.job_timeout_minutes }}
