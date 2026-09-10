@@ -81,3 +81,34 @@ test("an unsupported event name does not run", () => {
   const decision = resolveTrigger("push", {});
   assert.equal(decision.shouldRun, false);
 });
+
+// --- Issue #11: the head SHA carried by a pull_request event is threaded
+// through so a first-readPullRequest abort still has a SHA to publish a
+// failure check run against. ---
+
+test("T11: a pull_request event carrying pull_request.head.sha threads it through as headSha", () => {
+  const decision = resolveTrigger("pull_request", {
+    action: "synchronize",
+    pull_request: { number: 9, head: { sha: "d".repeat(40) } },
+  });
+  assert.deepEqual(decision, {
+    shouldRun: true,
+    pullNumber: 9,
+    trigger: "automatic",
+    headSha: "d".repeat(40),
+  });
+});
+
+test("T12: a pull_request event with no head.sha omits headSha entirely (not undefined-valued)", () => {
+  const decision = resolveTrigger("pull_request", {
+    action: "opened",
+    pull_request: { number: 9 },
+  });
+  assert.equal(decision.headSha, undefined);
+  assert.equal(Object.prototype.hasOwnProperty.call(decision, "headSha"), false);
+});
+
+test("T13: issue_comment events never carry a headSha (the payload shape has none)", () => {
+  const decision = resolveTrigger("issue_comment", issueComment(REVIEW_COMMAND));
+  assert.equal(decision.headSha, undefined);
+});

@@ -7,6 +7,7 @@ import {
   readPullRequest,
 } from "../../../src/github/pull-request-reader.js";
 import { CHECK_RUN_NAME } from "../../../src/domain/review-pass.types.js";
+import { GithubClientError } from "../../../src/github/github-client.js";
 
 /**
  * Runs `fn` with the global `setTimeout` replaced by one that invokes its
@@ -261,4 +262,90 @@ test("readPullRequest, readChangedFiles, and findExistingCheckRun each forward t
 
   assert.equal(seenSignals.length, 3);
   assert.ok(seenSignals.every((signal) => signal === controller.signal));
+});
+
+// --- Issue #11: a deadline expiring during any GitHub call must classify as
+// a typed `GithubClientError` (reason `timed_out`), not the raw
+// `AbortError`/`DOMException` Octokit's underlying `fetch` transport throws.
+// This is the client-boundary half of the fix — `runReviewPass`'s handling
+// of the resulting error is covered in `tests/unit/core/run-review-pass.test.ts`. ---
+
+function abortErrorLikeOctokitThrows(): never {
+  // Mirrors the shape of the real failure reproduced live in issue #11:
+  // `DOMException [AbortError]: This operation was aborted`.
+  throw new DOMException("This operation was aborted", "AbortError");
+}
+
+test("readPullRequest maps an abort (signal already aborted when the underlying call rejects) to a typed GithubClientError, not the raw AbortError", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const octokit = createFakeOctokit({
+    pulls: {
+      get: async () => abortErrorLikeOctokitThrows(),
+      listFiles: () => undefined,
+    },
+  });
+
+  await assert.rejects(
+    () => readPullRequest(octokit, "lhpaul", "ronda", 4, controller.signal),
+    (error: unknown) => {
+      assert.ok(error instanceof GithubClientError);
+      assert.equal(error.reason, "timed_out");
+      return true;
+    },
+  );
+});
+
+test("readChangedFiles maps an abort to a typed GithubClientError", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const octokit = createFakeOctokit({
+    paginate: async () => abortErrorLikeOctokitThrows(),
+  });
+
+  await assert.rejects(
+    () => readChangedFiles(octokit, "lhpaul", "ronda", 4, controller.signal),
+    (error: unknown) => {
+      assert.ok(error instanceof GithubClientError);
+      assert.equal(error.reason, "timed_out");
+      return true;
+    },
+  );
+});
+
+test("findExistingCheckRun maps an abort to a typed GithubClientError", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const octokit = createFakeOctokit({
+    checks: { listForRef: async () => abortErrorLikeOctokitThrows() },
+  });
+
+  await assert.rejects(
+    () => findExistingCheckRun(octokit, "lhpaul", "ronda", "a".repeat(40), controller.signal),
+    (error: unknown) => {
+      assert.ok(error instanceof GithubClientError);
+      assert.equal(error.reason, "timed_out");
+      return true;
+    },
+  );
+});
+
+test("a non-abort failure (signal not aborted) propagates unchanged, never wrapped as GithubClientError", async () => {
+  const octokit = createFakeOctokit({
+    pulls: {
+      get: async () => {
+        throw { status: 404, message: "Not Found" };
+      },
+      listFiles: () => undefined,
+    },
+  });
+
+  await assert.rejects(
+    () => readPullRequest(octokit, "lhpaul", "ronda", 4),
+    (error: unknown) => {
+      assert.ok(!(error instanceof GithubClientError));
+      assert.equal((error as { status?: number }).status, 404);
+      return true;
+    },
+  );
 });

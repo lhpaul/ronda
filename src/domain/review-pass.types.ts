@@ -80,6 +80,16 @@ export interface ReviewPassInput {
   repo: string;
   pullNumber: number;
   trigger: TriggerMode;
+  /**
+   * The head SHA carried by the triggering `pull_request` webhook event, when
+   * available. `issue_comment` payloads never include one. Used only as a
+   * fallback so a failed *first* `readPullRequest` call — which means no SHA
+   * has been read from the API yet — can still publish a `Review failed`
+   * check run against the commit the trigger named, instead of publishing
+   * nothing. Superseded by the SHA `readPullRequest` returns as soon as that
+   * call succeeds.
+   */
+  headSha?: string;
 }
 
 export interface InlineComment {

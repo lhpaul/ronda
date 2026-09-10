@@ -6,13 +6,19 @@ export interface TriggerDecision {
   shouldRun: boolean;
   pullNumber?: number;
   trigger?: TriggerMode;
+  /**
+   * `pull_request.head.sha` from the triggering event payload, when present.
+   * `issue_comment` events never carry one. See `ReviewPassInput.headSha` in
+   * `src/domain/review-pass.types.ts` for how this is used.
+   */
+  headSha?: string;
   /** Logged when `shouldRun` is false, or absent for a well-understood no-op. */
   reason?: string;
 }
 
 interface PullRequestEventPayload {
   action?: string;
-  pull_request?: { number?: number };
+  pull_request?: { number?: number; head?: { sha?: string } };
 }
 
 interface IssueCommentEventPayload {
@@ -53,7 +59,13 @@ function resolvePullRequestEvent(payload: PullRequestEventPayload): TriggerDecis
   if (typeof pullNumber !== "number") {
     return { shouldRun: false, reason: "pull_request event payload missing pull request number" };
   }
-  return { shouldRun: true, pullNumber, trigger: "automatic" };
+  const headSha = payload.pull_request?.head?.sha;
+  return {
+    shouldRun: true,
+    pullNumber,
+    trigger: "automatic",
+    ...(typeof headSha === "string" && headSha.length > 0 ? { headSha } : {}),
+  };
 }
 
 function resolveIssueCommentEvent(payload: IssueCommentEventPayload): TriggerDecision {

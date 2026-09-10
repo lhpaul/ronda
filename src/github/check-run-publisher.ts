@@ -1,7 +1,7 @@
 import type { Octokit } from "@octokit/rest";
 import { CHECK_RUN_NAME } from "../domain/review-pass.types.js";
 import type { PublishCheckRunInput } from "../domain/review-pass.types.js";
-import { withRetry } from "./github-client.js";
+import { withAbortMapping, withRetry } from "./github-client.js";
 
 /**
  * Publishes exactly one terminal check run. When `existingCheckRunId` is
@@ -19,36 +19,44 @@ export async function publishCheckRun(
   const output = { title: input.title, summary: input.summary };
 
   if (input.existingCheckRunId !== null) {
-    await withRetry(() =>
-      octokit.checks.update({
-        owner: input.owner,
-        repo: input.repo,
-        check_run_id: input.existingCheckRunId as number,
-        status: "completed",
-        started_at: input.startedAt,
-        completed_at: input.completedAt,
-        conclusion: input.conclusion,
-        details_url: input.detailsUrl,
-        output,
-        request: { signal },
-      }),
+    await withAbortMapping(
+      () =>
+        withRetry(() =>
+          octokit.checks.update({
+            owner: input.owner,
+            repo: input.repo,
+            check_run_id: input.existingCheckRunId as number,
+            status: "completed",
+            started_at: input.startedAt,
+            completed_at: input.completedAt,
+            conclusion: input.conclusion,
+            details_url: input.detailsUrl,
+            output,
+            request: { signal },
+          }),
+        ),
+      signal,
     );
     return;
   }
 
-  await withRetry(() =>
-    octokit.checks.create({
-      owner: input.owner,
-      repo: input.repo,
-      name: CHECK_RUN_NAME,
-      head_sha: input.headSha,
-      status: "completed",
-      started_at: input.startedAt,
-      completed_at: input.completedAt,
-      conclusion: input.conclusion,
-      details_url: input.detailsUrl,
-      output,
-      request: { signal },
-    }),
+  await withAbortMapping(
+    () =>
+      withRetry(() =>
+        octokit.checks.create({
+          owner: input.owner,
+          repo: input.repo,
+          name: CHECK_RUN_NAME,
+          head_sha: input.headSha,
+          status: "completed",
+          started_at: input.startedAt,
+          completed_at: input.completedAt,
+          conclusion: input.conclusion,
+          details_url: input.detailsUrl,
+          output,
+          request: { signal },
+        }),
+      ),
+    signal,
   );
 }

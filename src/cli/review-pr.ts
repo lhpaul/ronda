@@ -88,7 +88,7 @@ export async function main(): Promise<number> {
   const logger = createLogger([config.model.apiKey, githubToken]);
 
   const result = await runReviewPass(
-    { owner, repo, pullNumber: decision.pullNumber, trigger: decision.trigger },
+    { owner, repo, pullNumber: decision.pullNumber, trigger: decision.trigger, headSha: decision.headSha },
     { github, model, config, clock: createSystemClock(), logger, detailsUrl },
   );
 
