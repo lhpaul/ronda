@@ -20,6 +20,11 @@ on:
 permissions:
   contents: read
 
+env:
+  # Pinned release, verified by checksum below. Bump both together.
+  ACTIONLINT_VERSION: 1.7.12
+  ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+
 jobs:
   actionlint:
     name: actionlint
@@ -31,22 +36,26 @@ jobs:
         with:
           persist-credentials: false
 
+      # Installed directly rather than via a wrapper action. The wrapper
+      # resolves its Node dependencies against the workspace and aborted with
+      # ERR_PACKAGE_PATH_NOT_EXPORTED on this repository; a pinned, checksum-
+      # verified binary has no such coupling and makes the exact flags visible.
+      - name: Install actionlint
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 \
+            -o "$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum --check --strict -
+          tar -xzf "$archive" actionlint
+          ./actionlint --version
+
       - name: Run actionlint
-        uses: raven-actions/actionlint@3a24062651993d40fed1019b58ac6fbdfbf276cc # v2.0.1
-        with:
-          fail-on-error: true
-          # This repository already runs ShellCheck as its own job over
-          # scripts/development-workflow/. actionlint's embedded ShellCheck
-          # would duplicate that and additionally fail on pre-existing
-          # findings in template-owned workflow files, which sync-template
-          # would reintroduce on the next update. Workflow and expression
-          # syntax is the class of bug this gate exists for.
-          #
-          # This must be the literal string "false", not "". The composite
-          # action (raven-actions/actionlint@v2.0.1, action.yml around line
-          # 362) only appends the underlying `-shellcheck ''` disable flag to
-          # the actionlint binary when `inputs.shellcheck === 'false'`; any
-          # other value (including "") leaves that flag unset, and
-          # GitHub-hosted runners ship shellcheck pre-installed, so actionlint
-          # auto-detects it on PATH and runs it anyway.
-          shellcheck: "false"
+        # -shellcheck= disables actionlint's embedded ShellCheck. This
+        # repository already runs ShellCheck as its own job over
+        # scripts/development-workflow/, and actionlint's copy additionally
+        # reports pre-existing findings in template-owned workflow files that
+        # sync-template would reintroduce. Workflow and expression syntax is
+        # the class of bug this gate exists for.
+        run: ./actionlint -color -shellcheck=
