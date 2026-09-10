@@ -3,7 +3,6 @@
 **Command**: `npm run benchmark:quality -- --comparison-file tests/fixtures/recall-benchmark/comparisons/clean-agreement.json --reviewed-target quality-same-head-smoke`
 **Sample count**: 5
 **Model**: `qwen-plus`
-**Local evidence directory**: `/tmp/ronda-quality-samples-20260910170132`
 
 ## Summary
 
