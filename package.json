@@ -11,7 +11,8 @@
     "lint": "eslint src tests",
     "review": "tsx src/cli/review-pr.ts",
     "benchmark:recall": "tsx src/cli/recall-benchmark.ts",
-    "benchmark:quality": "tsx src/cli/recall-benchmark.ts --quality"
+    "benchmark:quality": "tsx src/cli/recall-benchmark.ts --quality",
+    "quality:comparison": "tsx src/cli/record-review-comparison.ts"
   },
   "dependencies": {
     "@octokit/rest": "22.0.1"
