@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Octokit } from "@octokit/rest";
 import { publishCheckRun } from "../../../src/github/check-run-publisher.js";
+import { GithubClientError } from "../../../src/github/github-client.js";
 import { CHECK_RUN_NAME } from "../../../src/domain/review-pass.types.js";
 import type { PublishCheckRunInput } from "../../../src/domain/review-pass.types.js";
 
@@ -91,4 +92,51 @@ test("forwards the given signal as request.signal on both create and update", as
   const updateCall = fake.updateCalls[0] as { request?: { signal?: AbortSignal } };
   assert.equal(createCall.request?.signal, controller.signal);
   assert.equal(updateCall.request?.signal, controller.signal);
+});
+
+// --- Issue #11: an abort during either checks.create or checks.update must
+// classify as a typed GithubClientError, not the raw AbortError. ---
+
+test("an abort during checks.create maps to a typed GithubClientError", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const octokit = {
+    checks: {
+      create: async () => {
+        throw new DOMException("This operation was aborted", "AbortError");
+      },
+      update: async () => ({ data: { id: 1 } }),
+    },
+  } as unknown as Octokit;
+
+  await assert.rejects(
+    () => publishCheckRun(octokit, baseInput({ existingCheckRunId: null }), controller.signal),
+    (error: unknown) => {
+      assert.ok(error instanceof GithubClientError);
+      assert.equal(error.reason, "timed_out");
+      return true;
+    },
+  );
+});
+
+test("an abort during checks.update maps to a typed GithubClientError", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const octokit = {
+    checks: {
+      create: async () => ({ data: { id: 1 } }),
+      update: async () => {
+        throw new DOMException("This operation was aborted", "AbortError");
+      },
+    },
+  } as unknown as Octokit;
+
+  await assert.rejects(
+    () => publishCheckRun(octokit, baseInput({ existingCheckRunId: 555 }), controller.signal),
+    (error: unknown) => {
+      assert.ok(error instanceof GithubClientError);
+      assert.equal(error.reason, "timed_out");
+      return true;
+    },
+  );
 });

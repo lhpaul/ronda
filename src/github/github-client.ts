@@ -10,6 +10,56 @@ export interface GithubClient {
   octokit: Octokit;
 }
 
+export type GithubClientFailureReason = "timed_out";
+
+/**
+ * Thrown by a `GithubOperations` implementation when a call is aborted via
+ * the caller's `AbortSignal`. Mirrors `ModelClientError`
+ * (`src/inference/model-client.ts`) so `runReviewPass` can classify a
+ * GitHub-phase abort by error type — exactly the way it already classifies a
+ * model-call abort — instead of every call site independently inspecting
+ * pass-deadline state.
+ */
+export class GithubClientError extends Error {
+  readonly reason: GithubClientFailureReason;
+
+  constructor(
+    reason: GithubClientFailureReason,
+    message: string,
+    options?: { cause?: unknown },
+  ) {
+    super(message, options);
+    this.name = "GithubClientError";
+    this.reason = reason;
+  }
+}
+
+/**
+ * Runs `operation` and re-throws any error it raises while `signal` is
+ * already aborted as a typed `GithubClientError`. This is the single choke
+ * point every `src/github/` read/write function routes through, so an
+ * `AbortError` from Octokit's underlying `fetch` transport is classified
+ * once, here, rather than re-derived from `deadline.expired()` at each of
+ * `runReviewPass`'s call sites.
+ */
+export async function withAbortMapping<T>(
+  operation: () => Promise<T>,
+  signal?: AbortSignal,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (signal?.aborted) {
+      throw new GithubClientError(
+        "timed_out",
+        "GitHub request was aborted before it completed",
+        { cause: error },
+      );
+    }
+    throw error;
+  }
+}
+
 export function createGithubClient(config: GithubClientConfig): GithubClient {
   return {
     octokit: new Octokit({

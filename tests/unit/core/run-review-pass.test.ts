@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runReviewPass } from "../../../src/core/run-review-pass.js";
+import { GithubClientError } from "../../../src/github/github-client.js";
 import { ModelClientError } from "../../../src/inference/model-client.js";
 import type {
   ChangedFile,
@@ -72,6 +73,8 @@ interface FakeGithubOptions {
    */
   publishCheckRunFailTimes?: number;
   publishCheckRunError?: unknown;
+  /** When set, the (single) `publishReview` call throws this instead of succeeding. */
+  publishReviewError?: unknown;
   /**
    * Calls named here never resolve on their own — only aborting the
    * `signal` passed to that call settles it (mirrors `createFakeModel`'s
@@ -91,6 +94,13 @@ interface FakeGithub {
   signalsSeen: Record<GithubCallName, Array<AbortSignal | undefined>>;
 }
 
+/**
+ * Rejects with the same `GithubClientError` shape the real GitHub client
+ * boundary (`withAbortMapping` in `src/github/github-client.ts`) raises when
+ * a call is aborted mid-flight — not a bare `Error` — so tests that hang a
+ * GitHub call until the deadline fires exercise `runReviewPass`'s
+ * abort-classification path exactly the way the production client would.
+ */
 function hangUntilAbortedSignal(signal: AbortSignal | undefined): Promise<never> {
   return new Promise<never>((_resolve, reject) => {
     if (!signal) {
@@ -98,7 +108,10 @@ function hangUntilAbortedSignal(signal: AbortSignal | undefined): Promise<never>
     }
     signal.addEventListener(
       "abort",
-      () => reject(new Error("aborted before completion")),
+      () =>
+        reject(
+          new GithubClientError("timed_out", "GitHub request was aborted before it completed"),
+        ),
       { once: true },
     );
   });
@@ -114,7 +127,7 @@ function hangUntilAbortedSignal(signal: AbortSignal | undefined): Promise<never>
  */
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) {
-    throw new Error("The operation was aborted");
+    throw new GithubClientError("timed_out", "GitHub request was aborted before it completed");
   }
 }
 
@@ -165,6 +178,9 @@ function createFakeGithub(options: FakeGithubOptions): FakeGithub {
     async publishReview(input, signal) {
       signalsSeen.publishReview.push(signal);
       throwIfAborted(signal);
+      if (options.publishReviewError !== undefined) {
+        throw options.publishReviewError;
+      }
       publishedReviews.push(input);
     },
     async publishCheckRun(input, signal) {
@@ -582,29 +598,172 @@ test("a deadline that fires while readChangedFiles is in flight still ends the p
   assert.equal(callCount(), 0);
 });
 
-test("a deadline that fires while the very first readPullRequest is in flight rejects promptly instead of hanging (no head SHA is known, so no check run is possible)", async () => {
+test("Gap 1: a deadline that fires while the very first readPullRequest is in flight classifies as timed_out instead of escaping as a fatal crash, and (no head SHA known) publishes no check run", async () => {
   const github = createFakeGithub({
     pullRequest: createPullRequest(),
     hangUntilAbortedOn: ["readPullRequest"],
   });
   const { model } = createFakeModel({});
 
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      config: createConfig({ passTimeoutMs: 5 }),
+      deadlineClock: createFastDeadlineClock(5),
+    }),
+  );
+
+  // No head SHA is known from any source (readPullRequest never returned,
+  // and the input carries none — this is the issue_comment-trigger shape),
+  // so the pass degrades to a logged failure rather than a check-run write.
+  assert.equal(result.outcome, "failed");
+  assert.equal(result.failureReason, "timed_out");
+  assert.equal(github.publishedReviews.length, 0);
+  assert.equal(github.publishedCheckRuns.length, 0);
+});
+
+test("Gap 1 degradation path: the same first-readPullRequest abort, given a headSha from the triggering pull_request event, publishes a Review failed check run against it", async () => {
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    hangUntilAbortedOn: ["readPullRequest"],
+  });
+  const { model } = createFakeModel({});
+  const eventHeadSha = "c".repeat(40);
+
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic", headSha: eventHeadSha },
+    baseDeps({
+      github: github.ops,
+      model,
+      config: createConfig({ passTimeoutMs: 5 }),
+      deadlineClock: createFastDeadlineClock(5),
+    }),
+  );
+
+  assert.equal(result.outcome, "failed");
+  assert.equal(result.failureReason, "timed_out");
+  assert.equal(github.publishedReviews.length, 0);
+  assert.equal(github.publishedCheckRuns.length, 1);
+  assert.equal(github.publishedCheckRuns[0].headSha, eventHeadSha);
+  assert.equal(github.publishedCheckRuns[0].conclusion, "failure");
+});
+
+test("Gap 2: findExistingCheckRun aborting fails fast (does not tolerate/continue) — same outcome as Gap 1's fix, now with a known head SHA from the successful first read", async () => {
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    hangUntilAbortedOn: ["findExistingCheckRun"],
+  });
+  const { model, callCount } = createFakeModel({});
+
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      config: createConfig({ passTimeoutMs: 5 }),
+      deadlineClock: createFastDeadlineClock(5),
+    }),
+  );
+
+  assert.equal(result.outcome, "failed");
+  assert.equal(result.failureReason, "timed_out");
+  assert.equal(github.publishedReviews.length, 0);
+  assert.equal(github.publishedCheckRuns.length, 1);
+  assert.equal(github.publishedCheckRuns[0].headSha, HEAD_SHA);
+  assert.equal(github.publishedCheckRuns[0].conclusion, "failure");
+  // The model was never reached — the lookup abort short-circuited the pass
+  // instead of tolerating it and burning the rest of the (already expired)
+  // budget on readChangedFiles/the model call.
+  assert.equal(callCount(), 0);
+});
+
+test("Gap 2 contrast: a genuine non-abort findExistingCheckRun failure keeps the existing tolerant behaviour — the pass still proceeds and succeeds", async () => {
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  github.ops.findExistingCheckRun = async () => {
+    throw new Error("GitHub API returned HTTP 500");
+  };
+  const { model } = createFakeModel({ response: '{"findings":[]}' });
+
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({ github: github.ops, model }),
+  );
+
+  assert.equal(result.outcome, "succeeded");
+  assert.equal(github.publishedReviews.length, 1);
+  assert.equal(github.publishedCheckRuns.length, 1);
+  assert.equal(github.publishedCheckRuns[0].conclusion, "success");
+});
+
+// Note: once `markPublishing()` runs (synchronously, immediately before
+// `publishReview`), the pass deadline's timer becomes a permanent no-op —
+// that is the whole point of the guarantee (AC9). So `publishReview` and the
+// terminal success `publishCheckRun` write can never actually observe *this
+// pass's own* deadline aborting. The two tests below instead inject the
+// `GithubClientError` that the GitHub client boundary (see
+// `src/github/github-client.ts`'s `withAbortMapping`, unit-tested directly in
+// `tests/unit/github/`) would raise if one of these calls were ever aborted
+// by some other caller-supplied signal, proving `runReviewPass` classifies
+// that error type correctly at each of these two call sites.
+
+test("an abort classified at publishReview (before the review is public) is reported as timed_out, not folded into ReviewPublishError's unexpected_error", async () => {
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+    publishReviewError: new GithubClientError(
+      "timed_out",
+      "GitHub request was aborted before it completed",
+    ),
+  });
+  const { model } = createFakeModel({ response: '{"findings":[]}' });
+
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({ github: github.ops, model }),
+  );
+
+  assert.equal(result.outcome, "failed");
+  assert.equal(result.failureReason, "timed_out");
+  assert.equal(github.publishedReviews.length, 0);
+  assert.equal(github.publishedCheckRuns.length, 1);
+  assert.equal(github.publishedCheckRuns[0].headSha, HEAD_SHA);
+  assert.equal(github.publishedCheckRuns[0].conclusion, "failure");
+});
+
+test("an abort classified at the terminal success publishCheckRun write still respects the markPublishing/reviewPublished guard — it rejects rather than reporting a contradictory failure", async () => {
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+    publishCheckRunFailTimes: 2,
+    publishCheckRunError: new GithubClientError(
+      "timed_out",
+      "GitHub request was aborted before it completed",
+    ),
+  });
+  const { model } = createFakeModel({ response: '{"findings":[]}' });
+
   await assert.rejects(
     () =>
       runReviewPass(
         { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
-        baseDeps({
-          github: github.ops,
-          model,
-          config: createConfig({ passTimeoutMs: 5 }),
-          deadlineClock: createFastDeadlineClock(5),
-        }),
+        baseDeps({ github: github.ops, model }),
       ),
-    /aborted before completion/,
+    /check run could not be published/,
   );
 
-  assert.equal(github.publishedReviews.length, 0);
+  // The review published cleanly; the check-run write is what "aborted".
+  // The markPublishing guard means this must never surface as a "failed"
+  // pass outcome with a contradictory "Review failed" check run, even
+  // though the underlying error type is the same `GithubClientError` that
+  // classifies as `timed_out` everywhere else in this pass.
+  assert.equal(github.publishedReviews.length, 1);
   assert.equal(github.publishedCheckRuns.length, 0);
+  assert.ok(github.checkRunAttempts.every((attempt) => attempt.conclusion === "success"));
 });
 
 test("the deadline's signal is threaded through every pre-publication GitHub call, as the same instance", async () => {

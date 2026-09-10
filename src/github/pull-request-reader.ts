@@ -1,7 +1,7 @@
 import type { Octokit } from "@octokit/rest";
 import { CHECK_RUN_NAME } from "../domain/review-pass.types.js";
 import type { ChangedFile, PullRequestMetadata } from "../domain/review-pass.types.js";
-import { withRetry } from "./github-client.js";
+import { withAbortMapping, withRetry } from "./github-client.js";
 
 export async function readPullRequest(
   octokit: Octokit,
@@ -10,8 +10,12 @@ export async function readPullRequest(
   pullNumber: number,
   signal?: AbortSignal,
 ): Promise<PullRequestMetadata> {
-  const response = await withRetry(() =>
-    octokit.pulls.get({ owner, repo, pull_number: pullNumber, request: { signal } }),
+  const response = await withAbortMapping(
+    () =>
+      withRetry(() =>
+        octokit.pulls.get({ owner, repo, pull_number: pullNumber, request: { signal } }),
+      ),
+    signal,
   );
   const data = response.data;
   return {
@@ -39,14 +43,18 @@ export async function readChangedFiles(
   pullNumber: number,
   signal?: AbortSignal,
 ): Promise<ChangedFile[]> {
-  const files = await withRetry(() =>
-    octokit.paginate(octokit.pulls.listFiles, {
-      owner,
-      repo,
-      pull_number: pullNumber,
-      per_page: 100,
-      request: { signal },
-    }),
+  const files = await withAbortMapping(
+    () =>
+      withRetry(() =>
+        octokit.paginate(octokit.pulls.listFiles, {
+          owner,
+          repo,
+          pull_number: pullNumber,
+          per_page: 100,
+          request: { signal },
+        }),
+      ),
+    signal,
   );
   return files.map((file) => ({
     path: file.filename,
@@ -72,14 +80,18 @@ export async function findExistingCheckRun(
   headSha: string,
   signal?: AbortSignal,
 ): Promise<number | null> {
-  const response = await withRetry(() =>
-    octokit.checks.listForRef({
-      owner,
-      repo,
-      ref: headSha,
-      check_name: CHECK_RUN_NAME,
-      request: { signal },
-    }),
+  const response = await withAbortMapping(
+    () =>
+      withRetry(() =>
+        octokit.checks.listForRef({
+          owner,
+          repo,
+          ref: headSha,
+          check_name: CHECK_RUN_NAME,
+          request: { signal },
+        }),
+      ),
+    signal,
   );
   const run = response.data.check_runs[0];
   return run ? run.id : null;

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Octokit } from "@octokit/rest";
 import { ReviewPublishError, publishReview } from "../../../src/github/review-publisher.js";
+import { GithubClientError } from "../../../src/github/github-client.js";
 import type { PublishReviewInput } from "../../../src/domain/review-pass.types.js";
 
 function baseInput(overrides: Partial<PublishReviewInput> = {}): PublishReviewInput {
@@ -121,4 +122,50 @@ test("forwards the given signal as request.signal on the primary call", async ()
   await publishReview(fake.octokit, baseInput(), controller.signal);
 
   assert.equal((fake.calls[0].request as { signal?: AbortSignal } | undefined)?.signal, controller.signal);
+});
+
+// --- Issue #11: an abort during the primary (or fallback) createReview call
+// must classify as a typed GithubClientError, not the raw AbortError, and
+// must not be folded into ReviewPublishError. ---
+
+test("an abort on the primary attempt (no inline-comment fallback needed) maps to a typed GithubClientError, not the raw AbortError", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const fake = createFakeOctokit(async () => {
+    throw new DOMException("This operation was aborted", "AbortError");
+  });
+
+  await assert.rejects(
+    () => publishReview(fake.octokit, baseInput({ inlineComments: [] }), controller.signal),
+    (error: unknown) => {
+      assert.ok(error instanceof GithubClientError);
+      assert.equal(error.reason, "timed_out");
+      return true;
+    },
+  );
+  assert.equal(fake.calls.length, 1);
+});
+
+test("an abort on the fallback attempt (after a real 422 on the primary) maps to a typed GithubClientError, not ReviewPublishError", async () => {
+  const controller = new AbortController();
+  let attempt = 0;
+  const fake = createFakeOctokit(async () => {
+    attempt += 1;
+    if (attempt === 1) {
+      throw httpError(422);
+    }
+    controller.abort();
+    throw new DOMException("This operation was aborted", "AbortError");
+  });
+
+  await assert.rejects(
+    () => publishReview(fake.octokit, baseInput(), controller.signal),
+    (error: unknown) => {
+      assert.ok(error instanceof GithubClientError);
+      assert.equal(error.reason, "timed_out");
+      assert.ok(!(error instanceof ReviewPublishError));
+      return true;
+    },
+  );
+  assert.equal(fake.calls.length, 2);
 });
