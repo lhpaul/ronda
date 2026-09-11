@@ -468,7 +468,6 @@ function createWebhookQueueStore(
             (entry) =>
               entry.status === undefined ||
               entry.status === "pending" ||
-              entry.status === "in_progress" ||
               entry.status === "check_pending",
           )
           .filter((entry) => {
