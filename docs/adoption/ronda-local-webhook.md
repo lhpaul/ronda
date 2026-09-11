@@ -14,10 +14,12 @@ one path is filtered off. Without that arbitration, a manual `/ronda review`
 comment can start both the Action and webhook paths and produce duplicate
 reviews for the same head SHA.
 
-During migration, the webhook path treats an existing same-name `Ronda review`
-check run on the head SHA as the reusable check run even when the check was
-created by the reusable Action path. If no same-name check exists, it falls
-back to the publishing GitHub App lookup before creating a new check run.
+During migration, automatic webhook deliveries treat an existing same-name
+`Ronda review` check run on the head SHA as already reviewed even when the
+check was created by the reusable Action path. Manual webhook reruns update
+only a check run owned by the configured Ronda GitHub App; if the only existing
+check is Action-owned, the manual webhook run creates a new App-owned check
+because GitHub does not allow the App to update a foreign check run.
 
 ## GitHub App Requirements
 

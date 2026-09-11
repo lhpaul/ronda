@@ -207,9 +207,11 @@ export async function findExistingWebhookCheckRun(
   githubAppId: number | undefined,
   lookup: CheckRunLookup,
 ): Promise<number | null> {
-  const anyExistingCheckRunId = await lookup();
-  if (anyExistingCheckRunId !== null) {
-    return anyExistingCheckRunId;
+  if (trigger === "automatic") {
+    const anyExistingCheckRunId = await lookup();
+    if (anyExistingCheckRunId !== null) {
+      return anyExistingCheckRunId;
+    }
   }
   return lookup({ appId: githubAppId });
 }
