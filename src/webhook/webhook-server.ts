@@ -109,6 +109,7 @@ export function startWebhookServer(
     busy = true;
     let terminalOutcomeReached = false;
     let terminalOutcomePublished = false;
+    let terminalOutcomeRequiresPublishedSuppression = false;
     void Promise.resolve()
       .then(() => {
         if (!queueStore.start(job.deliveryId)) {
@@ -128,7 +129,8 @@ export function startWebhookServer(
       )
       .then((result) => {
         terminalOutcomeReached = true;
-        if (result?.terminalCheckRunPublished === true) {
+        terminalOutcomeRequiresPublishedSuppression = result?.terminalCheckRunPublished === true;
+        if (terminalOutcomeRequiresPublishedSuppression) {
           if (!queueStore.markPublished(job.deliveryId)) {
             throw new WebhookQueuePersistenceError(
               `Failed to mark webhook delivery ${job.deliveryId} terminal outcome published`,
@@ -155,7 +157,11 @@ export function startWebhookServer(
             suppressReviewKey(deliveryIds, job);
           }
         } else if (terminalOutcomeReached) {
-          if (!terminalOutcomePublished && queueStore.markPublished(job.deliveryId)) {
+          if (
+            terminalOutcomeRequiresPublishedSuppression &&
+            !terminalOutcomePublished &&
+            queueStore.markPublished(job.deliveryId)
+          ) {
             terminalOutcomePublished = true;
             suppressReviewKey(deliveryIds, job);
           }

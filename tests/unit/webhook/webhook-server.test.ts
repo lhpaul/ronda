@@ -1118,6 +1118,70 @@ test("skipped draft webhook jobs do not suppress later ready events for the same
   }
 });
 
+test("skipped webhook completion failures do not write a published tombstone", async () => {
+  const failures: unknown[] = [];
+  const calls: string[] = [];
+  const queueStore = {
+    load: () => [],
+    loadSuppressedDeliveryIds: () => [],
+    add: () => {
+      calls.push("add");
+      return true;
+    },
+    start: () => {
+      calls.push("start");
+      return true;
+    },
+    retry: () => {
+      calls.push("retry");
+      return true;
+    },
+    markPublished: () => {
+      calls.push("markPublished");
+      return true;
+    },
+    complete: () => {
+      calls.push("complete");
+      return false;
+    },
+  };
+  const server = startWebhookServer(
+    { ...config, port: 0 },
+    {
+      queueStore,
+      runJob: async () => ({ terminalCheckRunPublished: false }),
+      onJobFailure: (error) => {
+        failures.push(error);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-skipped-complete-fails",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    await eventually(() => failures.length === 1);
+    assert.ok(failures[0] instanceof WebhookQueuePersistenceError);
+    assert.deepEqual(calls, ["add", "start", "complete", "complete"]);
+  } finally {
+    server.close();
+  }
+});
+
 test("active webhook delivery IDs are not evicted by later refused deliveries", async () => {
   const jobs: string[] = [];
   let finishFirstJob!: () => void;
