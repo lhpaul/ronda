@@ -7,7 +7,7 @@ const MAX_BODY_BYTES = 10 * 1024 * 1024;
 const MAX_SEEN_DELIVERY_IDS = 1_000;
 
 export interface WebhookServerDeps {
-  runJob?: (job: WebhookReviewJob, config: WebhookConfig) => Promise<void>;
+  runJob?: (job: WebhookReviewJob, config: WebhookConfig, signal: AbortSignal) => Promise<void>;
   onJobFailure?: (error: unknown) => void;
   log?: Pick<Console, "error" | "log">;
 }
@@ -45,7 +45,7 @@ export function startWebhookServer(
               return;
             }
             return withJobTimeout(
-              runJob(job, config),
+              (signal) => runJob(job, config, signal),
               config.webhookJobTimeoutMs,
               () => new WebhookJobTimeoutError(job, config.webhookJobTimeoutMs),
             );
@@ -185,17 +185,22 @@ function rememberDeliveryId(seenDeliveryIds: Set<string>, deliveryId: string): b
 }
 
 async function withJobTimeout(
-  job: Promise<void>,
+  runJob: (signal: AbortSignal) => Promise<void>,
   timeoutMs: number,
   createError: () => Error,
 ): Promise<void> {
+  const controller = new AbortController();
   let timeout: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    timeout = setTimeout(() => reject(createError()), timeoutMs);
+    timeout = setTimeout(() => {
+      const error = createError();
+      controller.abort(error);
+      reject(error);
+    }, timeoutMs);
     timeout.unref?.();
   });
   try {
-    await Promise.race([job, timeoutPromise]);
+    await Promise.race([runJob(controller.signal), timeoutPromise]);
   } finally {
     if (timeout !== undefined) {
       clearTimeout(timeout);

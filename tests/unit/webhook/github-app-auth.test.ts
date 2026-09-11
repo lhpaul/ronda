@@ -54,6 +54,29 @@ test("installation token request errors are sanitized", async () => {
   );
 });
 
+test("installation token requests retry transient GitHub failures", async () => {
+  const sleeps: number[] = [];
+  const responses = [
+    new Response("server unavailable", { status: 503 }),
+    new Response("secondary rate limit", {
+      status: 403,
+      headers: { "retry-after": "1" },
+    }),
+    new Response(JSON.stringify({ token: "installation-token" }), { status: 201 }),
+  ];
+  const token = await createInstallationAccessToken({
+    appJwt: "app.jwt",
+    installationId: 456,
+    fetchImpl: (async () => responses.shift() ?? new Response(null, { status: 500 })) as typeof fetch,
+    retrySleep: async (ms) => {
+      sleeps.push(ms);
+    },
+  });
+
+  assert.equal(token, "installation-token");
+  assert.deepEqual(sleeps, [2_000, 5_000]);
+});
+
 test("creates an RS256 GitHub App JWT with app id as issuer", () => {
   const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const pem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();

@@ -79,7 +79,12 @@ export function resolveWebhookJob(
 export async function runWebhookReviewJob(
   job: WebhookReviewJob,
   webhookConfig: WebhookConfig,
+  signal?: AbortSignal,
 ): Promise<void> {
+  const appTokenSignal = combineAbortSignals(
+    AbortSignal.timeout(webhookConfig.githubAppTokenTimeoutMs),
+    signal,
+  );
   const appJwt = createGithubAppJwt({
     appId: webhookConfig.githubAppId,
     privateKey: webhookConfig.githubPrivateKey,
@@ -88,7 +93,7 @@ export async function runWebhookReviewJob(
     appJwt,
     installationId: job.installationId,
     apiUrl: webhookConfig.githubApiUrl,
-    signal: AbortSignal.timeout(webhookConfig.githubAppTokenTimeoutMs),
+    signal: appTokenSignal,
   });
   const installationClient = createGithubClient({
     token: installationToken,
@@ -96,16 +101,42 @@ export async function runWebhookReviewJob(
   });
 
   const github: GithubOperations = {
-    readPullRequest: (o, r, n, signal) =>
-      readPullRequest(installationClient.octokit, o, r, n, signal),
-    readChangedFiles: (o, r, n, signal) =>
-      readChangedFiles(installationClient.octokit, o, r, n, signal),
-    findExistingCheckRun: (o, r, sha, signal) =>
-      findExistingCheckRun(installationClient.octokit, o, r, sha, signal),
-    publishReview: (reviewInput, signal) =>
-      publishReview(installationClient.octokit, reviewInput, signal),
-    publishCheckRun: (checkRunInput, signal) =>
-      publishCheckRun(installationClient.octokit, checkRunInput, signal),
+    readPullRequest: (o, r, n, requestSignal) =>
+      readPullRequest(
+        installationClient.octokit,
+        o,
+        r,
+        n,
+        combineAbortSignals(requestSignal, signal),
+      ),
+    readChangedFiles: (o, r, n, requestSignal) =>
+      readChangedFiles(
+        installationClient.octokit,
+        o,
+        r,
+        n,
+        combineAbortSignals(requestSignal, signal),
+      ),
+    findExistingCheckRun: (o, r, sha, requestSignal) =>
+      findExistingCheckRun(
+        installationClient.octokit,
+        o,
+        r,
+        sha,
+        combineAbortSignals(requestSignal, signal),
+      ),
+    publishReview: (reviewInput, requestSignal) =>
+      publishReview(
+        installationClient.octokit,
+        reviewInput,
+        combineAbortSignals(requestSignal, signal),
+      ),
+    publishCheckRun: (checkRunInput, requestSignal) =>
+      publishCheckRun(
+        installationClient.octokit,
+        checkRunInput,
+        combineAbortSignals(requestSignal, signal),
+      ),
   };
 
   let config: RondaConfig;
@@ -143,4 +174,17 @@ export async function runWebhookReviewJob(
     pullNumber: job.pullNumber,
     outcome: result.outcome,
   });
+}
+
+function combineAbortSignals(
+  first: AbortSignal | undefined,
+  second: AbortSignal | undefined,
+): AbortSignal | undefined {
+  if (first === undefined) {
+    return second;
+  }
+  if (second === undefined) {
+    return first;
+  }
+  return AbortSignal.any([first, second]);
 }

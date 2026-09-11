@@ -279,12 +279,16 @@ test("fatal webhook job failures prevent already queued jobs from running", asyn
 test("queued webhook jobs fail fatally when they exceed the outer job timeout", async () => {
   const failures: unknown[] = [];
   const jobs: string[] = [];
+  let jobSignal: AbortSignal | undefined;
   const server = startWebhookServer(
     { ...config, port: 0, webhookJobTimeoutMs: 5 },
     {
-      runJob: async (job) => {
+      runJob: async (job, _config, signal) => {
         jobs.push(job.deliveryId);
-        await new Promise(() => undefined);
+        jobSignal = signal;
+        await new Promise((_, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+        });
       },
       onJobFailure: (error) => {
         failures.push(error);
@@ -312,6 +316,7 @@ test("queued webhook jobs fail fatally when they exceed the outer job timeout", 
     assert.equal(response.status, 202);
     await eventually(() => failures.length === 1);
     assert.deepEqual(jobs, ["delivery-8"]);
+    assert.equal(jobSignal?.aborted, true);
     assert.ok(failures[0] instanceof WebhookJobTimeoutError);
     assert.match(String(failures[0]), /timed out after 5ms/);
   } finally {
