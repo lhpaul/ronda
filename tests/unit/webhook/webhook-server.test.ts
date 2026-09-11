@@ -37,6 +37,7 @@ async function withWebhookServer<T>(
     void handleWebhookRequest(req, res, config, {
       enqueue: (job) => {
         jobs.push(job);
+        return true;
       },
     });
   });
@@ -157,6 +158,114 @@ test("queued webhook job failures invoke the fatal failure hook after returning 
     assert.equal(response.status, 202);
     await eventually(() => failures.length === 1);
     assert.match(String(failures[0]), /job failed/);
+  } finally {
+    server.close();
+  }
+});
+
+test("duplicate webhook delivery IDs are accepted but not requeued", async () => {
+  const jobs: WebhookReviewJob[] = [];
+  const server = startWebhookServer(
+    { ...config, port: 0 },
+    {
+      runJob: async (job) => {
+        jobs.push(job);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const headers = {
+      "x-github-event": "pull_request",
+      "x-github-delivery": "delivery-5",
+      "x-hub-signature-256": signature(body),
+    };
+    const first = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    const second = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers,
+      body,
+    });
+
+    assert.equal(first.status, 202);
+    assert.deepEqual(await first.json(), { ok: true, queued: true, pullNumber: 7 });
+    assert.equal(second.status, 202);
+    assert.deepEqual(await second.json(), {
+      ok: true,
+      queued: false,
+      reason: "duplicate_delivery",
+    });
+    await eventually(() => jobs.length === 1);
+    assert.equal(jobs[0].deliveryId, "delivery-5");
+  } finally {
+    server.close();
+  }
+});
+
+test("fatal webhook job failures prevent already queued jobs from running", async () => {
+  const failures: unknown[] = [];
+  const jobs: string[] = [];
+  let failFirstJob!: () => void;
+  const firstJobCanFail = new Promise<void>((resolve) => {
+    failFirstJob = resolve;
+  });
+  const server = startWebhookServer(
+    { ...config, port: 0 },
+    {
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+        if (job.deliveryId === "delivery-6") {
+          await firstJobCanFail;
+          throw new Error("job failed");
+        }
+      },
+      onJobFailure: (error) => {
+        failures.push(error);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const first = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-6",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+    const second = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-7",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(first.status, 202);
+    assert.equal(second.status, 202);
+    failFirstJob();
+    await eventually(() => failures.length === 1);
+    assert.deepEqual(jobs, ["delivery-6"]);
   } finally {
     server.close();
   }

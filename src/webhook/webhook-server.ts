@@ -4,6 +4,7 @@ import { verifyGithubSignature } from "./signature.js";
 import { resolveWebhookJob, runWebhookReviewJob, type WebhookReviewJob } from "./webhook-job.js";
 
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
+const MAX_SEEN_DELIVERY_IDS = 1_000;
 
 export interface WebhookServerDeps {
   runJob?: (job: WebhookReviewJob, config: WebhookConfig) => Promise<void>;
@@ -18,14 +19,26 @@ export function startWebhookServer(
   const log = deps.log ?? console;
   const runJob = deps.runJob ?? runWebhookReviewJob;
   let queue = Promise.resolve();
+  let fatalError: unknown;
+  const seenDeliveryIds = new Set<string>();
 
   const server = createServer(async (req, res) => {
     await handleWebhookRequest(req, res, config, {
       log,
+      acceptDeliveryId: (deliveryId) => rememberDeliveryId(seenDeliveryIds, deliveryId),
       enqueue: (job) => {
+        if (fatalError !== undefined) {
+          return false;
+        }
         queue = queue
-          .then(() => runJob(job, config))
+          .then(() => {
+            if (fatalError !== undefined) {
+              return;
+            }
+            return runJob(job, config);
+          })
           .catch((error: unknown) => {
+            fatalError = error;
             log.error("Ronda webhook job failed", error);
             if (deps.onJobFailure) {
               deps.onJobFailure(error);
@@ -34,6 +47,7 @@ export function startWebhookServer(
             process.exitCode = 1;
             server.close();
           });
+        return true;
       },
     });
   });
@@ -45,7 +59,8 @@ export function startWebhookServer(
 }
 
 interface HandleWebhookRequestDeps {
-  enqueue: (job: WebhookReviewJob) => void;
+  enqueue: (job: WebhookReviewJob) => boolean;
+  acceptDeliveryId?: (deliveryId: string) => boolean;
   log?: Pick<Console, "error">;
 }
 
@@ -93,9 +108,13 @@ export async function handleWebhookRequest(
   }
 
   const eventName = headerValue(req.headers["x-github-event"]);
-  const deliveryId = headerValue(req.headers["x-github-delivery"]) ?? "unknown";
+  const deliveryId = headerValue(req.headers["x-github-delivery"]);
   if (eventName === undefined) {
     writeJson(res, 400, { ok: false, error: "missing_event" });
+    return;
+  }
+  if (deliveryId === undefined) {
+    writeJson(res, 400, { ok: false, error: "missing_delivery" });
     return;
   }
 
@@ -104,8 +123,15 @@ export async function handleWebhookRequest(
     writeJson(res, 202, { ok: true, queued: false, reason: decision.reason });
     return;
   }
+  if (deps.acceptDeliveryId && !deps.acceptDeliveryId(deliveryId)) {
+    writeJson(res, 202, { ok: true, queued: false, reason: "duplicate_delivery" });
+    return;
+  }
 
-  deps.enqueue(decision.job);
+  if (!deps.enqueue(decision.job)) {
+    writeJson(res, 503, { ok: false, error: "webhook_worker_unavailable" });
+    return;
+  }
   writeJson(res, 202, { ok: true, queued: true, pullNumber: decision.job.pullNumber });
 }
 
@@ -129,6 +155,20 @@ function readRequestBody(req: IncomingMessage, maxBytes: number): Promise<Buffer
 
 function headerValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function rememberDeliveryId(seenDeliveryIds: Set<string>, deliveryId: string): boolean {
+  if (seenDeliveryIds.has(deliveryId)) {
+    return false;
+  }
+  seenDeliveryIds.add(deliveryId);
+  if (seenDeliveryIds.size > MAX_SEEN_DELIVERY_IDS) {
+    const oldestDeliveryId = seenDeliveryIds.values().next().value;
+    if (oldestDeliveryId !== undefined) {
+      seenDeliveryIds.delete(oldestDeliveryId);
+    }
+  }
+  return true;
 }
 
 function writeJson(res: ServerResponse, statusCode: number, body: unknown): void {
