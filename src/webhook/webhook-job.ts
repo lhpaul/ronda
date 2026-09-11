@@ -273,7 +273,7 @@ export async function refreshRecoveredWebhookCheckRunInput(
   const publishingAppId = Number.isFinite(githubAppId) ? githubAppId : undefined;
   const options = publishingAppId === undefined ? {} : { appId: publishingAppId };
   const existingCheckRunId = await lookup(input.owner, input.repo, input.headSha, signal, options);
-  return { ...input, existingCheckRunId: existingCheckRunId ?? input.existingCheckRunId };
+  return { ...input, existingCheckRunId };
 }
 
 export function withOuterAbortSignal(

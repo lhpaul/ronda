@@ -267,3 +267,14 @@ test("check-pending recovery refreshes the publishing App check run id before pu
     { owner: "lhpaul", repo: "example", headSha: HEAD_SHA, signal, appId: 42 },
   ]);
 });
+
+test("check-pending recovery clears stale check run ids when lookup misses", async () => {
+  const refreshed = await refreshRecoveredWebhookCheckRunInput(
+    checkRunInput({ existingCheckRunId: 333 }),
+    42,
+    undefined,
+    async () => null,
+  );
+
+  assert.equal(refreshed.existingCheckRunId, null);
+});
