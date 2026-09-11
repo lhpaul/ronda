@@ -9,6 +9,7 @@ import { resolveWebhookJob, runWebhookReviewJob, type WebhookReviewJob } from ".
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
 const MAX_SEEN_DELIVERY_IDS = 1_000;
 const MAX_PENDING_WEBHOOK_JOBS = 25;
+const MAX_PERSISTED_COMPLETED_WEBHOOK_JOBS = 1_000;
 
 export interface WebhookServerDeps {
   runJob?: (job: WebhookReviewJob, config: WebhookConfig, signal: AbortSignal) => Promise<void>;
@@ -109,25 +110,12 @@ export function startWebhookServer(
           );
         }
         completeDeliveryId(deliveryIds, job.deliveryId);
-        if (!queueStore.remove(job.deliveryId)) {
-          throw new WebhookQueuePersistenceError(
-            `Failed to remove completed webhook delivery ${job.deliveryId} from the queue`,
-          );
-        }
       })
       .catch((error: unknown) => {
         let failureError = error;
         if (error instanceof ReviewPublishedCheckRunError) {
           if (queueStore.complete(job.deliveryId)) {
             completeDeliveryId(deliveryIds, job.deliveryId);
-            if (!queueStore.remove(job.deliveryId)) {
-              log.error(
-                "Ronda webhook queue remove failed after a review was published",
-                new WebhookQueuePersistenceError(
-                  `Failed to remove review-published webhook delivery ${job.deliveryId} from the queue`,
-                ),
-              );
-            }
           } else {
             failureError = new WebhookQueuePersistenceError(
               `Failed to mark review-published webhook delivery ${job.deliveryId} in the queue`,
@@ -178,7 +166,6 @@ export interface WebhookQueueStore {
   loadCompletedDeliveryIds: () => string[];
   add: (job: WebhookReviewJob) => boolean;
   complete: (deliveryId: string) => boolean;
-  remove: (deliveryId: string) => boolean;
 }
 
 interface HandleWebhookRequestDeps {
@@ -319,7 +306,6 @@ function createWebhookQueueStore(
       loadCompletedDeliveryIds: () => [],
       add: () => true,
       complete: () => true,
-      remove: () => true,
     };
   }
 
@@ -393,24 +379,23 @@ function createWebhookQueueStore(
         if (!found) {
           return false;
         }
-        writeEntries(completedEntries);
+        writeEntries(pruneCompletedEntries(completedEntries));
         return true;
       } catch (error) {
         log.error("Ronda webhook queue completion write failed", error);
         return false;
       }
     },
-    remove: (deliveryId) => {
-      try {
-        const entries = readEntries();
-        writeEntries(entries.filter((job) => job.deliveryId !== deliveryId));
-        return true;
-      } catch (error) {
-        log.error("Ronda webhook queue remove failed", error);
-        return false;
-      }
-    },
   };
+}
+
+function pruneCompletedEntries(entries: WebhookQueueEntry[]): WebhookQueueEntry[] {
+  const pendingEntries = entries.filter((entry) => entry.status !== "completed");
+  const completedEntries = entries.filter((entry) => entry.status === "completed");
+  return [
+    ...pendingEntries,
+    ...completedEntries.slice(-MAX_PERSISTED_COMPLETED_WEBHOOK_JOBS),
+  ];
 }
 
 interface WebhookQueueEntry extends WebhookReviewJob {
