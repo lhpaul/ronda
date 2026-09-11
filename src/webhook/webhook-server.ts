@@ -759,7 +759,7 @@ async function withJobTimeout(
     const settled = await Promise.race([
       jobPromise.then(
         (jobResult) => ({ status: "resolved" as const, jobResult }),
-        () => "rejected" as const,
+        (error: unknown) => ({ status: "rejected" as const, error }),
       ),
       new Promise<"timed_out">((resolve) => {
         settlementTimeout = setTimeout(() => resolve("timed_out"), settlementTimeoutMs);
@@ -773,7 +773,7 @@ async function withJobTimeout(
     if (typeof settled === "object" && settled.status === "resolved") {
       return settled.jobResult;
     }
-    throw result.error;
+    throw settled.error;
   } finally {
     if (timeout !== undefined) {
       clearTimeout(timeout);

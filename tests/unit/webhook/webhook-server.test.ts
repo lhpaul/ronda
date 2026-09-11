@@ -1887,6 +1887,81 @@ test("timed-out webhook jobs that resolve after abort complete and advance the q
   }
 });
 
+test("timed-out webhook jobs preserve review-published rejection recovery", async () => {
+  const failures: unknown[] = [];
+  const jobs: string[] = [];
+  const queuePath = tempQueuePath();
+  const pendingCheckRun = checkRunInput("c".repeat(40));
+  let firstJobSawAbort = false;
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookJobTimeoutMs: 5, webhookQueuePath: queuePath },
+    {
+      runJob: async (job, _config, signal) => {
+        jobs.push(job.deliveryId);
+        if (job.deliveryId !== "delivery-reject-after-abort-first") {
+          return;
+        }
+        await new Promise<void>((resolve) => {
+          signal.addEventListener(
+            "abort",
+            () => {
+              firstJobSawAbort = true;
+              setTimeout(resolve, 20);
+            },
+            { once: true },
+          );
+        });
+        throw new ReviewPublishedCheckRunError(
+          "review is public but check run failed",
+          pendingCheckRun.headSha,
+          pendingCheckRun,
+        );
+      },
+      onJobFailure: (error) => {
+        failures.push(error);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const body = JSON.stringify(pullRequestPayload());
+  const postDelivery = async (deliveryId: string): Promise<Response> =>
+    fetch(`${baseUrl}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": deliveryId,
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+  try {
+    assert.equal((await postDelivery("delivery-reject-after-abort-first")).status, 202);
+    await eventually(() => jobs.length === 1);
+    assert.equal((await postDelivery("delivery-reject-after-abort-second")).status, 202);
+    await eventually(() => firstJobSawAbort);
+    await eventually(() => failures.length === 1);
+
+    assert.ok(failures[0] instanceof ReviewPublishedCheckRunError);
+    assert.deepEqual(jobs, ["delivery-reject-after-abort-first"]);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [job.deliveryId, job.status, job.checkRunInput]),
+      [
+        ["delivery-reject-after-abort-first", "check_pending", pendingCheckRun],
+        ["delivery-reject-after-abort-second", "pending", undefined],
+      ],
+    );
+  } finally {
+    server.close();
+  }
+});
+
 test("unsettled timed-out webhook jobs stop the worker instead of advancing the queue", async () => {
   const failures: unknown[] = [];
   const jobs: string[] = [];
