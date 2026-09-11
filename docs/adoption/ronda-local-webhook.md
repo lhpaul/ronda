@@ -77,7 +77,10 @@ Keep the terminal visible during early dogfooding. GitHub receives a quick `202`
 for accepted deliveries while the local process queues and runs review jobs
 serially. If the tunnel or machine is offline, GitHub deliveries fail at the
 webhook layer; switch the repository back to the reusable Action workflow when
-you need the migration fallback.
+you need the migration fallback. If a queued local review job throws after a
+delivery is accepted, the server treats that as fatal by default so the process
+supervisor or visible dogfood terminal can restart or alert instead of letting a
+broken queue continue silently.
 
 ## Mini or MiniPC Hosting Path
 

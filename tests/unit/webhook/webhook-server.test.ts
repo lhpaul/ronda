@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { AddressInfo } from "node:net";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { handleWebhookRequest } from "../../../src/webhook/webhook-server.js";
+import { handleWebhookRequest, startWebhookServer } from "../../../src/webhook/webhook-server.js";
 import type { WebhookConfig } from "../../../src/webhook/webhook-config.js";
 import type { WebhookReviewJob } from "../../../src/webhook/webhook-job.js";
 
@@ -122,3 +122,52 @@ test("POST /webhook rejects invalid JSON after signature verification", async ()
     assert.equal(jobs.length, 0);
   });
 });
+
+test("queued webhook job failures invoke the fatal failure hook after returning 202", async () => {
+  const failures: unknown[] = [];
+  const server = startWebhookServer(
+    { ...config, port: 0 },
+    {
+      runJob: async () => {
+        throw new Error("job failed");
+      },
+      onJobFailure: (error) => {
+        failures.push(error);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-4",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    await eventually(() => failures.length === 1);
+    assert.match(String(failures[0]), /job failed/);
+  } finally {
+    server.close();
+  }
+});
+
+async function eventually(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.equal(predicate(), true);
+}

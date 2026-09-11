@@ -7,6 +7,7 @@ const MAX_BODY_BYTES = 10 * 1024 * 1024;
 
 export interface WebhookServerDeps {
   runJob?: (job: WebhookReviewJob, config: WebhookConfig) => Promise<void>;
+  onJobFailure?: (error: unknown) => void;
   log?: Pick<Console, "error" | "log">;
 }
 
@@ -26,6 +27,12 @@ export function startWebhookServer(
           .then(() => runJob(job, config))
           .catch((error: unknown) => {
             log.error("Ronda webhook job failed", error);
+            if (deps.onJobFailure) {
+              deps.onJobFailure(error);
+              return;
+            }
+            process.exitCode = 1;
+            server.close();
           });
       },
     });
