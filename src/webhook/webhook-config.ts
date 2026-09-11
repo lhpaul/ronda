@@ -7,6 +7,7 @@ export interface WebhookConfig {
   githubAppId: string;
   githubPrivateKey: string;
   githubAppTokenTimeoutMs: number;
+  webhookJobTimeoutMs: number;
   githubApiUrl?: string;
   detailsUrl?: string;
 }
@@ -48,6 +49,7 @@ export function loadWebhookConfig(options: LoadWebhookConfigOptions = {}): Webho
     githubAppId,
     githubPrivateKey,
     githubAppTokenTimeoutMs: positiveInt(env.RONDA_GITHUB_APP_TOKEN_TIMEOUT_MS) ?? 60_000,
+    webhookJobTimeoutMs: positiveInt(env.RONDA_WEBHOOK_JOB_TIMEOUT_MS) ?? 900_000,
     githubApiUrl: nonBlank(env.GITHUB_API_URL),
     detailsUrl: nonBlank(env.RONDA_DETAILS_URL),
   };

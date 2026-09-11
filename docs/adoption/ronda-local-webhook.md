@@ -46,6 +46,7 @@ Optional settings:
 export RONDA_WEBHOOK_HOST="127.0.0.1"
 export RONDA_WEBHOOK_PORT="3000"
 export RONDA_GITHUB_APP_TOKEN_TIMEOUT_MS="60000"
+export RONDA_WEBHOOK_JOB_TIMEOUT_MS="900000"
 export RONDA_DETAILS_URL="https://example.test/ronda"
 ```
 
@@ -55,8 +56,9 @@ configuration follows the same precedence as the Action path:
 `RONDA_MODEL_API_KEY`, `RONDA_MODEL_BASE_URL`, `RONDA_MODEL_NAME`,
 `RONDA_PASS_TIMEOUT_MS`, and `RONDA_MAX_PATCH_CHARS` override the local operator
 config file. `RONDA_GITHUB_APP_TOKEN_TIMEOUT_MS` bounds the pre-pass GitHub App
-installation-token request so a stalled GitHub API call cannot block the local
-serial review queue indefinitely.
+installation-token request, and `RONDA_WEBHOOK_JOB_TIMEOUT_MS` bounds each full
+queued job, so stalled GitHub API calls or publication hangs cannot block the
+local serial review queue indefinitely.
 
 ## MacBook and Tunnel Dogfood
 
@@ -77,10 +79,10 @@ Keep the terminal visible during early dogfooding. GitHub receives a quick `202`
 for accepted deliveries while the local process queues and runs review jobs
 serially. If the tunnel or machine is offline, GitHub deliveries fail at the
 webhook layer; switch the repository back to the reusable Action workflow when
-you need the migration fallback. If a queued local review job throws after a
-delivery is accepted, the server treats that as fatal by default so the process
-supervisor or visible dogfood terminal can restart or alert instead of letting a
-broken queue continue silently.
+you need the migration fallback. If a queued local review job throws or exceeds
+its outer timeout after a delivery is accepted, the server treats that as fatal
+by default so the process supervisor or visible dogfood terminal can restart or
+alert instead of letting a broken queue continue silently.
 
 ## Mini or MiniPC Hosting Path
 

@@ -12,6 +12,15 @@ export interface WebhookServerDeps {
   log?: Pick<Console, "error" | "log">;
 }
 
+export class WebhookJobTimeoutError extends Error {
+  constructor(job: WebhookReviewJob, timeoutMs: number) {
+    super(
+      `Webhook review job timed out after ${timeoutMs}ms for ${job.owner}/${job.repo}#${job.pullNumber}`,
+    );
+    this.name = "WebhookJobTimeoutError";
+  }
+}
+
 export function startWebhookServer(
   config: WebhookConfig,
   deps: WebhookServerDeps = {},
@@ -35,7 +44,11 @@ export function startWebhookServer(
             if (fatalError !== undefined) {
               return;
             }
-            return runJob(job, config);
+            return withJobTimeout(
+              runJob(job, config),
+              config.webhookJobTimeoutMs,
+              () => new WebhookJobTimeoutError(job, config.webhookJobTimeoutMs),
+            );
           })
           .catch((error: unknown) => {
             fatalError = error;
@@ -169,6 +182,25 @@ function rememberDeliveryId(seenDeliveryIds: Set<string>, deliveryId: string): b
     }
   }
   return true;
+}
+
+async function withJobTimeout(
+  job: Promise<void>,
+  timeoutMs: number,
+  createError: () => Error,
+): Promise<void> {
+  let timeout: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(createError()), timeoutMs);
+    timeout.unref?.();
+  });
+  try {
+    await Promise.race([job, timeoutPromise]);
+  } finally {
+    if (timeout !== undefined) {
+      clearTimeout(timeout);
+    }
+  }
 }
 
 function writeJson(res: ServerResponse, statusCode: number, body: unknown): void {

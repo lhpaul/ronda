@@ -109,12 +109,14 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
 
 ### Diffs are read over the REST API; the reviewed repository is never checked out
 
-- **Context**: v0's only ingress is a reusable workflow another repository
-  calls; checking out that repository's code would require broader
-  permissions and a second git identity to reason about.
+- **Context**: v0 receives review requests through either the reusable workflow
+  or the local GitHub App webhook service; checking out the reviewed
+  repository's code would require broader permissions and a second git identity
+  to reason about.
 - **Decision**: `readChangedFiles` reads `GET .../pulls/{number}/files` (the
   `patch` field) instead of cloning the pull request's branch. The reusable
-  workflow's only checkout is of `lhpaul/ronda` itself.
+  workflow's only checkout is of `lhpaul/ronda` itself, and the webhook service
+  does not perform any checkout.
 - **Consequences**: Ronda never runs the reviewed repository's code, which
   keeps the manual `/ronda review` comment trigger low-risk even on a fork
   pull request's comment thread — there is no "pwn request" surface because
@@ -141,4 +143,6 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   mints a bounded-lifetime installation token from the GitHub App before making
   repository-scoped read/write calls. Its installation-token request is
   separately timeout-bounded so the local serial queue cannot hang before the
-  normal pass deadline starts.
+  normal pass deadline starts, and each queued job also has an outer watchdog
+  timeout so publication stalls cannot leave `/healthz` healthy while the queue
+  is permanently blocked.
