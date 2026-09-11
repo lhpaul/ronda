@@ -1091,6 +1091,55 @@ test("check-pending webhook queue entries recover by publishing only the check r
   }
 });
 
+test("failed check-pending webhook queue entries stay check-only recoverable", async () => {
+  const failures: unknown[] = [];
+  const queuePath = tempQueuePath();
+  const pendingCheckRun = checkRunInput();
+  const checkPendingJob: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 7,
+    trigger: "automatic",
+    headSha: pendingCheckRun.headSha,
+    installationId: 42,
+    deliveryId: "delivery-check-pending-failure",
+    status: "check_pending",
+    reviewPublished: true,
+    checkRunInput: pendingCheckRun,
+  };
+  writeFileSync(queuePath, `${JSON.stringify([checkPendingJob], null, 2)}\n`);
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async () => {
+        throw new Error("check publication failed");
+      },
+      onJobFailure: (error) => {
+        failures.push(error);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  try {
+    await eventually(() => failures.length === 1);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [
+        job.deliveryId,
+        job.status,
+        job.reviewPublished,
+        job.checkRunInput,
+      ]),
+      [["delivery-check-pending-failure", "check_pending", true, pendingCheckRun]],
+    );
+  } finally {
+    server.close();
+  }
+});
+
 test("completion persistence failures after a terminal outcome do not retry the job", async () => {
   const failures: unknown[] = [];
   const calls: string[] = [];

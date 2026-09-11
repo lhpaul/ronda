@@ -114,7 +114,7 @@ export function startWebhookServer(
     let terminalOutcomeReviewedHeadSha: string | undefined;
     void Promise.resolve()
       .then(() => {
-        if (!queueStore.start(job.deliveryId)) {
+        if (job.checkRunInput === undefined && !queueStore.start(job.deliveryId)) {
           throw new WebhookQueuePersistenceError(
             `Failed to mark webhook delivery ${job.deliveryId} in progress`,
           );
@@ -179,7 +179,11 @@ export function startWebhookServer(
             );
           }
         } else {
-          queueStore.retry(job.deliveryId);
+          if (job.checkRunInput !== undefined) {
+            queueStore.markCheckPending?.(job.deliveryId, job.checkRunInput);
+          } else {
+            queueStore.retry(job.deliveryId);
+          }
         }
         deliveryIds.active.delete(job.deliveryId);
         log.error("Ronda webhook job failed", failureError);
