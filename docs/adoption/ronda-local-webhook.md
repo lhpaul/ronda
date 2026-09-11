@@ -8,8 +8,11 @@ comment-only review and one `Ronda review` check run per head SHA.
 
 Use the local webhook path when you want review computation to run on an
 operator-owned machine, such as a MacBook during dogfooding and later a Mini or
-MiniPC. Keep the reusable Action path configured while migrating so repositories
-have a fallback if the local service or tunnel is offline.
+MiniPC. During migration, keep the reusable Action path available as a rollback
+option, but do not enable both ingresses for the same repository triggers unless
+one path is filtered off. Without that arbitration, a manual `/ronda review`
+comment can start both the Action and webhook paths and produce duplicate
+reviews for the same head SHA.
 
 ## GitHub App Requirements
 
@@ -17,7 +20,7 @@ Create or update a GitHub App with:
 
 - Webhook events: `pull_request` and `issue_comment`.
 - Repository permissions: `Contents: read`, `Pull requests: read and write`,
-  `Checks: read and write`, `Metadata: read`.
+  `Checks: read and write`, `Issues: read`, `Metadata: read`.
 - Webhook secret: a random secret stored only on the local machine.
 - Private key: stored outside the repository.
 
@@ -73,8 +76,8 @@ https://<tunnel-host>/webhook
 Keep the terminal visible during early dogfooding. GitHub receives a quick `202`
 for accepted deliveries while the local process queues and runs review jobs
 serially. If the tunnel or machine is offline, GitHub deliveries fail at the
-webhook layer; the reusable Action path can remain in place as the migration
-fallback.
+webhook layer; switch the repository back to the reusable Action workflow when
+you need the migration fallback.
 
 ## Mini or MiniPC Hosting Path
 

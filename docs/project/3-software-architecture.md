@@ -7,8 +7,8 @@
 | Language / runtime | TypeScript on Node 20 | Run directly via `tsx`; no committed build artifact (`dist/` is gitignored) |
 | GitHub API client | `@octokit/rest` | Bounded retry (at most twice, 2s then 5s backoff) on HTTP 5xx / secondary rate limit only |
 | Inference | OpenAI-compatible HTTP API behind `ModelClient` | v0 default: Qwen/DashScope; vendor is configuration, never hardcoded outside `src/inference/` |
-| Ingress (v0) | Reusable GitHub Actions workflow (`ronda-review.yml`, `workflow_call`) | Webhook/App is a later item; the review contract does not change when it arrives |
-| Host | GitHub-hosted Actions runner (v0) | MacBook/Mini/MiniPC hosting arrives with the webhook process |
+| Ingress (v0) | Reusable GitHub Actions workflow or local GitHub App webhook service | Both call the same `runReviewPass` core |
+| Host | GitHub-hosted Actions runner or operator-owned local machine | MacBook dogfood first; Mini/MiniPC can host the same process later |
 | GitHub output | Pull Request Review + check run (`Ronda review`) | So ADF `pr-review-loop.sh` can wait |
 | Test runner | Node's built-in test runner via `tsx --test`, `node:assert/strict` | No mocking framework — every `runReviewPass` dependency is injected |
 | Lint | ESLint flat config (`eslint.config.js`), `typescript-eslint` recommended | Scoped to `src/` and `tests/` only |
@@ -23,7 +23,9 @@ smoke runbook as the second tier — see
 - **Unit** (primary): `tests/unit/**/*.test.ts`, run via
   `tsx --test "tests/**/*.test.ts"`. Every dependency of `runReviewPass`
   (`GithubOperations`, `ModelClient`, `Clock`, `Logger`, `RondaConfig`) is
-  injected, so tests run with fakes and no network.
+  injected, so tests run with fakes and no network. Webhook unit tests cover
+  signature verification, trigger mapping, installation-token request shape, and
+  HTTP handler behavior.
 - **Integration** (one path, real HTTP to a local stub): `tests/integration/review-pass.test.ts`
   runs a full pass against `tests/support/mock-model-server.ts` (a local
   OpenAI-compatible stub) with only the GitHub layer faked, asserting the
@@ -80,11 +82,15 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
 - **Decision**: Add one provider name; do not implement the bot inside ADF.
 - **Consequences**: Follow-ups of the bot stay in Project #11.
 
-### Action is an allowed v0 stand-in
+### Action and webhook are alternate ingresses
 
-- **Context**: A GitHub App takes registration; an Action can dogfood the poster.
-- **Decision**: v0 spec may ship a reusable workflow first, then the App.
-- **Consequences**: The poster API is the stable core either way.
+- **Context**: The reusable Action path is easy to install but spends caller
+  GitHub Actions minutes; the webhook path runs on operator-owned hardware but
+  depends on a reachable local tunnel or host.
+- **Decision**: Support both entrypoints while keeping `runReviewPass` as the
+  only review core.
+- **Consequences**: Migrate repositories one ingress at a time. Do not enable
+  both paths for the same trigger until shared arbitration exists.
 
 ### The check run is created only at terminal time
 
@@ -123,15 +129,16 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   branch or its state — see `docs/constitution.md`.
 - v0: the model API credential is a GitHub Actions repository/organization
   secret (`RONDA_MODEL_API_KEY`) on the reusable-workflow path, or a local
-  `~/.config/ronda/config.json` (never committed — see `.gitignore`) on the
-  local-CLI path. `src/core/logger.ts` redacts both the resolved model key
-  and any `authorization`-named field before writing a log line.
+  `~/.config/ronda/config.json` / environment variable on local CLI and webhook
+  paths. `src/core/logger.ts` redacts both the resolved model key and any
+  `authorization`-named field before writing a log line.
 - No credential value, credential name, account identifier, hostname, or
   personal filesystem path belonging to a specific operator is committed to
   this repository — verified by the residual-verification grep commands in
   the implementation plan before every feature PR that touches
   configuration or secrets handling.
-- **Later (post-v0)**: once the webhook process replaces the reusable
-  workflow, its request signature is verified on every inbound call, and
-  installation tokens come from the GitHub App rather than a long-lived PAT.
-  v0's Action path has no webhook signature to verify.
+- The webhook process verifies the GitHub signature on every inbound call, then
+  mints a bounded-lifetime installation token from the GitHub App before making
+  repository-scoped read/write calls. Its installation-token request is
+  separately timeout-bounded so the local serial queue cannot hang before the
+  normal pass deadline starts.
