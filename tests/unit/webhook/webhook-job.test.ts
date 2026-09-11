@@ -1,11 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
 import { REVIEW_COMMAND, type PublishCheckRunInput } from "../../../src/domain/review-pass.types.js";
+import type { WebhookConfig } from "../../../src/webhook/webhook-config.js";
 import {
   checkRunSignal,
   findExistingWebhookCheckRun,
   refreshRecoveredWebhookCheckRunInput,
   resolveWebhookJob,
+  runWebhookReviewJob,
   withOuterAbortSignal,
 } from "../../../src/webhook/webhook-job.js";
 
@@ -140,6 +143,67 @@ test("terminal check-run publication starts with a fresh non-aborted signal", ()
 
   assert.notEqual(terminal, undefined);
   assert.equal(terminal?.aborted, false);
+});
+
+test("bounds stalled GitHub App installation-token requests", async () => {
+  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const webhookConfig: WebhookConfig = {
+    host: "127.0.0.1",
+    port: 0,
+    webhookSecret: "webhook-secret",
+    githubAppId: "123",
+    githubPrivateKey: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+    githubAppTokenTimeoutMs: 20,
+    webhookJobTimeoutMs: 900_000,
+    webhookJobSettlementTimeoutMs: 30_000,
+  };
+  const originalFetch = globalThis.fetch;
+  let observedSignal: AbortSignal | undefined;
+  let rejectFetch: ((reason?: unknown) => void) | undefined;
+
+  globalThis.fetch = ((_: string | URL | Request, init?: RequestInit) => {
+    observedSignal = init?.signal ?? undefined;
+    return new Promise<Response>((_resolve, reject) => {
+      rejectFetch = reject;
+      observedSignal?.addEventListener(
+        "abort",
+        () => reject(new DOMException("The operation was aborted.", "AbortError")),
+        { once: true },
+      );
+    });
+  }) as typeof fetch;
+
+  try {
+    const watchdog = new Error("installation-token request was not aborted by its timeout");
+    const jobPromise = runWebhookReviewJob(
+      {
+        owner: "lhpaul",
+        repo: "example",
+        pullNumber: 7,
+        trigger: "automatic",
+        installationId: 42,
+        deliveryId: "delivery-token-timeout",
+      },
+      webhookConfig,
+    ).then(
+      () => new Error("webhook job unexpectedly completed"),
+      (error: unknown) => error,
+    );
+    const result = await Promise.race([
+      jobPromise,
+      new Promise<Error>((resolve) => setTimeout(() => resolve(watchdog), 100)),
+    ]);
+    if (result === watchdog) {
+      rejectFetch?.(new Error("test cleanup after missing timeout"));
+      await jobPromise;
+    }
+
+    assert.notEqual(result, watchdog);
+    assert.equal((result as { name?: string }).name, "AbortError");
+    assert.equal(observedSignal?.aborted, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("automatic webhook duplicate lookup accepts any existing Ronda check run", async () => {
