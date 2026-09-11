@@ -1,4 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { loadWebhookConfig, WebhookConfigError, type WebhookConfig } from "./webhook-config.js";
 import { verifyGithubSignature } from "./signature.js";
 import { resolveWebhookJob, runWebhookReviewJob, type WebhookReviewJob } from "./webhook-job.js";
@@ -38,14 +40,18 @@ export function startWebhookServer(
 ): ReturnType<typeof createServer> {
   const log = deps.log ?? console;
   const runJob = deps.runJob ?? runWebhookReviewJob;
+  const queueStore = createWebhookQueueStore(config.webhookQueuePath, log);
   let busy = false;
   let workerStopped = false;
-  const pendingJobs: WebhookReviewJob[] = [];
+  const pendingJobs: WebhookReviewJob[] = queueStore.load();
   const deliveryIds: DeliveryIdState = {
     active: new Set<string>(),
     completed: new Set<string>(),
     completedOrder: [],
   };
+  for (const job of pendingJobs) {
+    deliveryIds.active.add(job.deliveryId);
+  }
 
   const server = createServer(async (req, res) => {
     await handleWebhookRequest(req, res, config, {
@@ -62,8 +68,14 @@ export function startWebhookServer(
           if (pendingJobs.length >= MAX_PENDING_WEBHOOK_JOBS) {
             return false;
           }
+          if (!queueStore.add(job)) {
+            return false;
+          }
           pendingJobs.push(job);
           return true;
+        }
+        if (!queueStore.add(job)) {
+          return false;
         }
         runNextJob(job);
         return true;
@@ -82,16 +94,20 @@ export function startWebhookServer(
     )
       .then(() => {
         completeDeliveryId(deliveryIds, job.deliveryId);
+        queueStore.remove(job.deliveryId);
       })
       .catch((error: unknown) => {
-        deliveryIds.active.delete(job.deliveryId);
+        if (!(error instanceof WebhookJobSettlementTimeoutError)) {
+          deliveryIds.active.delete(job.deliveryId);
+          queueStore.remove(job.deliveryId);
+        }
         log.error("Ronda webhook job failed", error);
         deps.onJobFailure?.(error);
         if (error instanceof WebhookJobSettlementTimeoutError) {
           workerStopped = true;
-          pendingJobs.length = 0;
           if (!deps.onJobFailure) {
             process.exitCode = 1;
+            process.exit(1);
           }
           server.close();
         }
@@ -111,6 +127,10 @@ export function startWebhookServer(
 
   server.listen(config.port, config.host, () => {
     log.log(`Ronda webhook listening on http://${config.host}:${config.port}`);
+    const nextJob = pendingJobs.shift();
+    if (nextJob !== undefined) {
+      runNextJob(nextJob);
+    }
   });
   return server;
 }
@@ -119,6 +139,12 @@ interface DeliveryIdState {
   active: Set<string>;
   completed: Set<string>;
   completedOrder: string[];
+}
+
+interface WebhookQueueStore {
+  load: () => WebhookReviewJob[];
+  add: (job: WebhookReviewJob) => boolean;
+  remove: (deliveryId: string) => void;
 }
 
 interface HandleWebhookRequestDeps {
@@ -247,6 +273,84 @@ function completeDeliveryId(deliveryIds: DeliveryIdState, deliveryId: string): v
       deliveryIds.completed.delete(oldestDeliveryId);
     }
   }
+}
+
+function createWebhookQueueStore(
+  queuePath: string | undefined,
+  log: Pick<Console, "error">,
+): WebhookQueueStore {
+  if (queuePath === undefined) {
+    return {
+      load: () => [],
+      add: () => true,
+      remove: () => undefined,
+    };
+  }
+
+  const readJobs = (): WebhookReviewJob[] => {
+    if (!existsSync(queuePath)) {
+      return [];
+    }
+    const parsed = JSON.parse(readFileSync(queuePath, "utf8")) as unknown;
+    if (!Array.isArray(parsed)) {
+      throw new Error(`webhook queue file is not an array: ${queuePath}`);
+    }
+    return parsed.filter(isWebhookReviewJob);
+  };
+
+  const writeJobs = (jobs: WebhookReviewJob[]): void => {
+    mkdirSync(dirname(queuePath), { recursive: true });
+    const tempPath = `${queuePath}.${process.pid}.tmp`;
+    writeFileSync(tempPath, `${JSON.stringify(jobs, null, 2)}\n`);
+    renameSync(tempPath, queuePath);
+  };
+
+  return {
+    load: () => {
+      try {
+        return readJobs();
+      } catch (error) {
+        log.error("Ronda webhook queue load failed", error);
+        return [];
+      }
+    },
+    add: (job) => {
+      try {
+        const jobs = readJobs();
+        if (!jobs.some((queuedJob) => queuedJob.deliveryId === job.deliveryId)) {
+          writeJobs([...jobs, job]);
+        }
+        return true;
+      } catch (error) {
+        log.error("Ronda webhook queue write failed", error);
+        return false;
+      }
+    },
+    remove: (deliveryId) => {
+      try {
+        const jobs = readJobs();
+        writeJobs(jobs.filter((job) => job.deliveryId !== deliveryId));
+      } catch (error) {
+        log.error("Ronda webhook queue remove failed", error);
+      }
+    },
+  };
+}
+
+function isWebhookReviewJob(value: unknown): value is WebhookReviewJob {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const job = value as Partial<WebhookReviewJob>;
+  return (
+    typeof job.owner === "string" &&
+    typeof job.repo === "string" &&
+    typeof job.pullNumber === "number" &&
+    (job.trigger === "automatic" || job.trigger === "manual") &&
+    typeof job.installationId === "number" &&
+    typeof job.deliveryId === "string" &&
+    (job.headSha === undefined || typeof job.headSha === "string")
+  );
 }
 
 async function withJobTimeout(

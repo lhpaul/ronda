@@ -1,4 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 export interface WebhookConfig {
   host: string;
@@ -9,6 +11,7 @@ export interface WebhookConfig {
   githubAppTokenTimeoutMs: number;
   webhookJobTimeoutMs: number;
   webhookJobSettlementTimeoutMs: number;
+  webhookQueuePath?: string;
   githubApiUrl?: string;
   detailsUrl?: string;
 }
@@ -53,6 +56,9 @@ export function loadWebhookConfig(options: LoadWebhookConfigOptions = {}): Webho
     webhookJobTimeoutMs: positiveInt(env.RONDA_WEBHOOK_JOB_TIMEOUT_MS) ?? 900_000,
     webhookJobSettlementTimeoutMs:
       positiveInt(env.RONDA_WEBHOOK_JOB_SETTLEMENT_TIMEOUT_MS) ?? 30_000,
+    webhookQueuePath:
+      nonBlank(env.RONDA_WEBHOOK_QUEUE_PATH) ??
+      join(homedir(), ".config", "ronda", "webhook-queue.json"),
     githubApiUrl: nonBlank(env.GITHUB_API_URL),
     detailsUrl: nonBlank(env.RONDA_DETAILS_URL),
   };

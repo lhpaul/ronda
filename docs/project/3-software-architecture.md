@@ -5,7 +5,7 @@
 | Layer | Choice | Notes |
 | --- | --- | --- |
 | Language / runtime | TypeScript on Node 20 | Run directly via `tsx`; no committed build artifact (`dist/` is gitignored) |
-| GitHub API client | `@octokit/rest` | Bounded retry (at most twice, 2s then 5s backoff) on HTTP 5xx / secondary rate limit only |
+| GitHub API client | `@octokit/rest` | Bounded retry (at most twice, 2s then 5s backoff) on HTTP 5xx, HTTP 429, or secondary rate limit only |
 | Inference | OpenAI-compatible HTTP API behind `ModelClient` | v0 default: Qwen/DashScope; vendor is configuration, never hardcoded outside `src/inference/` |
 | Ingress (v0) | Reusable GitHub Actions workflow or local GitHub App webhook service | Both call the same `runReviewPass` core |
 | Host | GitHub-hosted Actions runner or operator-owned local machine | MacBook dogfood first; Mini/MiniPC can host the same process later |

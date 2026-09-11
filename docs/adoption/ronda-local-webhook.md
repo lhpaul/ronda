@@ -48,6 +48,7 @@ export RONDA_WEBHOOK_PORT="3000"
 export RONDA_GITHUB_APP_TOKEN_TIMEOUT_MS="60000"
 export RONDA_WEBHOOK_JOB_TIMEOUT_MS="900000"
 export RONDA_WEBHOOK_JOB_SETTLEMENT_TIMEOUT_MS="30000"
+export RONDA_WEBHOOK_QUEUE_PATH="$HOME/.config/ronda/webhook-queue.json"
 export RONDA_DETAILS_URL="https://example.test/ronda"
 ```
 
@@ -60,7 +61,9 @@ config file. `RONDA_GITHUB_APP_TOKEN_TIMEOUT_MS` bounds the pre-pass GitHub App
 installation-token request, `RONDA_WEBHOOK_JOB_TIMEOUT_MS` bounds each full
 accepted job, and `RONDA_WEBHOOK_JOB_SETTLEMENT_TIMEOUT_MS` bounds how long the
 worker waits for a timed-out job to settle after abort before it stops the local
-server for supervisor recovery.
+server for supervisor recovery. `RONDA_WEBHOOK_QUEUE_PATH` stores accepted jobs
+until they complete, so queued work can be recovered by the supervisor-started
+process after a fail-stop restart.
 
 ## MacBook and Tunnel Dogfood
 

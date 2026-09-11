@@ -89,8 +89,8 @@ export function isRetryableError(error: unknown): boolean {
 
 /**
  * Retries `operation` at most twice, with fixed 2s then 5s backoff, only on
- * HTTP 5xx or a secondary-rate-limit response. Any other error propagates
- * immediately.
+ * HTTP 5xx, HTTP 429, or a secondary-rate-limit response. Any other error
+ * propagates immediately.
  */
 export async function withRetry<T>(
   operation: () => Promise<T>,

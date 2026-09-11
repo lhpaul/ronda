@@ -1,6 +1,9 @@
 import { createHmac } from "node:crypto";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -34,6 +37,14 @@ function pullRequestPayload(): Record<string, unknown> {
 
 function signature(body: string): string {
   return `sha256=${createHmac("sha256", config.webhookSecret).update(body).digest("hex")}`;
+}
+
+function tempQueuePath(): string {
+  return join(mkdtempSync(join(tmpdir(), "ronda-webhook-queue-")), "queue.json");
+}
+
+function readQueueFile(path: string): WebhookReviewJob[] {
+  return JSON.parse(readFileSync(path, "utf8")) as WebhookReviewJob[];
 }
 
 async function withWebhookServer<T>(
@@ -256,6 +267,90 @@ test("duplicate webhook delivery IDs are accepted but not requeued", async () =>
     });
     await eventually(() => jobs.length === 1);
     assert.equal(jobs[0].deliveryId, "delivery-6");
+  } finally {
+    server.close();
+  }
+});
+
+test("accepted webhook jobs are persisted until processing completes", async () => {
+  const queuePath = tempQueuePath();
+  const jobs: string[] = [];
+  let finishJob!: () => void;
+  const jobCanFinish = new Promise<void>((resolve) => {
+    finishJob = resolve;
+  });
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+        await jobCanFinish;
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-persisted",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    await eventually(() => jobs.length === 1);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => job.deliveryId),
+      ["delivery-persisted"],
+    );
+
+    finishJob();
+    await eventually(() => readQueueFile(queuePath).length === 0);
+  } finally {
+    finishJob();
+    server.close();
+  }
+});
+
+test("pending webhook jobs are recovered from the persisted queue on startup", async () => {
+  const queuePath = tempQueuePath();
+  const pendingJob: WebhookReviewJob = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 7,
+    trigger: "automatic",
+    headSha: "a".repeat(40),
+    installationId: 42,
+    deliveryId: "delivery-recovered",
+  };
+  writeFileSync(queuePath, `${JSON.stringify([pendingJob], null, 2)}\n`);
+  const jobs: string[] = [];
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  try {
+    await eventually(() => jobs.length === 1);
+    assert.deepEqual(jobs, ["delivery-recovered"]);
+    await eventually(() => readQueueFile(queuePath).length === 0);
   } finally {
     server.close();
   }
@@ -561,8 +656,15 @@ test("timed-out webhook jobs settle before the FIFO queue advances", async () =>
 test("unsettled timed-out webhook jobs stop the worker instead of advancing the queue", async () => {
   const failures: unknown[] = [];
   const jobs: string[] = [];
+  const queuePath = tempQueuePath();
   const server = startWebhookServer(
-    { ...config, port: 0, webhookJobTimeoutMs: 5, webhookJobSettlementTimeoutMs: 5 },
+    {
+      ...config,
+      port: 0,
+      webhookJobTimeoutMs: 5,
+      webhookJobSettlementTimeoutMs: 5,
+      webhookQueuePath: queuePath,
+    },
     {
       runJob: async (job, _config, signal) => {
         jobs.push(job.deliveryId);
@@ -605,6 +707,10 @@ test("unsettled timed-out webhook jobs stop the worker instead of advancing the 
 
     assert.ok(failures[0] instanceof WebhookJobSettlementTimeoutError);
     assert.deepEqual(jobs, ["delivery-unsettled-first"]);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => job.deliveryId),
+      ["delivery-unsettled-first", "delivery-unsettled-second"],
+    );
   } finally {
     server.close();
   }
