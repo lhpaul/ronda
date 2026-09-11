@@ -4,7 +4,12 @@ import { dirname } from "node:path";
 import { ReviewPublishedCheckRunError } from "../core/run-review-pass.js";
 import { loadWebhookConfig, WebhookConfigError, type WebhookConfig } from "./webhook-config.js";
 import { verifyGithubSignature } from "./signature.js";
-import { resolveWebhookJob, runWebhookReviewJob, type WebhookReviewJob } from "./webhook-job.js";
+import {
+  resolveWebhookJob,
+  runWebhookReviewJob,
+  type WebhookReviewJob,
+  type WebhookReviewJobResult,
+} from "./webhook-job.js";
 
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
 const MAX_SEEN_DELIVERY_IDS = 1_000;
@@ -12,7 +17,11 @@ const MAX_PENDING_WEBHOOK_JOBS = 25;
 const MAX_PERSISTED_COMPLETED_WEBHOOK_JOBS = 1_000;
 
 export interface WebhookServerDeps {
-  runJob?: (job: WebhookReviewJob, config: WebhookConfig, signal: AbortSignal) => Promise<void>;
+  runJob?: (
+    job: WebhookReviewJob,
+    config: WebhookConfig,
+    signal: AbortSignal,
+  ) => Promise<WebhookReviewJobResult | void>;
   onJobFailure?: (error: unknown) => void;
   queueStore?: WebhookQueueStore;
   log?: Pick<Console, "error" | "log">;
@@ -117,15 +126,17 @@ export function startWebhookServer(
           config.webhookJobSettlementTimeoutMs,
         ),
       )
-      .then(() => {
+      .then((result) => {
         terminalOutcomeReached = true;
-        if (!queueStore.markPublished(job.deliveryId)) {
-          throw new WebhookQueuePersistenceError(
-            `Failed to mark webhook delivery ${job.deliveryId} terminal outcome published`,
-          );
+        if (result?.terminalCheckRunPublished === true) {
+          if (!queueStore.markPublished(job.deliveryId)) {
+            throw new WebhookQueuePersistenceError(
+              `Failed to mark webhook delivery ${job.deliveryId} terminal outcome published`,
+            );
+          }
+          terminalOutcomePublished = true;
+          suppressReviewKey(deliveryIds, job);
         }
-        terminalOutcomePublished = true;
-        suppressReviewKey(deliveryIds, job);
         if (!queueStore.complete(job.deliveryId)) {
           throw new WebhookQueuePersistenceError(
             `Failed to mark completed webhook delivery ${job.deliveryId} in the queue`,
@@ -506,7 +517,7 @@ function createWebhookQueueStore(
         return entry;
       }
       found = true;
-      return { ...entry, status };
+      return { ...entry, status, ...(status === "published" ? { reviewPublished: true } : {}) };
     });
     if (!found) {
       return false;
@@ -528,7 +539,11 @@ function pruneCompletedEntries(entries: WebhookQueueEntry[]): WebhookQueueEntry[
 function reviewSuppressionKeysForEntries(entries: WebhookQueueEntry[]): Set<string> {
   return new Set(
     entries
-      .filter((entry) => entry.status === "published" || entry.status === "completed")
+      .filter(
+        (entry) =>
+          entry.status === "published" ||
+          (entry.status === "completed" && entry.reviewPublished === true),
+      )
       .map(reviewSuppressionKey)
       .filter((key): key is string => key !== undefined),
   );
@@ -544,6 +559,7 @@ function reviewSuppressionKey(job: WebhookReviewJob): string | undefined {
 interface WebhookQueueEntry extends WebhookReviewJob {
   status?: "pending" | "in_progress" | "published" | "completed";
   completedAt?: string;
+  reviewPublished?: boolean;
 }
 
 function toWebhookReviewJob(entry: WebhookQueueEntry): WebhookReviewJob {
@@ -566,7 +582,8 @@ function isWebhookQueueEntry(value: unknown): value is WebhookQueueEntry {
       entry.status === "in_progress" ||
       entry.status === "published" ||
       entry.status === "completed") &&
-    (entry.completedAt === undefined || typeof entry.completedAt === "string")
+    (entry.completedAt === undefined || typeof entry.completedAt === "string") &&
+    (entry.reviewPublished === undefined || typeof entry.reviewPublished === "boolean")
   );
 }
 
@@ -587,12 +604,12 @@ function isWebhookReviewJob(value: unknown): value is WebhookReviewJob {
 }
 
 async function withJobTimeout(
-  runJob: (signal: AbortSignal) => Promise<void>,
+  runJob: (signal: AbortSignal) => Promise<WebhookReviewJobResult | void>,
   timeoutMs: number,
   createError: () => Error,
   createSettlementError: () => Error,
   settlementTimeoutMs: number,
-): Promise<void> {
+): Promise<WebhookReviewJobResult | void> {
   const controller = new AbortController();
   let timeout: NodeJS.Timeout | undefined;
   let settlementTimeout: NodeJS.Timeout | undefined;
@@ -607,16 +624,16 @@ async function withJobTimeout(
   });
   try {
     const result = await Promise.race([
-      jobPromise.then(() => ({ timedOut: false as const })),
+      jobPromise.then((jobResult) => ({ timedOut: false as const, jobResult })),
       timeoutPromise,
     ]);
     if (!result.timedOut) {
-      return;
+      return result.jobResult;
     }
 
     const settled = await Promise.race([
       jobPromise.then(
-        () => "resolved" as const,
+        (jobResult) => ({ status: "resolved" as const, jobResult }),
         () => "rejected" as const,
       ),
       new Promise<"timed_out">((resolve) => {
@@ -628,8 +645,8 @@ async function withJobTimeout(
       jobPromise.catch(() => undefined);
       throw createSettlementError();
     }
-    if (settled === "resolved") {
-      return;
+    if (typeof settled === "object" && settled.status === "resolved") {
+      return settled.jobResult;
     }
     throw result.error;
   } finally {

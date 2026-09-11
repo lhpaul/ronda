@@ -27,6 +27,10 @@ export interface WebhookReviewJob extends ReviewPassInput {
   deliveryId: string;
 }
 
+export interface WebhookReviewJobResult {
+  terminalCheckRunPublished: boolean;
+}
+
 export interface WebhookJobDecision {
   shouldRun: boolean;
   job?: WebhookReviewJob;
@@ -93,7 +97,7 @@ export async function runWebhookReviewJob(
   job: WebhookReviewJob,
   webhookConfig: WebhookConfig,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<WebhookReviewJobResult> {
   const appTokenSignal = combineAbortSignals(
     AbortSignal.timeout(webhookConfig.githubAppTokenTimeoutMs),
     signal,
@@ -195,6 +199,7 @@ export async function runWebhookReviewJob(
       `Webhook review failed for ${job.owner}/${job.repo}#${job.pullNumber} without a terminal check run`,
     );
   }
+  return { terminalCheckRunPublished: result.terminalCheckRunPublished === true };
 }
 
 export async function findExistingWebhookCheckRun(

@@ -48,6 +48,7 @@ function tempQueuePath(): string {
 interface WebhookQueueFileEntry extends WebhookReviewJob {
   status?: "pending" | "in_progress" | "published" | "completed";
   completedAt?: string;
+  reviewPublished?: boolean;
 }
 
 function readQueueFile(path: string): WebhookQueueFileEntry[] {
@@ -350,6 +351,7 @@ test("pending webhook jobs are recovered from the persisted queue on startup", a
     {
       runJob: async (job) => {
         jobs.push(job.deliveryId);
+        return { terminalCheckRunPublished: true };
       },
       log: { error: () => undefined, log: () => undefined },
     },
@@ -949,6 +951,7 @@ test("completion persistence failures after a terminal outcome do not retry the 
       queueStore,
       runJob: async (job) => {
         jobs.push(job.deliveryId);
+        return { terminalCheckRunPublished: true };
       },
       onJobFailure: (error) => {
         failures.push(error);
@@ -1014,7 +1017,7 @@ test("published-marker failures after a terminal outcome do not retry the job", 
     { ...config, port: 0 },
     {
       queueStore,
-      runJob: async () => undefined,
+      runJob: async () => ({ terminalCheckRunPublished: true }),
       onJobFailure: (error) => {
         failures.push(error);
       },
@@ -1042,6 +1045,74 @@ test("published-marker failures after a terminal outcome do not retry the job", 
     await eventually(() => failures.length === 1);
     assert.ok(failures[0] instanceof WebhookQueuePersistenceError);
     assert.deepEqual(calls, ["add", "start", "markPublished", "markPublished", "complete"]);
+  } finally {
+    server.close();
+  }
+});
+
+test("skipped draft webhook jobs do not suppress later ready events for the same head", async () => {
+  const queuePath = tempQueuePath();
+  const jobs: string[] = [];
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+        if (job.deliveryId === "delivery-ready-after-draft") {
+          return { terminalCheckRunPublished: true };
+        }
+        return { terminalCheckRunPublished: false };
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const postDelivery = async (
+    deliveryId: string,
+    payload: Record<string, unknown>,
+  ): Promise<Response> => {
+    const body = JSON.stringify(payload);
+    return fetch(`${baseUrl}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": deliveryId,
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+  };
+
+  try {
+    const draftPayload = pullRequestPayload();
+    draftPayload.action = "opened";
+    draftPayload.pull_request = { number: 7, draft: true, head: { sha: "a".repeat(40) } };
+    assert.equal((await postDelivery("delivery-draft-skip", draftPayload)).status, 202);
+    await eventually(() => jobs.length === 1);
+
+    const readyPayload = pullRequestPayload();
+    readyPayload.action = "ready_for_review";
+    readyPayload.pull_request = { number: 7, draft: false, head: { sha: "a".repeat(40) } };
+    assert.equal((await postDelivery("delivery-ready-after-draft", readyPayload)).status, 202);
+    await eventually(() => jobs.length === 2);
+
+    assert.deepEqual(jobs, ["delivery-draft-skip", "delivery-ready-after-draft"]);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [
+        job.deliveryId,
+        job.status,
+        job.reviewPublished ?? false,
+      ]),
+      [
+        ["delivery-draft-skip", "completed", false],
+        ["delivery-ready-after-draft", "completed", true],
+      ],
+    );
   } finally {
     server.close();
   }
