@@ -723,14 +723,14 @@ test("review-published webhook failures are not replayed from the persisted queu
     assert.deepEqual(jobs, ["delivery-review-published"]);
     assert.deepEqual(
       readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
-      [["delivery-review-published", "completed"]],
+      [["delivery-review-published", "published"]],
     );
   } finally {
     server.close();
   }
 });
 
-test("review-published webhook completion failures write a published tombstone first", async () => {
+test("review-published webhook failures write a published tombstone", async () => {
   const failures: unknown[] = [];
   const calls: string[] = [];
   const queueStore = {
@@ -752,10 +752,7 @@ test("review-published webhook completion failures write a published tombstone f
       calls.push("markPublished");
       return true;
     },
-    complete: () => {
-      calls.push("complete");
-      return false;
-    },
+    complete: () => true,
   };
   const server = startWebhookServer(
     { ...config, port: 0 },
@@ -789,8 +786,8 @@ test("review-published webhook completion failures write a published tombstone f
 
     assert.equal(response.status, 202);
     await eventually(() => failures.length === 1);
-    assert.ok(failures[0] instanceof WebhookQueuePersistenceError);
-    assert.deepEqual(calls, ["add", "start", "markPublished", "complete"]);
+    assert.ok(failures[0] instanceof ReviewPublishedCheckRunError);
+    assert.deepEqual(calls, ["add", "start", "markPublished"]);
   } finally {
     server.close();
   }
@@ -1228,6 +1225,72 @@ test("timed-out webhook jobs settle before the worker stops", async () => {
       ["delivery-settle-first", "delivery-settle-second"],
     );
     assert.ok(failures[0] instanceof WebhookJobTimeoutError);
+  } finally {
+    server.close();
+  }
+});
+
+test("timed-out webhook jobs that resolve after abort complete and advance the queue", async () => {
+  const jobs: string[] = [];
+  const queuePath = tempQueuePath();
+  let firstJobSawAbort = false;
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookJobTimeoutMs: 5, webhookQueuePath: queuePath },
+    {
+      runJob: async (job, _config, signal) => {
+        jobs.push(job.deliveryId);
+        if (job.deliveryId !== "delivery-resolve-after-abort-first") {
+          return;
+        }
+        await new Promise<void>((resolve) => {
+          signal.addEventListener(
+            "abort",
+            () => {
+              firstJobSawAbort = true;
+              setTimeout(resolve, 20);
+            },
+            { once: true },
+          );
+        });
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const body = JSON.stringify(pullRequestPayload());
+  const postDelivery = async (deliveryId: string): Promise<Response> =>
+    fetch(`${baseUrl}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": deliveryId,
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+  try {
+    assert.equal((await postDelivery("delivery-resolve-after-abort-first")).status, 202);
+    await eventually(() => jobs.length === 1);
+    assert.equal((await postDelivery("delivery-resolve-after-abort-second")).status, 202);
+    await eventually(() => firstJobSawAbort);
+    await eventually(() => jobs.length === 2);
+    assert.deepEqual(jobs, [
+      "delivery-resolve-after-abort-first",
+      "delivery-resolve-after-abort-second",
+    ]);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
+      [
+        ["delivery-resolve-after-abort-first", "completed"],
+        ["delivery-resolve-after-abort-second", "completed"],
+      ],
+    );
   } finally {
     server.close();
   }

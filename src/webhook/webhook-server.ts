@@ -132,7 +132,13 @@ export function startWebhookServer(
       })
       .catch((error: unknown) => {
         let failureError = error;
-        if (error instanceof ReviewPublishedCheckRunError || terminalOutcomeReached) {
+        if (error instanceof ReviewPublishedCheckRunError) {
+          if (!terminalOutcomePublished && !queueStore.markPublished(job.deliveryId)) {
+            failureError = new WebhookQueuePersistenceError(
+              `Failed to mark review-published webhook delivery ${job.deliveryId} in the queue`,
+            );
+          }
+        } else if (terminalOutcomeReached) {
           if (!terminalOutcomePublished && queueStore.markPublished(job.deliveryId)) {
             terminalOutcomePublished = true;
           }
@@ -546,17 +552,20 @@ async function withJobTimeout(
 
     const settled = await Promise.race([
       jobPromise.then(
-        () => true,
-        () => true,
+        () => "resolved" as const,
+        () => "rejected" as const,
       ),
-      new Promise<boolean>((resolve) => {
-        settlementTimeout = setTimeout(() => resolve(false), settlementTimeoutMs);
+      new Promise<"timed_out">((resolve) => {
+        settlementTimeout = setTimeout(() => resolve("timed_out"), settlementTimeoutMs);
         settlementTimeout.unref?.();
       }),
     ]);
-    if (!settled) {
+    if (settled === "timed_out") {
       jobPromise.catch(() => undefined);
       throw createSettlementError();
+    }
+    if (settled === "resolved") {
+      return;
     }
     throw result.error;
   } finally {
