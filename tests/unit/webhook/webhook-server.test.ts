@@ -515,7 +515,7 @@ test("completed webhook queue entries reject matching redeliveries", async () =>
   }
 });
 
-test("in-progress webhook queue entries are quarantined on startup", async () => {
+test("in-progress webhook queue entries are recovered on startup", async () => {
   const queuePath = tempQueuePath();
   const inProgressJob: WebhookQueueFileEntry = {
     owner: "lhpaul",
@@ -528,11 +528,15 @@ test("in-progress webhook queue entries are quarantined on startup", async () =>
   };
   writeFileSync(queuePath, `${JSON.stringify([inProgressJob], null, 2)}\n`);
   const jobs: string[] = [];
+  let resolveJob: (() => void) | undefined;
   const server = startWebhookServer(
     { ...config, port: 0, webhookQueuePath: queuePath },
     {
       runJob: async (job) => {
         jobs.push(job.deliveryId);
+        await new Promise<void>((resolve) => {
+          resolveJob = resolve;
+        });
       },
       log: { error: () => undefined, log: () => undefined },
     },
@@ -543,7 +547,13 @@ test("in-progress webhook queue entries are quarantined on startup", async () =>
   });
   const address = server.address() as AddressInfo;
   try {
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await eventually(() => jobs.length === 1);
+    assert.deepEqual(jobs, ["delivery-in-progress"]);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
+      [["delivery-in-progress", "in_progress"]],
+    );
+
     const body = JSON.stringify(pullRequestPayload());
     const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
       method: "POST",
@@ -561,10 +571,12 @@ test("in-progress webhook queue entries are quarantined on startup", async () =>
       queued: false,
       reason: "duplicate_delivery",
     });
-    assert.deepEqual(jobs, []);
+
+    resolveJob?.();
+    await eventually(() => readQueueFile(queuePath).every((job) => job.status === "completed"));
     assert.deepEqual(
       readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
-      [["delivery-in-progress", "in_progress"]],
+      [["delivery-in-progress", "completed"]],
     );
   } finally {
     server.close();

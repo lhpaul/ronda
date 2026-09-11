@@ -20,6 +20,8 @@ import type { WebhookConfig } from "./webhook-config.js";
 
 const TERMINAL_CHECK_RUN_TIMEOUT_MS = 30_000;
 
+type CheckRunLookup = (options?: { appId?: number }) => Promise<number | null>;
+
 export interface WebhookReviewJob extends ReviewPassInput {
   installationId: number;
   deliveryId: string;
@@ -129,15 +131,13 @@ export async function runWebhookReviewJob(
         n,
         combineAbortSignals(requestSignal, signal),
       ),
-    findExistingCheckRun: (o, r, sha, requestSignal) =>
-      findExistingCheckRun(
-        installationClient.octokit,
-        o,
-        r,
-        sha,
-        combineAbortSignals(requestSignal, signal),
-        { appId: Number.isFinite(githubAppId) ? githubAppId : undefined },
-      ),
+    findExistingCheckRun: async (o, r, sha, requestSignal) => {
+      const combinedSignal = combineAbortSignals(requestSignal, signal);
+      const publishingAppId = Number.isFinite(githubAppId) ? githubAppId : undefined;
+      return findExistingWebhookCheckRun(job.trigger, publishingAppId, (options) =>
+        findExistingCheckRun(installationClient.octokit, o, r, sha, combinedSignal, options),
+      );
+    },
     publishReview: (reviewInput, requestSignal) =>
       publishReview(
         installationClient.octokit,
@@ -190,6 +190,20 @@ export async function runWebhookReviewJob(
     pullNumber: job.pullNumber,
     outcome: result.outcome,
   });
+}
+
+export async function findExistingWebhookCheckRun(
+  trigger: WebhookReviewJob["trigger"],
+  githubAppId: number | undefined,
+  lookup: CheckRunLookup,
+): Promise<number | null> {
+  if (trigger === "automatic") {
+    const anyExistingCheckRunId = await lookup();
+    if (anyExistingCheckRunId !== null) {
+      return anyExistingCheckRunId;
+    }
+  }
+  return lookup({ appId: githubAppId });
 }
 
 export function withOuterAbortSignal(

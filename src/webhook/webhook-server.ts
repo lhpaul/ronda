@@ -352,7 +352,12 @@ function createWebhookQueueStore(
     load: () => {
       try {
         return readEntries()
-          .filter((entry) => entry.status === undefined || entry.status === "pending")
+          .filter(
+            (entry) =>
+              entry.status === undefined ||
+              entry.status === "pending" ||
+              entry.status === "in_progress",
+          )
           .map(toWebhookReviewJob);
       } catch (error) {
         log.error("Ronda webhook queue load failed", error);
@@ -362,7 +367,7 @@ function createWebhookQueueStore(
     loadSuppressedDeliveryIds: () => {
       try {
         return readEntries()
-          .filter((entry) => entry.status === "completed" || entry.status === "in_progress")
+          .filter((entry) => entry.status === "completed")
           .map((entry) => entry.deliveryId);
       } catch (error) {
         log.error("Ronda webhook queue load failed", error);

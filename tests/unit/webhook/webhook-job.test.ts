@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { REVIEW_COMMAND } from "../../../src/domain/review-pass.types.js";
 import {
   checkRunSignal,
+  findExistingWebhookCheckRun,
   resolveWebhookJob,
   withOuterAbortSignal,
 } from "../../../src/webhook/webhook-job.js";
@@ -123,4 +124,40 @@ test("terminal check-run publication starts with a fresh non-aborted signal", ()
 
   assert.notEqual(terminal, undefined);
   assert.equal(terminal?.aborted, false);
+});
+
+test("automatic webhook duplicate lookup accepts any existing Ronda check run", async () => {
+  const calls: Array<{ appId?: number } | undefined> = [];
+
+  const id = await findExistingWebhookCheckRun("automatic", 42, async (options) => {
+    calls.push(options);
+    return 111;
+  });
+
+  assert.equal(id, 111);
+  assert.deepEqual(calls, [undefined]);
+});
+
+test("automatic webhook update lookup falls back to the publishing GitHub App", async () => {
+  const calls: Array<{ appId?: number } | undefined> = [];
+
+  const id = await findExistingWebhookCheckRun("automatic", 42, async (options) => {
+    calls.push(options);
+    return options?.appId === 42 ? 222 : null;
+  });
+
+  assert.equal(id, 222);
+  assert.deepEqual(calls, [undefined, { appId: 42 }]);
+});
+
+test("manual webhook check lookup only targets the publishing GitHub App", async () => {
+  const calls: Array<{ appId?: number } | undefined> = [];
+
+  const id = await findExistingWebhookCheckRun("manual", 42, async (options) => {
+    calls.push(options);
+    return options?.appId === 42 ? 222 : 111;
+  });
+
+  assert.equal(id, 222);
+  assert.deepEqual(calls, [{ appId: 42 }]);
 });
