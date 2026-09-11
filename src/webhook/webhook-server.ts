@@ -368,17 +368,19 @@ function createWebhookQueueStore(
     complete: (deliveryId) => {
       try {
         const entries = readEntries();
-        let found = false;
-        const completedEntries = entries.map((entry) => {
-          if (entry.deliveryId !== deliveryId) {
-            return entry;
-          }
-          found = true;
-          return { ...entry, status: "completed" as const, completedAt: new Date().toISOString() };
-        });
-        if (!found) {
+        const entry = entries.find((queuedEntry) => queuedEntry.deliveryId === deliveryId);
+        if (entry === undefined) {
           return false;
         }
+        const completedEntry = {
+          ...entry,
+          status: "completed" as const,
+          completedAt: new Date().toISOString(),
+        };
+        const completedEntries = [
+          ...entries.filter((queuedEntry) => queuedEntry.deliveryId !== deliveryId),
+          completedEntry,
+        ];
         writeEntries(pruneCompletedEntries(completedEntries));
         return true;
       } catch (error) {

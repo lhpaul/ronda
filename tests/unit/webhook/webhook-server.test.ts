@@ -536,7 +536,7 @@ test("completed webhook queue history is bounded", async () => {
     deliveryId: "delivery-newly-completed",
     status: "pending",
   };
-  writeFileSync(queuePath, `${JSON.stringify([...completedJobs, pendingJob], null, 2)}\n`);
+  writeFileSync(queuePath, `${JSON.stringify([pendingJob, ...completedJobs], null, 2)}\n`);
   const jobs: string[] = [];
   const server = startWebhookServer(
     { ...config, port: 0, webhookQueuePath: queuePath },
