@@ -54,7 +54,7 @@ export function startWebhookServer(
   let busy = false;
   let workerStopped = false;
   const pendingJobs: WebhookReviewJob[] = queueStore.load();
-  const completedDeliveryIds = queueStore.loadCompletedDeliveryIds();
+  const completedDeliveryIds = queueStore.loadSuppressedDeliveryIds();
   const deliveryIds: DeliveryIdState = {
     active: new Set<string>(),
     completed: new Set<string>(completedDeliveryIds),
@@ -96,13 +96,23 @@ export function startWebhookServer(
 
   const runNextJob = (job: WebhookReviewJob): void => {
     busy = true;
-    void withJobTimeout(
-      (signal) => runJob(job, config, signal),
-      config.webhookJobTimeoutMs,
-      () => new WebhookJobTimeoutError(job, config.webhookJobTimeoutMs),
-      () => new WebhookJobSettlementTimeoutError(job, config.webhookJobSettlementTimeoutMs),
-      config.webhookJobSettlementTimeoutMs,
-    )
+    void Promise.resolve()
+      .then(() => {
+        if (!queueStore.start(job.deliveryId)) {
+          throw new WebhookQueuePersistenceError(
+            `Failed to mark webhook delivery ${job.deliveryId} in progress`,
+          );
+        }
+      })
+      .then(() =>
+        withJobTimeout(
+          (signal) => runJob(job, config, signal),
+          config.webhookJobTimeoutMs,
+          () => new WebhookJobTimeoutError(job, config.webhookJobTimeoutMs),
+          () => new WebhookJobSettlementTimeoutError(job, config.webhookJobSettlementTimeoutMs),
+          config.webhookJobSettlementTimeoutMs,
+        ),
+      )
       .then(() => {
         if (!queueStore.complete(job.deliveryId)) {
           throw new WebhookQueuePersistenceError(
@@ -121,6 +131,8 @@ export function startWebhookServer(
               `Failed to mark review-published webhook delivery ${job.deliveryId} in the queue`,
             );
           }
+        } else {
+          queueStore.retry(job.deliveryId);
         }
         deliveryIds.active.delete(job.deliveryId);
         log.error("Ronda webhook job failed", failureError);
@@ -163,8 +175,10 @@ interface DeliveryIdState {
 
 export interface WebhookQueueStore {
   load: () => WebhookReviewJob[];
-  loadCompletedDeliveryIds: () => string[];
+  loadSuppressedDeliveryIds: () => string[];
   add: (job: WebhookReviewJob) => boolean;
+  start: (deliveryId: string) => boolean;
+  retry: (deliveryId: string) => boolean;
   complete: (deliveryId: string) => boolean;
 }
 
@@ -303,8 +317,10 @@ function createWebhookQueueStore(
   if (queuePath === undefined) {
     return {
       load: () => [],
-      loadCompletedDeliveryIds: () => [],
+      loadSuppressedDeliveryIds: () => [],
       add: () => true,
+      start: () => true,
+      retry: () => true,
       complete: () => true,
     };
   }
@@ -336,17 +352,17 @@ function createWebhookQueueStore(
     load: () => {
       try {
         return readEntries()
-          .filter((entry) => entry.status !== "completed")
+          .filter((entry) => entry.status === undefined || entry.status === "pending")
           .map(toWebhookReviewJob);
       } catch (error) {
         log.error("Ronda webhook queue load failed", error);
         throw new WebhookQueuePersistenceError(`Failed to load webhook queue from ${queuePath}`);
       }
     },
-    loadCompletedDeliveryIds: () => {
+    loadSuppressedDeliveryIds: () => {
       try {
         return readEntries()
-          .filter((entry) => entry.status === "completed")
+          .filter((entry) => entry.status === "completed" || entry.status === "in_progress")
           .map((entry) => entry.deliveryId);
       } catch (error) {
         log.error("Ronda webhook queue load failed", error);
@@ -362,6 +378,22 @@ function createWebhookQueueStore(
         return true;
       } catch (error) {
         log.error("Ronda webhook queue write failed", error);
+        return false;
+      }
+    },
+    start: (deliveryId) => {
+      try {
+        return updateEntryStatus(deliveryId, "in_progress");
+      } catch (error) {
+        log.error("Ronda webhook queue claim write failed", error);
+        return false;
+      }
+    },
+    retry: (deliveryId) => {
+      try {
+        return updateEntryStatus(deliveryId, "pending");
+      } catch (error) {
+        log.error("Ronda webhook queue retry write failed", error);
         return false;
       }
     },
@@ -389,6 +421,23 @@ function createWebhookQueueStore(
       }
     },
   };
+
+  function updateEntryStatus(deliveryId: string, status: WebhookQueueEntry["status"]): boolean {
+    const entries = readEntries();
+    let found = false;
+    const updatedEntries = entries.map((entry) => {
+      if (entry.deliveryId !== deliveryId) {
+        return entry;
+      }
+      found = true;
+      return { ...entry, status };
+    });
+    if (!found) {
+      return false;
+    }
+    writeEntries(updatedEntries);
+    return true;
+  }
 }
 
 function pruneCompletedEntries(entries: WebhookQueueEntry[]): WebhookQueueEntry[] {
@@ -401,7 +450,7 @@ function pruneCompletedEntries(entries: WebhookQueueEntry[]): WebhookQueueEntry[
 }
 
 interface WebhookQueueEntry extends WebhookReviewJob {
-  status?: "pending" | "completed";
+  status?: "pending" | "in_progress" | "completed";
   completedAt?: string;
 }
 
@@ -420,7 +469,10 @@ function isWebhookQueueEntry(value: unknown): value is WebhookQueueEntry {
   }
   const entry = value as Partial<WebhookQueueEntry>;
   return (
-    (entry.status === undefined || entry.status === "pending" || entry.status === "completed") &&
+    (entry.status === undefined ||
+      entry.status === "pending" ||
+      entry.status === "in_progress" ||
+      entry.status === "completed") &&
     (entry.completedAt === undefined || typeof entry.completedAt === "string")
   );
 }

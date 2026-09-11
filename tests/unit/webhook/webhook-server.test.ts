@@ -46,7 +46,7 @@ function tempQueuePath(): string {
 }
 
 interface WebhookQueueFileEntry extends WebhookReviewJob {
-  status?: "pending" | "completed";
+  status?: "pending" | "in_progress" | "completed";
   completedAt?: string;
 }
 
@@ -321,7 +321,7 @@ test("accepted webhook jobs are persisted until processing completes", async () 
     );
     assert.deepEqual(
       readQueueFile(queuePath).map((job) => job.status),
-      ["pending"],
+      ["in_progress"],
     );
 
     finishJob();
@@ -509,6 +509,62 @@ test("completed webhook queue entries reject matching redeliveries", async () =>
     assert.deepEqual(
       readQueueFile(queuePath).map((job) => job.deliveryId),
       ["delivery-completed-redelivery"],
+    );
+  } finally {
+    server.close();
+  }
+});
+
+test("in-progress webhook queue entries are quarantined on startup", async () => {
+  const queuePath = tempQueuePath();
+  const inProgressJob: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 7,
+    trigger: "manual",
+    installationId: 42,
+    deliveryId: "delivery-in-progress",
+    status: "in_progress",
+  };
+  writeFileSync(queuePath, `${JSON.stringify([inProgressJob], null, 2)}\n`);
+  const jobs: string[] = [];
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const body = JSON.stringify(pullRequestPayload());
+    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-in-progress",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    assert.deepEqual(await response.json(), {
+      ok: true,
+      queued: false,
+      reason: "duplicate_delivery",
+    });
+    assert.deepEqual(jobs, []);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
+      [["delivery-in-progress", "in_progress"]],
     );
   } finally {
     server.close();
