@@ -730,6 +730,72 @@ test("review-published webhook failures are not replayed from the persisted queu
   }
 });
 
+test("review-published webhook completion failures write a published tombstone first", async () => {
+  const failures: unknown[] = [];
+  const calls: string[] = [];
+  const queueStore = {
+    load: () => [],
+    loadSuppressedDeliveryIds: () => [],
+    add: () => {
+      calls.push("add");
+      return true;
+    },
+    start: () => {
+      calls.push("start");
+      return true;
+    },
+    retry: () => {
+      calls.push("retry");
+      return true;
+    },
+    markPublished: () => {
+      calls.push("markPublished");
+      return true;
+    },
+    complete: () => {
+      calls.push("complete");
+      return false;
+    },
+  };
+  const server = startWebhookServer(
+    { ...config, port: 0 },
+    {
+      queueStore,
+      runJob: async () => {
+        throw new ReviewPublishedCheckRunError("review is public but check run failed");
+      },
+      onJobFailure: (error) => {
+        failures.push(error);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-review-published-complete-fails",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    await eventually(() => failures.length === 1);
+    assert.ok(failures[0] instanceof WebhookQueuePersistenceError);
+    assert.deepEqual(calls, ["add", "start", "markPublished", "complete"]);
+  } finally {
+    server.close();
+  }
+});
+
 test("completion persistence failures after a terminal outcome do not retry the job", async () => {
   const failures: unknown[] = [];
   const calls: string[] = [];
@@ -793,6 +859,70 @@ test("completion persistence failures after a terminal outcome do not retry the 
     assert.deepEqual(jobs, ["delivery-complete-fails"]);
     assert.ok(failures[0] instanceof WebhookQueuePersistenceError);
     assert.deepEqual(calls, ["add", "start", "markPublished", "complete", "complete"]);
+  } finally {
+    server.close();
+  }
+});
+
+test("published-marker failures after a terminal outcome do not retry the job", async () => {
+  const failures: unknown[] = [];
+  const calls: string[] = [];
+  const queueStore = {
+    load: () => [],
+    loadSuppressedDeliveryIds: () => [],
+    add: () => {
+      calls.push("add");
+      return true;
+    },
+    start: () => {
+      calls.push("start");
+      return true;
+    },
+    retry: () => {
+      calls.push("retry");
+      return true;
+    },
+    markPublished: () => {
+      calls.push("markPublished");
+      return false;
+    },
+    complete: () => {
+      calls.push("complete");
+      return false;
+    },
+  };
+  const server = startWebhookServer(
+    { ...config, port: 0 },
+    {
+      queueStore,
+      runJob: async () => undefined,
+      onJobFailure: (error) => {
+        failures.push(error);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-published-marker-fails",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    await eventually(() => failures.length === 1);
+    assert.ok(failures[0] instanceof WebhookQueuePersistenceError);
+    assert.deepEqual(calls, ["add", "start", "markPublished", "markPublished", "complete"]);
   } finally {
     server.close();
   }

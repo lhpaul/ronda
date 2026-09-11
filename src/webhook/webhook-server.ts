@@ -96,6 +96,7 @@ export function startWebhookServer(
 
   const runNextJob = (job: WebhookReviewJob): void => {
     busy = true;
+    let terminalOutcomeReached = false;
     let terminalOutcomePublished = false;
     void Promise.resolve()
       .then(() => {
@@ -115,6 +116,7 @@ export function startWebhookServer(
         ),
       )
       .then(() => {
+        terminalOutcomeReached = true;
         if (!queueStore.markPublished(job.deliveryId)) {
           throw new WebhookQueuePersistenceError(
             `Failed to mark webhook delivery ${job.deliveryId} terminal outcome published`,
@@ -130,7 +132,10 @@ export function startWebhookServer(
       })
       .catch((error: unknown) => {
         let failureError = error;
-        if (error instanceof ReviewPublishedCheckRunError || terminalOutcomePublished) {
+        if (error instanceof ReviewPublishedCheckRunError || terminalOutcomeReached) {
+          if (!terminalOutcomePublished && queueStore.markPublished(job.deliveryId)) {
+            terminalOutcomePublished = true;
+          }
           if (queueStore.complete(job.deliveryId)) {
             completeDeliveryId(deliveryIds, job.deliveryId);
           } else {
