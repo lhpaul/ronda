@@ -52,10 +52,11 @@ export function startWebhookServer(
   let busy = false;
   let workerStopped = false;
   const pendingJobs: WebhookReviewJob[] = queueStore.load();
+  const completedDeliveryIds = queueStore.loadCompletedDeliveryIds();
   const deliveryIds: DeliveryIdState = {
     active: new Set<string>(),
-    completed: new Set<string>(),
-    completedOrder: [],
+    completed: new Set<string>(completedDeliveryIds),
+    completedOrder: [...completedDeliveryIds],
   };
   for (const job of pendingJobs) {
     deliveryIds.active.add(job.deliveryId);
@@ -155,6 +156,7 @@ interface DeliveryIdState {
 
 export interface WebhookQueueStore {
   load: () => WebhookReviewJob[];
+  loadCompletedDeliveryIds: () => string[];
   add: (job: WebhookReviewJob) => boolean;
   complete: (deliveryId: string) => boolean;
   remove: (deliveryId: string) => boolean;
@@ -295,6 +297,7 @@ function createWebhookQueueStore(
   if (queuePath === undefined) {
     return {
       load: () => [],
+      loadCompletedDeliveryIds: () => [],
       add: () => true,
       complete: () => true,
       remove: () => true,
@@ -309,7 +312,12 @@ function createWebhookQueueStore(
     if (!Array.isArray(parsed)) {
       throw new Error(`webhook queue file is not an array: ${queuePath}`);
     }
-    return parsed.filter(isWebhookQueueEntry);
+    return parsed.map((entry, index) => {
+      if (!isWebhookQueueEntry(entry)) {
+        throw new Error(`webhook queue file has an invalid entry at index ${index}: ${queuePath}`);
+      }
+      return entry;
+    });
   };
 
   const writeEntries = (entries: WebhookQueueEntry[]): void => {
@@ -325,6 +333,16 @@ function createWebhookQueueStore(
         return readEntries()
           .filter((entry) => entry.status !== "completed")
           .map(toWebhookReviewJob);
+      } catch (error) {
+        log.error("Ronda webhook queue load failed", error);
+        throw new WebhookQueuePersistenceError(`Failed to load webhook queue from ${queuePath}`);
+      }
+    },
+    loadCompletedDeliveryIds: () => {
+      try {
+        return readEntries()
+          .filter((entry) => entry.status === "completed")
+          .map((entry) => entry.deliveryId);
       } catch (error) {
         log.error("Ronda webhook queue load failed", error);
         throw new WebhookQueuePersistenceError(`Failed to load webhook queue from ${queuePath}`);
