@@ -190,6 +190,11 @@ export async function runWebhookReviewJob(
     pullNumber: job.pullNumber,
     outcome: result.outcome,
   });
+  if (result.outcome === "failed" && result.terminalCheckRunPublished !== true) {
+    throw new Error(
+      `Webhook review failed for ${job.owner}/${job.repo}#${job.pullNumber} without a terminal check run`,
+    );
+  }
 }
 
 export async function findExistingWebhookCheckRun(

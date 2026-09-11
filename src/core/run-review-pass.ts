@@ -292,6 +292,7 @@ export async function runReviewPass(
 
     return {
       outcome: "succeeded",
+      terminalCheckRunPublished: true,
       findings: parsed.findings,
       malformedCount: parsed.malformedCount,
       coercedSeverityCount: parsed.coercedSeverityCount,
@@ -318,6 +319,7 @@ export async function runReviewPass(
       return {
         outcome: "failed",
         failureReason: reason,
+        terminalCheckRunPublished: false,
         findings: [],
         malformedCount: 0,
         coercedSeverityCount: 0,
@@ -424,6 +426,7 @@ function skippedResult(
   return {
     outcome: "skipped",
     skipReason,
+    terminalCheckRunPublished: false,
     findings: [],
     malformedCount: 0,
     coercedSeverityCount: 0,
@@ -485,6 +488,7 @@ async function finalizeFailure(
   return {
     outcome: "failed",
     failureReason: failure.reason,
+    terminalCheckRunPublished: true,
     findings: [],
     malformedCount: 0,
     coercedSeverityCount: 0,

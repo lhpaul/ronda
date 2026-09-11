@@ -150,7 +150,10 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   aborts a job, the FIFO stays paused until that job settles; if settlement also
   times out, the local server stops instead of starting a second active review.
   Thrown job failures before a terminal review/check-run outcome also stop the
-  local server and keep accepted jobs in the queue file for supervisor recovery.
-  Terminal check-run writes that intentionally outlive an expired pass deadline
-  still receive a short publication timeout so stalled GitHub writes cannot keep
-  the process alive indefinitely.
+  local server and reset accepted jobs to `pending` for supervisor recovery.
+  Entries left `in_progress` by an unclean process death are not suppressed as
+  duplicates, so a GitHub or operator redelivery can retry them without
+  proactively replaying an ambiguous job that may already have published public
+  side effects. Terminal check-run writes that intentionally outlive an expired
+  pass deadline still receive a short publication timeout so stalled GitHub
+  writes cannot keep the process alive indefinitely.

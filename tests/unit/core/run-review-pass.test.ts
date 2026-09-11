@@ -623,6 +623,7 @@ test("Gap 1: a deadline that fires while the very first readPullRequest is in fl
   // so the pass degrades to a logged failure rather than a check-run write.
   assert.equal(result.outcome, "failed");
   assert.equal(result.failureReason, "timed_out");
+  assert.equal(result.terminalCheckRunPublished, false);
   assert.equal(github.publishedReviews.length, 0);
   assert.equal(github.publishedCheckRuns.length, 0);
 });
@@ -647,6 +648,7 @@ test("Gap 1 degradation path: the same first-readPullRequest abort, given a head
 
   assert.equal(result.outcome, "failed");
   assert.equal(result.failureReason, "timed_out");
+  assert.equal(result.terminalCheckRunPublished, true);
   assert.equal(github.publishedReviews.length, 0);
   assert.equal(github.publishedCheckRuns.length, 1);
   assert.equal(github.publishedCheckRuns[0].headSha, eventHeadSha);

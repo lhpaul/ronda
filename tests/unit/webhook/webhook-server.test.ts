@@ -515,7 +515,7 @@ test("completed webhook queue entries reject matching redeliveries", async () =>
   }
 });
 
-test("in-progress webhook queue entries are recovered on startup", async () => {
+test("in-progress webhook queue entries can be recovered by redelivery after startup", async () => {
   const queuePath = tempQueuePath();
   const inProgressJob: WebhookQueueFileEntry = {
     owner: "lhpaul",
@@ -528,15 +528,11 @@ test("in-progress webhook queue entries are recovered on startup", async () => {
   };
   writeFileSync(queuePath, `${JSON.stringify([inProgressJob], null, 2)}\n`);
   const jobs: string[] = [];
-  let resolveJob: (() => void) | undefined;
   const server = startWebhookServer(
     { ...config, port: 0, webhookQueuePath: queuePath },
     {
       runJob: async (job) => {
         jobs.push(job.deliveryId);
-        await new Promise<void>((resolve) => {
-          resolveJob = resolve;
-        });
       },
       log: { error: () => undefined, log: () => undefined },
     },
@@ -547,8 +543,8 @@ test("in-progress webhook queue entries are recovered on startup", async () => {
   });
   const address = server.address() as AddressInfo;
   try {
-    await eventually(() => jobs.length === 1);
-    assert.deepEqual(jobs, ["delivery-in-progress"]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.deepEqual(jobs, []);
     assert.deepEqual(
       readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
       [["delivery-in-progress", "in_progress"]],
@@ -568,12 +564,12 @@ test("in-progress webhook queue entries are recovered on startup", async () => {
     assert.equal(response.status, 202);
     assert.deepEqual(await response.json(), {
       ok: true,
-      queued: false,
-      reason: "duplicate_delivery",
+      queued: true,
+      pullNumber: 7,
     });
 
-    resolveJob?.();
     await eventually(() => readQueueFile(queuePath).every((job) => job.status === "completed"));
+    assert.deepEqual(jobs, ["delivery-in-progress"]);
     assert.deepEqual(
       readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
       [["delivery-in-progress", "completed"]],
