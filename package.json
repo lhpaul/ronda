@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
     "review": "tsx src/cli/review-pr.ts",
+    "webhook": "tsx src/webhook/webhook-server.ts",
     "benchmark:recall": "tsx src/cli/recall-benchmark.ts",
     "benchmark:quality": "tsx src/cli/recall-benchmark.ts --quality",
     "quality:comparison": "tsx src/cli/record-review-comparison.ts",

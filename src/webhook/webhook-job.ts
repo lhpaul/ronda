@@ -1,0 +1,145 @@
+import { createSystemClock } from "../core/clock.js";
+import { createLogger } from "../core/logger.js";
+import { runReviewPass } from "../core/run-review-pass.js";
+import { ConfigLoadError, loadConfig } from "../config/load-config.js";
+import type { RondaConfig } from "../config/config.types.js";
+import type { GithubOperations, ReviewPassInput } from "../domain/review-pass.types.js";
+import { createGithubClient } from "../github/github-client.js";
+import { publishCheckRun } from "../github/check-run-publisher.js";
+import { publishReview } from "../github/review-publisher.js";
+import {
+  findExistingCheckRun,
+  readChangedFiles,
+  readPullRequest,
+} from "../github/pull-request-reader.js";
+import { createOpenAiCompatibleClient } from "../inference/openai-compatible-client.js";
+import { resolveTrigger } from "../cli/resolve-trigger.js";
+import { createGithubAppJwt, createInstallationAccessToken } from "./github-app-auth.js";
+import type { WebhookConfig } from "./webhook-config.js";
+
+export interface WebhookReviewJob extends ReviewPassInput {
+  installationId: number;
+  deliveryId: string;
+}
+
+export interface WebhookJobDecision {
+  shouldRun: boolean;
+  job?: WebhookReviewJob;
+  reason?: string;
+}
+
+interface RepositoryPayload {
+  full_name?: string;
+}
+
+interface InstallationPayload {
+  id?: number;
+}
+
+interface WebhookPayload {
+  repository?: RepositoryPayload;
+  installation?: InstallationPayload;
+}
+
+export function resolveWebhookJob(
+  eventName: string,
+  deliveryId: string,
+  payload: unknown,
+): WebhookJobDecision {
+  const trigger = resolveTrigger(eventName, payload);
+  if (!trigger.shouldRun || trigger.pullNumber === undefined || trigger.trigger === undefined) {
+    return { shouldRun: false, reason: trigger.reason ?? "trigger did not match" };
+  }
+
+  const webhookPayload = payload as WebhookPayload;
+  const [owner, repo] = (webhookPayload.repository?.full_name ?? "").split("/");
+  if (!owner || !repo) {
+    return { shouldRun: false, reason: "payload missing repository.full_name" };
+  }
+
+  const installationId = webhookPayload.installation?.id;
+  if (typeof installationId !== "number") {
+    return { shouldRun: false, reason: "payload missing installation.id" };
+  }
+
+  return {
+    shouldRun: true,
+    job: {
+      owner,
+      repo,
+      pullNumber: trigger.pullNumber,
+      trigger: trigger.trigger,
+      ...(trigger.headSha ? { headSha: trigger.headSha } : {}),
+      installationId,
+      deliveryId,
+    },
+  };
+}
+
+export async function runWebhookReviewJob(
+  job: WebhookReviewJob,
+  webhookConfig: WebhookConfig,
+): Promise<void> {
+  const appJwt = createGithubAppJwt({
+    appId: webhookConfig.githubAppId,
+    privateKey: webhookConfig.githubPrivateKey,
+  });
+  const installationToken = await createInstallationAccessToken({
+    appJwt,
+    installationId: job.installationId,
+    apiUrl: webhookConfig.githubApiUrl,
+  });
+  const installationClient = createGithubClient({
+    token: installationToken,
+    apiUrl: webhookConfig.githubApiUrl,
+  });
+
+  const github: GithubOperations = {
+    readPullRequest: (o, r, n, signal) =>
+      readPullRequest(installationClient.octokit, o, r, n, signal),
+    readChangedFiles: (o, r, n, signal) =>
+      readChangedFiles(installationClient.octokit, o, r, n, signal),
+    findExistingCheckRun: (o, r, sha, signal) =>
+      findExistingCheckRun(installationClient.octokit, o, r, sha, signal),
+    publishReview: (reviewInput, signal) =>
+      publishReview(installationClient.octokit, reviewInput, signal),
+    publishCheckRun: (checkRunInput, signal) =>
+      publishCheckRun(installationClient.octokit, checkRunInput, signal),
+  };
+
+  let config: RondaConfig;
+  try {
+    config = loadConfig();
+  } catch (error) {
+    const path = error instanceof ConfigLoadError ? error.path : "unknown path";
+    config = {
+      model: { apiKey: "", baseUrl: "", modelName: "" },
+      passTimeoutMs: 600_000,
+      maxPatchChars: 400_000,
+      loadError: `Failed to load Ronda config file at ${path}`,
+    };
+  }
+
+  const model = createOpenAiCompatibleClient({
+    apiKey: config.model.apiKey,
+    baseUrl: config.model.baseUrl,
+    modelName: config.model.modelName,
+  });
+  const logger = createLogger([config.model.apiKey, installationToken, webhookConfig.githubPrivateKey]);
+
+  const result = await runReviewPass(job, {
+    github,
+    model,
+    config,
+    clock: createSystemClock(),
+    logger,
+    detailsUrl: webhookConfig.detailsUrl,
+  });
+  logger.event("webhook_review_completed", {
+    deliveryId: job.deliveryId,
+    owner: job.owner,
+    repo: job.repo,
+    pullNumber: job.pullNumber,
+    outcome: result.outcome,
+  });
+}

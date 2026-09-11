@@ -1,8 +1,9 @@
 # Adopting Ronda's review workflow
 
 Ronda reviews a pull request by calling a reusable GitHub Actions workflow
-from your own repository. This is v0's only ingress — there is no hosted
-webhook yet (see [`docs/constitution.md`](../constitution.md)).
+from your own repository. A local webhook service is also available for
+dogfooding one GitHub App webhook URL on operator-owned hardware; see
+[`ronda-local-webhook.md`](ronda-local-webhook.md).
 
 ## 1. Add the caller workflow
 
@@ -176,6 +177,9 @@ config file, which takes precedence over Ronda's built-in defaults.
   (not `pull_request_target`) gives fork-originated pull requests a
   read-only token, so the automatic path cannot publish for them. Support
   via `pull_request_target` is a documented follow-up, not attempted here.
+- **Local webhook availability is operator-owned.** When using the local
+  webhook path, GitHub delivery depends on the tunnel or machine being online.
+  The reusable Action path remains available during migration.
 - **No carried state between passes.** Each pass reads the pull request
   fresh; there is no deduplication against an earlier review's findings.
 - **One dogfood repository.** v0 adopts `lhpaul/ai-dev-framework-template`

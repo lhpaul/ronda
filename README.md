@@ -12,9 +12,10 @@ testing, later at the Mini or MiniPC. Same App.
 
 v0 ships as a reusable GitHub Actions workflow: it reads a pull request over
 the REST API, asks a configured model for findings, and publishes one
-comment-only review plus one check run per head commit. No webhook, no App,
-no push to the reviewed branch. See
-[Project #11](https://github.com/users/lhpaul/projects/11) for what's next.
+comment-only review plus one check run per head commit. A local webhook
+entrypoint is also available for dogfooding the same review contract from a
+MacBook, Mini, or MiniPC without spending caller GitHub Actions minutes. See
+[`docs/adoption/ronda-local-webhook.md`](docs/adoption/ronda-local-webhook.md).
 
 **Adopting Ronda in another repository**: see
 [`docs/adoption/ronda-review-adoption.md`](docs/adoption/ronda-review-adoption.md).
