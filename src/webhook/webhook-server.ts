@@ -27,8 +27,8 @@ export function startWebhookServer(
 ): ReturnType<typeof createServer> {
   const log = deps.log ?? console;
   const runJob = deps.runJob ?? runWebhookReviewJob;
-  let queue = Promise.resolve();
   let fatalError: unknown;
+  let busy = false;
   const deliveryIds: DeliveryIdState = {
     active: new Set<string>(),
     completed: new Set<string>(),
@@ -43,21 +43,17 @@ export function startWebhookServer(
         deliveryIds.active.delete(deliveryId);
       },
       enqueue: (job) => {
-        if (fatalError !== undefined) {
+        if (fatalError !== undefined || busy) {
           return false;
         }
-        queue = queue
+        busy = true;
+        void withJobTimeout(
+          (signal) => runJob(job, config, signal),
+          config.webhookJobTimeoutMs,
+          () => new WebhookJobTimeoutError(job, config.webhookJobTimeoutMs),
+        )
           .then(() => {
-            if (fatalError !== undefined) {
-              return;
-            }
-            return withJobTimeout(
-              (signal) => runJob(job, config, signal),
-              config.webhookJobTimeoutMs,
-              () => new WebhookJobTimeoutError(job, config.webhookJobTimeoutMs),
-            ).then(() => {
-              completeDeliveryId(deliveryIds, job.deliveryId);
-            });
+            completeDeliveryId(deliveryIds, job.deliveryId);
           })
           .catch((error: unknown) => {
             fatalError = error;
@@ -68,6 +64,11 @@ export function startWebhookServer(
             }
             process.exitCode = 1;
             server.close();
+          })
+          .finally(() => {
+            if (fatalError === undefined) {
+              busy = false;
+            }
           });
         return true;
       },

@@ -142,7 +142,8 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
 - The webhook process verifies the GitHub signature on every inbound call, then
   mints a bounded-lifetime installation token from the GitHub App before making
   repository-scoped read/write calls. Its installation-token request is
-  separately timeout-bounded so the local serial queue cannot hang before the
-  normal pass deadline starts, and each queued job also has an outer watchdog
-  timeout so publication stalls cannot leave `/healthz` healthy while the queue
-  is permanently blocked.
+  separately timeout-bounded so the local worker cannot hang before the normal
+  pass deadline starts, and each accepted job also has an outer watchdog
+  timeout. The webhook service accepts one in-flight review job at a time and
+  returns `503` for additional runnable deliveries while busy or fatal, letting
+  GitHub redeliver instead of accepting work that may later be dropped.

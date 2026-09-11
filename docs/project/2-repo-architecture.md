@@ -58,7 +58,7 @@ Local, never committed:
 | Inference client | Call an OpenAI-compatible model API | TypeScript, `fetch` | `src/inference/openai-compatible-client.ts` |
 | GitHub poster | Submit review + check run | `@octokit/rest` | `src/github/review-publisher.ts`, `src/github/check-run-publisher.ts` |
 | Action entrypoint | Translate GitHub Actions env vars into one `runReviewPass` call | TypeScript via `tsx` | `src/cli/review-pr.ts` |
-| Local webhook service | Verify GitHub App webhooks, mint installation tokens, queue one `runReviewPass` job | TypeScript on Node `http` | `src/webhook/webhook-server.ts` |
+| Local webhook service | Verify GitHub App webhooks, mint installation tokens, run one in-flight `runReviewPass` job | TypeScript on Node `http` | `src/webhook/webhook-server.ts` |
 
 The reusable Action and local webhook paths are alternate ingresses. A
 repository should not enable both for the same trigger without an external

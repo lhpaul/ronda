@@ -236,7 +236,7 @@ test("duplicate webhook delivery IDs are accepted but not requeued", async () =>
   }
 });
 
-test("active webhook delivery IDs are not evicted by later queued deliveries", async () => {
+test("active webhook delivery IDs are not evicted by later refused deliveries", async () => {
   const jobs: string[] = [];
   let finishFirstJob!: () => void;
   const firstJobCanFinish = new Promise<void>((resolve) => {
@@ -276,7 +276,7 @@ test("active webhook delivery IDs are not evicted by later queued deliveries", a
     assert.equal((await postDelivery("delivery-active")).status, 202);
     await eventually(() => jobs.length === 1);
     for (let index = 0; index < 1_001; index += 1) {
-      assert.equal((await postDelivery(`delivery-later-${index}`)).status, 202);
+      assert.equal((await postDelivery(`delivery-later-${index}`)).status, 503);
     }
 
     const replay = await postDelivery("delivery-active");
@@ -354,7 +354,61 @@ test("delivery IDs are released when the worker refuses to enqueue", async () =>
   }
 });
 
-test("fatal webhook job failures prevent already queued jobs from running", async () => {
+test("busy webhook worker releases refused deliveries for later retry", async () => {
+  const jobs: string[] = [];
+  let finishFirstJob!: () => void;
+  const firstJobCanFinish = new Promise<void>((resolve) => {
+    finishFirstJob = resolve;
+  });
+  const server = startWebhookServer(
+    { ...config, port: 0 },
+    {
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+        if (job.deliveryId === "delivery-busy-first") {
+          await firstJobCanFinish;
+        }
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  const body = JSON.stringify(pullRequestPayload());
+  const postDelivery = async (deliveryId: string): Promise<Response> =>
+    fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": deliveryId,
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+  try {
+    assert.equal((await postDelivery("delivery-busy-first")).status, 202);
+    await eventually(() => jobs.length === 1);
+    assert.equal((await postDelivery("delivery-busy-retry")).status, 503);
+    finishFirstJob();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const retry = await postDelivery("delivery-busy-retry");
+
+    assert.equal(retry.status, 202);
+    assert.deepEqual(await retry.json(), { ok: true, queued: true, pullNumber: 7 });
+    await eventually(() => jobs.length === 2);
+    assert.deepEqual(jobs, ["delivery-busy-first", "delivery-busy-retry"]);
+  } finally {
+    finishFirstJob();
+    server.close();
+  }
+});
+
+test("busy webhook workers refuse concurrent jobs for GitHub redelivery", async () => {
   const failures: unknown[] = [];
   const jobs: string[] = [];
   let failFirstJob!: () => void;
@@ -404,7 +458,8 @@ test("fatal webhook job failures prevent already queued jobs from running", asyn
     });
 
     assert.equal(first.status, 202);
-    assert.equal(second.status, 202);
+    assert.equal(second.status, 503);
+    assert.deepEqual(await second.json(), { ok: false, error: "webhook_worker_unavailable" });
     failFirstJob();
     await eventually(() => failures.length === 1);
     assert.deepEqual(jobs, ["delivery-8"]);
