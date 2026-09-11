@@ -27,6 +27,10 @@ test("isRetryableError is false for a 4xx status other than the secondary rate l
   assert.equal(isRetryableError(httpError(401)), false);
 });
 
+test("isRetryableError is true for HTTP 429 rate limits", () => {
+  assert.equal(isRetryableError(httpError(429)), true);
+});
+
 test("isRetryableError is false for a value with no numeric status", () => {
   assert.equal(isRetryableError(new Error("network down")), false);
   assert.equal(isRetryableError(undefined), false);

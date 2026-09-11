@@ -80,6 +80,9 @@ export function isRetryableError(error: unknown): boolean {
   if (status >= 500) {
     return true;
   }
+  if (status === 429) {
+    return true;
+  }
   const message = (error as { message?: string } | undefined)?.message ?? "";
   return status === 403 && /secondary rate limit/i.test(message);
 }

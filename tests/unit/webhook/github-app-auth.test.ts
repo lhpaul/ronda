@@ -58,9 +58,8 @@ test("installation token requests retry transient GitHub failures", async () => 
   const sleeps: number[] = [];
   const responses = [
     new Response("server unavailable", { status: 503 }),
-    new Response("secondary rate limit", {
+    new Response(JSON.stringify({ message: "You have exceeded a secondary rate limit" }), {
       status: 403,
-      headers: { "retry-after": "1" },
     }),
     new Response(JSON.stringify({ token: "installation-token" }), { status: 201 }),
   ];

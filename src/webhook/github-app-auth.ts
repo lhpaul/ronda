@@ -59,7 +59,9 @@ export async function createInstallationAccessToken(
         },
       ).then((requestResponse) => {
         if (!requestResponse.ok) {
-          throw installationTokenRequestError(requestResponse);
+          return installationTokenRequestError(requestResponse).then((error) => {
+            throw error;
+          });
         }
         return requestResponse;
       }),
@@ -73,16 +75,29 @@ export async function createInstallationAccessToken(
   return data.token;
 }
 
-function installationTokenRequestError(response: Response): InstallationTokenError & {
+async function installationTokenRequestError(response: Response): Promise<InstallationTokenError & {
   status: number;
-} {
-  const message =
-    response.status === 403 && response.headers.get("retry-after") !== null
-      ? `GitHub App installation token request failed with HTTP ${response.status}: secondary rate limit`
-      : `GitHub App installation token request failed with HTTP ${response.status}`;
+}> {
+  const apiMessage = await readGithubErrorMessage(response);
+  const isSecondaryRateLimit =
+    response.status === 403 &&
+    (response.headers.get("retry-after") !== null ||
+      /secondary rate limit/i.test(apiMessage ?? ""));
+  const message = isSecondaryRateLimit
+    ? `GitHub App installation token request failed with HTTP ${response.status}: secondary rate limit`
+    : `GitHub App installation token request failed with HTTP ${response.status}`;
   return Object.assign(new InstallationTokenError(message), {
     status: response.status,
   });
+}
+
+async function readGithubErrorMessage(response: Response): Promise<string | undefined> {
+  try {
+    const data = (await response.clone().json()) as { message?: unknown };
+    return typeof data.message === "string" ? data.message : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function base64UrlJson(value: unknown): string {

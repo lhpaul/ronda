@@ -80,10 +80,12 @@ gh api repos/<owner>/<reusable-workflow-repo>/actions/permissions/access
 An `"access_level"` of `"none"` means no other repository can call the
 reusable workflow yet.
 
-Only `pull_request` is used, never `pull_request_target`. Fork pull requests
-therefore receive GitHub's normal read-only `GITHUB_TOKEN` on the automatic
-path, so a fork-originated PR will not receive an automatic review in v0 —
-see **Known limitations** below.
+The reusable Action path uses only `pull_request`, never
+`pull_request_target`. Fork pull requests therefore receive GitHub's normal
+read-only `GITHUB_TOKEN` on the automatic Action path, so a fork-originated PR
+will not receive an automatic Action review in v0 — see **Known limitations**
+below. The local GitHub App webhook path publishes with the base repository's
+installation token instead.
 
 ### Optional inputs
 
@@ -173,10 +175,11 @@ config file, which takes precedence over Ronda's built-in defaults.
 
 ## Known limitations (v0)
 
-- **Fork pull requests** are not reviewed automatically. `pull_request`
-  (not `pull_request_target`) gives fork-originated pull requests a
-  read-only token, so the automatic path cannot publish for them. Support
-  via `pull_request_target` is a documented follow-up, not attempted here.
+- **Fork pull requests on the reusable Action path** are not reviewed
+  automatically. `pull_request` (not `pull_request_target`) gives
+  fork-originated pull requests a read-only token, so the automatic Action path
+  cannot publish for them. The local GitHub App webhook path is the supported
+  fork-friendly ingress in v0.
 - **Local webhook availability is operator-owned.** When using the local
   webhook path, GitHub delivery depends on the tunnel or machine being online.
   The reusable Action path remains available during migration.
