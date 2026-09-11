@@ -327,7 +327,7 @@ function createWebhookQueueStore(
           .map(toWebhookReviewJob);
       } catch (error) {
         log.error("Ronda webhook queue load failed", error);
-        return [];
+        throw new WebhookQueuePersistenceError(`Failed to load webhook queue from ${queuePath}`);
       }
     },
     add: (job) => {

@@ -367,6 +367,22 @@ test("pending webhook jobs are recovered from the persisted queue on startup", a
   }
 });
 
+test("malformed persisted webhook queues fail startup", () => {
+  const queuePath = tempQueuePath();
+  writeFileSync(queuePath, "{not json");
+
+  assert.throws(
+    () =>
+      startWebhookServer(
+        { ...config, port: 0, webhookQueuePath: queuePath },
+        {
+          log: { error: () => undefined, log: () => undefined },
+        },
+      ),
+    WebhookQueuePersistenceError,
+  );
+});
+
 test("completed webhook queue entries are not replayed on startup", async () => {
   const queuePath = tempQueuePath();
   const completedJob: WebhookQueueFileEntry = {
