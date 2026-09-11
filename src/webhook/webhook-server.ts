@@ -691,7 +691,8 @@ function isWebhookQueueEntry(value: unknown): value is WebhookQueueEntry {
     hasValidCheckRunInput &&
     checkRunInput.owner === entry.owner &&
     checkRunInput.repo === entry.repo &&
-    (entry.headSha === undefined || checkRunInput.headSha === entry.headSha);
+    typeof entry.headSha === "string" &&
+    checkRunInput.headSha === entry.headSha;
   const hasConsistentCheckRunRecovery =
     entry.status === "check_pending"
       ? hasMatchingCheckRunInput

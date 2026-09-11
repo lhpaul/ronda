@@ -440,6 +440,12 @@ test("inconsistent check-pending webhook queue entries fail startup", () => {
     baseJob,
     {
       ...baseJob,
+      deliveryId: "delivery-missing-head-check-pending",
+      headSha: undefined,
+      checkRunInput: checkRunInput("b".repeat(40)),
+    },
+    {
+      ...baseJob,
       deliveryId: "delivery-mismatched-check-pending",
       checkRunInput: checkRunInput("c".repeat(40)),
     },
