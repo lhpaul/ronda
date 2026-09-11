@@ -34,4 +34,3 @@ test("rejects missing, malformed, or wrong signatures", () => {
     false,
   );
 });
-

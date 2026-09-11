@@ -23,4 +23,3 @@ export function verifyGithubSignature(input: {
   const received = Buffer.from(receivedHex, "hex");
   return received.length === expected.length && timingSafeEqual(received, expected);
 }
-

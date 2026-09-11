@@ -137,9 +137,8 @@ if (process.argv[1] && process.argv[1].endsWith("webhook-server.ts")) {
     if (error instanceof WebhookConfigError) {
       console.error(`Ronda webhook config error: ${error.message}`);
       process.exitCode = 1;
-    } else {
-      throw error;
-    }
+  } else {
+    throw error;
   }
 }
-
+}

@@ -69,4 +69,3 @@ test("rejects runnable events that do not include repository or installation con
   assert.equal(missingInstallation.shouldRun, false);
   assert.equal(missingInstallation.reason, "payload missing installation.id");
 });
-
