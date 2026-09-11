@@ -91,7 +91,7 @@ after them in the list or in the ready phase:
 review:
   on_draft:
     github:
-      - pr-agent
+      - local-ai-reviewer
   on_ready:
     github:
       - bugbot

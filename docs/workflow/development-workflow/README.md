@@ -484,7 +484,7 @@ review:
     runner:
       - codex
     github:
-      - pr-agent
+      - local-ai-reviewer
   on_ready:
     github:
       - codex-github
