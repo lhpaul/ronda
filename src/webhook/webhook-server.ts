@@ -576,11 +576,12 @@ function createWebhookQueueStore(
         if (entry === undefined) {
           return false;
         }
-        const completedEntry = {
+        const completedEntry: WebhookQueueEntry = {
           ...entry,
           status: "completed" as const,
           completedAt: new Date().toISOString(),
         };
+        delete completedEntry.checkRunInput;
         const completedEntries = [
           ...entries.filter((queuedEntry) => queuedEntry.deliveryId !== deliveryId),
           completedEntry,
@@ -606,7 +607,7 @@ function createWebhookQueueStore(
         return entry;
       }
       found = true;
-      return {
+      const updatedEntry: WebhookQueueEntry = {
         ...entry,
         status,
         ...(status === "published" ? { reviewPublished: true } : {}),
@@ -614,6 +615,10 @@ function createWebhookQueueStore(
           ? { headSha: reviewedHeadSha }
           : {}),
       };
+      if (status !== "check_pending") {
+        delete updatedEntry.checkRunInput;
+      }
+      return updatedEntry;
     });
     if (!found) {
       return false;
@@ -680,6 +685,17 @@ function isWebhookQueueEntry(value: unknown): value is WebhookQueueEntry {
     return false;
   }
   const entry = value as Partial<WebhookQueueEntry>;
+  const checkRunInput = entry.checkRunInput;
+  const hasValidCheckRunInput = isPublishCheckRunInput(checkRunInput);
+  const hasMatchingCheckRunInput =
+    hasValidCheckRunInput &&
+    checkRunInput.owner === entry.owner &&
+    checkRunInput.repo === entry.repo &&
+    (entry.headSha === undefined || checkRunInput.headSha === entry.headSha);
+  const hasConsistentCheckRunRecovery =
+    entry.status === "check_pending"
+      ? hasMatchingCheckRunInput
+      : entry.checkRunInput === undefined;
   return (
     (entry.status === undefined ||
       entry.status === "pending" ||
@@ -689,7 +705,7 @@ function isWebhookQueueEntry(value: unknown): value is WebhookQueueEntry {
       entry.status === "completed") &&
     (entry.completedAt === undefined || typeof entry.completedAt === "string") &&
     (entry.reviewPublished === undefined || typeof entry.reviewPublished === "boolean") &&
-    (entry.checkRunInput === undefined || isPublishCheckRunInput(entry.checkRunInput))
+    hasConsistentCheckRunRecovery
   );
 }
 

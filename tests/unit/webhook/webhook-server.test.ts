@@ -424,6 +424,44 @@ test("invalid persisted webhook queue entries fail startup", () => {
   );
 });
 
+test("inconsistent check-pending webhook queue entries fail startup", () => {
+  const baseJob: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 7,
+    trigger: "automatic",
+    installationId: 42,
+    deliveryId: "delivery-invalid-check-pending",
+    headSha: "b".repeat(40),
+    status: "check_pending",
+    reviewPublished: true,
+  };
+  const invalidEntries: WebhookQueueFileEntry[] = [
+    baseJob,
+    {
+      ...baseJob,
+      deliveryId: "delivery-mismatched-check-pending",
+      checkRunInput: checkRunInput("c".repeat(40)),
+    },
+  ];
+
+  for (const invalidEntry of invalidEntries) {
+    const queuePath = tempQueuePath();
+    writeFileSync(queuePath, `${JSON.stringify([invalidEntry], null, 2)}\n`);
+
+    assert.throws(
+      () =>
+        startWebhookServer(
+          { ...config, port: 0, webhookQueuePath: queuePath },
+          {
+            log: { error: () => undefined, log: () => undefined },
+          },
+        ),
+      WebhookQueuePersistenceError,
+    );
+  }
+});
+
 test("completed webhook queue entries are not replayed on startup", async () => {
   const queuePath = tempQueuePath();
   const completedJob: WebhookQueueFileEntry = {
@@ -1194,8 +1232,9 @@ test("check-pending webhook queue entries recover by publishing only the check r
         job.deliveryId,
         job.status,
         job.reviewPublished,
+        job.checkRunInput,
       ]),
-      [["delivery-check-pending-recovery", "completed", true]],
+      [["delivery-check-pending-recovery", "completed", true, undefined]],
     );
   } finally {
     server.close();
