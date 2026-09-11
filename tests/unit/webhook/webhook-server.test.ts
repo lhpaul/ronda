@@ -1095,6 +1095,63 @@ test("review-published webhook check-run failures persist check-only recovery", 
   }
 });
 
+test("webhook jobs persist check-pending recovery as soon as the review is public", async () => {
+  const failures: unknown[] = [];
+  const queuePath = tempQueuePath();
+  const pendingCheckRun = checkRunInput();
+  let statusAfterReviewPublished: string | undefined;
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async (_job, _config, _signal, lifecycle) => {
+        await lifecycle.onReviewPublished?.(pendingCheckRun);
+        statusAfterReviewPublished = readQueueFile(queuePath)[0]?.status;
+        throw new ReviewPublishedCheckRunError(
+          "review is public but check run failed",
+          pendingCheckRun.headSha,
+          pendingCheckRun,
+        );
+      },
+      onJobFailure: (error) => {
+        failures.push(error);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-review-published-lifecycle",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    await eventually(() => failures.length === 1);
+    assert.equal(statusAfterReviewPublished, "check_pending");
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [
+        job.deliveryId,
+        job.status,
+        job.reviewPublished,
+        job.checkRunInput,
+      ]),
+      [["delivery-review-published-lifecycle", "check_pending", true, pendingCheckRun]],
+    );
+  } finally {
+    server.close();
+  }
+});
+
 test("check-pending webhook queue entries recover by publishing only the check run", async () => {
   const queuePath = tempQueuePath();
   const pendingCheckRun = checkRunInput();

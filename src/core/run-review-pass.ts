@@ -271,6 +271,16 @@ export async function runReviewPass(
       completedAt: deps.clock.isoNow(),
       detailsUrl: deps.detailsUrl,
     };
+    try {
+      await deps.onReviewPublished?.(checkRunInput);
+    } catch {
+      throw new ReviewPublishedCheckRunError(
+        `Review was published for ${pr.headSha} but the check run recovery state ` +
+          "could not be persisted",
+        pr.headSha,
+        checkRunInput,
+      );
+    }
 
     const checkRunResult = await publishSuccessCheckRun(deps, input, checkRunInput, deadline.signal);
     if (!checkRunResult.ok) {

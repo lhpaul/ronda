@@ -44,6 +44,10 @@ export interface WebhookReviewJobResult {
   reviewedHeadSha?: string;
 }
 
+export interface WebhookReviewJobLifecycle {
+  onReviewPublished?: (checkRunInput: PublishCheckRunInput) => void | Promise<void>;
+}
+
 export interface WebhookJobDecision {
   shouldRun: boolean;
   job?: WebhookReviewJob;
@@ -110,6 +114,7 @@ export async function runWebhookReviewJob(
   job: WebhookReviewJob,
   webhookConfig: WebhookConfig,
   signal?: AbortSignal,
+  lifecycle: WebhookReviewJobLifecycle = {},
 ): Promise<WebhookReviewJobResult> {
   const appTokenSignal = combineAbortSignals(
     AbortSignal.timeout(webhookConfig.githubAppTokenTimeoutMs),
@@ -225,6 +230,7 @@ export async function runWebhookReviewJob(
     clock: createSystemClock(),
     logger,
     detailsUrl: webhookConfig.detailsUrl,
+    onReviewPublished: lifecycle.onReviewPublished,
   });
   logger.event("webhook_review_completed", {
     deliveryId: job.deliveryId,

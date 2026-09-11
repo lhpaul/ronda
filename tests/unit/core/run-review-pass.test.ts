@@ -293,6 +293,42 @@ test("Scenario 1: a ready PR with findings publishes one review and one successf
   assert.equal(github.publishedCheckRuns[0].conclusion, "success");
 });
 
+test("onReviewPublished runs after review publication and before check-run publication", async () => {
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const events: string[] = [];
+  let recoveryInput: PublishCheckRunInput | undefined;
+
+  github.ops.publishReview = async (input) => {
+    events.push("publishReview");
+    github.publishedReviews.push(input);
+  };
+  github.ops.publishCheckRun = async (input) => {
+    events.push("publishCheckRun");
+    github.checkRunAttempts.push(input);
+    github.publishedCheckRuns.push(input);
+  };
+
+  await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      onReviewPublished: (checkRunInput) => {
+        events.push("onReviewPublished");
+        recoveryInput = checkRunInput;
+      },
+    }),
+  );
+
+  assert.deepEqual(events, ["publishReview", "onReviewPublished", "publishCheckRun"]);
+  assert.equal(recoveryInput?.headSha, HEAD_SHA);
+  assert.equal(github.publishedCheckRuns[0], recoveryInput);
+});
+
 test("Scenario 2: findings on a changed line are inline; others land in the summary; the total matches", async () => {
   const github = createFakeGithub({
     pullRequest: createPullRequest(),

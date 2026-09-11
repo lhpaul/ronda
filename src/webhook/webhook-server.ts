@@ -9,6 +9,7 @@ import {
   resolveWebhookJob,
   runWebhookReviewJob,
   type WebhookReviewJob,
+  type WebhookReviewJobLifecycle,
   type WebhookReviewJobResult,
 } from "./webhook-job.js";
 
@@ -22,6 +23,7 @@ export interface WebhookServerDeps {
     job: WebhookReviewJob,
     config: WebhookConfig,
     signal: AbortSignal,
+    lifecycle: WebhookReviewJobLifecycle,
   ) => Promise<WebhookReviewJobResult | void>;
   onJobFailure?: (error: unknown) => void;
   queueStore?: WebhookQueueStore;
@@ -123,7 +125,7 @@ export function startWebhookServer(
       })
       .then(() =>
         withJobTimeout(
-          (signal) => runJob(job, config, signal),
+          (signal) => runJob(job, config, signal, createWebhookReviewJobLifecycle(job, queueStore)),
           config.webhookJobTimeoutMs,
           () => new WebhookJobTimeoutError(job, config.webhookJobTimeoutMs),
           () => new WebhookJobSettlementTimeoutError(job, config.webhookJobSettlementTimeoutMs),
@@ -217,6 +219,22 @@ export function startWebhookServer(
     }
   });
   return server;
+}
+
+function createWebhookReviewJobLifecycle(
+  job: WebhookReviewJob,
+  queueStore: WebhookQueueStore,
+): WebhookReviewJobLifecycle {
+  return {
+    onReviewPublished: (checkRunInput) => {
+      if (queueStore.markCheckPending?.(job.deliveryId, checkRunInput) === true) {
+        return;
+      }
+      throw new WebhookQueuePersistenceError(
+        `Failed to persist check-run recovery state for webhook delivery ${job.deliveryId}`,
+      );
+    },
+  };
 }
 
 interface DeliveryIdState {
