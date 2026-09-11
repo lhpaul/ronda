@@ -129,6 +129,25 @@ test("POST /webhook rejects invalid JSON after signature verification", async ()
   });
 });
 
+test("POST /webhook returns 413 for oversized bodies without resetting the socket", async () => {
+  await withWebhookServer(async (baseUrl, jobs) => {
+    const body = Buffer.alloc(10 * 1024 * 1024 + 1, "x");
+    const response = await fetch(`${baseUrl}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-4",
+        "x-hub-signature-256": signature(body.toString("utf8")),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 413);
+    assert.deepEqual(await response.json(), { ok: false, error: "body_too_large" });
+    assert.equal(jobs.length, 0);
+  });
+});
+
 test("queued webhook job failures invoke the fatal failure hook after returning 202", async () => {
   const failures: unknown[] = [];
   const server = startWebhookServer(
@@ -154,7 +173,7 @@ test("queued webhook job failures invoke the fatal failure hook after returning 
       method: "POST",
       headers: {
         "x-github-event": "pull_request",
-        "x-github-delivery": "delivery-4",
+        "x-github-delivery": "delivery-5",
         "x-hub-signature-256": signature(body),
       },
       body,
@@ -188,7 +207,7 @@ test("duplicate webhook delivery IDs are accepted but not requeued", async () =>
     const body = JSON.stringify(pullRequestPayload());
     const headers = {
       "x-github-event": "pull_request",
-      "x-github-delivery": "delivery-5",
+      "x-github-delivery": "delivery-6",
       "x-hub-signature-256": signature(body),
     };
     const first = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
@@ -211,7 +230,7 @@ test("duplicate webhook delivery IDs are accepted but not requeued", async () =>
       reason: "duplicate_delivery",
     });
     await eventually(() => jobs.length === 1);
-    assert.equal(jobs[0].deliveryId, "delivery-5");
+    assert.equal(jobs[0].deliveryId, "delivery-6");
   } finally {
     server.close();
   }
@@ -251,7 +270,7 @@ test("delivery IDs are released when the worker refuses to enqueue", async () =>
     const body = JSON.stringify(pullRequestPayload());
     const headers = {
       "x-github-event": "pull_request",
-      "x-github-delivery": "delivery-6",
+      "x-github-delivery": "delivery-7",
       "x-hub-signature-256": signature(body),
     };
     const refused = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
@@ -271,7 +290,7 @@ test("delivery IDs are released when the worker refuses to enqueue", async () =>
     assert.equal(retried.status, 202);
     assert.deepEqual(await retried.json(), { ok: true, queued: true, pullNumber: 7 });
     assert.equal(jobs.length, 1);
-    assert.equal(jobs[0].deliveryId, "delivery-6");
+    assert.equal(jobs[0].deliveryId, "delivery-7");
   } finally {
     server.close();
   }
@@ -289,7 +308,7 @@ test("fatal webhook job failures prevent already queued jobs from running", asyn
     {
       runJob: async (job) => {
         jobs.push(job.deliveryId);
-        if (job.deliveryId === "delivery-7") {
+        if (job.deliveryId === "delivery-8") {
           await firstJobCanFail;
           throw new Error("job failed");
         }
@@ -311,7 +330,7 @@ test("fatal webhook job failures prevent already queued jobs from running", asyn
       method: "POST",
       headers: {
         "x-github-event": "pull_request",
-        "x-github-delivery": "delivery-7",
+        "x-github-delivery": "delivery-8",
         "x-hub-signature-256": signature(body),
       },
       body,
@@ -320,7 +339,7 @@ test("fatal webhook job failures prevent already queued jobs from running", asyn
       method: "POST",
       headers: {
         "x-github-event": "pull_request",
-        "x-github-delivery": "delivery-8",
+        "x-github-delivery": "delivery-9",
         "x-hub-signature-256": signature(body),
       },
       body,
@@ -330,7 +349,7 @@ test("fatal webhook job failures prevent already queued jobs from running", asyn
     assert.equal(second.status, 202);
     failFirstJob();
     await eventually(() => failures.length === 1);
-    assert.deepEqual(jobs, ["delivery-7"]);
+    assert.deepEqual(jobs, ["delivery-8"]);
   } finally {
     server.close();
   }
@@ -367,7 +386,7 @@ test("queued webhook jobs fail fatally when they exceed the outer job timeout", 
       method: "POST",
       headers: {
         "x-github-event": "pull_request",
-        "x-github-delivery": "delivery-9",
+        "x-github-delivery": "delivery-10",
         "x-hub-signature-256": signature(body),
       },
       body,
@@ -375,7 +394,7 @@ test("queued webhook jobs fail fatally when they exceed the outer job timeout", 
 
     assert.equal(response.status, 202);
     await eventually(() => failures.length === 1);
-    assert.deepEqual(jobs, ["delivery-9"]);
+    assert.deepEqual(jobs, ["delivery-10"]);
     assert.equal(jobSignal?.aborted, true);
     assert.ok(failures[0] instanceof WebhookJobTimeoutError);
     assert.match(String(failures[0]), /timed out after 5ms/);

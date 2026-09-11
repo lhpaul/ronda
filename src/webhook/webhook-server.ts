@@ -157,11 +157,16 @@ function readRequestBody(req: IncomingMessage, maxBytes: number): Promise<Buffer
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let total = 0;
+    let exceeded = false;
     req.on("data", (chunk: Buffer) => {
+      if (exceeded) {
+        return;
+      }
       total += chunk.length;
       if (total > maxBytes) {
+        exceeded = true;
         reject(new Error(`request body exceeded ${maxBytes} bytes`));
-        req.destroy();
+        req.resume();
         return;
       }
       chunks.push(chunk);
