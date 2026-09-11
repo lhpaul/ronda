@@ -171,7 +171,7 @@ test("POST /webhook returns 413 for oversized bodies without resetting the socke
   });
 });
 
-test("queued webhook job failures invoke the fatal failure hook after returning 202", async () => {
+test("queued webhook job failures invoke the failure hook after returning 202", async () => {
   const failures: unknown[] = [];
   const server = startWebhookServer(
     { ...config, port: 0 },
@@ -299,7 +299,8 @@ test("active webhook delivery IDs are not evicted by later refused deliveries", 
     assert.equal((await postDelivery("delivery-active")).status, 202);
     await eventually(() => jobs.length === 1);
     for (let index = 0; index < 1_001; index += 1) {
-      assert.equal((await postDelivery(`delivery-later-${index}`)).status, 503);
+      const response = await postDelivery(`delivery-later-${index}`);
+      assert.equal(response.status, index < 25 ? 202 : 503);
     }
 
     const replay = await postDelivery("delivery-active");
@@ -377,7 +378,7 @@ test("delivery IDs are released when the worker refuses to enqueue", async () =>
   }
 });
 
-test("busy webhook worker releases refused deliveries for later retry", async () => {
+test("busy webhook worker queues pending deliveries for later processing", async () => {
   const jobs: string[] = [];
   let finishFirstJob!: () => void;
   const firstJobCanFinish = new Promise<void>((resolve) => {
@@ -415,23 +416,21 @@ test("busy webhook worker releases refused deliveries for later retry", async ()
   try {
     assert.equal((await postDelivery("delivery-busy-first")).status, 202);
     await eventually(() => jobs.length === 1);
-    assert.equal((await postDelivery("delivery-busy-retry")).status, 503);
+    const queued = await postDelivery("delivery-busy-queued");
+
+    assert.equal(queued.status, 202);
+    assert.deepEqual(await queued.json(), { ok: true, queued: true, pullNumber: 7 });
+    assert.deepEqual(jobs, ["delivery-busy-first"]);
     finishFirstJob();
-    await new Promise((resolve) => setTimeout(resolve, 5));
-
-    const retry = await postDelivery("delivery-busy-retry");
-
-    assert.equal(retry.status, 202);
-    assert.deepEqual(await retry.json(), { ok: true, queued: true, pullNumber: 7 });
     await eventually(() => jobs.length === 2);
-    assert.deepEqual(jobs, ["delivery-busy-first", "delivery-busy-retry"]);
+    assert.deepEqual(jobs, ["delivery-busy-first", "delivery-busy-queued"]);
   } finally {
     finishFirstJob();
     server.close();
   }
 });
 
-test("busy webhook workers refuse concurrent jobs for GitHub redelivery", async () => {
+test("busy webhook worker continues queued jobs after a job failure", async () => {
   const failures: unknown[] = [];
   const jobs: string[] = [];
   let failFirstJob!: () => void;
@@ -481,17 +480,18 @@ test("busy webhook workers refuse concurrent jobs for GitHub redelivery", async 
     });
 
     assert.equal(first.status, 202);
-    assert.equal(second.status, 503);
-    assert.deepEqual(await second.json(), { ok: false, error: "webhook_worker_unavailable" });
+    assert.equal(second.status, 202);
+    assert.deepEqual(await second.json(), { ok: true, queued: true, pullNumber: 7 });
     failFirstJob();
     await eventually(() => failures.length === 1);
-    assert.deepEqual(jobs, ["delivery-8"]);
+    await eventually(() => jobs.length === 2);
+    assert.deepEqual(jobs, ["delivery-8", "delivery-9"]);
   } finally {
     server.close();
   }
 });
 
-test("queued webhook jobs fail fatally when they exceed the outer job timeout", async () => {
+test("queued webhook jobs report failures when they exceed the outer job timeout", async () => {
   const failures: unknown[] = [];
   const jobs: string[] = [];
   let jobSignal: AbortSignal | undefined;

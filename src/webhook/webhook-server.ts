@@ -5,6 +5,7 @@ import { resolveWebhookJob, runWebhookReviewJob, type WebhookReviewJob } from ".
 
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
 const MAX_SEEN_DELIVERY_IDS = 1_000;
+const MAX_PENDING_WEBHOOK_JOBS = 25;
 
 export interface WebhookServerDeps {
   runJob?: (job: WebhookReviewJob, config: WebhookConfig, signal: AbortSignal) => Promise<void>;
@@ -27,8 +28,8 @@ export function startWebhookServer(
 ): ReturnType<typeof createServer> {
   const log = deps.log ?? console;
   const runJob = deps.runJob ?? runWebhookReviewJob;
-  let fatalError: unknown;
   let busy = false;
+  const pendingJobs: WebhookReviewJob[] = [];
   const deliveryIds: DeliveryIdState = {
     active: new Set<string>(),
     completed: new Set<string>(),
@@ -43,37 +44,43 @@ export function startWebhookServer(
         deliveryIds.active.delete(deliveryId);
       },
       enqueue: (job) => {
-        if (fatalError !== undefined || busy) {
-          return false;
+        if (busy) {
+          if (pendingJobs.length >= MAX_PENDING_WEBHOOK_JOBS) {
+            return false;
+          }
+          pendingJobs.push(job);
+          return true;
         }
-        busy = true;
-        void withJobTimeout(
-          (signal) => runJob(job, config, signal),
-          config.webhookJobTimeoutMs,
-          () => new WebhookJobTimeoutError(job, config.webhookJobTimeoutMs),
-        )
-          .then(() => {
-            completeDeliveryId(deliveryIds, job.deliveryId);
-          })
-          .catch((error: unknown) => {
-            fatalError = error;
-            log.error("Ronda webhook job failed", error);
-            if (deps.onJobFailure) {
-              deps.onJobFailure(error);
-              return;
-            }
-            process.exitCode = 1;
-            server.close();
-          })
-          .finally(() => {
-            if (fatalError === undefined) {
-              busy = false;
-            }
-          });
+        runNextJob(job);
         return true;
       },
     });
   });
+
+  const runNextJob = (job: WebhookReviewJob): void => {
+    busy = true;
+    void withJobTimeout(
+      (signal) => runJob(job, config, signal),
+      config.webhookJobTimeoutMs,
+      () => new WebhookJobTimeoutError(job, config.webhookJobTimeoutMs),
+    )
+      .then(() => {
+        completeDeliveryId(deliveryIds, job.deliveryId);
+      })
+      .catch((error: unknown) => {
+        deliveryIds.active.delete(job.deliveryId);
+        log.error("Ronda webhook job failed", error);
+        deps.onJobFailure?.(error);
+      })
+      .finally(() => {
+        const nextJob = pendingJobs.shift();
+        if (nextJob === undefined) {
+          busy = false;
+          return;
+        }
+        runNextJob(nextJob);
+      });
+  };
 
   server.listen(config.port, config.host, () => {
     log.log(`Ronda webhook listening on http://${config.host}:${config.port}`);

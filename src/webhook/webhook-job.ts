@@ -18,6 +18,8 @@ import { resolveTrigger } from "../cli/resolve-trigger.js";
 import { createGithubAppJwt, createInstallationAccessToken } from "./github-app-auth.js";
 import type { WebhookConfig } from "./webhook-config.js";
 
+const TERMINAL_CHECK_RUN_TIMEOUT_MS = 30_000;
+
 export interface WebhookReviewJob extends ReviewPassInput {
   installationId: number;
   deliveryId: string;
@@ -146,7 +148,7 @@ export async function runWebhookReviewJob(
       publishCheckRun(
         installationClient.octokit,
         checkRunInput,
-        combineAbortSignalWhenPresent(requestSignal, signal),
+        checkRunSignal(requestSignal, signal),
       ),
   };
 
@@ -204,12 +206,16 @@ export function withOuterAbortSignal(
   };
 }
 
-export function combineAbortSignalWhenPresent(
+export function checkRunSignal(
   requestSignal: AbortSignal | undefined,
   outerSignal: AbortSignal | undefined,
 ): AbortSignal | undefined {
   if (requestSignal === undefined) {
-    return undefined;
+    const terminalSignal = AbortSignal.timeout(TERMINAL_CHECK_RUN_TIMEOUT_MS);
+    if (outerSignal === undefined || outerSignal.aborted) {
+      return terminalSignal;
+    }
+    return combineAbortSignals(terminalSignal, outerSignal);
   }
   return combineAbortSignals(requestSignal, outerSignal);
 }

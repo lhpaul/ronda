@@ -144,6 +144,9 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   repository-scoped read/write calls. Its installation-token request is
   separately timeout-bounded so the local worker cannot hang before the normal
   pass deadline starts, and each accepted job also has an outer watchdog
-  timeout. The webhook service accepts one in-flight review job at a time and
-  returns `503` for additional runnable deliveries while busy or fatal, letting
-  GitHub redeliver instead of accepting work that may later be dropped.
+  timeout. The webhook service runs one active review job at a time and keeps a
+  bounded in-process FIFO queue for additional runnable deliveries so busy-path
+  webhooks are not lost waiting for manual redelivery. Terminal check-run writes
+  that intentionally outlive an expired pass deadline still receive a short
+  publication timeout so stalled GitHub writes cannot keep the process alive
+  indefinitely.
