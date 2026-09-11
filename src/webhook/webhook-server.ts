@@ -12,6 +12,7 @@ const MAX_PENDING_WEBHOOK_JOBS = 25;
 export interface WebhookServerDeps {
   runJob?: (job: WebhookReviewJob, config: WebhookConfig, signal: AbortSignal) => Promise<void>;
   onJobFailure?: (error: unknown) => void;
+  queueStore?: WebhookQueueStore;
   log?: Pick<Console, "error" | "log">;
 }
 
@@ -34,13 +35,20 @@ export class WebhookJobSettlementTimeoutError extends Error {
   }
 }
 
+export class WebhookQueuePersistenceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WebhookQueuePersistenceError";
+  }
+}
+
 export function startWebhookServer(
   config: WebhookConfig,
   deps: WebhookServerDeps = {},
 ): ReturnType<typeof createServer> {
   const log = deps.log ?? console;
   const runJob = deps.runJob ?? runWebhookReviewJob;
-  const queueStore = createWebhookQueueStore(config.webhookQueuePath, log);
+  const queueStore = deps.queueStore ?? createWebhookQueueStore(config.webhookQueuePath, log);
   let busy = false;
   let workerStopped = false;
   const pendingJobs: WebhookReviewJob[] = queueStore.load();
@@ -94,7 +102,11 @@ export function startWebhookServer(
     )
       .then(() => {
         completeDeliveryId(deliveryIds, job.deliveryId);
-        queueStore.remove(job.deliveryId);
+        if (!queueStore.remove(job.deliveryId)) {
+          throw new WebhookQueuePersistenceError(
+            `Failed to remove completed webhook delivery ${job.deliveryId} from the queue`,
+          );
+        }
       })
       .catch((error: unknown) => {
         deliveryIds.active.delete(job.deliveryId);
@@ -136,10 +148,10 @@ interface DeliveryIdState {
   completedOrder: string[];
 }
 
-interface WebhookQueueStore {
+export interface WebhookQueueStore {
   load: () => WebhookReviewJob[];
   add: (job: WebhookReviewJob) => boolean;
-  remove: (deliveryId: string) => void;
+  remove: (deliveryId: string) => boolean;
 }
 
 interface HandleWebhookRequestDeps {
@@ -278,7 +290,7 @@ function createWebhookQueueStore(
     return {
       load: () => [],
       add: () => true,
-      remove: () => undefined,
+      remove: () => true,
     };
   }
 
@@ -325,8 +337,10 @@ function createWebhookQueueStore(
       try {
         const jobs = readJobs();
         writeJobs(jobs.filter((job) => job.deliveryId !== deliveryId));
+        return true;
       } catch (error) {
         log.error("Ronda webhook queue remove failed", error);
+        return false;
       }
     },
   };
