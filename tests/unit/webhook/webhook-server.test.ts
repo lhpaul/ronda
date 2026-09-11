@@ -822,6 +822,60 @@ test("completed webhook queue history is bounded", async () => {
   }
 });
 
+test("live reviewed-head suppression history is bounded", async () => {
+  const jobs: WebhookReviewJob[] = [];
+  const server = startWebhookServer(
+    { ...config, port: 0 },
+    {
+      runJob: async (job) => {
+        jobs.push(job);
+        return { terminalCheckRunPublished: true, reviewedHeadSha: job.headSha };
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  const postPullRequest = async (
+    index: number,
+    deliveryId = `delivery-reviewed-${index}`,
+  ): Promise<Response> => {
+    const payload = {
+      ...pullRequestPayload(),
+      pull_request: {
+        number: index + 1,
+        head: { sha: index.toString(16).padStart(40, "0") },
+      },
+    };
+    const body = JSON.stringify(payload);
+    return fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": deliveryId,
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+  };
+
+  try {
+    for (let index = 0; index <= 1_000; index += 1) {
+      assert.equal((await postPullRequest(index)).status, 202);
+      await eventually(() => jobs.length === index + 1);
+    }
+
+    assert.equal((await postPullRequest(0, "delivery-reviewed-0-replay")).status, 202);
+    await eventually(() => jobs.length === 1_002);
+    assert.equal(jobs[jobs.length - 1]?.deliveryId, "delivery-reviewed-0-replay");
+  } finally {
+    server.close();
+  }
+});
+
 test("review-published webhook failures are not replayed from the persisted queue", async () => {
   const failures: unknown[] = [];
   const jobs: string[] = [];

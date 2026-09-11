@@ -71,6 +71,7 @@ export function startWebhookServer(
     completed: new Set<string>(completedDeliveryIds),
     completedOrder: [...completedDeliveryIds],
     suppressedReviewKeys: new Set<string>(suppressedReviewKeys),
+    suppressedReviewKeyOrder: suppressedReviewKeys,
   };
   for (const job of pendingJobs) {
     deliveryIds.active.add(job.deliveryId);
@@ -223,6 +224,7 @@ interface DeliveryIdState {
   completed: Set<string>;
   completedOrder: string[];
   suppressedReviewKeys: Set<string>;
+  suppressedReviewKeyOrder: string[];
 }
 
 export interface WebhookQueueStore {
@@ -370,8 +372,16 @@ function suppressReviewKey(
   reviewedHeadSha?: string,
 ): void {
   const reviewKey = reviewSuppressionKey(job, reviewedHeadSha);
-  if (reviewKey !== undefined) {
-    deliveryIds.suppressedReviewKeys.add(reviewKey);
+  if (reviewKey === undefined || deliveryIds.suppressedReviewKeys.has(reviewKey)) {
+    return;
+  }
+  deliveryIds.suppressedReviewKeys.add(reviewKey);
+  deliveryIds.suppressedReviewKeyOrder.push(reviewKey);
+  while (deliveryIds.suppressedReviewKeyOrder.length > MAX_PERSISTED_COMPLETED_WEBHOOK_JOBS) {
+    const oldestReviewKey = deliveryIds.suppressedReviewKeyOrder.shift();
+    if (oldestReviewKey !== undefined) {
+      deliveryIds.suppressedReviewKeys.delete(oldestReviewKey);
+    }
   }
 }
 
