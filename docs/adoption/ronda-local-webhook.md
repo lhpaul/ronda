@@ -33,7 +33,10 @@ repository-specific personal tokens.
 
 Set these environment variables on the machine that will receive webhooks:
 
+<!-- workflow-shell-contract: bash -->
 ```bash
+set -euo pipefail
+
 export RONDA_WEBHOOK_SECRET="<github-app-webhook-secret>"
 export RONDA_GITHUB_APP_ID="<github-app-id>"
 export RONDA_GITHUB_PRIVATE_KEY_FILE="$HOME/.config/ronda/github-app-private-key.pem"
@@ -42,7 +45,10 @@ export RONDA_MODEL_API_KEY="<model-vendor-key>"
 
 Optional settings:
 
+<!-- workflow-shell-contract: bash -->
 ```bash
+set -euo pipefail
+
 export RONDA_WEBHOOK_HOST="127.0.0.1"
 export RONDA_WEBHOOK_PORT="3000"
 export RONDA_GITHUB_APP_TOKEN_TIMEOUT_MS="60000"
@@ -69,7 +75,10 @@ process after a fail-stop restart.
 
 Start the service locally:
 
+<!-- workflow-shell-contract: bash -->
 ```bash
+set -euo pipefail
+
 npm run webhook
 ```
 
