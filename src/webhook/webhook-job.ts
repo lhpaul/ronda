@@ -47,6 +47,10 @@ export function resolveWebhookJob(
   deliveryId: string,
   payload: unknown,
 ): WebhookJobDecision {
+  if (!isRecord(payload)) {
+    return { shouldRun: false, reason: "payload must be a JSON object" };
+  }
+
   const trigger = resolveTrigger(eventName, payload);
   if (!trigger.shouldRun || trigger.pullNumber === undefined || trigger.trigger === undefined) {
     return { shouldRun: false, reason: trigger.reason ?? "trigger did not match" };
@@ -75,6 +79,10 @@ export function resolveWebhookJob(
       deliveryId,
     },
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export async function runWebhookReviewJob(

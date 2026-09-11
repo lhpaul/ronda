@@ -56,6 +56,13 @@ test("keeps unsupported events as no-op decisions", () => {
   assert.match(decision.reason ?? "", /unsupported event/);
 });
 
+test("keeps valid JSON non-object payloads as no-op decisions", () => {
+  const decision = resolveWebhookJob("pull_request", "delivery-primitive", null);
+
+  assert.equal(decision.shouldRun, false);
+  assert.equal(decision.reason, "payload must be a JSON object");
+});
+
 test("rejects runnable events that do not include repository or installation context", () => {
   const missingRepository = resolveWebhookJob(
     "pull_request",

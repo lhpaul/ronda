@@ -129,6 +129,29 @@ test("POST /webhook rejects invalid JSON after signature verification", async ()
   });
 });
 
+test("POST /webhook treats valid JSON non-object payloads as no-op deliveries", async () => {
+  await withWebhookServer(async (baseUrl, jobs) => {
+    const body = "null";
+    const response = await fetch(`${baseUrl}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-null",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    assert.deepEqual(await response.json(), {
+      ok: true,
+      queued: false,
+      reason: "payload must be a JSON object",
+    });
+    assert.equal(jobs.length, 0);
+  });
+});
+
 test("POST /webhook returns 413 for oversized bodies without resetting the socket", async () => {
   await withWebhookServer(async (baseUrl, jobs) => {
     const body = Buffer.alloc(10 * 1024 * 1024 + 1, "x");
