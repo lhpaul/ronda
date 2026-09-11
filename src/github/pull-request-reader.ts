@@ -12,8 +12,10 @@ export async function readPullRequest(
 ): Promise<PullRequestMetadata> {
   const response = await withAbortMapping(
     () =>
-      withRetry(() =>
-        octokit.pulls.get({ owner, repo, pull_number: pullNumber, request: { signal } }),
+      withRetry(
+        () => octokit.pulls.get({ owner, repo, pull_number: pullNumber, request: { signal } }),
+        undefined,
+        signal,
       ),
     signal,
   );
@@ -45,14 +47,17 @@ export async function readChangedFiles(
 ): Promise<ChangedFile[]> {
   const files = await withAbortMapping(
     () =>
-      withRetry(() =>
-        octokit.paginate(octokit.pulls.listFiles, {
-          owner,
-          repo,
-          pull_number: pullNumber,
-          per_page: 100,
-          request: { signal },
-        }),
+      withRetry(
+        () =>
+          octokit.paginate(octokit.pulls.listFiles, {
+            owner,
+            repo,
+            pull_number: pullNumber,
+            per_page: 100,
+            request: { signal },
+          }),
+        undefined,
+        signal,
       ),
     signal,
   );
@@ -83,14 +88,17 @@ export async function findExistingCheckRun(
 ): Promise<number | null> {
   const response = await withAbortMapping(
     () =>
-      withRetry(() =>
-        octokit.checks.listForRef({
-          owner,
-          repo,
-          ref: headSha,
-          check_name: CHECK_RUN_NAME,
-          request: { signal },
-        }),
+      withRetry(
+        () =>
+          octokit.checks.listForRef({
+            owner,
+            repo,
+            ref: headSha,
+            check_name: CHECK_RUN_NAME,
+            request: { signal },
+          }),
+        undefined,
+        signal,
       ),
     signal,
   );

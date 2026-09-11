@@ -311,6 +311,51 @@ test("readPullRequest, readChangedFiles, and findExistingCheckRun each forward t
   assert.ok(seenSignals.every((signal) => signal === controller.signal));
 });
 
+test("readPullRequest aborts retry backoff when the caller signal aborts", async () => {
+  const controller = new AbortController();
+  let attempts = 0;
+  const octokit = createFakeOctokit({
+    pulls: {
+      get: async () => {
+        attempts += 1;
+        if (attempts > 1) {
+          return {
+            data: {
+              number: 4,
+              title: "unexpected retry",
+              body: "",
+              draft: false,
+              head: { sha: "a".repeat(40) },
+            },
+          };
+        }
+        throw { status: 500, message: "server unavailable" };
+      },
+      listFiles: () => undefined,
+    },
+  });
+  const readPromise = readPullRequest(
+    octokit,
+    "lhpaul",
+    "ronda",
+    4,
+    controller.signal,
+  );
+
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  controller.abort(new DOMException("The operation was aborted.", "AbortError"));
+
+  await assert.rejects(
+    () => readPromise,
+    (error: unknown) => {
+      assert.ok(error instanceof GithubClientError);
+      assert.equal(error.reason, "timed_out");
+      return true;
+    },
+  );
+  assert.equal(attempts, 1);
+});
+
 // --- Issue #11: a deadline expiring during any GitHub call must classify as
 // a typed `GithubClientError` (reason `timed_out`), not the raw
 // `AbortError`/`DOMException` Octokit's underlying `fetch` transport throws.
