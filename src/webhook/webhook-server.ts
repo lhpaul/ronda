@@ -6,7 +6,6 @@ import { resolveWebhookJob, runWebhookReviewJob, type WebhookReviewJob } from ".
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
 const MAX_SEEN_DELIVERY_IDS = 1_000;
 const MAX_PENDING_WEBHOOK_JOBS = 25;
-const MAX_ABORT_SETTLEMENT_MS = 30_000;
 
 export interface WebhookServerDeps {
   runJob?: (job: WebhookReviewJob, config: WebhookConfig, signal: AbortSignal) => Promise<void>;
@@ -230,7 +229,6 @@ async function withJobTimeout(
 ): Promise<void> {
   const controller = new AbortController();
   let timeout: NodeJS.Timeout | undefined;
-  let settlementTimeout: NodeJS.Timeout | undefined;
   const jobPromise = runJob(controller.signal);
   const timeoutPromise = new Promise<{ timedOut: true; error: Error }>((resolve) => {
     timeout = setTimeout(() => {
@@ -249,20 +247,11 @@ async function withJobTimeout(
       return;
     }
 
-    await Promise.race([
-      jobPromise.catch(() => undefined),
-      new Promise<void>((resolve) => {
-        settlementTimeout = setTimeout(resolve, MAX_ABORT_SETTLEMENT_MS);
-        settlementTimeout.unref?.();
-      }),
-    ]);
+    await jobPromise.catch(() => undefined);
     throw result.error;
   } finally {
     if (timeout !== undefined) {
       clearTimeout(timeout);
-    }
-    if (settlementTimeout !== undefined) {
-      clearTimeout(settlementTimeout);
     }
   }
 }

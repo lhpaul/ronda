@@ -82,8 +82,9 @@ depending on manual GitHub redelivery while the local worker is busy. If the
 queue is full, or if the tunnel or machine is offline, GitHub deliveries fail at
 the webhook layer; switch the repository back to the reusable Action workflow
 when you need the migration fallback. Accepted local review jobs are wrapped in
-an outer timeout, and terminal check-run writes receive their own short timeout
-so stalled GitHub calls do not leave the process alive indefinitely.
+an outer timeout; after an abort, the FIFO does not advance until the active job
+settles. Terminal check-run writes receive their own short timeout so stalled
+GitHub calls do not leave the process alive indefinitely.
 
 ## Mini or MiniPC Hosting Path
 
