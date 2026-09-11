@@ -6,6 +6,7 @@ export interface WebhookConfig {
   webhookSecret: string;
   githubAppId: string;
   githubPrivateKey: string;
+  githubAppTokenTimeoutMs: number;
   githubApiUrl?: string;
   detailsUrl?: string;
 }
@@ -46,6 +47,7 @@ export function loadWebhookConfig(options: LoadWebhookConfigOptions = {}): Webho
     webhookSecret,
     githubAppId,
     githubPrivateKey,
+    githubAppTokenTimeoutMs: positiveInt(env.RONDA_GITHUB_APP_TOKEN_TIMEOUT_MS) ?? 60_000,
     githubApiUrl: nonBlank(env.GITHUB_API_URL),
     detailsUrl: nonBlank(env.RONDA_DETAILS_URL),
   };
@@ -90,4 +92,3 @@ function positiveInt(value: string | undefined): number | undefined {
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
-

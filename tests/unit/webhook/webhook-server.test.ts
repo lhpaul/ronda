@@ -13,6 +13,7 @@ const config: WebhookConfig = {
   webhookSecret: "webhook-secret",
   githubAppId: "123",
   githubPrivateKey: "private-key",
+  githubAppTokenTimeoutMs: 60_000,
 };
 
 function pullRequestPayload(): Record<string, unknown> {
@@ -121,4 +122,3 @@ test("POST /webhook rejects invalid JSON after signature verification", async ()
     assert.equal(jobs.length, 0);
   });
 });
-

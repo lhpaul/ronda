@@ -42,6 +42,7 @@ Optional settings:
 ```bash
 export RONDA_WEBHOOK_HOST="127.0.0.1"
 export RONDA_WEBHOOK_PORT="3000"
+export RONDA_GITHUB_APP_TOKEN_TIMEOUT_MS="60000"
 export RONDA_DETAILS_URL="https://example.test/ronda"
 ```
 
@@ -50,7 +51,9 @@ export RONDA_DETAILS_URL="https://example.test/ronda"
 configuration follows the same precedence as the Action path:
 `RONDA_MODEL_API_KEY`, `RONDA_MODEL_BASE_URL`, `RONDA_MODEL_NAME`,
 `RONDA_PASS_TIMEOUT_MS`, and `RONDA_MAX_PATCH_CHARS` override the local operator
-config file.
+config file. `RONDA_GITHUB_APP_TOKEN_TIMEOUT_MS` bounds the pre-pass GitHub App
+installation-token request so a stalled GitHub API call cannot block the local
+serial review queue indefinitely.
 
 ## MacBook and Tunnel Dogfood
 
@@ -91,4 +94,3 @@ The local webhook path handles the same triggers as the Action entrypoint:
 
 Draft skip, new-head supersession, manual re-runs, one check run per head SHA,
 and no branch mutation are preserved by reusing Ronda's existing review core.
-

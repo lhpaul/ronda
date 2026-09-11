@@ -10,6 +10,7 @@ test("loads webhook config from environment variables", () => {
       RONDA_GITHUB_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\\nkey\\n-----END PRIVATE KEY-----",
       RONDA_WEBHOOK_HOST: "0.0.0.0",
       RONDA_WEBHOOK_PORT: "4321",
+      RONDA_GITHUB_APP_TOKEN_TIMEOUT_MS: "12345",
       GITHUB_API_URL: "https://github.example/api/v3",
       RONDA_DETAILS_URL: "https://ronda.local/runs",
     },
@@ -20,6 +21,7 @@ test("loads webhook config from environment variables", () => {
   assert.equal(config.githubPrivateKey, "-----BEGIN PRIVATE KEY-----\\nkey\\n-----END PRIVATE KEY-----");
   assert.equal(config.host, "0.0.0.0");
   assert.equal(config.port, 4321);
+  assert.equal(config.githubAppTokenTimeoutMs, 12345);
   assert.equal(config.githubApiUrl, "https://github.example/api/v3");
   assert.equal(config.detailsUrl, "https://ronda.local/runs");
 });
@@ -38,6 +40,7 @@ test("loads webhook private key from a file when the inline key is absent", () =
   assert.equal(config.githubPrivateKey, "file-private-key");
   assert.equal(config.host, "127.0.0.1");
   assert.equal(config.port, 3000);
+  assert.equal(config.githubAppTokenTimeoutMs, 60_000);
 });
 
 test("throws a sanitized config error when required webhook config is missing", () => {
@@ -50,4 +53,3 @@ test("throws a sanitized config error when required webhook config is missing", 
     },
   );
 });
-

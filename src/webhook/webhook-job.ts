@@ -88,6 +88,7 @@ export async function runWebhookReviewJob(
     appJwt,
     installationId: job.installationId,
     apiUrl: webhookConfig.githubApiUrl,
+    signal: AbortSignal.timeout(webhookConfig.githubAppTokenTimeoutMs),
   });
   const installationClient = createGithubClient({
     token: installationToken,
