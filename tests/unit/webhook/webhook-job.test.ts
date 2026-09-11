@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { REVIEW_COMMAND } from "../../../src/domain/review-pass.types.js";
-import { resolveWebhookJob } from "../../../src/webhook/webhook-job.js";
+import { resolveWebhookJob, withOuterAbortSignal } from "../../../src/webhook/webhook-job.js";
 
 const HEAD_SHA = "a".repeat(40);
 
@@ -68,4 +68,28 @@ test("rejects runnable events that do not include repository or installation con
   assert.equal(missingRepository.reason, "payload missing repository.full_name");
   assert.equal(missingInstallation.shouldRun, false);
   assert.equal(missingInstallation.reason, "payload missing installation.id");
+});
+
+test("combines webhook job timeout signal into model calls", async () => {
+  const outer = new AbortController();
+  const pass = new AbortController();
+  let observedSignal: AbortSignal | undefined;
+  const model = withOuterAbortSignal(
+    {
+      modelName: "test-model",
+      complete: async (_request, signal) => {
+        observedSignal = signal;
+        return "ok";
+      },
+    },
+    outer.signal,
+  );
+
+  assert.equal(
+    await model.complete({ systemPrompt: "system", userPrompt: "user" }, pass.signal),
+    "ok",
+  );
+  assert.equal(observedSignal?.aborted, false);
+  outer.abort(new Error("job timeout"));
+  assert.equal(observedSignal?.aborted, true);
 });

@@ -13,6 +13,7 @@ import {
   readPullRequest,
 } from "../github/pull-request-reader.js";
 import { createOpenAiCompatibleClient } from "../inference/openai-compatible-client.js";
+import type { ModelClient } from "../inference/model-client.js";
 import { resolveTrigger } from "../cli/resolve-trigger.js";
 import { createGithubAppJwt, createInstallationAccessToken } from "./github-app-auth.js";
 import type { WebhookConfig } from "./webhook-config.js";
@@ -152,11 +153,14 @@ export async function runWebhookReviewJob(
     };
   }
 
-  const model = createOpenAiCompatibleClient({
-    apiKey: config.model.apiKey,
-    baseUrl: config.model.baseUrl,
-    modelName: config.model.modelName,
-  });
+  const model = withOuterAbortSignal(
+    createOpenAiCompatibleClient({
+      apiKey: config.model.apiKey,
+      baseUrl: config.model.baseUrl,
+      modelName: config.model.modelName,
+    }),
+    signal,
+  );
   const logger = createLogger([config.model.apiKey, installationToken, webhookConfig.githubPrivateKey]);
 
   const result = await runReviewPass(job, {
@@ -174,6 +178,20 @@ export async function runWebhookReviewJob(
     pullNumber: job.pullNumber,
     outcome: result.outcome,
   });
+}
+
+export function withOuterAbortSignal(
+  model: ModelClient,
+  outerSignal: AbortSignal | undefined,
+): ModelClient {
+  if (outerSignal === undefined) {
+    return model;
+  }
+  return {
+    modelName: model.modelName,
+    complete: (request, requestSignal) =>
+      model.complete(request, combineAbortSignals(requestSignal, outerSignal) ?? requestSignal),
+  };
 }
 
 function combineAbortSignals(
