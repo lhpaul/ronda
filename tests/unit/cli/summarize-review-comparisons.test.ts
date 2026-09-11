@@ -72,29 +72,62 @@ test("summarizes comparison records across quality outcomes", () => {
     },
     adjudications: [{ outcome: "unclear" }],
   };
+  const unclearCandidate: ReviewComparisonRecord = {
+    ...baseRecord,
+    id: "unclear-candidate",
+    pullNumber: 33,
+    headSha: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    ronda: {
+      result: "clean",
+      reviewedHeadSha: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      findings: [],
+    },
+    otherReviewer: {
+      name: "PR-Agent",
+      result: "findings",
+      reviewedHeadSha: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      findings: [
+        {
+          path: "src/summary.ts",
+          line: 8,
+          severity: "important",
+          title: "Investigate external-only finding",
+          body: "This has not been adjudicated yet.",
+        },
+      ],
+    },
+    adjudications: [{ outcome: "unclear" }],
+  };
 
   const rollup = summarizeComparisonRecords([
     baseRecord,
     falseCleanCandidate,
     staleUnclear,
+    unclearCandidate,
   ]);
 
-  assert.equal(rollup.totalComparisons, 3);
-  assert.equal(rollup.sameHeadComparisons, 2);
+  assert.equal(rollup.totalComparisons, 4);
+  assert.equal(rollup.sameHeadComparisons, 3);
   assert.equal(rollup.staleHeadComparisons, 1);
   assert.equal(rollup.totalRondaFindings, 0);
-  assert.equal(rollup.totalOtherReviewerFindings, 1);
-  assert.equal(rollup.falseCleanCandidateCount, 1);
+  assert.equal(rollup.totalOtherReviewerFindings, 2);
+  assert.equal(rollup.falseCleanCandidateCount, 2);
   assert.equal(rollup.adjudicationCounts.clean_agreement, 1);
   assert.equal(rollup.adjudicationCounts.ronda_miss, 1);
-  assert.equal(rollup.adjudicationCounts.unclear, 1);
-  assert.deepEqual(rollup.reviewers, { "Cursor Bugbot": 3 });
+  assert.equal(rollup.adjudicationCounts.unclear, 2);
+  assert.deepEqual(rollup.reviewers, { "Cursor Bugbot": 3, "PR-Agent": 1 });
   assert.deepEqual(rollup.unclearComparisons, [
     {
       id: "stale",
       repository: "lhpaul/ronda",
       pullNumber: 32,
       reviewer: "Cursor Bugbot",
+    },
+    {
+      id: "unclear-candidate",
+      repository: "lhpaul/ronda",
+      pullNumber: 33,
+      reviewer: "PR-Agent",
     },
   ]);
   assert.deepEqual(rollup.falseCleanCandidates, [
@@ -103,6 +136,12 @@ test("summarizes comparison records across quality outcomes", () => {
       repository: "lhpaul/ronda",
       pullNumber: 31,
       reviewer: "Cursor Bugbot",
+    },
+    {
+      id: "unclear-candidate",
+      repository: "lhpaul/ronda",
+      pullNumber: 33,
+      reviewer: "PR-Agent",
     },
   ]);
 });
