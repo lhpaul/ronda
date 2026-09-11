@@ -25,6 +25,13 @@ import type { WebhookConfig } from "./webhook-config.js";
 const TERMINAL_CHECK_RUN_TIMEOUT_MS = 30_000;
 
 type CheckRunLookup = (options?: { appId?: number }) => Promise<number | null>;
+type ExistingCheckRunLookup = (
+  owner: string,
+  repo: string,
+  headSha: string,
+  signal: AbortSignal | undefined,
+  options: { appId?: number },
+) => Promise<number | null>;
 
 export interface WebhookReviewJob extends ReviewPassInput {
   installationId: number;
@@ -122,19 +129,33 @@ export async function runWebhookReviewJob(
     token: installationToken,
     apiUrl: webhookConfig.githubApiUrl,
   });
+  const githubAppId = Number.parseInt(webhookConfig.githubAppId, 10);
   if (job.checkRunInput !== undefined) {
+    const signalForCheckRun = checkRunSignal(signal);
+    const checkRunInput = await refreshRecoveredWebhookCheckRunInput(
+      job.checkRunInput,
+      githubAppId,
+      signalForCheckRun,
+      (owner, repo, headSha, requestSignal, options) =>
+        findExistingCheckRun(
+          installationClient.octokit,
+          owner,
+          repo,
+          headSha,
+          requestSignal,
+          options,
+        ),
+    );
     await publishCheckRun(
       installationClient.octokit,
-      job.checkRunInput,
-      checkRunSignal(signal),
+      checkRunInput,
+      signalForCheckRun,
     );
     return {
       terminalCheckRunPublished: true,
-      reviewedHeadSha: job.checkRunInput.headSha,
+      reviewedHeadSha: checkRunInput.headSha,
     };
   }
-
-  const githubAppId = Number.parseInt(webhookConfig.githubAppId, 10);
 
   const github: GithubOperations = {
     readPullRequest: (o, r, n, requestSignal) =>
@@ -235,6 +256,18 @@ export async function findExistingWebhookCheckRun(
     }
   }
   return lookup({ appId: githubAppId });
+}
+
+export async function refreshRecoveredWebhookCheckRunInput(
+  input: PublishCheckRunInput,
+  githubAppId: number,
+  signal: AbortSignal | undefined,
+  lookup: ExistingCheckRunLookup,
+): Promise<PublishCheckRunInput> {
+  const publishingAppId = Number.isFinite(githubAppId) ? githubAppId : undefined;
+  const options = publishingAppId === undefined ? {} : { appId: publishingAppId };
+  const existingCheckRunId = await lookup(input.owner, input.repo, input.headSha, signal, options);
+  return { ...input, existingCheckRunId: existingCheckRunId ?? input.existingCheckRunId };
 }
 
 export function withOuterAbortSignal(

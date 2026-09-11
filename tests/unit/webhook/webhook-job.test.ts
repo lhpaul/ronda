@@ -1,14 +1,30 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { REVIEW_COMMAND } from "../../../src/domain/review-pass.types.js";
+import { REVIEW_COMMAND, type PublishCheckRunInput } from "../../../src/domain/review-pass.types.js";
 import {
   checkRunSignal,
   findExistingWebhookCheckRun,
+  refreshRecoveredWebhookCheckRunInput,
   resolveWebhookJob,
   withOuterAbortSignal,
 } from "../../../src/webhook/webhook-job.js";
 
 const HEAD_SHA = "a".repeat(40);
+
+function checkRunInput(overrides: Partial<PublishCheckRunInput> = {}): PublishCheckRunInput {
+  return {
+    owner: "lhpaul",
+    repo: "example",
+    headSha: HEAD_SHA,
+    existingCheckRunId: null,
+    title: "Review posted",
+    summary: "Ronda finished the review.",
+    conclusion: "success",
+    startedAt: "2026-09-11T00:00:00.000Z",
+    completedAt: "2026-09-11T00:00:01.000Z",
+    ...overrides,
+  };
+}
 
 function basePayload(overrides: Record<string, unknown> = {}) {
   return {
@@ -160,4 +176,30 @@ test("manual webhook check lookup only targets the publishing GitHub App", async
 
   assert.equal(id, 222);
   assert.deepEqual(calls, [{ appId: 42 }]);
+});
+
+test("check-pending recovery refreshes the publishing App check run id before publishing", async () => {
+  const signal = AbortSignal.timeout(30_000);
+  const lookupCalls: Array<{
+    owner: string;
+    repo: string;
+    headSha: string;
+    signal: AbortSignal | undefined;
+    appId?: number;
+  }> = [];
+
+  const refreshed = await refreshRecoveredWebhookCheckRunInput(
+    checkRunInput({ existingCheckRunId: null }),
+    42,
+    signal,
+    async (owner, repo, headSha, requestSignal, options) => {
+      lookupCalls.push({ owner, repo, headSha, signal: requestSignal, appId: options.appId });
+      return 333;
+    },
+  );
+
+  assert.equal(refreshed.existingCheckRunId, 333);
+  assert.deepEqual(lookupCalls, [
+    { owner: "lhpaul", repo: "example", headSha: HEAD_SHA, signal, appId: 42 },
+  ]);
 });
