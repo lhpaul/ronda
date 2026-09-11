@@ -114,8 +114,10 @@ the current head commit, even if it already has one:
 
 The match is case-insensitive and ignores surrounding whitespace and quoted
 reply lines, but the phrase must be the first meaningful line of the
-comment. Draft pull requests ignore the command entirely, same as the
-automatic path.
+comment. Manual review comments are accepted only from GitHub users whose
+comment `author_association` is `OWNER`, `MEMBER`, or `COLLABORATOR`;
+other users are ignored. Draft pull requests ignore the command entirely,
+same as the automatic path.
 
 ## 4. Consumption contract
 

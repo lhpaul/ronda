@@ -125,7 +125,8 @@ The local webhook path handles the same triggers as the Action entrypoint:
 
 - `pull_request`: `opened`, `reopened`, `ready_for_review`, `synchronize`
 - `issue_comment`: a newly created PR comment whose first meaningful unquoted
-  line is `/ronda review`
+  line is `/ronda review`, and whose GitHub `author_association` is `OWNER`,
+  `MEMBER`, or `COLLABORATOR`
 
 Draft skip, new-head supersession, manual re-runs, one check run per head SHA,
 and no branch mutation are preserved by reusing Ronda's existing review core.

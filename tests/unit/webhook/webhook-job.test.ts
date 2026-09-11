@@ -57,7 +57,7 @@ test("maps a review command issue_comment webhook to a manual review job", () =>
     repository: { full_name: "lhpaul/example" },
     installation: { id: 42 },
     issue: { number: 8, pull_request: {} },
-    comment: { body: REVIEW_COMMAND },
+    comment: { body: REVIEW_COMMAND, author_association: "MEMBER" },
   });
 
   assert.equal(decision.shouldRun, true);
