@@ -49,7 +49,7 @@ Add `haystack` to `review.on_ready.github` in `.ai-dev-workflow.yaml`:
 review:
   on_draft:
     github:
-      - pr-agent
+      - local-ai-reviewer
   on_ready:
     github:
       - haystack

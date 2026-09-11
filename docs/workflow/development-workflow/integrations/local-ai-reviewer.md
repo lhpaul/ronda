@@ -2,8 +2,8 @@
 
 `local-ai-reviewer` is the default first Step 7 draft GitHub review platform in
 this template. It runs a repository-local review command before draft GitHub
-reviewers such as PR-Agent and before ready-phase reviewers such as Bugbot. It
-is implemented by `scripts/development-workflow/local-ai-reviewer.sh` and is
+reviewers such as PR-Agent and before ready-phase reviewers such as Codex
+GitHub. It is implemented by `scripts/development-workflow/local-ai-reviewer.sh` and is
 consumed by `scripts/development-workflow/pr-review-loop.sh`.
 
 The platform is local-only. It does not post GitHub inline comments in this
@@ -14,17 +14,17 @@ thread checks, or the configured ready-phase reviewer.
 
 ## Configuration
 
-The shared template enables it before PR-Agent in `.ai-dev-workflow.yaml`:
+The shared template enables it before the ready-phase Codex GitHub reviewer in
+`.ai-dev-workflow.yaml`:
 
 ```yaml
 review:
   on_draft:
     github:
       - local-ai-reviewer
-      - pr-agent
   on_ready:
     github:
-      - bugbot
+      - codex-github
 ```
 
 Set the local command in the runner environment when you need a custom command.
@@ -148,9 +148,9 @@ files, compact diff summary, a `review_stage` object (stage, source,
 checklists), a `review_doctrine` object (state, pattern_count, version), a
 `strict_spec` object that mirrors the `STRICT_SPEC_*` keys, and a `strict_plan`
 object that mirrors the `STRICT_PLAN_*` keys (including `applied` when state is
-`applied`). Keep this artifact alongside ready-phase
-reviewer-loop evidence when measuring whether Bugbot or another ready-phase
-reviewer found net-new blockers. Relative evidence paths are resolved from the
+`applied`). Keep this artifact alongside ready-phase reviewer-loop evidence
+when measuring whether Codex GitHub, Bugbot, or another ready-phase reviewer
+found net-new blockers. Relative evidence paths are resolved from the
 operator's original working directory before `--repo-root` changes the checkout
 directory.
 
