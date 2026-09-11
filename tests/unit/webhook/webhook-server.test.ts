@@ -46,7 +46,7 @@ function tempQueuePath(): string {
 }
 
 interface WebhookQueueFileEntry extends WebhookReviewJob {
-  status?: "pending" | "in_progress" | "completed";
+  status?: "pending" | "in_progress" | "published" | "completed";
   completedAt?: string;
 }
 
@@ -515,6 +515,62 @@ test("completed webhook queue entries reject matching redeliveries", async () =>
   }
 });
 
+test("published webhook queue entries reject matching redeliveries", async () => {
+  const queuePath = tempQueuePath();
+  const publishedJob: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 7,
+    trigger: "automatic",
+    headSha: "a".repeat(40),
+    installationId: 42,
+    deliveryId: "delivery-published-redelivery",
+    status: "published",
+  };
+  writeFileSync(queuePath, `${JSON.stringify([publishedJob], null, 2)}\n`);
+  const jobs: string[] = [];
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-published-redelivery",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    assert.deepEqual(await response.json(), {
+      ok: true,
+      queued: false,
+      reason: "duplicate_delivery",
+    });
+    assert.deepEqual(jobs, []);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
+      [["delivery-published-redelivery", "published"]],
+    );
+  } finally {
+    server.close();
+  }
+});
+
 test("in-progress webhook queue entries can be recovered by redelivery after startup", async () => {
   const queuePath = tempQueuePath();
   const inProgressJob: WebhookQueueFileEntry = {
@@ -669,6 +725,74 @@ test("review-published webhook failures are not replayed from the persisted queu
       readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
       [["delivery-review-published", "completed"]],
     );
+  } finally {
+    server.close();
+  }
+});
+
+test("completion persistence failures after a terminal outcome do not retry the job", async () => {
+  const failures: unknown[] = [];
+  const calls: string[] = [];
+  const jobs: string[] = [];
+  const queueStore = {
+    load: () => [],
+    loadSuppressedDeliveryIds: () => [],
+    add: () => {
+      calls.push("add");
+      return true;
+    },
+    start: () => {
+      calls.push("start");
+      return true;
+    },
+    retry: () => {
+      calls.push("retry");
+      return true;
+    },
+    markPublished: () => {
+      calls.push("markPublished");
+      return true;
+    },
+    complete: () => {
+      calls.push("complete");
+      return false;
+    },
+  };
+  const server = startWebhookServer(
+    { ...config, port: 0 },
+    {
+      queueStore,
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+      },
+      onJobFailure: (error) => {
+        failures.push(error);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-complete-fails",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    await eventually(() => failures.length === 1);
+    assert.deepEqual(jobs, ["delivery-complete-fails"]);
+    assert.ok(failures[0] instanceof WebhookQueuePersistenceError);
+    assert.deepEqual(calls, ["add", "start", "markPublished", "complete", "complete"]);
   } finally {
     server.close();
   }

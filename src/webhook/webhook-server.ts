@@ -96,6 +96,7 @@ export function startWebhookServer(
 
   const runNextJob = (job: WebhookReviewJob): void => {
     busy = true;
+    let terminalOutcomePublished = false;
     void Promise.resolve()
       .then(() => {
         if (!queueStore.start(job.deliveryId)) {
@@ -114,6 +115,12 @@ export function startWebhookServer(
         ),
       )
       .then(() => {
+        if (!queueStore.markPublished(job.deliveryId)) {
+          throw new WebhookQueuePersistenceError(
+            `Failed to mark webhook delivery ${job.deliveryId} terminal outcome published`,
+          );
+        }
+        terminalOutcomePublished = true;
         if (!queueStore.complete(job.deliveryId)) {
           throw new WebhookQueuePersistenceError(
             `Failed to mark completed webhook delivery ${job.deliveryId} in the queue`,
@@ -123,7 +130,7 @@ export function startWebhookServer(
       })
       .catch((error: unknown) => {
         let failureError = error;
-        if (error instanceof ReviewPublishedCheckRunError) {
+        if (error instanceof ReviewPublishedCheckRunError || terminalOutcomePublished) {
           if (queueStore.complete(job.deliveryId)) {
             completeDeliveryId(deliveryIds, job.deliveryId);
           } else {
@@ -179,6 +186,7 @@ export interface WebhookQueueStore {
   add: (job: WebhookReviewJob) => boolean;
   start: (deliveryId: string) => boolean;
   retry: (deliveryId: string) => boolean;
+  markPublished: (deliveryId: string) => boolean;
   complete: (deliveryId: string) => boolean;
 }
 
@@ -321,6 +329,7 @@ function createWebhookQueueStore(
       add: () => true,
       start: () => true,
       retry: () => true,
+      markPublished: () => true,
       complete: () => true,
     };
   }
@@ -362,7 +371,7 @@ function createWebhookQueueStore(
     loadSuppressedDeliveryIds: () => {
       try {
         return readEntries()
-          .filter((entry) => entry.status === "completed")
+          .filter((entry) => entry.status === "published" || entry.status === "completed")
           .map((entry) => entry.deliveryId);
       } catch (error) {
         log.error("Ronda webhook queue load failed", error);
@@ -394,6 +403,14 @@ function createWebhookQueueStore(
         return updateEntryStatus(deliveryId, "pending");
       } catch (error) {
         log.error("Ronda webhook queue retry write failed", error);
+        return false;
+      }
+    },
+    markPublished: (deliveryId) => {
+      try {
+        return updateEntryStatus(deliveryId, "published");
+      } catch (error) {
+        log.error("Ronda webhook queue published-marker write failed", error);
         return false;
       }
     },
@@ -450,7 +467,7 @@ function pruneCompletedEntries(entries: WebhookQueueEntry[]): WebhookQueueEntry[
 }
 
 interface WebhookQueueEntry extends WebhookReviewJob {
-  status?: "pending" | "in_progress" | "completed";
+  status?: "pending" | "in_progress" | "published" | "completed";
   completedAt?: string;
 }
 
@@ -472,6 +489,7 @@ function isWebhookQueueEntry(value: unknown): value is WebhookQueueEntry {
     (entry.status === undefined ||
       entry.status === "pending" ||
       entry.status === "in_progress" ||
+      entry.status === "published" ||
       entry.status === "completed") &&
     (entry.completedAt === undefined || typeof entry.completedAt === "string")
   );
