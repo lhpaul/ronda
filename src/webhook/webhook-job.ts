@@ -3,7 +3,11 @@ import { createLogger } from "../core/logger.js";
 import { runReviewPass } from "../core/run-review-pass.js";
 import { ConfigLoadError, loadConfig } from "../config/load-config.js";
 import type { RondaConfig } from "../config/config.types.js";
-import type { GithubOperations, ReviewPassInput } from "../domain/review-pass.types.js";
+import type {
+  GithubOperations,
+  PublishCheckRunInput,
+  ReviewPassInput,
+} from "../domain/review-pass.types.js";
 import { createGithubClient } from "../github/github-client.js";
 import { publishCheckRun } from "../github/check-run-publisher.js";
 import { publishReview } from "../github/review-publisher.js";
@@ -25,6 +29,7 @@ type CheckRunLookup = (options?: { appId?: number }) => Promise<number | null>;
 export interface WebhookReviewJob extends ReviewPassInput {
   installationId: number;
   deliveryId: string;
+  checkRunInput?: PublishCheckRunInput;
 }
 
 export interface WebhookReviewJobResult {
@@ -117,6 +122,18 @@ export async function runWebhookReviewJob(
     token: installationToken,
     apiUrl: webhookConfig.githubApiUrl,
   });
+  if (job.checkRunInput !== undefined) {
+    await publishCheckRun(
+      installationClient.octokit,
+      job.checkRunInput,
+      checkRunSignal(signal),
+    );
+    return {
+      terminalCheckRunPublished: true,
+      reviewedHeadSha: job.checkRunInput.headSha,
+    };
+  }
+
   const githubAppId = Number.parseInt(webhookConfig.githubAppId, 10);
 
   const github: GithubOperations = {

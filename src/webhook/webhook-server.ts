@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { ReviewPublishedCheckRunError } from "../core/run-review-pass.js";
+import type { PublishCheckRunInput } from "../domain/review-pass.types.js";
 import { loadWebhookConfig, WebhookConfigError, type WebhookConfig } from "./webhook-config.js";
 import { verifyGithubSignature } from "./signature.js";
 import {
@@ -151,10 +152,10 @@ export function startWebhookServer(
       .catch((error: unknown) => {
         let failureError = error;
         if (error instanceof ReviewPublishedCheckRunError) {
-          if (
-            !terminalOutcomePublished &&
-            !queueStore.markPublished(job.deliveryId, error.reviewedHeadSha)
-          ) {
+          const marked = error.checkRunInput
+            ? (queueStore.markCheckPending?.(job.deliveryId, error.checkRunInput) ?? false)
+            : queueStore.markPublished(job.deliveryId, error.reviewedHeadSha);
+          if (!terminalOutcomePublished && !marked) {
             failureError = new WebhookQueuePersistenceError(
               `Failed to mark review-published webhook delivery ${job.deliveryId} in the queue`,
             );
@@ -228,6 +229,7 @@ export interface WebhookQueueStore {
   start: (deliveryId: string) => boolean;
   retry: (deliveryId: string) => boolean;
   markPublished: (deliveryId: string, reviewedHeadSha?: string) => boolean;
+  markCheckPending?: (deliveryId: string, checkRunInput: PublishCheckRunInput) => boolean;
   complete: (deliveryId: string) => boolean;
 }
 
@@ -396,6 +398,7 @@ function createWebhookQueueStore(
       start: () => true,
       retry: () => true,
       markPublished: () => true,
+      markCheckPending: () => true,
       complete: () => true,
     };
   }
@@ -429,8 +432,16 @@ function createWebhookQueueStore(
         const entries = readEntries();
         const suppressedReviewKeys = reviewSuppressionKeysForEntries(entries);
         return entries
-          .filter((entry) => entry.status === undefined || entry.status === "pending")
+          .filter(
+            (entry) =>
+              entry.status === undefined ||
+              entry.status === "pending" ||
+              entry.status === "check_pending",
+          )
           .filter((entry) => {
+            if (entry.status === "check_pending") {
+              return true;
+            }
             const reviewKey = reviewSuppressionKey(entry);
             return reviewKey === undefined || !suppressedReviewKeys.has(reviewKey);
           })
@@ -496,6 +507,33 @@ function createWebhookQueueStore(
         return updateEntryStatus(deliveryId, "published", reviewedHeadSha);
       } catch (error) {
         log.error("Ronda webhook queue published-marker write failed", error);
+        return false;
+      }
+    },
+    markCheckPending: (deliveryId, checkRunInput) => {
+      try {
+        const entries = readEntries();
+        let found = false;
+        const updatedEntries = entries.map((entry) => {
+          if (entry.deliveryId !== deliveryId) {
+            return entry;
+          }
+          found = true;
+          return {
+            ...entry,
+            status: "check_pending" as const,
+            headSha: checkRunInput.headSha,
+            reviewPublished: true,
+            checkRunInput,
+          };
+        });
+        if (!found) {
+          return false;
+        }
+        writeEntries(updatedEntries);
+        return true;
+      } catch (error) {
+        log.error("Ronda webhook queue check-pending write failed", error);
         return false;
       }
     },
@@ -568,6 +606,7 @@ function reviewSuppressionKeysForEntries(entries: WebhookQueueEntry[]): Set<stri
       .filter(
         (entry) =>
           entry.status === "published" ||
+          entry.status === "check_pending" ||
           (entry.status === "completed" && entry.reviewPublished === true),
       )
       .map((entry) => reviewSuppressionKey(entry))
@@ -587,7 +626,7 @@ function reviewSuppressionKey(
 }
 
 interface WebhookQueueEntry extends WebhookReviewJob {
-  status?: "pending" | "in_progress" | "published" | "completed";
+  status?: "pending" | "in_progress" | "published" | "check_pending" | "completed";
   completedAt?: string;
   reviewPublished?: boolean;
 }
@@ -597,6 +636,9 @@ function toWebhookReviewJob(entry: WebhookQueueEntry): WebhookReviewJob {
   const job: WebhookReviewJob = { owner, repo, pullNumber, trigger, installationId, deliveryId };
   if (headSha !== undefined) {
     job.headSha = headSha;
+  }
+  if (entry.checkRunInput !== undefined) {
+    job.checkRunInput = entry.checkRunInput;
   }
   return job;
 }
@@ -611,9 +653,30 @@ function isWebhookQueueEntry(value: unknown): value is WebhookQueueEntry {
       entry.status === "pending" ||
       entry.status === "in_progress" ||
       entry.status === "published" ||
+      entry.status === "check_pending" ||
       entry.status === "completed") &&
     (entry.completedAt === undefined || typeof entry.completedAt === "string") &&
-    (entry.reviewPublished === undefined || typeof entry.reviewPublished === "boolean")
+    (entry.reviewPublished === undefined || typeof entry.reviewPublished === "boolean") &&
+    (entry.checkRunInput === undefined || isPublishCheckRunInput(entry.checkRunInput))
+  );
+}
+
+function isPublishCheckRunInput(value: unknown): value is PublishCheckRunInput {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const input = value as Partial<PublishCheckRunInput>;
+  return (
+    typeof input.owner === "string" &&
+    typeof input.repo === "string" &&
+    typeof input.headSha === "string" &&
+    (typeof input.existingCheckRunId === "number" || input.existingCheckRunId === null) &&
+    typeof input.title === "string" &&
+    typeof input.summary === "string" &&
+    (input.conclusion === "success" || input.conclusion === "failure") &&
+    typeof input.startedAt === "string" &&
+    typeof input.completedAt === "string" &&
+    (input.detailsUrl === undefined || typeof input.detailsUrl === "string")
   );
 }
 

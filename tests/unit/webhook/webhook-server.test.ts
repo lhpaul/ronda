@@ -16,6 +16,7 @@ import {
 } from "../../../src/webhook/webhook-server.js";
 import type { WebhookConfig } from "../../../src/webhook/webhook-config.js";
 import type { WebhookReviewJob } from "../../../src/webhook/webhook-job.js";
+import type { PublishCheckRunInput } from "../../../src/domain/review-pass.types.js";
 
 const config: WebhookConfig = {
   host: "127.0.0.1",
@@ -45,8 +46,22 @@ function tempQueuePath(): string {
   return join(mkdtempSync(join(tmpdir(), "ronda-webhook-queue-")), "queue.json");
 }
 
+function checkRunInput(headSha = "b".repeat(40)): PublishCheckRunInput {
+  return {
+    owner: "lhpaul",
+    repo: "example",
+    headSha,
+    existingCheckRunId: null,
+    title: "Review posted",
+    summary: "Ronda finished.",
+    conclusion: "success",
+    startedAt: "2026-09-11T00:00:00.000Z",
+    completedAt: "2026-09-11T00:00:01.000Z",
+  };
+}
+
 interface WebhookQueueFileEntry extends WebhookReviewJob {
-  status?: "pending" | "in_progress" | "published" | "completed";
+  status?: "pending" | "in_progress" | "published" | "check_pending" | "completed";
   completedAt?: string;
   reviewPublished?: boolean;
 }
@@ -958,6 +973,118 @@ test("review-published webhook tombstones use the actually reviewed head SHA", a
     assert.deepEqual(
       readQueueFile(queuePath).map((job) => [job.deliveryId, job.status, job.headSha]),
       [["delivery-review-published-sha-moved", "published", reviewedHeadSha]],
+    );
+  } finally {
+    server.close();
+  }
+});
+
+test("review-published webhook check-run failures persist check-only recovery", async () => {
+  const failures: unknown[] = [];
+  const queuePath = tempQueuePath();
+  const pendingCheckRun = checkRunInput();
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async () => {
+        throw new ReviewPublishedCheckRunError(
+          "review is public but check run failed",
+          pendingCheckRun.headSha,
+          pendingCheckRun,
+        );
+      },
+      onJobFailure: (error) => {
+        failures.push(error);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-review-published-check-pending",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    await eventually(() => failures.length === 1);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [
+        job.deliveryId,
+        job.status,
+        job.headSha,
+        job.reviewPublished,
+        job.checkRunInput,
+      ]),
+      [
+        [
+          "delivery-review-published-check-pending",
+          "check_pending",
+          pendingCheckRun.headSha,
+          true,
+          pendingCheckRun,
+        ],
+      ],
+    );
+  } finally {
+    server.close();
+  }
+});
+
+test("check-pending webhook queue entries recover by publishing only the check run", async () => {
+  const queuePath = tempQueuePath();
+  const pendingCheckRun = checkRunInput();
+  const checkPendingJob: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 7,
+    trigger: "automatic",
+    headSha: pendingCheckRun.headSha,
+    installationId: 42,
+    deliveryId: "delivery-check-pending-recovery",
+    status: "check_pending",
+    reviewPublished: true,
+    checkRunInput: pendingCheckRun,
+  };
+  writeFileSync(queuePath, `${JSON.stringify([checkPendingJob], null, 2)}\n`);
+  const jobs: WebhookReviewJob[] = [];
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async (job) => {
+        jobs.push(job);
+        return {
+          terminalCheckRunPublished: true,
+          reviewedHeadSha: job.checkRunInput?.headSha,
+        };
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  try {
+    await eventually(() => jobs.length === 1);
+    assert.deepEqual(jobs[0]?.checkRunInput, pendingCheckRun);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [
+        job.deliveryId,
+        job.status,
+        job.reviewPublished,
+      ]),
+      [["delivery-check-pending-recovery", "completed", true]],
     );
   } finally {
     server.close();

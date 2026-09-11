@@ -25,6 +25,7 @@ export class ReviewPublishedCheckRunError extends Error {
   constructor(
     message: string,
     readonly reviewedHeadSha?: string,
+    readonly checkRunInput?: PublishCheckRunInput,
   ) {
     super(message);
     this.name = "ReviewPublishedCheckRunError";
@@ -285,6 +286,7 @@ export async function runReviewPass(
         `Review was published for ${pr.headSha} but the check run could not be ` +
           `published after retrying: ${checkRunResult.message}`,
         pr.headSha,
+        checkRunInput,
       );
     }
 
