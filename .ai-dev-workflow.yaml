@@ -123,7 +123,7 @@ review:
   #   rate_limit_policy: warn      # warn|strict; default warn
   #
   # Local AI reviewer platform options (local-only CLI reviewer; enabled first
-  # in on_draft.github by default before PR-Agent and ready-phase reviewers):
+  # in on_draft.github by default before ready-phase reviewers):
   #   LOCAL_AI_REVIEWER_COMMAND        — optional override; when unset,
   #                                      local-ai-reviewer.sh defaults to
   #                                      scripts/development-workflow/local-codex-review-command.sh

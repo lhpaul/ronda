@@ -3266,10 +3266,10 @@ The bot login list above is a superset covering async review-bot platforms
 supported by `pr-review-loop.sh` that may own GitHub review threads
 (`coderabbit`, `devin`, `greptile`, `codex-github`, `bugbot`). The current
 default GitHub reviewer config in `.ai-dev-workflow.yaml` uses
-`review.on_draft.github: [local-ai-reviewer, pr-agent]` and
-`review.on_ready.github: [bugbot]`; `local-ai-reviewer` and `pr-agent` do not
-own a GitHub review-thread bot login in this workflow. Update the list if your
-project uses different or additional review bots.
+`review.on_draft.github: [local-ai-reviewer]` and
+`review.on_ready.github: [codex-github]`; `local-ai-reviewer` does not own a
+GitHub review-thread bot login in this workflow. Update the list if your project
+uses different or additional review bots.
 
 The output must contain no unresolved, non-outdated threads from configured bot reviewers (e.g. `coderabbitai`, `devin-ai-integration`, `chatgpt-codex-connector`) before this step passes. A thread is considered non-blocking when `isResolved: true`, `isOutdated: true`, or the first comment body contains `✅ Addressed` (CodeRabbit appends this when a fix commit lands). Any unresolved, non-outdated bot-authored thread that does not meet those conditions — regardless of severity, including Nitpick and Trivial — blocks this check. For PRs with more than 100 threads, implement cursor-based pagination: add `pageInfo { hasNextPage endCursor }` to the `reviewThreads` field selection, capture `endCursor` from each response, and repeat the query with `reviewThreads(first: 100, after: $cursor)` until `hasNextPage` is false.
 

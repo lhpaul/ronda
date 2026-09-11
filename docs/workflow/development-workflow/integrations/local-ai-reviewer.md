@@ -148,9 +148,9 @@ files, compact diff summary, a `review_stage` object (stage, source,
 checklists), a `review_doctrine` object (state, pattern_count, version), a
 `strict_spec` object that mirrors the `STRICT_SPEC_*` keys, and a `strict_plan`
 object that mirrors the `STRICT_PLAN_*` keys (including `applied` when state is
-`applied`). Keep this artifact alongside ready-phase
-reviewer-loop evidence when measuring whether Bugbot or another ready-phase
-reviewer found net-new blockers. Relative evidence paths are resolved from the
+`applied`). Keep this artifact alongside ready-phase reviewer-loop evidence
+when measuring whether Codex GitHub, Bugbot, or another ready-phase reviewer
+found net-new blockers. Relative evidence paths are resolved from the
 operator's original working directory before `--repo-root` changes the checkout
 directory.
 

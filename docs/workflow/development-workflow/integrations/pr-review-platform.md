@@ -89,14 +89,17 @@ review:
       # explicit LOCAL_AI_REVIEWER_COMMAND. Set LOCAL_AI_REVIEWER_DISABLED=1
       # or override this list locally to skip.
       - local-ai-reviewer
-      - pr-agent
     # claude-code-action: own-key, own-CI reviewer with no per-hour vendor cap.
     # Requires ANTHROPIC_API_KEY secret and .github/workflows/claude-code-review.yml.
     # See integrations/claude-code-action.md for setup instructions.
     # - claude-code-action
   on_ready:
     github:
-      - bugbot
+      - codex-github
+    # Bugbot remains supported as an opt-in reviewer, but is intentionally not a
+    # default ready-phase gate because Cursor usage/spend limits can block
+    # otherwise-clean PRs.
+    # - bugbot
     # CodeRabbit remains supported as an opt-in reviewer, but is intentionally
     # not a default ready-phase gate because vendor rate limits/spending caps
     # can block otherwise-clean PRs.
