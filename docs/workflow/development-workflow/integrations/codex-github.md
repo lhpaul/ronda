@@ -173,7 +173,7 @@ The template default is:
 review:
   on_draft:
     github:
-      - pr-agent
+      - local-ai-reviewer
   on_ready:
     github:
       - codex-github
@@ -192,7 +192,7 @@ Use a disposable or already-open PR and run:
 
 ```bash
 ./scripts/development-workflow/pr-review-loop.sh <pr_number> \
-  --platform pr-agent,codex-github \
+  --platform local-ai-reviewer,codex-github \
   --ready-phase codex-github \
   --post-final-summary \
   --max-wait 1800 \
@@ -201,8 +201,8 @@ Use a disposable or already-open PR and run:
 
 Expected successful evidence:
 
-- `PLATFORM_1_RESULT=clean` for PR-Agent, or `skipped` only when intentionally
-  unavailable.
+- `PLATFORM_1_NAME=local-ai-reviewer`.
+- `PLATFORM_1_RESULT=clean`.
 - `PLATFORM_2_NAME=codex-github`.
 - `PLATFORM_2_RESULT=clean`.
 - `RESULT=clean`.

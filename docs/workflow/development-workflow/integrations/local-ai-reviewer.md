@@ -2,8 +2,8 @@
 
 `local-ai-reviewer` is the default first Step 7 draft GitHub review platform in
 this template. It runs a repository-local review command before draft GitHub
-reviewers such as PR-Agent and before ready-phase reviewers such as Bugbot. It
-is implemented by `scripts/development-workflow/local-ai-reviewer.sh` and is
+reviewers such as PR-Agent and before ready-phase reviewers such as Codex
+GitHub. It is implemented by `scripts/development-workflow/local-ai-reviewer.sh` and is
 consumed by `scripts/development-workflow/pr-review-loop.sh`.
 
 The platform is local-only. It does not post GitHub inline comments in this
@@ -14,17 +14,17 @@ thread checks, or the configured ready-phase reviewer.
 
 ## Configuration
 
-The shared template enables it before PR-Agent in `.ai-dev-workflow.yaml`:
+The shared template enables it before the ready-phase Codex GitHub reviewer in
+`.ai-dev-workflow.yaml`:
 
 ```yaml
 review:
   on_draft:
     github:
       - local-ai-reviewer
-      - pr-agent
   on_ready:
     github:
-      - bugbot
+      - codex-github
 ```
 
 Set the local command in the runner environment when you need a custom command.
