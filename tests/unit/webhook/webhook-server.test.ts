@@ -384,6 +384,43 @@ test("pending webhook jobs are recovered from the persisted queue on startup", a
   }
 });
 
+test("in-progress webhook jobs are recovered from the persisted queue on startup", async () => {
+  const queuePath = tempQueuePath();
+  const inProgressJob: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 7,
+    trigger: "automatic",
+    headSha: "a".repeat(40),
+    installationId: 42,
+    deliveryId: "delivery-in-progress-startup",
+    status: "in_progress",
+  };
+  writeFileSync(queuePath, `${JSON.stringify([inProgressJob], null, 2)}\n`);
+  const jobs: string[] = [];
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+        return { terminalCheckRunPublished: true };
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  try {
+    await eventually(() => jobs.length === 1);
+    assert.deepEqual(jobs, ["delivery-in-progress-startup"]);
+    await eventually(() => readQueueFile(queuePath)[0]?.status === "completed");
+  } finally {
+    server.close();
+  }
+});
+
 test("malformed persisted webhook queues fail startup", () => {
   const queuePath = tempQueuePath();
   writeFileSync(queuePath, "{not json");
@@ -710,7 +747,7 @@ test("published webhook queue entries reject new deliveries for the same head", 
   }
 });
 
-test("in-progress webhook queue entries can be recovered by redelivery after startup", async () => {
+test("recovered in-progress webhook queue entries reject later redelivery", async () => {
   const queuePath = tempQueuePath();
   const inProgressJob: WebhookQueueFileEntry = {
     owner: "lhpaul",
@@ -738,11 +775,10 @@ test("in-progress webhook queue entries can be recovered by redelivery after sta
   });
   const address = server.address() as AddressInfo;
   try {
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    assert.deepEqual(jobs, []);
+    await eventually(() => jobs.length === 1);
     assert.deepEqual(
       readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
-      [["delivery-in-progress", "in_progress"]],
+      [["delivery-in-progress", "completed"]],
     );
 
     const body = JSON.stringify(pullRequestPayload());
@@ -759,11 +795,9 @@ test("in-progress webhook queue entries can be recovered by redelivery after sta
     assert.equal(response.status, 202);
     assert.deepEqual(await response.json(), {
       ok: true,
-      queued: true,
-      pullNumber: 7,
+      queued: false,
+      reason: "duplicate_delivery",
     });
-
-    await eventually(() => readQueueFile(queuePath).every((job) => job.status === "completed"));
     assert.deepEqual(jobs, ["delivery-in-progress"]);
     assert.deepEqual(
       readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
