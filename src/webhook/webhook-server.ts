@@ -35,6 +35,9 @@ export function startWebhookServer(
     await handleWebhookRequest(req, res, config, {
       log,
       acceptDeliveryId: (deliveryId) => rememberDeliveryId(seenDeliveryIds, deliveryId),
+      releaseDeliveryId: (deliveryId) => {
+        seenDeliveryIds.delete(deliveryId);
+      },
       enqueue: (job) => {
         if (fatalError !== undefined) {
           return false;
@@ -74,6 +77,7 @@ export function startWebhookServer(
 interface HandleWebhookRequestDeps {
   enqueue: (job: WebhookReviewJob) => boolean;
   acceptDeliveryId?: (deliveryId: string) => boolean;
+  releaseDeliveryId?: (deliveryId: string) => void;
   log?: Pick<Console, "error">;
 }
 
@@ -142,6 +146,7 @@ export async function handleWebhookRequest(
   }
 
   if (!deps.enqueue(decision.job)) {
+    deps.releaseDeliveryId?.(deliveryId);
     writeJson(res, 503, { ok: false, error: "webhook_worker_unavailable" });
     return;
   }
