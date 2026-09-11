@@ -91,7 +91,9 @@ an outer timeout; after an abort, the FIFO does not advance until the active job
 settles. If a job ignores abort past the settlement timeout, the worker stops
 instead of starting another job concurrently. Terminal check-run writes receive
 their own short timeout so stalled GitHub calls do not leave the process alive
-indefinitely.
+indefinitely. A thrown job failure before a terminal review/check-run outcome
+also stops the worker and leaves the accepted job in the queue file for recovery
+instead of silently discarding it.
 
 ## Mini or MiniPC Hosting Path
 

@@ -527,15 +527,16 @@ test("busy webhook worker queues pending deliveries for later processing", async
   }
 });
 
-test("busy webhook worker continues queued jobs after a job failure", async () => {
+test("busy webhook worker preserves queued jobs after a job failure", async () => {
   const failures: unknown[] = [];
   const jobs: string[] = [];
+  const queuePath = tempQueuePath();
   let failFirstJob!: () => void;
   const firstJobCanFail = new Promise<void>((resolve) => {
     failFirstJob = resolve;
   });
   const server = startWebhookServer(
-    { ...config, port: 0 },
+    { ...config, port: 0, webhookQueuePath: queuePath },
     {
       runJob: async (job) => {
         jobs.push(job.deliveryId);
@@ -581,19 +582,23 @@ test("busy webhook worker continues queued jobs after a job failure", async () =
     assert.deepEqual(await second.json(), { ok: true, queued: true, pullNumber: 7 });
     failFirstJob();
     await eventually(() => failures.length === 1);
-    await eventually(() => jobs.length === 2);
-    assert.deepEqual(jobs, ["delivery-8", "delivery-9"]);
+    assert.deepEqual(jobs, ["delivery-8"]);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => job.deliveryId),
+      ["delivery-8", "delivery-9"],
+    );
   } finally {
     server.close();
   }
 });
 
-test("timed-out webhook jobs settle before the FIFO queue advances", async () => {
+test("timed-out webhook jobs settle before the worker stops", async () => {
   const failures: unknown[] = [];
   const jobs: string[] = [];
+  const queuePath = tempQueuePath();
   let firstJobSawAbort = false;
   const server = startWebhookServer(
-    { ...config, port: 0, webhookJobTimeoutMs: 5 },
+    { ...config, port: 0, webhookJobTimeoutMs: 5, webhookQueuePath: queuePath },
     {
       runJob: async (job, _config, signal) => {
         jobs.push(job.deliveryId);
@@ -644,9 +649,12 @@ test("timed-out webhook jobs settle before the FIFO queue advances", async () =>
     await new Promise((resolve) => setTimeout(resolve, 8));
     assert.deepEqual(jobs, ["delivery-settle-first"]);
 
-    await eventually(() => jobs.length === 2);
     await eventually(() => failures.length === 1);
-    assert.deepEqual(jobs, ["delivery-settle-first", "delivery-settle-second"]);
+    assert.deepEqual(jobs, ["delivery-settle-first"]);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => job.deliveryId),
+      ["delivery-settle-first", "delivery-settle-second"],
+    );
     assert.ok(failures[0] instanceof WebhookJobTimeoutError);
   } finally {
     server.close();

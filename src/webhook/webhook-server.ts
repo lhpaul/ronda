@@ -97,20 +97,15 @@ export function startWebhookServer(
         queueStore.remove(job.deliveryId);
       })
       .catch((error: unknown) => {
-        if (!(error instanceof WebhookJobSettlementTimeoutError)) {
-          deliveryIds.active.delete(job.deliveryId);
-          queueStore.remove(job.deliveryId);
-        }
+        deliveryIds.active.delete(job.deliveryId);
         log.error("Ronda webhook job failed", error);
         deps.onJobFailure?.(error);
-        if (error instanceof WebhookJobSettlementTimeoutError) {
-          workerStopped = true;
-          if (!deps.onJobFailure) {
-            process.exitCode = 1;
-            process.exit(1);
-          }
-          server.close();
+        workerStopped = true;
+        if (!deps.onJobFailure) {
+          process.exitCode = 1;
+          process.exit(1);
         }
+        server.close();
       })
       .finally(() => {
         if (workerStopped) {
