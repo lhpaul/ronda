@@ -66,6 +66,7 @@ export async function createInstallationAccessToken(
         return requestResponse;
       }),
     input.retrySleep,
+    input.signal,
   );
 
   const data = (await response.json()) as { token?: unknown };

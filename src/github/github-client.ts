@@ -96,6 +96,7 @@ export async function withRetry<T>(
   operation: () => Promise<T>,
   sleep: (ms: number) => Promise<void> = (ms) =>
     new Promise((resolve) => setTimeout(resolve, ms)),
+  signal?: AbortSignal,
 ): Promise<T> {
   let attempt = 0;
   for (;;) {
@@ -105,8 +106,42 @@ export async function withRetry<T>(
       if (attempt >= RETRY_DELAYS_MS.length || !isRetryableError(error)) {
         throw error;
       }
-      await sleep(RETRY_DELAYS_MS[attempt]);
+      await sleepWithSignal(RETRY_DELAYS_MS[attempt], sleep, signal);
       attempt += 1;
     }
   }
+}
+
+async function sleepWithSignal(
+  ms: number,
+  sleep: (ms: number) => Promise<void>,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  if (signal === undefined) {
+    return sleep(ms);
+  }
+  throwIfAborted(signal);
+
+  let abortListener: (() => void) | undefined;
+  const abortPromise = new Promise<never>((_resolve, reject) => {
+    abortListener = () => reject(abortReason(signal));
+    signal.addEventListener("abort", abortListener, { once: true });
+  });
+  try {
+    await Promise.race([sleep(ms), abortPromise]);
+  } finally {
+    if (abortListener !== undefined) {
+      signal.removeEventListener("abort", abortListener);
+    }
+  }
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw abortReason(signal);
+  }
+}
+
+function abortReason(signal: AbortSignal): unknown {
+  return signal.reason ?? new DOMException("The operation was aborted.", "AbortError");
 }

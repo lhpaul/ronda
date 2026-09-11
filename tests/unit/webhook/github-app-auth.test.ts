@@ -76,6 +76,51 @@ test("installation token requests retry transient GitHub failures", async () => 
   assert.deepEqual(sleeps, [2_000, 5_000]);
 });
 
+test("installation token retry backoff observes the request signal", async () => {
+  const controller = new AbortController();
+  let fetchCalls = 0;
+  let sleepDelay: number | undefined;
+  let resolveSleep: (() => void) | undefined;
+  const tokenPromise = createInstallationAccessToken({
+    appJwt: "app.jwt",
+    installationId: 456,
+    fetchImpl: (async () => {
+      fetchCalls += 1;
+      if (fetchCalls > 1) {
+        return new Response(JSON.stringify({ token: "unexpected-token" }), { status: 201 });
+      }
+      return new Response("server unavailable", { status: 503 });
+    }) as typeof fetch,
+    retrySleep: async (ms) => {
+      sleepDelay = ms;
+      return new Promise<void>((resolve) => {
+        resolveSleep = resolve;
+      });
+    },
+    signal: controller.signal,
+  }).then(
+    (token) => token,
+    (error: unknown) => error,
+  );
+
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  controller.abort(new DOMException("The operation was aborted.", "AbortError"));
+
+  const watchdog = new Error("installation-token retry backoff did not abort");
+  const result = await Promise.race([
+    tokenPromise,
+    new Promise<Error>((resolve) => setTimeout(() => resolve(watchdog), 100)),
+  ]);
+  if (result === watchdog) {
+    resolveSleep?.();
+    await tokenPromise;
+  }
+
+  assert.notEqual(result, watchdog);
+  assert.equal((result as { name?: string }).name, "AbortError");
+  assert.equal(sleepDelay, 2_000);
+});
+
 test("creates an RS256 GitHub App JWT with app id as issuer", () => {
   const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const pem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
