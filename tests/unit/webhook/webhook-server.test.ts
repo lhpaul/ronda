@@ -571,6 +571,128 @@ test("published webhook queue entries reject matching redeliveries", async () =>
   }
 });
 
+test("published webhook queue entries suppress pending siblings for the same head", async () => {
+  const queuePath = tempQueuePath();
+  const publishedJob: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 7,
+    trigger: "automatic",
+    headSha: "a".repeat(40),
+    installationId: 42,
+    deliveryId: "delivery-published-sibling",
+    status: "published",
+  };
+  const pendingSibling: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 7,
+    trigger: "automatic",
+    headSha: "a".repeat(40),
+    installationId: 42,
+    deliveryId: "delivery-pending-sibling",
+    status: "pending",
+  };
+  const unrelatedPending: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 8,
+    trigger: "automatic",
+    headSha: "b".repeat(40),
+    installationId: 42,
+    deliveryId: "delivery-unrelated-pending",
+    status: "pending",
+  };
+  writeFileSync(
+    queuePath,
+    `${JSON.stringify([publishedJob, pendingSibling, unrelatedPending], null, 2)}\n`,
+  );
+  const jobs: string[] = [];
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  try {
+    await eventually(() => jobs.length === 1);
+    assert.deepEqual(jobs, ["delivery-unrelated-pending"]);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
+      [
+        ["delivery-published-sibling", "published"],
+        ["delivery-pending-sibling", "pending"],
+        ["delivery-unrelated-pending", "completed"],
+      ],
+    );
+  } finally {
+    server.close();
+  }
+});
+
+test("published webhook queue entries reject new deliveries for the same head", async () => {
+  const queuePath = tempQueuePath();
+  const publishedJob: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 7,
+    trigger: "automatic",
+    headSha: "a".repeat(40),
+    installationId: 42,
+    deliveryId: "delivery-published-head",
+    status: "published",
+  };
+  writeFileSync(queuePath, `${JSON.stringify([publishedJob], null, 2)}\n`);
+  const jobs: string[] = [];
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-new-same-head",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    assert.deepEqual(await response.json(), {
+      ok: true,
+      queued: false,
+      reason: "duplicate_delivery",
+    });
+    assert.deepEqual(jobs, []);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
+      [["delivery-published-head", "published"]],
+    );
+  } finally {
+    server.close();
+  }
+});
+
 test("in-progress webhook queue entries can be recovered by redelivery after startup", async () => {
   const queuePath = tempQueuePath();
   const inProgressJob: WebhookQueueFileEntry = {

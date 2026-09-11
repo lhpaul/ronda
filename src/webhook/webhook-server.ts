@@ -55,10 +55,12 @@ export function startWebhookServer(
   let workerStopped = false;
   const pendingJobs: WebhookReviewJob[] = queueStore.load();
   const completedDeliveryIds = queueStore.loadSuppressedDeliveryIds();
+  const suppressedReviewKeys = queueStore.loadSuppressedReviewKeys?.() ?? [];
   const deliveryIds: DeliveryIdState = {
     active: new Set<string>(),
     completed: new Set<string>(completedDeliveryIds),
     completedOrder: [...completedDeliveryIds],
+    suppressedReviewKeys: new Set<string>(suppressedReviewKeys),
   };
   for (const job of pendingJobs) {
     deliveryIds.active.add(job.deliveryId);
@@ -67,7 +69,7 @@ export function startWebhookServer(
   const server = createServer(async (req, res) => {
     await handleWebhookRequest(req, res, config, {
       log,
-      acceptDeliveryId: (deliveryId) => reserveDeliveryId(deliveryIds, deliveryId),
+      acceptJob: (job) => reserveJob(deliveryIds, job),
       releaseDeliveryId: (deliveryId) => {
         deliveryIds.active.delete(deliveryId);
       },
@@ -123,6 +125,7 @@ export function startWebhookServer(
           );
         }
         terminalOutcomePublished = true;
+        suppressReviewKey(deliveryIds, job);
         if (!queueStore.complete(job.deliveryId)) {
           throw new WebhookQueuePersistenceError(
             `Failed to mark completed webhook delivery ${job.deliveryId} in the queue`,
@@ -137,10 +140,13 @@ export function startWebhookServer(
             failureError = new WebhookQueuePersistenceError(
               `Failed to mark review-published webhook delivery ${job.deliveryId} in the queue`,
             );
+          } else {
+            suppressReviewKey(deliveryIds, job);
           }
         } else if (terminalOutcomeReached) {
           if (!terminalOutcomePublished && queueStore.markPublished(job.deliveryId)) {
             terminalOutcomePublished = true;
+            suppressReviewKey(deliveryIds, job);
           }
           if (queueStore.complete(job.deliveryId)) {
             completeDeliveryId(deliveryIds, job.deliveryId);
@@ -189,11 +195,13 @@ interface DeliveryIdState {
   active: Set<string>;
   completed: Set<string>;
   completedOrder: string[];
+  suppressedReviewKeys: Set<string>;
 }
 
 export interface WebhookQueueStore {
   load: () => WebhookReviewJob[];
   loadSuppressedDeliveryIds: () => string[];
+  loadSuppressedReviewKeys?: () => string[];
   add: (job: WebhookReviewJob) => boolean;
   start: (deliveryId: string) => boolean;
   retry: (deliveryId: string) => boolean;
@@ -203,6 +211,7 @@ export interface WebhookQueueStore {
 
 interface HandleWebhookRequestDeps {
   enqueue: (job: WebhookReviewJob) => boolean;
+  acceptJob?: (job: WebhookReviewJob) => boolean;
   acceptDeliveryId?: (deliveryId: string) => boolean;
   releaseDeliveryId?: (deliveryId: string) => void;
   log?: Pick<Console, "error">;
@@ -267,7 +276,11 @@ export async function handleWebhookRequest(
     writeJson(res, 202, { ok: true, queued: false, reason: decision.reason });
     return;
   }
-  if (deps.acceptDeliveryId && !deps.acceptDeliveryId(deliveryId)) {
+  if (deps.acceptJob && !deps.acceptJob(decision.job)) {
+    writeJson(res, 202, { ok: true, queued: false, reason: "duplicate_delivery" });
+    return;
+  }
+  if (!deps.acceptJob && deps.acceptDeliveryId && !deps.acceptDeliveryId(deliveryId)) {
     writeJson(res, 202, { ok: true, queued: false, reason: "duplicate_delivery" });
     return;
   }
@@ -307,12 +320,27 @@ function headerValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function reserveJob(deliveryIds: DeliveryIdState, job: WebhookReviewJob): boolean {
+  const reviewKey = reviewSuppressionKey(job);
+  if (reviewKey !== undefined && deliveryIds.suppressedReviewKeys.has(reviewKey)) {
+    return false;
+  }
+  return reserveDeliveryId(deliveryIds, job.deliveryId);
+}
+
 function reserveDeliveryId(deliveryIds: DeliveryIdState, deliveryId: string): boolean {
   if (deliveryIds.active.has(deliveryId) || deliveryIds.completed.has(deliveryId)) {
     return false;
   }
   deliveryIds.active.add(deliveryId);
   return true;
+}
+
+function suppressReviewKey(deliveryIds: DeliveryIdState, job: WebhookReviewJob): void {
+  const reviewKey = reviewSuppressionKey(job);
+  if (reviewKey !== undefined) {
+    deliveryIds.suppressedReviewKeys.add(reviewKey);
+  }
 }
 
 function completeDeliveryId(deliveryIds: DeliveryIdState, deliveryId: string): void {
@@ -337,6 +365,7 @@ function createWebhookQueueStore(
     return {
       load: () => [],
       loadSuppressedDeliveryIds: () => [],
+      loadSuppressedReviewKeys: () => [],
       add: () => true,
       start: () => true,
       retry: () => true,
@@ -371,8 +400,14 @@ function createWebhookQueueStore(
   return {
     load: () => {
       try {
-        return readEntries()
+        const entries = readEntries();
+        const suppressedReviewKeys = reviewSuppressionKeysForEntries(entries);
+        return entries
           .filter((entry) => entry.status === undefined || entry.status === "pending")
+          .filter((entry) => {
+            const reviewKey = reviewSuppressionKey(entry);
+            return reviewKey === undefined || !suppressedReviewKeys.has(reviewKey);
+          })
           .map(toWebhookReviewJob);
       } catch (error) {
         log.error("Ronda webhook queue load failed", error);
@@ -389,9 +424,22 @@ function createWebhookQueueStore(
         throw new WebhookQueuePersistenceError(`Failed to load webhook queue from ${queuePath}`);
       }
     },
+    loadSuppressedReviewKeys: () => {
+      try {
+        return [...reviewSuppressionKeysForEntries(readEntries())];
+      } catch (error) {
+        log.error("Ronda webhook queue load failed", error);
+        throw new WebhookQueuePersistenceError(`Failed to load webhook queue from ${queuePath}`);
+      }
+    },
     add: (job) => {
       try {
         const entries = readEntries();
+        const reviewKey = reviewSuppressionKey(job);
+        const suppressedReviewKeys = reviewSuppressionKeysForEntries(entries);
+        if (reviewKey !== undefined && suppressedReviewKeys.has(reviewKey)) {
+          return true;
+        }
         if (!entries.some((queuedJob) => queuedJob.deliveryId === job.deliveryId)) {
           writeEntries([...entries, { ...job, status: "pending" }]);
         }
@@ -475,6 +523,22 @@ function pruneCompletedEntries(entries: WebhookQueueEntry[]): WebhookQueueEntry[
     ...pendingEntries,
     ...completedEntries.slice(-MAX_PERSISTED_COMPLETED_WEBHOOK_JOBS),
   ];
+}
+
+function reviewSuppressionKeysForEntries(entries: WebhookQueueEntry[]): Set<string> {
+  return new Set(
+    entries
+      .filter((entry) => entry.status === "published" || entry.status === "completed")
+      .map(reviewSuppressionKey)
+      .filter((key): key is string => key !== undefined),
+  );
+}
+
+function reviewSuppressionKey(job: WebhookReviewJob): string | undefined {
+  if (job.headSha === undefined) {
+    return undefined;
+  }
+  return `${job.owner}/${job.repo}#${job.pullNumber}@${job.headSha}`;
 }
 
 interface WebhookQueueEntry extends WebhookReviewJob {
