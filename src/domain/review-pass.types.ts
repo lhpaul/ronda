@@ -196,6 +196,7 @@ export interface ReviewPassResult {
   outcome: PassOutcome;
   failureReason?: FailureReason;
   skipReason?: SkipReason;
+  reviewedHeadSha?: string;
   terminalCheckRunPublished?: boolean;
   findings: Finding[];
   malformedCount: number;

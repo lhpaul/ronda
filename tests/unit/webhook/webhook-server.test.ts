@@ -917,6 +917,53 @@ test("review-published webhook failures write a published tombstone", async () =
   }
 });
 
+test("review-published webhook tombstones use the actually reviewed head SHA", async () => {
+  const failures: unknown[] = [];
+  const queuePath = tempQueuePath();
+  const reviewedHeadSha = "b".repeat(40);
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async () => {
+        throw new ReviewPublishedCheckRunError(
+          "review is public but check run failed",
+          reviewedHeadSha,
+        );
+      },
+      onJobFailure: (error) => {
+        failures.push(error);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-review-published-sha-moved",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    await eventually(() => failures.length === 1);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [job.deliveryId, job.status, job.headSha]),
+      [["delivery-review-published-sha-moved", "published", reviewedHeadSha]],
+    );
+  } finally {
+    server.close();
+  }
+});
+
 test("completion persistence failures after a terminal outcome do not retry the job", async () => {
   const failures: unknown[] = [];
   const calls: string[] = [];

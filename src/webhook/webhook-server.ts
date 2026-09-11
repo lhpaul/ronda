@@ -110,6 +110,7 @@ export function startWebhookServer(
     let terminalOutcomeReached = false;
     let terminalOutcomePublished = false;
     let terminalOutcomeRequiresPublishedSuppression = false;
+    let terminalOutcomeReviewedHeadSha: string | undefined;
     void Promise.resolve()
       .then(() => {
         if (!queueStore.start(job.deliveryId)) {
@@ -130,14 +131,15 @@ export function startWebhookServer(
       .then((result) => {
         terminalOutcomeReached = true;
         terminalOutcomeRequiresPublishedSuppression = result?.terminalCheckRunPublished === true;
+        terminalOutcomeReviewedHeadSha = result?.reviewedHeadSha;
         if (terminalOutcomeRequiresPublishedSuppression) {
-          if (!queueStore.markPublished(job.deliveryId)) {
+          if (!queueStore.markPublished(job.deliveryId, terminalOutcomeReviewedHeadSha)) {
             throw new WebhookQueuePersistenceError(
               `Failed to mark webhook delivery ${job.deliveryId} terminal outcome published`,
             );
           }
           terminalOutcomePublished = true;
-          suppressReviewKey(deliveryIds, job);
+          suppressReviewKey(deliveryIds, job, terminalOutcomeReviewedHeadSha);
         }
         if (!queueStore.complete(job.deliveryId)) {
           throw new WebhookQueuePersistenceError(
@@ -149,21 +151,24 @@ export function startWebhookServer(
       .catch((error: unknown) => {
         let failureError = error;
         if (error instanceof ReviewPublishedCheckRunError) {
-          if (!terminalOutcomePublished && !queueStore.markPublished(job.deliveryId)) {
+          if (
+            !terminalOutcomePublished &&
+            !queueStore.markPublished(job.deliveryId, error.reviewedHeadSha)
+          ) {
             failureError = new WebhookQueuePersistenceError(
               `Failed to mark review-published webhook delivery ${job.deliveryId} in the queue`,
             );
           } else {
-            suppressReviewKey(deliveryIds, job);
+            suppressReviewKey(deliveryIds, job, error.reviewedHeadSha);
           }
         } else if (terminalOutcomeReached) {
           if (
             terminalOutcomeRequiresPublishedSuppression &&
             !terminalOutcomePublished &&
-            queueStore.markPublished(job.deliveryId)
+            queueStore.markPublished(job.deliveryId, terminalOutcomeReviewedHeadSha)
           ) {
             terminalOutcomePublished = true;
-            suppressReviewKey(deliveryIds, job);
+            suppressReviewKey(deliveryIds, job, terminalOutcomeReviewedHeadSha);
           }
           if (queueStore.complete(job.deliveryId)) {
             completeDeliveryId(deliveryIds, job.deliveryId);
@@ -222,7 +227,7 @@ export interface WebhookQueueStore {
   add: (job: WebhookReviewJob) => boolean;
   start: (deliveryId: string) => boolean;
   retry: (deliveryId: string) => boolean;
-  markPublished: (deliveryId: string) => boolean;
+  markPublished: (deliveryId: string, reviewedHeadSha?: string) => boolean;
   complete: (deliveryId: string) => boolean;
 }
 
@@ -353,8 +358,12 @@ function reserveDeliveryId(deliveryIds: DeliveryIdState, deliveryId: string): bo
   return true;
 }
 
-function suppressReviewKey(deliveryIds: DeliveryIdState, job: WebhookReviewJob): void {
-  const reviewKey = reviewSuppressionKey(job);
+function suppressReviewKey(
+  deliveryIds: DeliveryIdState,
+  job: WebhookReviewJob,
+  reviewedHeadSha?: string,
+): void {
+  const reviewKey = reviewSuppressionKey(job, reviewedHeadSha);
   if (reviewKey !== undefined) {
     deliveryIds.suppressedReviewKeys.add(reviewKey);
   }
@@ -482,9 +491,9 @@ function createWebhookQueueStore(
         return false;
       }
     },
-    markPublished: (deliveryId) => {
+    markPublished: (deliveryId, reviewedHeadSha) => {
       try {
-        return updateEntryStatus(deliveryId, "published");
+        return updateEntryStatus(deliveryId, "published", reviewedHeadSha);
       } catch (error) {
         log.error("Ronda webhook queue published-marker write failed", error);
         return false;
@@ -515,7 +524,11 @@ function createWebhookQueueStore(
     },
   };
 
-  function updateEntryStatus(deliveryId: string, status: WebhookQueueEntry["status"]): boolean {
+  function updateEntryStatus(
+    deliveryId: string,
+    status: WebhookQueueEntry["status"],
+    reviewedHeadSha?: string,
+  ): boolean {
     const entries = readEntries();
     let found = false;
     const updatedEntries = entries.map((entry) => {
@@ -523,7 +536,14 @@ function createWebhookQueueStore(
         return entry;
       }
       found = true;
-      return { ...entry, status, ...(status === "published" ? { reviewPublished: true } : {}) };
+      return {
+        ...entry,
+        status,
+        ...(status === "published" ? { reviewPublished: true } : {}),
+        ...(status === "published" && reviewedHeadSha !== undefined
+          ? { headSha: reviewedHeadSha }
+          : {}),
+      };
     });
     if (!found) {
       return false;
@@ -550,16 +570,20 @@ function reviewSuppressionKeysForEntries(entries: WebhookQueueEntry[]): Set<stri
           entry.status === "published" ||
           (entry.status === "completed" && entry.reviewPublished === true),
       )
-      .map(reviewSuppressionKey)
+      .map((entry) => reviewSuppressionKey(entry))
       .filter((key): key is string => key !== undefined),
   );
 }
 
-function reviewSuppressionKey(job: WebhookReviewJob): string | undefined {
-  if (job.headSha === undefined) {
+function reviewSuppressionKey(
+  job: WebhookReviewJob,
+  reviewedHeadSha?: string,
+): string | undefined {
+  const headSha = reviewedHeadSha ?? job.headSha;
+  if (headSha === undefined) {
     return undefined;
   }
-  return `${job.owner}/${job.repo}#${job.pullNumber}@${job.headSha}`;
+  return `${job.owner}/${job.repo}#${job.pullNumber}@${headSha}`;
 }
 
 interface WebhookQueueEntry extends WebhookReviewJob {

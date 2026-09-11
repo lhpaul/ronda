@@ -22,7 +22,10 @@ import { buildCheckRunOutput, buildReviewSummary, countBySeverity } from "./summ
 import { createPassDeadline } from "./pass-deadline.js";
 
 export class ReviewPublishedCheckRunError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly reviewedHeadSha?: string,
+  ) {
     super(message);
     this.name = "ReviewPublishedCheckRunError";
   }
@@ -92,7 +95,7 @@ export async function runReviewPass(
 
     if (pr.draft) {
       deps.logger.event("pass_skipped", { reason: "draft_pull_request", headSha: pr.headSha });
-      return skippedResult("draft_pull_request", startMs, deps);
+      return skippedResult("draft_pull_request", startMs, deps, pr.headSha);
     }
 
     try {
@@ -125,7 +128,7 @@ export async function runReviewPass(
         reason: "already_reviewed_automatically",
         headSha: pr.headSha,
       });
-      return skippedResult("already_reviewed_automatically", startMs, deps);
+      return skippedResult("already_reviewed_automatically", startMs, deps, pr.headSha);
     }
 
     if (deps.config.loadError) {
@@ -197,7 +200,7 @@ export async function runReviewPass(
         headSha: pr.headSha,
         newHeadSha: latest.headSha,
       });
-      return skippedResult("superseded_head_sha", startMs, deps);
+      return skippedResult("superseded_head_sha", startMs, deps, pr.headSha);
     }
 
     const totals = fileTotals(changedFiles);
@@ -281,6 +284,7 @@ export async function runReviewPass(
       throw new ReviewPublishedCheckRunError(
         `Review was published for ${pr.headSha} but the check run could not be ` +
           `published after retrying: ${checkRunResult.message}`,
+        pr.headSha,
       );
     }
 
@@ -292,6 +296,7 @@ export async function runReviewPass(
 
     return {
       outcome: "succeeded",
+      reviewedHeadSha: pr.headSha,
       terminalCheckRunPublished: true,
       findings: parsed.findings,
       malformedCount: parsed.malformedCount,
@@ -422,10 +427,12 @@ function skippedResult(
   skipReason: ReviewPassResult["skipReason"],
   startMs: number,
   deps: ReviewPassDeps,
+  reviewedHeadSha?: string,
 ): ReviewPassResult {
   return {
     outcome: "skipped",
     skipReason,
+    ...(reviewedHeadSha !== undefined ? { reviewedHeadSha } : {}),
     terminalCheckRunPublished: false,
     findings: [],
     malformedCount: 0,
@@ -488,6 +495,7 @@ async function finalizeFailure(
   return {
     outcome: "failed",
     failureReason: failure.reason,
+    reviewedHeadSha: failure.headSha,
     terminalCheckRunPublished: true,
     findings: [],
     malformedCount: 0,

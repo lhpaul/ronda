@@ -29,6 +29,7 @@ export interface WebhookReviewJob extends ReviewPassInput {
 
 export interface WebhookReviewJobResult {
   terminalCheckRunPublished: boolean;
+  reviewedHeadSha?: string;
 }
 
 export interface WebhookJobDecision {
@@ -199,7 +200,10 @@ export async function runWebhookReviewJob(
       `Webhook review failed for ${job.owner}/${job.repo}#${job.pullNumber} without a terminal check run`,
     );
   }
-  return { terminalCheckRunPublished: result.terminalCheckRunPublished === true };
+  return {
+    terminalCheckRunPublished: result.terminalCheckRunPublished === true,
+    ...(result.reviewedHeadSha !== undefined ? { reviewedHeadSha: result.reviewedHeadSha } : {}),
+  };
 }
 
 export async function findExistingWebhookCheckRun(
