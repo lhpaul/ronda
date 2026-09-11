@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { ReviewPublishedCheckRunError } from "../core/run-review-pass.js";
 import { loadWebhookConfig, WebhookConfigError, type WebhookConfig } from "./webhook-config.js";
 import { verifyGithubSignature } from "./signature.js";
 import { resolveWebhookJob, runWebhookReviewJob, type WebhookReviewJob } from "./webhook-job.js";
@@ -115,9 +116,27 @@ export function startWebhookServer(
         }
       })
       .catch((error: unknown) => {
+        let failureError = error;
+        if (error instanceof ReviewPublishedCheckRunError) {
+          if (queueStore.complete(job.deliveryId)) {
+            completeDeliveryId(deliveryIds, job.deliveryId);
+            if (!queueStore.remove(job.deliveryId)) {
+              log.error(
+                "Ronda webhook queue remove failed after a review was published",
+                new WebhookQueuePersistenceError(
+                  `Failed to remove review-published webhook delivery ${job.deliveryId} from the queue`,
+                ),
+              );
+            }
+          } else {
+            failureError = new WebhookQueuePersistenceError(
+              `Failed to mark review-published webhook delivery ${job.deliveryId} in the queue`,
+            );
+          }
+        }
         deliveryIds.active.delete(job.deliveryId);
-        log.error("Ronda webhook job failed", error);
-        deps.onJobFailure?.(error);
+        log.error("Ronda webhook job failed", failureError);
+        deps.onJobFailure?.(failureError);
         workerStopped = true;
         if (!deps.onJobFailure) {
           process.exitCode = 1;

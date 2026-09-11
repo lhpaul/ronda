@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { ReviewPublishedCheckRunError } from "../../../src/core/run-review-pass.js";
 import {
   handleWebhookRequest,
   WebhookJobSettlementTimeoutError,
@@ -579,6 +580,50 @@ test("queue removal failures stop the worker before advancing the FIFO", async (
     assert.deepEqual(completedDeliveries, ["delivery-remove-first"]);
   } finally {
     finishFirstJob();
+    server.close();
+  }
+});
+
+test("review-published webhook failures are not replayed from the persisted queue", async () => {
+  const failures: unknown[] = [];
+  const jobs: string[] = [];
+  const queuePath = tempQueuePath();
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+        throw new ReviewPublishedCheckRunError("review is public but check run failed");
+      },
+      onJobFailure: (error) => {
+        failures.push(error);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  try {
+    const body = JSON.stringify(pullRequestPayload());
+    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": "delivery-review-published",
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+    assert.equal(response.status, 202);
+    await eventually(() => failures.length === 1);
+    assert.ok(failures[0] instanceof ReviewPublishedCheckRunError);
+    assert.deepEqual(jobs, ["delivery-review-published"]);
+    assert.deepEqual(readQueueFile(queuePath), []);
+  } finally {
     server.close();
   }
 });

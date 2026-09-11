@@ -21,6 +21,13 @@ import type {
 import { buildCheckRunOutput, buildReviewSummary, countBySeverity } from "./summary.js";
 import { createPassDeadline } from "./pass-deadline.js";
 
+export class ReviewPublishedCheckRunError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ReviewPublishedCheckRunError";
+  }
+}
+
 /**
  * Orchestrates one review pass end to end, implementing the plan's "Pass
  * outcome decision matrix" in order: read the pull request, apply the draft
@@ -271,7 +278,7 @@ export async function runReviewPass(
       // `finalizeFailure` unchanged, and the caller (the CLI entrypoint)
       // turns it into a non-zero process exit, so the failure is visible in
       // the Actions run rather than silently swallowed.
-      throw new Error(
+      throw new ReviewPublishedCheckRunError(
         `Review was published for ${pr.headSha} but the check run could not be ` +
           `published after retrying: ${checkRunResult.message}`,
       );

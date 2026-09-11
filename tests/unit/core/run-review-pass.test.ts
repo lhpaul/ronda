@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runReviewPass } from "../../../src/core/run-review-pass.js";
+import {
+  ReviewPublishedCheckRunError,
+  runReviewPass,
+} from "../../../src/core/run-review-pass.js";
 import { GithubClientError } from "../../../src/github/github-client.js";
 import { ModelClientError } from "../../../src/inference/model-client.js";
 import type {
@@ -531,7 +534,7 @@ test("a check-run write that keeps failing after a successful review rejects ins
         { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
         baseDeps({ github: github.ops, model }),
       ),
-    /check run could not be published/,
+    ReviewPublishedCheckRunError,
   );
 
   // The review was already published and must not be contradicted: exactly
@@ -753,7 +756,7 @@ test("an abort classified at the terminal success publishCheckRun write still re
         { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
         baseDeps({ github: github.ops, model }),
       ),
-    /check run could not be published/,
+    ReviewPublishedCheckRunError,
   );
 
   // The review published cleanly; the check-run write is what "aborted".
