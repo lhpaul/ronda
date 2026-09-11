@@ -273,9 +273,9 @@ export function summarizeReviewComparison(
     falseCleanCandidate:
       sameHead &&
       record.ronda.result === "clean" &&
-      record.otherReviewer.findings.length > 0 &&
       (adjudicationCounts.ronda_miss > 0 ||
-        adjudicationCounts.unclear > 0),
+        (record.otherReviewer.findings.length > 0 &&
+          adjudicationCounts.unclear > 0)),
   };
 }
 

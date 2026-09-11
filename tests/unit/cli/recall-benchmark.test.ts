@@ -333,6 +333,24 @@ test("review comparison treats unclear same-head external findings as false-clea
   assert.equal(summary.falseCleanCandidate, true);
 });
 
+test("review comparison preserves confirmed false-clean candidates without finding payloads", () => {
+  const falseClean = readJson<ReviewComparisonRecord[]>("comparisons/false-clean.json")[0];
+  const confirmedMissWithoutPayload: ReviewComparisonRecord = {
+    ...falseClean,
+    otherReviewer: {
+      ...falseClean.otherReviewer,
+      findings: [],
+    },
+  };
+
+  const summary = summarizeReviewComparison(confirmedMissWithoutPayload);
+
+  assert.equal(summary.sameHead, true);
+  assert.equal(summary.otherReviewerFindingCount, 0);
+  assert.equal(summary.adjudicationCounts.ronda_miss, 1);
+  assert.equal(summary.falseCleanCandidate, true);
+});
+
 test("review comparison counts every adjudication outcome", () => {
   const record = readJson<ReviewComparisonRecord[]>("comparisons/all-outcomes.json")[0];
   const summary = summarizeReviewComparison(record);
