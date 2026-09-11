@@ -147,7 +147,8 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   timeout. The webhook service runs one active review job at a time and keeps a
   bounded in-process FIFO queue for additional runnable deliveries so busy-path
   webhooks are not lost waiting for manual redelivery. If the outer watchdog
-  aborts a job, the FIFO stays paused until that job settles; terminal check-run
-  writes that intentionally outlive an expired pass deadline still receive a
-  short publication timeout so stalled GitHub writes cannot keep the process
-  alive indefinitely.
+  aborts a job, the FIFO stays paused until that job settles; if settlement also
+  times out, the local server stops instead of starting a second active review.
+  Terminal check-run writes that intentionally outlive an expired pass deadline
+  still receive a short publication timeout so stalled GitHub writes cannot keep
+  the process alive indefinitely.

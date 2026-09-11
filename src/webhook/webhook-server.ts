@@ -22,6 +22,16 @@ export class WebhookJobTimeoutError extends Error {
   }
 }
 
+export class WebhookJobSettlementTimeoutError extends Error {
+  constructor(job: WebhookReviewJob, timeoutMs: number) {
+    super(
+      `Webhook review job did not settle within ${timeoutMs}ms after timeout for ` +
+        `${job.owner}/${job.repo}#${job.pullNumber}`,
+    );
+    this.name = "WebhookJobSettlementTimeoutError";
+  }
+}
+
 export function startWebhookServer(
   config: WebhookConfig,
   deps: WebhookServerDeps = {},
@@ -29,6 +39,7 @@ export function startWebhookServer(
   const log = deps.log ?? console;
   const runJob = deps.runJob ?? runWebhookReviewJob;
   let busy = false;
+  let workerStopped = false;
   const pendingJobs: WebhookReviewJob[] = [];
   const deliveryIds: DeliveryIdState = {
     active: new Set<string>(),
@@ -44,6 +55,9 @@ export function startWebhookServer(
         deliveryIds.active.delete(deliveryId);
       },
       enqueue: (job) => {
+        if (workerStopped) {
+          return false;
+        }
         if (busy) {
           if (pendingJobs.length >= MAX_PENDING_WEBHOOK_JOBS) {
             return false;
@@ -63,6 +77,8 @@ export function startWebhookServer(
       (signal) => runJob(job, config, signal),
       config.webhookJobTimeoutMs,
       () => new WebhookJobTimeoutError(job, config.webhookJobTimeoutMs),
+      () => new WebhookJobSettlementTimeoutError(job, config.webhookJobSettlementTimeoutMs),
+      config.webhookJobSettlementTimeoutMs,
     )
       .then(() => {
         completeDeliveryId(deliveryIds, job.deliveryId);
@@ -71,8 +87,19 @@ export function startWebhookServer(
         deliveryIds.active.delete(job.deliveryId);
         log.error("Ronda webhook job failed", error);
         deps.onJobFailure?.(error);
+        if (error instanceof WebhookJobSettlementTimeoutError) {
+          workerStopped = true;
+          pendingJobs.length = 0;
+          if (!deps.onJobFailure) {
+            process.exitCode = 1;
+          }
+          server.close();
+        }
       })
       .finally(() => {
+        if (workerStopped) {
+          return;
+        }
         const nextJob = pendingJobs.shift();
         if (nextJob === undefined) {
           busy = false;
@@ -226,9 +253,12 @@ async function withJobTimeout(
   runJob: (signal: AbortSignal) => Promise<void>,
   timeoutMs: number,
   createError: () => Error,
+  createSettlementError: () => Error,
+  settlementTimeoutMs: number,
 ): Promise<void> {
   const controller = new AbortController();
   let timeout: NodeJS.Timeout | undefined;
+  let settlementTimeout: NodeJS.Timeout | undefined;
   const jobPromise = runJob(controller.signal);
   const timeoutPromise = new Promise<{ timedOut: true; error: Error }>((resolve) => {
     timeout = setTimeout(() => {
@@ -247,11 +277,27 @@ async function withJobTimeout(
       return;
     }
 
-    await jobPromise.catch(() => undefined);
+    const settled = await Promise.race([
+      jobPromise.then(
+        () => true,
+        () => true,
+      ),
+      new Promise<boolean>((resolve) => {
+        settlementTimeout = setTimeout(() => resolve(false), settlementTimeoutMs);
+        settlementTimeout.unref?.();
+      }),
+    ]);
+    if (!settled) {
+      jobPromise.catch(() => undefined);
+      throw createSettlementError();
+    }
     throw result.error;
   } finally {
     if (timeout !== undefined) {
       clearTimeout(timeout);
+    }
+    if (settlementTimeout !== undefined) {
+      clearTimeout(settlementTimeout);
     }
   }
 }

@@ -47,6 +47,7 @@ export RONDA_WEBHOOK_HOST="127.0.0.1"
 export RONDA_WEBHOOK_PORT="3000"
 export RONDA_GITHUB_APP_TOKEN_TIMEOUT_MS="60000"
 export RONDA_WEBHOOK_JOB_TIMEOUT_MS="900000"
+export RONDA_WEBHOOK_JOB_SETTLEMENT_TIMEOUT_MS="30000"
 export RONDA_DETAILS_URL="https://example.test/ronda"
 ```
 
@@ -56,9 +57,10 @@ configuration follows the same precedence as the Action path:
 `RONDA_MODEL_API_KEY`, `RONDA_MODEL_BASE_URL`, `RONDA_MODEL_NAME`,
 `RONDA_PASS_TIMEOUT_MS`, and `RONDA_MAX_PATCH_CHARS` override the local operator
 config file. `RONDA_GITHUB_APP_TOKEN_TIMEOUT_MS` bounds the pre-pass GitHub App
-installation-token request, and `RONDA_WEBHOOK_JOB_TIMEOUT_MS` bounds each full
-accepted job, so stalled GitHub API calls or publication hangs cannot block the
-local worker indefinitely.
+installation-token request, `RONDA_WEBHOOK_JOB_TIMEOUT_MS` bounds each full
+accepted job, and `RONDA_WEBHOOK_JOB_SETTLEMENT_TIMEOUT_MS` bounds how long the
+worker waits for a timed-out job to settle after abort before it stops the local
+server for supervisor recovery.
 
 ## MacBook and Tunnel Dogfood
 
@@ -83,8 +85,10 @@ queue is full, or if the tunnel or machine is offline, GitHub deliveries fail at
 the webhook layer; switch the repository back to the reusable Action workflow
 when you need the migration fallback. Accepted local review jobs are wrapped in
 an outer timeout; after an abort, the FIFO does not advance until the active job
-settles. Terminal check-run writes receive their own short timeout so stalled
-GitHub calls do not leave the process alive indefinitely.
+settles. If a job ignores abort past the settlement timeout, the worker stops
+instead of starting another job concurrently. Terminal check-run writes receive
+their own short timeout so stalled GitHub calls do not leave the process alive
+indefinitely.
 
 ## Mini or MiniPC Hosting Path
 

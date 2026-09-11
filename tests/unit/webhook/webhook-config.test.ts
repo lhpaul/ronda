@@ -12,6 +12,7 @@ test("loads webhook config from environment variables", () => {
       RONDA_WEBHOOK_PORT: "4321",
       RONDA_GITHUB_APP_TOKEN_TIMEOUT_MS: "12345",
       RONDA_WEBHOOK_JOB_TIMEOUT_MS: "23456",
+      RONDA_WEBHOOK_JOB_SETTLEMENT_TIMEOUT_MS: "34567",
       GITHUB_API_URL: "https://github.example/api/v3",
       RONDA_DETAILS_URL: "https://ronda.local/runs",
     },
@@ -24,6 +25,7 @@ test("loads webhook config from environment variables", () => {
   assert.equal(config.port, 4321);
   assert.equal(config.githubAppTokenTimeoutMs, 12345);
   assert.equal(config.webhookJobTimeoutMs, 23456);
+  assert.equal(config.webhookJobSettlementTimeoutMs, 34567);
   assert.equal(config.githubApiUrl, "https://github.example/api/v3");
   assert.equal(config.detailsUrl, "https://ronda.local/runs");
 });
@@ -44,6 +46,7 @@ test("loads webhook private key from a file when the inline key is absent", () =
   assert.equal(config.port, 3000);
   assert.equal(config.githubAppTokenTimeoutMs, 60_000);
   assert.equal(config.webhookJobTimeoutMs, 900_000);
+  assert.equal(config.webhookJobSettlementTimeoutMs, 30_000);
 });
 
 test("throws a sanitized config error when required webhook config is missing", () => {
