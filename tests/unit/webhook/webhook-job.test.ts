@@ -106,25 +106,20 @@ test("combines webhook job timeout signal into model calls", async () => {
 });
 
 test("uses a fresh bounded signal for terminal check-run publication", () => {
-  const outer = new AbortController();
   const pass = new AbortController();
-  const combined = checkRunSignal(pass.signal, outer.signal);
-  const terminal = checkRunSignal(undefined, outer.signal);
+  const combined = checkRunSignal(pass.signal);
+  const terminal = checkRunSignal(undefined);
 
   assert.notEqual(combined, undefined);
   assert.notEqual(terminal, undefined);
   assert.equal(terminal?.aborted, false);
   assert.equal(combined?.aborted, false);
-  outer.abort(new Error("job timeout"));
-  assert.equal(terminal?.aborted, true);
+  pass.abort(new Error("pass timeout"));
   assert.equal(combined?.aborted, true);
 });
 
-test("terminal check-run publication is not immediately aborted by an expired outer signal", () => {
-  const outer = new AbortController();
-  outer.abort(new Error("job timeout"));
-
-  const terminal = checkRunSignal(undefined, outer.signal);
+test("terminal check-run publication starts with a fresh non-aborted signal", () => {
+  const terminal = checkRunSignal(undefined);
 
   assert.notEqual(terminal, undefined);
   assert.equal(terminal?.aborted, false);

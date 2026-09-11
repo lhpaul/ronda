@@ -491,6 +491,71 @@ test("busy webhook worker continues queued jobs after a job failure", async () =
   }
 });
 
+test("timed-out webhook jobs settle before the FIFO queue advances", async () => {
+  const failures: unknown[] = [];
+  const jobs: string[] = [];
+  let firstJobSawAbort = false;
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookJobTimeoutMs: 5 },
+    {
+      runJob: async (job, _config, signal) => {
+        jobs.push(job.deliveryId);
+        if (job.deliveryId !== "delivery-settle-first") {
+          return;
+        }
+        await new Promise<void>((resolve) => {
+          signal.addEventListener(
+            "abort",
+            () => {
+              firstJobSawAbort = true;
+              setTimeout(resolve, 20);
+            },
+            { once: true },
+          );
+        });
+        throw signal.reason;
+      },
+      onJobFailure: (error) => {
+        failures.push(error);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const body = JSON.stringify(pullRequestPayload());
+  const postDelivery = async (deliveryId: string): Promise<Response> =>
+    fetch(`${baseUrl}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": deliveryId,
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+  try {
+    assert.equal((await postDelivery("delivery-settle-first")).status, 202);
+    await eventually(() => jobs.length === 1);
+    assert.equal((await postDelivery("delivery-settle-second")).status, 202);
+    await eventually(() => firstJobSawAbort);
+    await new Promise((resolve) => setTimeout(resolve, 8));
+    assert.deepEqual(jobs, ["delivery-settle-first"]);
+
+    await eventually(() => jobs.length === 2);
+    await eventually(() => failures.length === 1);
+    assert.deepEqual(jobs, ["delivery-settle-first", "delivery-settle-second"]);
+    assert.ok(failures[0] instanceof WebhookJobTimeoutError);
+  } finally {
+    server.close();
+  }
+});
+
 test("queued webhook jobs report failures when they exceed the outer job timeout", async () => {
   const failures: unknown[] = [];
   const jobs: string[] = [];

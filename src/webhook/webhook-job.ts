@@ -148,7 +148,7 @@ export async function runWebhookReviewJob(
       publishCheckRun(
         installationClient.octokit,
         checkRunInput,
-        checkRunSignal(requestSignal, signal),
+        checkRunSignal(requestSignal),
       ),
   };
 
@@ -208,16 +208,12 @@ export function withOuterAbortSignal(
 
 export function checkRunSignal(
   requestSignal: AbortSignal | undefined,
-  outerSignal: AbortSignal | undefined,
 ): AbortSignal | undefined {
+  const terminalSignal = AbortSignal.timeout(TERMINAL_CHECK_RUN_TIMEOUT_MS);
   if (requestSignal === undefined) {
-    const terminalSignal = AbortSignal.timeout(TERMINAL_CHECK_RUN_TIMEOUT_MS);
-    if (outerSignal === undefined || outerSignal.aborted) {
-      return terminalSignal;
-    }
-    return combineAbortSignals(terminalSignal, outerSignal);
+    return terminalSignal;
   }
-  return combineAbortSignals(requestSignal, outerSignal);
+  return combineAbortSignals(requestSignal, terminalSignal);
 }
 
 function combineAbortSignals(
