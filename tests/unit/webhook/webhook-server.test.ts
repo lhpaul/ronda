@@ -45,8 +45,13 @@ function tempQueuePath(): string {
   return join(mkdtempSync(join(tmpdir(), "ronda-webhook-queue-")), "queue.json");
 }
 
-function readQueueFile(path: string): WebhookReviewJob[] {
-  return JSON.parse(readFileSync(path, "utf8")) as WebhookReviewJob[];
+interface WebhookQueueFileEntry extends WebhookReviewJob {
+  status?: "pending" | "completed";
+  completedAt?: string;
+}
+
+function readQueueFile(path: string): WebhookQueueFileEntry[] {
+  return JSON.parse(readFileSync(path, "utf8")) as WebhookQueueFileEntry[];
 }
 
 async function withWebhookServer<T>(
@@ -314,6 +319,10 @@ test("accepted webhook jobs are persisted until processing completes", async () 
       readQueueFile(queuePath).map((job) => job.deliveryId),
       ["delivery-persisted"],
     );
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => job.status),
+      ["pending"],
+    );
 
     finishJob();
     await eventually(() => readQueueFile(queuePath).length === 0);
@@ -358,9 +367,61 @@ test("pending webhook jobs are recovered from the persisted queue on startup", a
   }
 });
 
+test("completed webhook queue entries are not replayed on startup", async () => {
+  const queuePath = tempQueuePath();
+  const completedJob: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 7,
+    trigger: "automatic",
+    headSha: "a".repeat(40),
+    installationId: 42,
+    deliveryId: "delivery-completed",
+    status: "completed",
+    completedAt: "2026-09-11T00:00:00.000Z",
+  };
+  const pendingJob: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 8,
+    trigger: "automatic",
+    headSha: "b".repeat(40),
+    installationId: 42,
+    deliveryId: "delivery-still-pending",
+    status: "pending",
+  };
+  writeFileSync(queuePath, `${JSON.stringify([completedJob, pendingJob], null, 2)}\n`);
+  const jobs: string[] = [];
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  try {
+    await eventually(() => jobs.length === 1);
+    assert.deepEqual(jobs, ["delivery-still-pending"]);
+    await eventually(() => readQueueFile(queuePath).length === 1);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => job.deliveryId),
+      ["delivery-completed"],
+    );
+  } finally {
+    server.close();
+  }
+});
+
 test("queue removal failures stop the worker before advancing the FIFO", async () => {
   const failures: unknown[] = [];
   const jobs: string[] = [];
+  const completedDeliveries: string[] = [];
   let finishFirstJob!: () => void;
   const firstJobCanFinish = new Promise<void>((resolve) => {
     finishFirstJob = resolve;
@@ -368,6 +429,10 @@ test("queue removal failures stop the worker before advancing the FIFO", async (
   const queueStore: WebhookQueueStore = {
     load: () => [],
     add: () => true,
+    complete: (deliveryId) => {
+      completedDeliveries.push(deliveryId);
+      return true;
+    },
     remove: () => false,
   };
   const server = startWebhookServer(
@@ -413,6 +478,7 @@ test("queue removal failures stop the worker before advancing the FIFO", async (
 
     assert.ok(failures[0] instanceof WebhookQueuePersistenceError);
     assert.deepEqual(jobs, ["delivery-remove-first"]);
+    assert.deepEqual(completedDeliveries, ["delivery-remove-first"]);
   } finally {
     finishFirstJob();
     server.close();

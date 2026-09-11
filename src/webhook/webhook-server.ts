@@ -101,6 +101,11 @@ export function startWebhookServer(
       config.webhookJobSettlementTimeoutMs,
     )
       .then(() => {
+        if (!queueStore.complete(job.deliveryId)) {
+          throw new WebhookQueuePersistenceError(
+            `Failed to mark completed webhook delivery ${job.deliveryId} in the queue`,
+          );
+        }
         completeDeliveryId(deliveryIds, job.deliveryId);
         if (!queueStore.remove(job.deliveryId)) {
           throw new WebhookQueuePersistenceError(
@@ -151,6 +156,7 @@ interface DeliveryIdState {
 export interface WebhookQueueStore {
   load: () => WebhookReviewJob[];
   add: (job: WebhookReviewJob) => boolean;
+  complete: (deliveryId: string) => boolean;
   remove: (deliveryId: string) => boolean;
 }
 
@@ -290,11 +296,12 @@ function createWebhookQueueStore(
     return {
       load: () => [],
       add: () => true,
+      complete: () => true,
       remove: () => true,
     };
   }
 
-  const readJobs = (): WebhookReviewJob[] => {
+  const readEntries = (): WebhookQueueEntry[] => {
     if (!existsSync(queuePath)) {
       return [];
     }
@@ -302,20 +309,22 @@ function createWebhookQueueStore(
     if (!Array.isArray(parsed)) {
       throw new Error(`webhook queue file is not an array: ${queuePath}`);
     }
-    return parsed.filter(isWebhookReviewJob);
+    return parsed.filter(isWebhookQueueEntry);
   };
 
-  const writeJobs = (jobs: WebhookReviewJob[]): void => {
+  const writeEntries = (entries: WebhookQueueEntry[]): void => {
     mkdirSync(dirname(queuePath), { recursive: true });
     const tempPath = `${queuePath}.${process.pid}.tmp`;
-    writeFileSync(tempPath, `${JSON.stringify(jobs, null, 2)}\n`);
+    writeFileSync(tempPath, `${JSON.stringify(entries, null, 2)}\n`);
     renameSync(tempPath, queuePath);
   };
 
   return {
     load: () => {
       try {
-        return readJobs();
+        return readEntries()
+          .filter((entry) => entry.status !== "completed")
+          .map(toWebhookReviewJob);
       } catch (error) {
         log.error("Ronda webhook queue load failed", error);
         return [];
@@ -323,9 +332,9 @@ function createWebhookQueueStore(
     },
     add: (job) => {
       try {
-        const jobs = readJobs();
-        if (!jobs.some((queuedJob) => queuedJob.deliveryId === job.deliveryId)) {
-          writeJobs([...jobs, job]);
+        const entries = readEntries();
+        if (!entries.some((queuedJob) => queuedJob.deliveryId === job.deliveryId)) {
+          writeEntries([...entries, { ...job, status: "pending" }]);
         }
         return true;
       } catch (error) {
@@ -333,10 +342,31 @@ function createWebhookQueueStore(
         return false;
       }
     },
+    complete: (deliveryId) => {
+      try {
+        const entries = readEntries();
+        let found = false;
+        const completedEntries = entries.map((entry) => {
+          if (entry.deliveryId !== deliveryId) {
+            return entry;
+          }
+          found = true;
+          return { ...entry, status: "completed" as const, completedAt: new Date().toISOString() };
+        });
+        if (!found) {
+          return false;
+        }
+        writeEntries(completedEntries);
+        return true;
+      } catch (error) {
+        log.error("Ronda webhook queue completion write failed", error);
+        return false;
+      }
+    },
     remove: (deliveryId) => {
       try {
-        const jobs = readJobs();
-        writeJobs(jobs.filter((job) => job.deliveryId !== deliveryId));
+        const entries = readEntries();
+        writeEntries(entries.filter((job) => job.deliveryId !== deliveryId));
         return true;
       } catch (error) {
         log.error("Ronda webhook queue remove failed", error);
@@ -344,6 +374,31 @@ function createWebhookQueueStore(
       }
     },
   };
+}
+
+interface WebhookQueueEntry extends WebhookReviewJob {
+  status?: "pending" | "completed";
+  completedAt?: string;
+}
+
+function toWebhookReviewJob(entry: WebhookQueueEntry): WebhookReviewJob {
+  const { owner, repo, pullNumber, trigger, installationId, deliveryId, headSha } = entry;
+  const job: WebhookReviewJob = { owner, repo, pullNumber, trigger, installationId, deliveryId };
+  if (headSha !== undefined) {
+    job.headSha = headSha;
+  }
+  return job;
+}
+
+function isWebhookQueueEntry(value: unknown): value is WebhookQueueEntry {
+  if (!isWebhookReviewJob(value)) {
+    return false;
+  }
+  const entry = value as Partial<WebhookQueueEntry>;
+  return (
+    (entry.status === undefined || entry.status === "pending" || entry.status === "completed") &&
+    (entry.completedAt === undefined || typeof entry.completedAt === "string")
+  );
 }
 
 function isWebhookReviewJob(value: unknown): value is WebhookReviewJob {
