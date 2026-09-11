@@ -79,6 +79,7 @@ export async function findExistingCheckRun(
   repo: string,
   headSha: string,
   signal?: AbortSignal,
+  options: { appId?: number } = {},
 ): Promise<number | null> {
   const response = await withAbortMapping(
     () =>
@@ -93,6 +94,8 @@ export async function findExistingCheckRun(
       ),
     signal,
   );
-  const run = response.data.check_runs[0];
+  const run = response.data.check_runs.find(
+    (checkRun) => options.appId === undefined || checkRun.app?.id === options.appId,
+  );
   return run ? run.id : null;
 }

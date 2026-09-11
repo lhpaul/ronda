@@ -139,6 +139,53 @@ test("findExistingCheckRun returns null when no check run is found for the head 
   assert.equal(id, null);
 });
 
+test("findExistingCheckRun can filter runs to the publishing GitHub App", async () => {
+  const octokit = createFakeOctokit({
+    checks: {
+      listForRef: async () => ({
+        data: {
+          check_runs: [
+            { id: 111, app: { id: 15368, slug: "github-actions" } },
+            { id: 222, app: { id: 42, slug: "ronda" } },
+          ],
+        },
+      }),
+    },
+  });
+
+  const id = await findExistingCheckRun(
+    octokit,
+    "lhpaul",
+    "ronda",
+    "a".repeat(40),
+    undefined,
+    { appId: 42 },
+  );
+
+  assert.equal(id, 222);
+});
+
+test("findExistingCheckRun returns null when only foreign App runs exist", async () => {
+  const octokit = createFakeOctokit({
+    checks: {
+      listForRef: async () => ({
+        data: { check_runs: [{ id: 111, app: { id: 15368, slug: "github-actions" } }] },
+      }),
+    },
+  });
+
+  const id = await findExistingCheckRun(
+    octokit,
+    "lhpaul",
+    "ronda",
+    "a".repeat(40),
+    undefined,
+    { appId: 42 },
+  );
+
+  assert.equal(id, null);
+});
+
 // --- Fix 3: readChangedFiles must be under the same bounded retry policy as
 // every other GitHub read/publish call, and retry must compose correctly
 // with pagination (retry the whole paginated fetch, never a single page). ---

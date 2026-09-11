@@ -100,6 +100,7 @@ export async function runWebhookReviewJob(
     token: installationToken,
     apiUrl: webhookConfig.githubApiUrl,
   });
+  const githubAppId = Number.parseInt(webhookConfig.githubAppId, 10);
 
   const github: GithubOperations = {
     readPullRequest: (o, r, n, requestSignal) =>
@@ -125,6 +126,7 @@ export async function runWebhookReviewJob(
         r,
         sha,
         combineAbortSignals(requestSignal, signal),
+        { appId: Number.isFinite(githubAppId) ? githubAppId : undefined },
       ),
     publishReview: (reviewInput, requestSignal) =>
       publishReview(
