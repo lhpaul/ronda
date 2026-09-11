@@ -29,14 +29,18 @@ export function startWebhookServer(
   const runJob = deps.runJob ?? runWebhookReviewJob;
   let queue = Promise.resolve();
   let fatalError: unknown;
-  const seenDeliveryIds = new Set<string>();
+  const deliveryIds: DeliveryIdState = {
+    active: new Set<string>(),
+    completed: new Set<string>(),
+    completedOrder: [],
+  };
 
   const server = createServer(async (req, res) => {
     await handleWebhookRequest(req, res, config, {
       log,
-      acceptDeliveryId: (deliveryId) => rememberDeliveryId(seenDeliveryIds, deliveryId),
+      acceptDeliveryId: (deliveryId) => reserveDeliveryId(deliveryIds, deliveryId),
       releaseDeliveryId: (deliveryId) => {
-        seenDeliveryIds.delete(deliveryId);
+        deliveryIds.active.delete(deliveryId);
       },
       enqueue: (job) => {
         if (fatalError !== undefined) {
@@ -51,7 +55,9 @@ export function startWebhookServer(
               (signal) => runJob(job, config, signal),
               config.webhookJobTimeoutMs,
               () => new WebhookJobTimeoutError(job, config.webhookJobTimeoutMs),
-            );
+            ).then(() => {
+              completeDeliveryId(deliveryIds, job.deliveryId);
+            });
           })
           .catch((error: unknown) => {
             fatalError = error;
@@ -72,6 +78,12 @@ export function startWebhookServer(
     log.log(`Ronda webhook listening on http://${config.host}:${config.port}`);
   });
   return server;
+}
+
+interface DeliveryIdState {
+  active: Set<string>;
+  completed: Set<string>;
+  completedOrder: string[];
 }
 
 interface HandleWebhookRequestDeps {
@@ -180,18 +192,26 @@ function headerValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function rememberDeliveryId(seenDeliveryIds: Set<string>, deliveryId: string): boolean {
-  if (seenDeliveryIds.has(deliveryId)) {
+function reserveDeliveryId(deliveryIds: DeliveryIdState, deliveryId: string): boolean {
+  if (deliveryIds.active.has(deliveryId) || deliveryIds.completed.has(deliveryId)) {
     return false;
   }
-  seenDeliveryIds.add(deliveryId);
-  if (seenDeliveryIds.size > MAX_SEEN_DELIVERY_IDS) {
-    const oldestDeliveryId = seenDeliveryIds.values().next().value;
+  deliveryIds.active.add(deliveryId);
+  return true;
+}
+
+function completeDeliveryId(deliveryIds: DeliveryIdState, deliveryId: string): void {
+  if (!deliveryIds.active.delete(deliveryId)) {
+    return;
+  }
+  deliveryIds.completed.add(deliveryId);
+  deliveryIds.completedOrder.push(deliveryId);
+  while (deliveryIds.completedOrder.length > MAX_SEEN_DELIVERY_IDS) {
+    const oldestDeliveryId = deliveryIds.completedOrder.shift();
     if (oldestDeliveryId !== undefined) {
-      seenDeliveryIds.delete(oldestDeliveryId);
+      deliveryIds.completed.delete(oldestDeliveryId);
     }
   }
-  return true;
 }
 
 async function withJobTimeout(

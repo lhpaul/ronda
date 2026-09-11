@@ -236,6 +236,64 @@ test("duplicate webhook delivery IDs are accepted but not requeued", async () =>
   }
 });
 
+test("active webhook delivery IDs are not evicted by later queued deliveries", async () => {
+  const jobs: string[] = [];
+  let finishFirstJob!: () => void;
+  const firstJobCanFinish = new Promise<void>((resolve) => {
+    finishFirstJob = resolve;
+  });
+  const server = startWebhookServer(
+    { ...config, port: 0 },
+    {
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+        if (job.deliveryId === "delivery-active") {
+          await firstJobCanFinish;
+        }
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const body = JSON.stringify(pullRequestPayload());
+  const postDelivery = async (deliveryId: string): Promise<Response> =>
+    fetch(`${baseUrl}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": deliveryId,
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+
+  try {
+    assert.equal((await postDelivery("delivery-active")).status, 202);
+    await eventually(() => jobs.length === 1);
+    for (let index = 0; index < 1_001; index += 1) {
+      assert.equal((await postDelivery(`delivery-later-${index}`)).status, 202);
+    }
+
+    const replay = await postDelivery("delivery-active");
+
+    assert.equal(replay.status, 202);
+    assert.deepEqual(await replay.json(), {
+      ok: true,
+      queued: false,
+      reason: "duplicate_delivery",
+    });
+    assert.deepEqual(jobs, ["delivery-active"]);
+  } finally {
+    finishFirstJob();
+    server.close();
+  }
+});
+
 test("delivery IDs are released when the worker refuses to enqueue", async () => {
   const seenDeliveryIds = new Set<string>();
   let acceptsWork = false;
