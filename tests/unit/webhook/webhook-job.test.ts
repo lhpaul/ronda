@@ -150,14 +150,14 @@ test("automatic webhook update lookup falls back to the publishing GitHub App", 
   assert.deepEqual(calls, [undefined, { appId: 42 }]);
 });
 
-test("manual webhook check lookup only targets the publishing GitHub App", async () => {
+test("manual webhook check lookup accepts any existing Ronda check run during migration", async () => {
   const calls: Array<{ appId?: number } | undefined> = [];
 
   const id = await findExistingWebhookCheckRun("manual", 42, async (options) => {
     calls.push(options);
-    return options?.appId === 42 ? 222 : 111;
+    return 111;
   });
 
-  assert.equal(id, 222);
-  assert.deepEqual(calls, [{ appId: 42 }]);
+  assert.equal(id, 111);
+  assert.deepEqual(calls, [undefined]);
 });

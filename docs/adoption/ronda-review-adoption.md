@@ -124,7 +124,10 @@ CI — can wait on Ronda's check run instead of parsing the review body:
 
 - **Check-run name**: `Ronda review` (constant, never localized or renamed).
 - **One per head SHA**: automatic and manual passes on the same commit
-  update the same check run in place rather than creating a second one.
+  update the same check run in place rather than creating a second one. During
+  webhook migration, App-backed webhook runs first reuse any existing
+  same-name `Ronda review` check on the head SHA, including one created by the
+  reusable Action path, before falling back to an App-owned lookup.
 - **Conclusion**: `success` (the pass worked, with or without findings) or
   `failure` (the pass could not complete; the check run's title and summary
   name the reason — timed out, model unavailable, credential missing or
