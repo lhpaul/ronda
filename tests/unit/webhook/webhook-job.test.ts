@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { REVIEW_COMMAND } from "../../../src/domain/review-pass.types.js";
-import { resolveWebhookJob, withOuterAbortSignal } from "../../../src/webhook/webhook-job.js";
+import {
+  combineAbortSignalWhenPresent,
+  resolveWebhookJob,
+  withOuterAbortSignal,
+} from "../../../src/webhook/webhook-job.js";
 
 const HEAD_SHA = "a".repeat(40);
 
@@ -92,4 +96,16 @@ test("combines webhook job timeout signal into model calls", async () => {
   assert.equal(observedSignal?.aborted, false);
   outer.abort(new Error("job timeout"));
   assert.equal(observedSignal?.aborted, true);
+});
+
+test("preserves deliberate no-signal check-run publication", () => {
+  const outer = new AbortController();
+  const pass = new AbortController();
+  const combined = combineAbortSignalWhenPresent(pass.signal, outer.signal);
+
+  assert.notEqual(combined, undefined);
+  assert.equal(combineAbortSignalWhenPresent(undefined, outer.signal), undefined);
+  assert.equal(combined?.aborted, false);
+  outer.abort(new Error("job timeout"));
+  assert.equal(combined?.aborted, true);
 });

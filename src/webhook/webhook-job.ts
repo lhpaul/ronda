@@ -138,7 +138,7 @@ export async function runWebhookReviewJob(
       publishCheckRun(
         installationClient.octokit,
         checkRunInput,
-        combineAbortSignals(requestSignal, signal),
+        combineAbortSignalWhenPresent(requestSignal, signal),
       ),
   };
 
@@ -194,6 +194,16 @@ export function withOuterAbortSignal(
     complete: (request, requestSignal) =>
       model.complete(request, combineAbortSignals(requestSignal, outerSignal) ?? requestSignal),
   };
+}
+
+export function combineAbortSignalWhenPresent(
+  requestSignal: AbortSignal | undefined,
+  outerSignal: AbortSignal | undefined,
+): AbortSignal | undefined {
+  if (requestSignal === undefined) {
+    return undefined;
+  }
+  return combineAbortSignals(requestSignal, outerSignal);
 }
 
 function combineAbortSignals(
