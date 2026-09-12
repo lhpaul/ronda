@@ -95,6 +95,22 @@ table_cell_filter='
     | gsub("\\t"; " ");
 '
 
+# jq's `//` alternative operator treats a boolean `false` exactly like an
+# absent field, so `false // ""` collapses an explicitly recorded `false`
+# policy value to an empty string. That made "merge explicitly forbidden"
+# (`--no-may-merge`) indistinguishable from "merge authority never recorded"
+# in the committed audit evidence that guardrails-enforcement.md section 8
+# relies on for merge-authority decisions. `policy_value` tests for `null`
+# instead, so `false` renders as the literal `false` while an absent field
+# still renders empty. String policy fields (maxRisk, base) render
+# identically under both forms — an absent field is "" either way and a
+# present string is itself -- so this def is applied to every policy field
+# uniformly rather than leaving a per-field "is this one a boolean?" trap
+# for the next change. See issue #60.
+policy_field_filter='
+  def policy_value: if . == null then "" else tostring end;
+'
+
 checkpoint_stage_filter='
   def stage_rank($stage):
     if $stage == "spec" then 1
@@ -228,7 +244,7 @@ render_pr_disposition() {
       printf '%s\n' "$rendered"
       printf '\n| Field | Recommended | Selected | Effective |\n'
       printf '| --- | --- | --- | --- |\n'
-      rendered="$(printf '%s\n' "$json" | jq -r "$table_cell_filter"'
+      rendered="$(printf '%s\n' "$json" | jq -r "$table_cell_filter $policy_field_filter"'
         if (.invocation_policy | type) != "object" then
           error("invocation_policy must be an object")
         else
@@ -238,9 +254,9 @@ render_pr_disposition() {
           ($p.effective_policy // $p.effectivePolicy // {}) as $e |
           ["mayStartBacklog", "delegateReview", "mayMerge", "maxRisk", "base"][] as $field |
           "| " + $field +
-          " | " + (($r[$field] // "") | cell) +
-          " | " + (($s[$field] // "") | cell) +
-          " | " + (($e[$field] // "") | cell) + " |"
+          " | " + ($r[$field] | policy_value | cell) +
+          " | " + ($s[$field] | policy_value | cell) +
+          " | " + ($e[$field] | policy_value | cell) + " |"
         end
       ')" || error_exit "failed to render invocation policy table (jq error above)"
       printf '%s\n' "$rendered"
@@ -534,16 +550,16 @@ render_epic_ledger() {
     printf '%s\n\n' "$(printf '%s\n' "$json" | jq -r '"Epic: #" + (.epic.number | tostring) + " - " + (.epic.title // "")')"
     printf '| Issue | PR | Tracker status | Risk | Review | Decision | Merge / cleanup | Notes |\n'
     printf '| --- | --- | --- | --- | --- | --- | --- | --- |\n'
-    printf '%s\n' "$json" | jq -r "$table_cell_filter"'
+    printf '%s\n' "$json" | jq -r "$table_cell_filter $policy_field_filter"'
       (.invocation_policy // {}) as $rootInvocationPolicy |
       ($rootInvocationPolicy.effective_policy // $rootInvocationPolicy.effectivePolicy // {}) as $rootEffectivePolicy |
       def policy_note($policy):
         if (($policy | type) == "object") and (($policy | length) > 0) then
-          "Effective policy: mayStartBacklog=" + (($policy.mayStartBacklog // "") | tostring) +
-          ", delegateReview=" + (($policy.delegateReview // "") | tostring) +
-          ", mayMerge=" + (($policy.mayMerge // "") | tostring) +
-          ", maxRisk=" + (($policy.maxRisk // "") | tostring) +
-          ", base=" + (($policy.base // "") | tostring)
+          "Effective policy: mayStartBacklog=" + ($policy.mayStartBacklog | policy_value) +
+          ", delegateReview=" + ($policy.delegateReview | policy_value) +
+          ", mayMerge=" + ($policy.mayMerge | policy_value) +
+          ", maxRisk=" + ($policy.maxRisk | policy_value) +
+          ", base=" + ($policy.base | policy_value)
         else "" end;
       def checkpoint_note($checkpoints):
         if (($checkpoints | type) == "array") and (($checkpoints | length) > 0) then

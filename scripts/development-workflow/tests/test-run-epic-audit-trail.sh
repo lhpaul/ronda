@@ -430,6 +430,44 @@ run_test "renders_why_safe_to_merge_section" "yes" "$(
 )"
 run_test "renders_invocation_policy" "yes" "$(grep -q '### Invocation Policy' <<< "$pr_output" && grep -q 'accepted recommended policy' <<< "$pr_output" && echo yes || echo no)"
 run_test "renders_policy_table" "yes" "$(grep -q '| mayStartBacklog | true | true | true |' <<< "$pr_output" && grep -q '| maxRisk | medium | medium | medium |' <<< "$pr_output" && echo yes || echo no)"
+
+# Issue #60: jq's `//` operator treats a boolean `false` the same as an absent
+# field, so `false // ""` rendered an explicitly recorded `mayMerge: false`
+# as an empty table cell — making a run that explicitly forbade merging
+# (`--no-may-merge`) indistinguishable from one where merge authority was
+# never recorded at all, in the very audit evidence
+# guardrails-enforcement.md section 8 relies on. The `true` recommended
+# value always rendered fine, which is why the assertion above did not
+# catch it; these two fixtures pin both directions of the fix — a `false`
+# must render as the literal `false`, and an absent field must still render
+# empty (a naive fix that emitted "false" for null would be just as wrong).
+false_policy_fixture="$TMP_ROOT/false-policy.json"
+jq '.invocation_policy.selected_policy.mayStartBacklog = false
+  | .invocation_policy.selected_policy.delegateReview = false
+  | .invocation_policy.selected_policy.mayMerge = false
+  | .invocation_policy.effective_policy.mayStartBacklog = false
+  | .invocation_policy.effective_policy.delegateReview = false
+  | .invocation_policy.effective_policy.mayMerge = false' "$pr_fixture" > "$false_policy_fixture"
+false_policy_output="$("$HELPER" render-pr-disposition --input "$false_policy_fixture")"
+run_test "policy_table_renders_false_booleans" "yes" "$(
+  grep -Fq -- '| mayStartBacklog | true | false | false |' <<< "$false_policy_output" &&
+    grep -Fq -- '| delegateReview | true | false | false |' <<< "$false_policy_output" &&
+    grep -Fq -- '| mayMerge | true | false | false |' <<< "$false_policy_output" &&
+    echo yes || echo no
+)"
+run_test "policy_table_false_booleans_keep_string_fields" "yes" "$(
+  grep -Fq -- '| maxRisk | medium | medium | medium |' <<< "$false_policy_output" &&
+    grep -Fq -- '| base | develop-delegated-epic-orchestration | develop-delegated-epic-orchestration | develop-delegated-epic-orchestration |' <<< "$false_policy_output" &&
+    echo yes || echo no
+)"
+
+absent_policy_fixture="$TMP_ROOT/absent-policy.json"
+jq 'del(.invocation_policy.selected_policy.mayMerge)
+  | del(.invocation_policy.effective_policy.mayMerge)' "$pr_fixture" > "$absent_policy_fixture"
+absent_policy_output="$("$HELPER" render-pr-disposition --input "$absent_policy_fixture")"
+run_test "policy_table_renders_absent_boolean_as_empty" "yes" "$(
+  grep -Fq -- '| mayMerge | true |  |  |' <<< "$absent_policy_output" && echo yes || echo no
+)"
 run_test "renders_checkpoint_policy" "yes" "$(grep -q '### Checkpoint Policy' <<< "$pr_output" && grep -q 'approve data model' <<< "$pr_output" && echo yes || echo no)"
 run_test "pending_checkpoint_count_excludes_satisfied" "0" "$(printf '%s\n' "$pr_output" | grep 'Pending applicable checkpoints:' | sed 's/.*: //')"
 
@@ -546,6 +584,28 @@ run_test "renders_ledger_row" "yes" "$(grep -q '#920' <<< "$ledger_output" && ec
 run_test "escapes_ledger_table_pipes" "yes" "$(grep -Fq 'Add autonomous \\| epic audit trail' <<< "$ledger_output" && echo yes || echo no)"
 run_test "normalizes_ledger_newlines" "yes" "$(grep -Fq 'ready<br>Bearer [REDACTED]' <<< "$ledger_output" && echo yes || echo no)"
 run_test "ledger_notes_include_effective_policy" "yes" "$(grep -Fq 'Effective policy: mayStartBacklog=true, delegateReview=true, mayMerge=true, maxRisk=medium, base=develop-delegated-epic-orchestration' <<< "$ledger_output" && echo yes || echo no)"
+
+# Issue #60: policy_note() inside render_epic_ledger() had the identical
+# falsy-`//` defect as the PR-disposition policy table above, so the epic
+# ledger's "Effective policy:" note dropped every explicitly recorded
+# `false` to `mayMerge=` as well. Both directions are pinned here too.
+false_policy_ledger_fixture="$TMP_ROOT/false-policy-ledger.json"
+jq '.items[0].effective_policy = {"mayStartBacklog": false, "delegateReview": false, "mayMerge": false, "maxRisk": "medium", "base": "develop-delegated-epic-orchestration"}' \
+  "$ledger_fixture" > "$false_policy_ledger_fixture"
+false_policy_ledger_output="$("$HELPER" render-epic-ledger --input "$false_policy_ledger_fixture")"
+run_test "ledger_policy_note_renders_false_booleans" "yes" "$(
+  grep -Fq 'Effective policy: mayStartBacklog=false, delegateReview=false, mayMerge=false, maxRisk=medium, base=develop-delegated-epic-orchestration' <<< "$false_policy_ledger_output" &&
+    echo yes || echo no
+)"
+
+absent_policy_ledger_fixture="$TMP_ROOT/absent-policy-ledger.json"
+jq '.items[0].effective_policy = {"mayStartBacklog": false, "delegateReview": false, "maxRisk": "medium", "base": "develop-delegated-epic-orchestration"}' \
+  "$ledger_fixture" > "$absent_policy_ledger_fixture"
+absent_policy_ledger_output="$("$HELPER" render-epic-ledger --input "$absent_policy_ledger_fixture")"
+run_test "ledger_policy_note_renders_absent_boolean_as_empty" "yes" "$(
+  grep -Fq 'Effective policy: mayStartBacklog=false, delegateReview=false, mayMerge=, maxRisk=medium, base=develop-delegated-epic-orchestration' <<< "$absent_policy_ledger_output" &&
+    echo yes || echo no
+)"
 run_test "ledger_notes_include_stop_gate" "yes" "$(grep -Fq 'Stop gate: blocked dependency' <<< "$ledger_output" && echo yes || echo no)"
 run_test "ledger_notes_include_checkpoints" "yes" "$(grep -Fq 'Checkpoints: #920 plan/technical=satisfied' <<< "$ledger_output" && echo yes || echo no)"
 
