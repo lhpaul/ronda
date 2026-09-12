@@ -74,6 +74,15 @@ alongside existing review comparisons and quality summaries.
   own record so each can be adjudicated and dispositioned independently.
 - The operator may want to capture a finding the external reviewer raised in a
   place the workflow cannot read automatically. Use Case 2 covers that.
+- The pull request may not be resolvable, or the operator may name no reviewer
+  or a reviewer with no presence on the pull request. The capture is refused and
+  nothing is written; see the Missing And Unreadable Input rules.
+- The external reviewer may have published nothing on the current head. That is
+  a normal, successful outcome with no records written — not an error and not an
+  empty record.
+- The external reviewer's published output may be present but impossible to
+  interpret as findings. The capture is refused, nothing is written, and the
+  operator is directed to Use Case 2.
 
 ---
 
@@ -226,13 +235,30 @@ alongside existing review comparisons and quality summaries.
 - A record stores the external reviewer's own finding text and the location it
   points at. It never stores the reviewed source file's contents or the pull
   request's diff.
-- Finding text is stored up to a documented length limit. Text beyond the limit
-  is truncated and the record shows that truncation happened, so a long reviewer
-  comment can never silently pull a large body of source into the record.
-- A record is never written when the content the operator or the reviewer
-  supplied looks like a credential — for example an access token, private key,
-  or password assignment. The capture is refused, the reason is shown, and the
-  operator can re-capture with the offending text removed.
+- Finding text is stored up to a limit of 2,000 characters. Text beyond that
+  limit is truncated and the record shows that truncation happened, so a long
+  reviewer comment can never silently pull a large body of source into the
+  record.
+- A record is never written when the finding text, the finding location, or any
+  note the operator supplied matches the workflow's published credential refusal
+  list. That list is documented and versioned alongside the workflow, and must
+  recognise at least these six forms: a code-hosting access token, an API key, a
+  private key block, a cloud access-key identifier, an authorization header
+  bearer value, and an assignment whose name reads as a password, secret, token,
+  or API key and whose value is a literal. A value that is plainly a placeholder
+  — for example `REDACTED`, `example`, `changeme`, or a run of one repeated
+  character — does not trigger refusal. The capture is refused, the refusal names
+  the matched form, and the operator can re-capture with the offending text
+  removed.
+- Two captured findings are the **same finding** when all four of these match:
+  the external reviewer, the reviewed head, the finding location, and the finding
+  title. A difference in any of the four makes them separate findings. The rule
+  is identical for automatically read and manually supplied findings, so manually
+  re-entering an automatically captured finding updates that record instead of
+  creating a second one.
+- A finding whose location cannot be resolved to a file and a line is identified
+  by external reviewer, reviewed head, and finding title alone, and its record
+  states that the location is unresolved.
 - Each external finding has at most one record per reviewed head. Capturing the
   same finding on the same head again updates the existing record instead of
   creating a second one.
@@ -241,6 +267,54 @@ alongside existing review comparisons and quality summaries.
 - Records are stored in the repository alongside Ronda's other committed
   review-quality evidence, so the same redaction rules that make a record safe to
   commit apply to every record.
+
+---
+
+## Missing And Unreadable Input
+
+These rules govern what automatic capture does when its inputs are absent,
+empty, or unusable. Nothing is written unless the row says a record is written.
+
+| Input condition                                                                                | Outcome                                 | What the operator is told                                                        |
+| ---------------------------------------------------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
+| The pull request cannot be resolved, or its current head cannot be determined                  | Capture refused                         | That the pull request or its head could not be resolved                          |
+| No external reviewer was named                                                                 | Capture refused                         | That a reviewer name is required, and that manual entry is available             |
+| The named reviewer has published nothing at all on the pull request                            | Capture refused                         | That the named reviewer has no presence on this pull request                     |
+| The named reviewer published output on an earlier head but nothing on the current head         | No records written, reported as success | That there is nothing to capture on the current head, and which head was checked |
+| The named reviewer published output on the current head that cannot be interpreted as findings | Capture refused                         | That the output could not be interpreted, and to use manual entry instead        |
+| A required record field is absent from a manually supplied finding                             | Capture refused                         | Which required field is missing                                                  |
+
+A refusal never leaves a partially written record behind. Reporting nothing to
+capture is a successful outcome and is reported differently from a refusal, so an
+operator can tell "the reviewer found nothing" from "the workflow could not
+look".
+
+---
+
+## Reported Evidence Mapping
+
+Captured misses are read alongside Ronda's existing review comparison evidence.
+Each verdict is reported under exactly one outcome:
+
+| Verdict        | Reported as                                                              |
+| -------------- | ------------------------------------------------------------------------ |
+| True positive  | Ronda miss                                                               |
+| False positive | Ronda better                                                             |
+| Already found  | Duplicate                                                                |
+| Unadjudicated  | Unclear                                                                  |
+| Out of scope   | Out of scope, reported distinctly and never folded into an outcome above |
+
+Two product requirements govern this mapping:
+
+- The five outcomes the existing quality summary already reports keep their
+  current meaning. Reading them does not change.
+- The out-of-scope count and the affected-category breakdown are **additions**
+  alongside those outcomes. Neither may be expressed by redefining an existing
+  outcome, and the affected category is never itself an outcome.
+
+Whether these additions are carried by extending the shared evidence contract or
+by projecting miss records into it is an implementation-plan decision, not a
+product decision.
 
 ---
 
@@ -367,10 +441,13 @@ help output and the committed review-quality runbook the operator follows.
       confirmed Ronda misses, False positive records are reported as
       external-reviewer noise, and Out of scope, Already found, and Unadjudicated
       records are not reported as confirmed misses.
-- [ ] AC7: Given captured miss records, when they are read together with Ronda's
-      existing review comparison evidence, then they appear in the same evidence
-      shape the existing quality summary already reports, with no change required
-      to how that existing evidence is read.
+- [ ] AC7: Given captured miss records with each verdict, when they are read
+      together with Ronda's existing review comparison evidence, then each
+      verdict is reported under the mapping in Reported Evidence Mapping, the
+      five outcome counts the existing quality summary already reports keep their
+      current meaning, and the out-of-scope count and the affected-category
+      breakdown are reported as additions rather than by redefining any of those
+      five outcomes.
 - [ ] AC8: Given an external finding whose evidence head differs from the head
       Ronda reviewed, when the operator captures it, then the record names both
       heads, is marked as stale evidence, and is not counted as a confirmed miss.
@@ -382,13 +459,19 @@ help output and the committed review-quality runbook the operator follows.
       contains the external reviewer's finding text and the location it points at,
       and contains neither the reviewed file's source contents nor the pull
       request's diff.
-- [ ] AC11: Given an external finding whose text exceeds the documented length
-      limit, when the operator captures it, then the stored finding text is
-      truncated to the limit and the record states that truncation happened.
+- [ ] AC11: Given an external finding whose text exceeds 2,000 characters, when
+      the operator captures it, then the stored finding text is truncated to
+      2,000 characters and the record states that truncation happened.
 - [ ] AC12: Given a record that already exists for a finding on a reviewed head,
-      when the operator captures that same finding on that same head again, then
-      the existing record is updated in place and no second record for that
-      finding and head exists.
+      when the operator captures a finding matching all four identity values —
+      same external reviewer, reviewed head, finding location, and finding title —
+      then the existing record is updated in place and no second record for that
+      finding and head exists. This holds when the second capture is manual and
+      the first was automatic.
+- [ ] AC15: Given a record that already exists for a finding on a reviewed head,
+      when the operator captures a finding that differs from it in the finding
+      location or the finding title, then a second, separate record is written
+      rather than the first being overwritten.
 - [ ] AC13: Given an affected category outside the documented closed set, when
       the operator captures a finding with it, then the capture is refused and the
       refusal names the accepted categories.
@@ -396,6 +479,20 @@ help output and the committed review-quality runbook the operator follows.
       review-quality runbook, then the runbook states the four capture decision
       gate outcomes — record written, record updated, stale evidence recorded, and
       capture refused — and matches the capture command's own help output.
+- [ ] AC16: Given a pull request on whose current head the named external
+      reviewer has published nothing, when the operator runs a capture, then no
+      record is written, the result is reported as success with nothing to
+      capture, and the head that was checked is named.
+- [ ] AC17: Given a pull request that cannot be resolved, a capture with no
+      reviewer named, a named reviewer with no presence on the pull request, or
+      reviewer output on the current head that cannot be interpreted as findings,
+      when the operator runs a capture, then the capture is refused, no record and
+      no partial record is written, and the refusal names which of those
+      conditions applied.
+- [ ] AC18: Given finding text containing a plain placeholder such as
+      `REDACTED`, `example`, `changeme`, or a run of one repeated character in a
+      position where a credential would otherwise be recognised, when the operator
+      captures it, then the capture is **not** refused and the record is written.
 
 ---
 
@@ -423,20 +520,21 @@ help output and the committed review-quality runbook the operator follows.
 
 ## Brief Coverage Matrix
 
-| Brief objective                                                                                     | Covered by                           |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| Repeatable workflow for recording external-review findings Ronda missed                             | Use Cases 1-3, AC1, AC3, AC14        |
-| Record includes the pull request                                                                    | AC1                                  |
-| Record includes the head SHA                                                                        | AC1, AC8                             |
-| Record includes the reviewer                                                                        | AC1, AC3                             |
-| Record includes the finding text                                                                    | AC1, AC10, AC11                      |
-| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6                   |
-| Record includes the affected category                                                               | AC1, AC13                            |
-| Record states whether it becomes an eval, prompt change, or backlog item                            | AC5, and the Intended follow-up enum |
-| A command or documented workflow captures a Codex GitHub finding from a PR into a structured record | Use Case 1, AC1, AC14                |
-| Records preserve current-head evidence                                                              | AC1, AC8                             |
-| Records distinguish true positives, false positives, and out-of-scope findings                      | AC5, AC6, and the Verdict enum       |
-| Captured misses can feed the existing review comparison / quality summary tooling                   | Use Case 4, AC6, AC7                 |
-| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11                      |
+| Brief objective                                                                                     | Covered by                                          |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Repeatable workflow for recording external-review findings Ronda missed                             | Use Cases 1-3, AC1, AC3, AC14                       |
+| Record includes the pull request                                                                    | AC1                                                 |
+| Record includes the head SHA                                                                        | AC1, AC8                                            |
+| Record includes the reviewer                                                                        | AC1, AC3                                            |
+| Record includes the finding text                                                                    | AC1, AC10, AC11                                     |
+| A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, and Missing And Unreadable Input        |
+| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6                                  |
+| Record includes the affected category                                                               | AC1, AC13                                           |
+| Record states whether it becomes an eval, prompt change, or backlog item                            | AC5, and the Intended follow-up enum                |
+| A command or documented workflow captures a Codex GitHub finding from a PR into a structured record | Use Case 1, AC1, AC14                               |
+| Records preserve current-head evidence                                                              | AC1, AC8                                            |
+| Records distinguish true positives, false positives, and out-of-scope findings                      | AC5, AC6, AC7, and the Verdict enum                 |
+| Captured misses can feed the existing review comparison / quality summary tooling                   | Use Case 4, AC6, AC7, and Reported Evidence Mapping |
+| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11, AC18                               |
 
 No brief objective is deferred to Out of Scope, so there are no deferral notes.
