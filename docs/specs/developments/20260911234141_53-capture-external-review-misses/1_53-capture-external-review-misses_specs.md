@@ -306,15 +306,16 @@ govern what capture does when its inputs are absent, empty, or unusable, whether
 the finding is read automatically or supplied manually. Nothing is written unless
 the row says a record is written.
 
-| Input condition                                                                                | Outcome                                 | What the operator is told                                                        |
-| ---------------------------------------------------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
-| The pull request cannot be resolved, or its current head cannot be determined                  | Capture refused                         | That the pull request or its head could not be resolved                          |
-| No external reviewer was named                                                                 | Capture refused                         | That a reviewer name is required, and that manual entry is available             |
-| The named reviewer has published nothing at all on the pull request                            | Capture refused                         | That the named reviewer has no presence on this pull request                     |
-| The named reviewer published output on an earlier head but nothing on the current head         | No records written, reported as success | That there is nothing to capture on the current head, and which head was checked |
-| The named reviewer published output on the current head that cannot be interpreted as findings | Capture refused                         | That the output could not be interpreted, and to use manual entry instead        |
-| A required input is absent from a manually supplied finding                                    | Capture refused                         | Which required input is missing                                                  |
-| Ronda has produced no review result for the resolved head                                      | Capture refused                         | That there is no Ronda result to compare against on this head                    |
+| Input condition                                                                                | Outcome            | What the operator is told                                                        |
+| ---------------------------------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------- |
+| The pull request cannot be resolved, or its current head cannot be determined                  | Capture refused    | That the pull request or its head could not be resolved                          |
+| No external reviewer was named                                                                 | Capture refused    | That a reviewer name is required, and that manual entry is available             |
+| The named reviewer has published nothing at all on the pull request                            | Capture refused    | That the named reviewer has no presence on this pull request                     |
+| The named reviewer published output on an earlier head but nothing on the current head         | Nothing to capture | That there is nothing to capture on the current head, and which head was checked |
+| The named reviewer published output on the current head that cannot be interpreted as findings | Capture refused    | That the output could not be interpreted, and to use manual entry instead        |
+| A required input is absent, whether read automatically or supplied manually                    | Capture refused    | Which required input is missing                                                  |
+| The affected category is not in the documented closed set                                      | Capture refused    | Which categories are accepted                                                    |
+| Ronda has produced no review result for the resolved head                                      | Capture refused    | That there is no Ronda result to compare against on this head                    |
 
 A refusal never leaves a partially written record behind. Reporting nothing to
 capture is a successful outcome and is reported differently from a refusal, so an
@@ -456,7 +457,7 @@ the operator follows.
   was written.
 - **Refusals and skips**: A refused capture states which rule refused it —
   credential-shaped content, an unrecognised affected category, or missing
-  required record fields — so the operator can correct and retry.
+  required inputs — so the operator can correct and retry.
 - **Stale evidence**: A record written from heads that do not match states that
   it is stale evidence, and names both heads.
 - **Truncation**: A record whose finding text was truncated says so on the
