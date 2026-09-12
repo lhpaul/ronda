@@ -27,6 +27,10 @@ test("isRetryableError is false for a 4xx status other than the secondary rate l
   assert.equal(isRetryableError(httpError(401)), false);
 });
 
+test("isRetryableError is true for HTTP 429 rate limits", () => {
+  assert.equal(isRetryableError(httpError(429)), true);
+});
+
 test("isRetryableError is false for a value with no numeric status", () => {
   assert.equal(isRetryableError(new Error("network down")), false);
   assert.equal(isRetryableError(undefined), false);
@@ -104,4 +108,48 @@ test("withRetry does not retry a non-retryable error — it propagates immediate
   );
   assert.equal(attempts, 1);
   assert.equal(sleepCalls, 0);
+});
+
+test("withRetry aborts while waiting for retry backoff", async () => {
+  const controller = new AbortController();
+  let attempts = 0;
+  let sleepDelay: number | undefined;
+  let resolveSleep: (() => void) | undefined;
+  const retryPromise = withRetry(
+    async () => {
+      attempts += 1;
+      if (attempts > 1) {
+        return "unexpected retry after abort";
+      }
+      throw httpError(500);
+    },
+    async (ms) => {
+      sleepDelay = ms;
+      return new Promise<void>((resolve) => {
+        resolveSleep = resolve;
+      });
+    },
+    controller.signal,
+  ).then(
+    (value) => value,
+    (error: unknown) => error,
+  );
+
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  controller.abort(new DOMException("The operation was aborted.", "AbortError"));
+
+  const watchdog = new Error("retry backoff did not abort");
+  const result = await Promise.race([
+    retryPromise,
+    new Promise<Error>((resolve) => setTimeout(() => resolve(watchdog), 100)),
+  ]);
+  if (result === watchdog) {
+    resolveSleep?.();
+    await retryPromise;
+  }
+
+  assert.notEqual(result, watchdog);
+  assert.equal((result as { name?: string }).name, "AbortError");
+  assert.equal(attempts, 1);
+  assert.equal(sleepDelay, 2_000);
 });

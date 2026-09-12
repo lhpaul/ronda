@@ -21,19 +21,22 @@ export async function publishCheckRun(
   if (input.existingCheckRunId !== null) {
     await withAbortMapping(
       () =>
-        withRetry(() =>
-          octokit.checks.update({
-            owner: input.owner,
-            repo: input.repo,
-            check_run_id: input.existingCheckRunId as number,
-            status: "completed",
-            started_at: input.startedAt,
-            completed_at: input.completedAt,
-            conclusion: input.conclusion,
-            details_url: input.detailsUrl,
-            output,
-            request: { signal },
-          }),
+        withRetry(
+          () =>
+            octokit.checks.update({
+              owner: input.owner,
+              repo: input.repo,
+              check_run_id: input.existingCheckRunId as number,
+              status: "completed",
+              started_at: input.startedAt,
+              completed_at: input.completedAt,
+              conclusion: input.conclusion,
+              details_url: input.detailsUrl,
+              output,
+              request: { signal },
+            }),
+          undefined,
+          signal,
         ),
       signal,
     );
@@ -42,20 +45,23 @@ export async function publishCheckRun(
 
   await withAbortMapping(
     () =>
-      withRetry(() =>
-        octokit.checks.create({
-          owner: input.owner,
-          repo: input.repo,
-          name: CHECK_RUN_NAME,
-          head_sha: input.headSha,
-          status: "completed",
-          started_at: input.startedAt,
-          completed_at: input.completedAt,
-          conclusion: input.conclusion,
-          details_url: input.detailsUrl,
-          output,
-          request: { signal },
-        }),
+      withRetry(
+        () =>
+          octokit.checks.create({
+            owner: input.owner,
+            repo: input.repo,
+            name: CHECK_RUN_NAME,
+            head_sha: input.headSha,
+            status: "completed",
+            started_at: input.startedAt,
+            completed_at: input.completedAt,
+            conclusion: input.conclusion,
+            details_url: input.detailsUrl,
+            output,
+            request: { signal },
+          }),
+        undefined,
+        signal,
       ),
     signal,
   );

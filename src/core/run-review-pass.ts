@@ -21,6 +21,17 @@ import type {
 import { buildCheckRunOutput, buildReviewSummary, countBySeverity } from "./summary.js";
 import { createPassDeadline } from "./pass-deadline.js";
 
+export class ReviewPublishedCheckRunError extends Error {
+  constructor(
+    message: string,
+    readonly reviewedHeadSha?: string,
+    readonly checkRunInput?: PublishCheckRunInput,
+  ) {
+    super(message);
+    this.name = "ReviewPublishedCheckRunError";
+  }
+}
+
 /**
  * Orchestrates one review pass end to end, implementing the plan's "Pass
  * outcome decision matrix" in order: read the pull request, apply the draft
@@ -85,7 +96,7 @@ export async function runReviewPass(
 
     if (pr.draft) {
       deps.logger.event("pass_skipped", { reason: "draft_pull_request", headSha: pr.headSha });
-      return skippedResult("draft_pull_request", startMs, deps);
+      return skippedResult("draft_pull_request", startMs, deps, pr.headSha);
     }
 
     try {
@@ -118,7 +129,7 @@ export async function runReviewPass(
         reason: "already_reviewed_automatically",
         headSha: pr.headSha,
       });
-      return skippedResult("already_reviewed_automatically", startMs, deps);
+      return skippedResult("already_reviewed_automatically", startMs, deps, pr.headSha);
     }
 
     if (deps.config.loadError) {
@@ -190,7 +201,7 @@ export async function runReviewPass(
         headSha: pr.headSha,
         newHeadSha: latest.headSha,
       });
-      return skippedResult("superseded_head_sha", startMs, deps);
+      return skippedResult("superseded_head_sha", startMs, deps, pr.headSha);
     }
 
     const totals = fileTotals(changedFiles);
@@ -260,6 +271,16 @@ export async function runReviewPass(
       completedAt: deps.clock.isoNow(),
       detailsUrl: deps.detailsUrl,
     };
+    try {
+      await deps.onReviewPublished?.(checkRunInput);
+    } catch {
+      throw new ReviewPublishedCheckRunError(
+        `Review was published for ${pr.headSha} but the check run recovery state ` +
+          "could not be persisted",
+        pr.headSha,
+        checkRunInput,
+      );
+    }
 
     const checkRunResult = await publishSuccessCheckRun(deps, input, checkRunInput, deadline.signal);
     if (!checkRunResult.ok) {
@@ -271,9 +292,11 @@ export async function runReviewPass(
       // `finalizeFailure` unchanged, and the caller (the CLI entrypoint)
       // turns it into a non-zero process exit, so the failure is visible in
       // the Actions run rather than silently swallowed.
-      throw new Error(
+      throw new ReviewPublishedCheckRunError(
         `Review was published for ${pr.headSha} but the check run could not be ` +
           `published after retrying: ${checkRunResult.message}`,
+        pr.headSha,
+        checkRunInput,
       );
     }
 
@@ -285,6 +308,8 @@ export async function runReviewPass(
 
     return {
       outcome: "succeeded",
+      reviewedHeadSha: pr.headSha,
+      terminalCheckRunPublished: true,
       findings: parsed.findings,
       malformedCount: parsed.malformedCount,
       coercedSeverityCount: parsed.coercedSeverityCount,
@@ -311,6 +336,7 @@ export async function runReviewPass(
       return {
         outcome: "failed",
         failureReason: reason,
+        terminalCheckRunPublished: false,
         findings: [],
         malformedCount: 0,
         coercedSeverityCount: 0,
@@ -413,10 +439,13 @@ function skippedResult(
   skipReason: ReviewPassResult["skipReason"],
   startMs: number,
   deps: ReviewPassDeps,
+  reviewedHeadSha?: string,
 ): ReviewPassResult {
   return {
     outcome: "skipped",
     skipReason,
+    ...(reviewedHeadSha !== undefined ? { reviewedHeadSha } : {}),
+    terminalCheckRunPublished: false,
     findings: [],
     malformedCount: 0,
     coercedSeverityCount: 0,
@@ -478,6 +507,8 @@ async function finalizeFailure(
   return {
     outcome: "failed",
     failureReason: failure.reason,
+    reviewedHeadSha: failure.headSha,
+    terminalCheckRunPublished: true,
     findings: [],
     malformedCount: 0,
     coercedSeverityCount: 0,

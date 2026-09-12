@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runReviewPass } from "../../../src/core/run-review-pass.js";
+import {
+  ReviewPublishedCheckRunError,
+  runReviewPass,
+} from "../../../src/core/run-review-pass.js";
 import { GithubClientError } from "../../../src/github/github-client.js";
 import { ModelClientError } from "../../../src/inference/model-client.js";
 import type {
@@ -290,6 +293,42 @@ test("Scenario 1: a ready PR with findings publishes one review and one successf
   assert.equal(github.publishedCheckRuns[0].conclusion, "success");
 });
 
+test("onReviewPublished runs after review publication and before check-run publication", async () => {
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const events: string[] = [];
+  let recoveryInput: PublishCheckRunInput | undefined;
+
+  github.ops.publishReview = async (input) => {
+    events.push("publishReview");
+    github.publishedReviews.push(input);
+  };
+  github.ops.publishCheckRun = async (input) => {
+    events.push("publishCheckRun");
+    github.checkRunAttempts.push(input);
+    github.publishedCheckRuns.push(input);
+  };
+
+  await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      onReviewPublished: (checkRunInput) => {
+        events.push("onReviewPublished");
+        recoveryInput = checkRunInput;
+      },
+    }),
+  );
+
+  assert.deepEqual(events, ["publishReview", "onReviewPublished", "publishCheckRun"]);
+  assert.equal(recoveryInput?.headSha, HEAD_SHA);
+  assert.equal(github.publishedCheckRuns[0], recoveryInput);
+});
+
 test("Scenario 2: findings on a changed line are inline; others land in the summary; the total matches", async () => {
   const github = createFakeGithub({
     pullRequest: createPullRequest(),
@@ -531,7 +570,7 @@ test("a check-run write that keeps failing after a successful review rejects ins
         { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
         baseDeps({ github: github.ops, model }),
       ),
-    /check run could not be published/,
+    ReviewPublishedCheckRunError,
   );
 
   // The review was already published and must not be contradicted: exactly
@@ -620,6 +659,7 @@ test("Gap 1: a deadline that fires while the very first readPullRequest is in fl
   // so the pass degrades to a logged failure rather than a check-run write.
   assert.equal(result.outcome, "failed");
   assert.equal(result.failureReason, "timed_out");
+  assert.equal(result.terminalCheckRunPublished, false);
   assert.equal(github.publishedReviews.length, 0);
   assert.equal(github.publishedCheckRuns.length, 0);
 });
@@ -644,6 +684,7 @@ test("Gap 1 degradation path: the same first-readPullRequest abort, given a head
 
   assert.equal(result.outcome, "failed");
   assert.equal(result.failureReason, "timed_out");
+  assert.equal(result.terminalCheckRunPublished, true);
   assert.equal(github.publishedReviews.length, 0);
   assert.equal(github.publishedCheckRuns.length, 1);
   assert.equal(github.publishedCheckRuns[0].headSha, eventHeadSha);
@@ -753,7 +794,7 @@ test("an abort classified at the terminal success publishCheckRun write still re
         { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
         baseDeps({ github: github.ops, model }),
       ),
-    /check run could not be published/,
+    ReviewPublishedCheckRunError,
   );
 
   // The review published cleanly; the check-run write is what "aborted".

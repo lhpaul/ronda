@@ -1,8 +1,9 @@
 # Adopting Ronda's review workflow
 
 Ronda reviews a pull request by calling a reusable GitHub Actions workflow
-from your own repository. This is v0's only ingress — there is no hosted
-webhook yet (see [`docs/constitution.md`](../constitution.md)).
+from your own repository. A local webhook service is also available for
+dogfooding one GitHub App webhook URL on operator-owned hardware; see
+[`ronda-local-webhook.md`](ronda-local-webhook.md).
 
 ## 1. Add the caller workflow
 
@@ -79,10 +80,12 @@ gh api repos/<owner>/<reusable-workflow-repo>/actions/permissions/access
 An `"access_level"` of `"none"` means no other repository can call the
 reusable workflow yet.
 
-Only `pull_request` is used, never `pull_request_target`. Fork pull requests
-therefore receive GitHub's normal read-only `GITHUB_TOKEN` on the automatic
-path, so a fork-originated PR will not receive an automatic review in v0 —
-see **Known limitations** below.
+The reusable Action path uses only `pull_request`, never
+`pull_request_target`. Fork pull requests therefore receive GitHub's normal
+read-only `GITHUB_TOKEN` on the automatic Action path, so a fork-originated PR
+will not receive an automatic Action review in v0 — see **Known limitations**
+below. The local GitHub App webhook path publishes with the base repository's
+installation token instead.
 
 ### Optional inputs
 
@@ -111,8 +114,10 @@ the current head commit, even if it already has one:
 
 The match is case-insensitive and ignores surrounding whitespace and quoted
 reply lines, but the phrase must be the first meaningful line of the
-comment. Draft pull requests ignore the command entirely, same as the
-automatic path.
+comment. Manual review comments are accepted only from GitHub users whose
+comment `author_association` is `OWNER`, `MEMBER`, or `COLLABORATOR`;
+other users are ignored. Draft pull requests ignore the command entirely,
+same as the automatic path.
 
 ## 4. Consumption contract
 
@@ -121,7 +126,13 @@ CI — can wait on Ronda's check run instead of parsing the review body:
 
 - **Check-run name**: `Ronda review` (constant, never localized or renamed).
 - **One per head SHA**: automatic and manual passes on the same commit
-  update the same check run in place rather than creating a second one.
+  update the same check run in place rather than creating a second one when
+  they are using the same publishing identity. During webhook migration,
+  automatic webhook deliveries suppress duplicate work when any same-name
+  `Ronda review` check already exists on the head SHA. Manual webhook reruns
+  update only a check run owned by the configured Ronda GitHub App; if the only
+  existing check is Action-owned, GitHub requires the webhook path to create an
+  App-owned check run it can update.
 - **Conclusion**: `success` (the pass worked, with or without findings) or
   `failure` (the pass could not complete; the check run's title and summary
   name the reason — timed out, model unavailable, credential missing or
@@ -172,10 +183,14 @@ config file, which takes precedence over Ronda's built-in defaults.
 
 ## Known limitations (v0)
 
-- **Fork pull requests** are not reviewed automatically. `pull_request`
-  (not `pull_request_target`) gives fork-originated pull requests a
-  read-only token, so the automatic path cannot publish for them. Support
-  via `pull_request_target` is a documented follow-up, not attempted here.
+- **Fork pull requests on the reusable Action path** are not reviewed
+  automatically. `pull_request` (not `pull_request_target`) gives
+  fork-originated pull requests a read-only token, so the automatic Action path
+  cannot publish for them. The local GitHub App webhook path is the supported
+  fork-friendly ingress in v0.
+- **Local webhook availability is operator-owned.** When using the local
+  webhook path, GitHub delivery depends on the tunnel or machine being online.
+  The reusable Action path remains available during migration.
 - **No carried state between passes.** Each pass reads the pull request
   fresh; there is no deduplication against an earlier review's findings.
 - **One dogfood repository.** v0 adopts `lhpaul/ai-dev-framework-template`

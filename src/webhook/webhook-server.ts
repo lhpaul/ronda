@@ -1,0 +1,821 @@
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { ReviewPublishedCheckRunError } from "../core/run-review-pass.js";
+import type { PublishCheckRunInput } from "../domain/review-pass.types.js";
+import { loadWebhookConfig, WebhookConfigError, type WebhookConfig } from "./webhook-config.js";
+import { verifyGithubSignature } from "./signature.js";
+import {
+  resolveWebhookJob,
+  runWebhookReviewJob,
+  type WebhookReviewJob,
+  type WebhookReviewJobLifecycle,
+  type WebhookReviewJobResult,
+} from "./webhook-job.js";
+
+const MAX_BODY_BYTES = 10 * 1024 * 1024;
+const MAX_SEEN_DELIVERY_IDS = 1_000;
+const MAX_PENDING_WEBHOOK_JOBS = 25;
+const MAX_PERSISTED_COMPLETED_WEBHOOK_JOBS = 1_000;
+
+export interface WebhookServerDeps {
+  runJob?: (
+    job: WebhookReviewJob,
+    config: WebhookConfig,
+    signal: AbortSignal,
+    lifecycle: WebhookReviewJobLifecycle,
+  ) => Promise<WebhookReviewJobResult | void>;
+  onJobFailure?: (error: unknown) => void;
+  queueStore?: WebhookQueueStore;
+  log?: Pick<Console, "error" | "log">;
+}
+
+export class WebhookJobTimeoutError extends Error {
+  constructor(job: WebhookReviewJob, timeoutMs: number) {
+    super(
+      `Webhook review job timed out after ${timeoutMs}ms for ${job.owner}/${job.repo}#${job.pullNumber}`,
+    );
+    this.name = "WebhookJobTimeoutError";
+  }
+}
+
+export class WebhookJobSettlementTimeoutError extends Error {
+  constructor(job: WebhookReviewJob, timeoutMs: number) {
+    super(
+      `Webhook review job did not settle within ${timeoutMs}ms after timeout for ` +
+        `${job.owner}/${job.repo}#${job.pullNumber}`,
+    );
+    this.name = "WebhookJobSettlementTimeoutError";
+  }
+}
+
+export class WebhookQueuePersistenceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WebhookQueuePersistenceError";
+  }
+}
+
+export function startWebhookServer(
+  config: WebhookConfig,
+  deps: WebhookServerDeps = {},
+): ReturnType<typeof createServer> {
+  const log = deps.log ?? console;
+  const runJob = deps.runJob ?? runWebhookReviewJob;
+  const queueStore = deps.queueStore ?? createWebhookQueueStore(config.webhookQueuePath, log);
+  let busy = false;
+  let workerStopped = false;
+  const pendingJobs: WebhookReviewJob[] = queueStore.load();
+  const completedDeliveryIds = queueStore.loadSuppressedDeliveryIds();
+  const suppressedReviewKeys = queueStore.loadSuppressedReviewKeys?.() ?? [];
+  const deliveryIds: DeliveryIdState = {
+    active: new Set<string>(),
+    completed: new Set<string>(completedDeliveryIds),
+    completedOrder: [...completedDeliveryIds],
+    suppressedReviewKeys: new Set<string>(suppressedReviewKeys),
+    suppressedReviewKeyOrder: suppressedReviewKeys,
+  };
+  for (const job of pendingJobs) {
+    deliveryIds.active.add(job.deliveryId);
+  }
+
+  const server = createServer(async (req, res) => {
+    await handleWebhookRequest(req, res, config, {
+      log,
+      acceptJob: (job) => reserveJob(deliveryIds, job),
+      releaseDeliveryId: (deliveryId) => {
+        deliveryIds.active.delete(deliveryId);
+      },
+      enqueue: (job) => {
+        if (workerStopped) {
+          return false;
+        }
+        if (busy) {
+          if (pendingJobs.length >= MAX_PENDING_WEBHOOK_JOBS) {
+            return false;
+          }
+          if (!queueStore.add(job)) {
+            return false;
+          }
+          pendingJobs.push(job);
+          return true;
+        }
+        if (!queueStore.add(job)) {
+          return false;
+        }
+        runNextJob(job);
+        return true;
+      },
+    });
+  });
+
+  const runNextJob = (job: WebhookReviewJob): void => {
+    busy = true;
+    let terminalOutcomeReached = false;
+    let terminalOutcomePublished = false;
+    let terminalOutcomeRequiresPublishedSuppression = false;
+    let terminalOutcomeReviewedHeadSha: string | undefined;
+    void Promise.resolve()
+      .then(() => {
+        if (job.checkRunInput === undefined && !queueStore.start(job.deliveryId)) {
+          throw new WebhookQueuePersistenceError(
+            `Failed to mark webhook delivery ${job.deliveryId} in progress`,
+          );
+        }
+      })
+      .then(() =>
+        withJobTimeout(
+          (signal) => runJob(job, config, signal, createWebhookReviewJobLifecycle(job, queueStore)),
+          config.webhookJobTimeoutMs,
+          () => new WebhookJobTimeoutError(job, config.webhookJobTimeoutMs),
+          () => new WebhookJobSettlementTimeoutError(job, config.webhookJobSettlementTimeoutMs),
+          config.webhookJobSettlementTimeoutMs,
+        ),
+      )
+      .then((result) => {
+        terminalOutcomeReached = true;
+        terminalOutcomeRequiresPublishedSuppression = result?.terminalCheckRunPublished === true;
+        terminalOutcomeReviewedHeadSha = result?.reviewedHeadSha;
+        if (terminalOutcomeRequiresPublishedSuppression) {
+          if (!queueStore.markPublished(job.deliveryId, terminalOutcomeReviewedHeadSha)) {
+            throw new WebhookQueuePersistenceError(
+              `Failed to mark webhook delivery ${job.deliveryId} terminal outcome published`,
+            );
+          }
+          terminalOutcomePublished = true;
+          suppressReviewKey(deliveryIds, job, terminalOutcomeReviewedHeadSha);
+        }
+        if (!queueStore.complete(job.deliveryId)) {
+          throw new WebhookQueuePersistenceError(
+            `Failed to mark completed webhook delivery ${job.deliveryId} in the queue`,
+          );
+        }
+        completeDeliveryId(deliveryIds, job.deliveryId);
+      })
+      .catch((error: unknown) => {
+        let failureError = error;
+        if (error instanceof ReviewPublishedCheckRunError) {
+          const marked = error.checkRunInput
+            ? (queueStore.markCheckPending?.(job.deliveryId, error.checkRunInput) ?? false)
+            : queueStore.markPublished(job.deliveryId, error.reviewedHeadSha);
+          if (!terminalOutcomePublished && !marked) {
+            failureError = new WebhookQueuePersistenceError(
+              `Failed to mark review-published webhook delivery ${job.deliveryId} in the queue`,
+            );
+          } else {
+            suppressReviewKey(deliveryIds, job, error.reviewedHeadSha);
+          }
+        } else if (terminalOutcomeReached) {
+          if (
+            terminalOutcomeRequiresPublishedSuppression &&
+            !terminalOutcomePublished &&
+            queueStore.markPublished(job.deliveryId, terminalOutcomeReviewedHeadSha)
+          ) {
+            terminalOutcomePublished = true;
+            suppressReviewKey(deliveryIds, job, terminalOutcomeReviewedHeadSha);
+          }
+          if (queueStore.complete(job.deliveryId)) {
+            completeDeliveryId(deliveryIds, job.deliveryId);
+          } else {
+            failureError = new WebhookQueuePersistenceError(
+              `Failed to mark review-published webhook delivery ${job.deliveryId} in the queue`,
+            );
+          }
+        } else {
+          if (job.checkRunInput !== undefined) {
+            queueStore.markCheckPending?.(job.deliveryId, job.checkRunInput);
+          } else {
+            queueStore.retry(job.deliveryId);
+          }
+        }
+        deliveryIds.active.delete(job.deliveryId);
+        log.error("Ronda webhook job failed", failureError);
+        deps.onJobFailure?.(failureError);
+        workerStopped = true;
+        if (!deps.onJobFailure) {
+          process.exitCode = 1;
+          process.exit(1);
+        }
+        server.close();
+      })
+      .finally(() => {
+        if (workerStopped) {
+          return;
+        }
+        const nextJob = pendingJobs.shift();
+        if (nextJob === undefined) {
+          busy = false;
+          return;
+        }
+        runNextJob(nextJob);
+      });
+  };
+
+  server.listen(config.port, config.host, () => {
+    log.log(`Ronda webhook listening on http://${config.host}:${config.port}`);
+    const nextJob = pendingJobs.shift();
+    if (nextJob !== undefined) {
+      runNextJob(nextJob);
+    }
+  });
+  return server;
+}
+
+function createWebhookReviewJobLifecycle(
+  job: WebhookReviewJob,
+  queueStore: WebhookQueueStore,
+): WebhookReviewJobLifecycle {
+  return {
+    onReviewPublished: (checkRunInput) => {
+      if (queueStore.markCheckPending?.(job.deliveryId, checkRunInput) === true) {
+        return;
+      }
+      throw new WebhookQueuePersistenceError(
+        `Failed to persist check-run recovery state for webhook delivery ${job.deliveryId}`,
+      );
+    },
+  };
+}
+
+interface DeliveryIdState {
+  active: Set<string>;
+  completed: Set<string>;
+  completedOrder: string[];
+  suppressedReviewKeys: Set<string>;
+  suppressedReviewKeyOrder: string[];
+}
+
+export interface WebhookQueueStore {
+  load: () => WebhookReviewJob[];
+  loadSuppressedDeliveryIds: () => string[];
+  loadSuppressedReviewKeys?: () => string[];
+  add: (job: WebhookReviewJob) => boolean;
+  start: (deliveryId: string) => boolean;
+  retry: (deliveryId: string) => boolean;
+  markPublished: (deliveryId: string, reviewedHeadSha?: string) => boolean;
+  markCheckPending?: (deliveryId: string, checkRunInput: PublishCheckRunInput) => boolean;
+  complete: (deliveryId: string) => boolean;
+}
+
+interface HandleWebhookRequestDeps {
+  enqueue: (job: WebhookReviewJob) => boolean;
+  acceptJob?: (job: WebhookReviewJob) => boolean;
+  acceptDeliveryId?: (deliveryId: string) => boolean;
+  releaseDeliveryId?: (deliveryId: string) => void;
+  log?: Pick<Console, "error">;
+}
+
+export async function handleWebhookRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  config: WebhookConfig,
+  deps: HandleWebhookRequestDeps,
+): Promise<void> {
+  if (req.method === "GET" && req.url === "/healthz") {
+    writeJson(res, 200, { ok: true });
+    return;
+  }
+  if (req.method !== "POST" || req.url !== "/webhook") {
+    writeJson(res, 404, { ok: false, error: "not_found" });
+    return;
+  }
+
+  let body: Buffer;
+  try {
+    body = await readRequestBody(req, MAX_BODY_BYTES);
+  } catch (error) {
+    deps.log?.error("Ronda webhook body read failed", error);
+    writeJson(res, 413, { ok: false, error: "body_too_large" });
+    return;
+  }
+
+  if (
+    !verifyGithubSignature({
+      body,
+      signatureHeader: req.headers["x-hub-signature-256"],
+      secret: config.webhookSecret,
+    })
+  ) {
+    writeJson(res, 401, { ok: false, error: "invalid_signature" });
+    return;
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(body.toString("utf8"));
+  } catch {
+    writeJson(res, 400, { ok: false, error: "invalid_json" });
+    return;
+  }
+
+  const eventName = headerValue(req.headers["x-github-event"]);
+  const deliveryId = headerValue(req.headers["x-github-delivery"]);
+  if (eventName === undefined) {
+    writeJson(res, 400, { ok: false, error: "missing_event" });
+    return;
+  }
+  if (deliveryId === undefined) {
+    writeJson(res, 400, { ok: false, error: "missing_delivery" });
+    return;
+  }
+
+  const decision = resolveWebhookJob(eventName, deliveryId, payload);
+  if (!decision.shouldRun || decision.job === undefined) {
+    writeJson(res, 202, { ok: true, queued: false, reason: decision.reason });
+    return;
+  }
+  if (deps.acceptJob && !deps.acceptJob(decision.job)) {
+    writeJson(res, 202, { ok: true, queued: false, reason: "duplicate_delivery" });
+    return;
+  }
+  if (!deps.acceptJob && deps.acceptDeliveryId && !deps.acceptDeliveryId(deliveryId)) {
+    writeJson(res, 202, { ok: true, queued: false, reason: "duplicate_delivery" });
+    return;
+  }
+
+  if (!deps.enqueue(decision.job)) {
+    deps.releaseDeliveryId?.(deliveryId);
+    writeJson(res, 503, { ok: false, error: "webhook_worker_unavailable" });
+    return;
+  }
+  writeJson(res, 202, { ok: true, queued: true, pullNumber: decision.job.pullNumber });
+}
+
+function readRequestBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    let exceeded = false;
+    req.on("data", (chunk: Buffer) => {
+      if (exceeded) {
+        return;
+      }
+      total += chunk.length;
+      if (total > maxBytes) {
+        exceeded = true;
+        reject(new Error(`request body exceeded ${maxBytes} bytes`));
+        req.resume();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("error", reject);
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+}
+
+function headerValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function reserveJob(deliveryIds: DeliveryIdState, job: WebhookReviewJob): boolean {
+  const reviewKey = reviewSuppressionKey(job);
+  if (reviewKey !== undefined && deliveryIds.suppressedReviewKeys.has(reviewKey)) {
+    return false;
+  }
+  return reserveDeliveryId(deliveryIds, job.deliveryId);
+}
+
+function reserveDeliveryId(deliveryIds: DeliveryIdState, deliveryId: string): boolean {
+  if (deliveryIds.active.has(deliveryId) || deliveryIds.completed.has(deliveryId)) {
+    return false;
+  }
+  deliveryIds.active.add(deliveryId);
+  return true;
+}
+
+function suppressReviewKey(
+  deliveryIds: DeliveryIdState,
+  job: WebhookReviewJob,
+  reviewedHeadSha?: string,
+): void {
+  const reviewKey = reviewSuppressionKey(job, reviewedHeadSha);
+  if (reviewKey === undefined || deliveryIds.suppressedReviewKeys.has(reviewKey)) {
+    return;
+  }
+  deliveryIds.suppressedReviewKeys.add(reviewKey);
+  deliveryIds.suppressedReviewKeyOrder.push(reviewKey);
+  while (deliveryIds.suppressedReviewKeyOrder.length > MAX_PERSISTED_COMPLETED_WEBHOOK_JOBS) {
+    const oldestReviewKey = deliveryIds.suppressedReviewKeyOrder.shift();
+    if (oldestReviewKey !== undefined) {
+      deliveryIds.suppressedReviewKeys.delete(oldestReviewKey);
+    }
+  }
+}
+
+function completeDeliveryId(deliveryIds: DeliveryIdState, deliveryId: string): void {
+  if (!deliveryIds.active.delete(deliveryId)) {
+    return;
+  }
+  deliveryIds.completed.add(deliveryId);
+  deliveryIds.completedOrder.push(deliveryId);
+  while (deliveryIds.completedOrder.length > MAX_SEEN_DELIVERY_IDS) {
+    const oldestDeliveryId = deliveryIds.completedOrder.shift();
+    if (oldestDeliveryId !== undefined) {
+      deliveryIds.completed.delete(oldestDeliveryId);
+    }
+  }
+}
+
+function createWebhookQueueStore(
+  queuePath: string | undefined,
+  log: Pick<Console, "error">,
+): WebhookQueueStore {
+  if (queuePath === undefined) {
+    return {
+      load: () => [],
+      loadSuppressedDeliveryIds: () => [],
+      loadSuppressedReviewKeys: () => [],
+      add: () => true,
+      start: () => true,
+      retry: () => true,
+      markPublished: () => true,
+      markCheckPending: () => true,
+      complete: () => true,
+    };
+  }
+
+  const readEntries = (): WebhookQueueEntry[] => {
+    if (!existsSync(queuePath)) {
+      return [];
+    }
+    const parsed = JSON.parse(readFileSync(queuePath, "utf8")) as unknown;
+    if (!Array.isArray(parsed)) {
+      throw new Error(`webhook queue file is not an array: ${queuePath}`);
+    }
+    return parsed.map((entry, index) => {
+      if (!isWebhookQueueEntry(entry)) {
+        throw new Error(`webhook queue file has an invalid entry at index ${index}: ${queuePath}`);
+      }
+      return entry;
+    });
+  };
+
+  const writeEntries = (entries: WebhookQueueEntry[]): void => {
+    mkdirSync(dirname(queuePath), { recursive: true });
+    const tempPath = `${queuePath}.${process.pid}.tmp`;
+    writeFileSync(tempPath, `${JSON.stringify(entries, null, 2)}\n`);
+    renameSync(tempPath, queuePath);
+  };
+
+  return {
+    load: () => {
+      try {
+        const entries = readEntries();
+        const suppressedReviewKeys = reviewSuppressionKeysForEntries(entries);
+        return entries
+          .filter(
+            (entry) =>
+              entry.status === undefined ||
+              entry.status === "pending" ||
+              entry.status === "check_pending",
+          )
+          .filter((entry) => {
+            if (entry.status === "check_pending") {
+              return true;
+            }
+            const reviewKey = reviewSuppressionKey(entry);
+            return reviewKey === undefined || !suppressedReviewKeys.has(reviewKey);
+          })
+          .map(toWebhookReviewJob);
+      } catch (error) {
+        log.error("Ronda webhook queue load failed", error);
+        throw new WebhookQueuePersistenceError(`Failed to load webhook queue from ${queuePath}`);
+      }
+    },
+    loadSuppressedDeliveryIds: () => {
+      try {
+        return readEntries()
+          .filter((entry) => entry.status === "published" || entry.status === "completed")
+          .map((entry) => entry.deliveryId);
+      } catch (error) {
+        log.error("Ronda webhook queue load failed", error);
+        throw new WebhookQueuePersistenceError(`Failed to load webhook queue from ${queuePath}`);
+      }
+    },
+    loadSuppressedReviewKeys: () => {
+      try {
+        return [...reviewSuppressionKeysForEntries(readEntries())];
+      } catch (error) {
+        log.error("Ronda webhook queue load failed", error);
+        throw new WebhookQueuePersistenceError(`Failed to load webhook queue from ${queuePath}`);
+      }
+    },
+    add: (job) => {
+      try {
+        const entries = readEntries();
+        const reviewKey = reviewSuppressionKey(job);
+        const suppressedReviewKeys = reviewSuppressionKeysForEntries(entries);
+        if (reviewKey !== undefined && suppressedReviewKeys.has(reviewKey)) {
+          return true;
+        }
+        if (!entries.some((queuedJob) => queuedJob.deliveryId === job.deliveryId)) {
+          writeEntries([...entries, { ...job, status: "pending" }]);
+        }
+        return true;
+      } catch (error) {
+        log.error("Ronda webhook queue write failed", error);
+        return false;
+      }
+    },
+    start: (deliveryId) => {
+      try {
+        return updateEntryStatus(deliveryId, "in_progress");
+      } catch (error) {
+        log.error("Ronda webhook queue claim write failed", error);
+        return false;
+      }
+    },
+    retry: (deliveryId) => {
+      try {
+        return updateEntryStatus(deliveryId, "pending");
+      } catch (error) {
+        log.error("Ronda webhook queue retry write failed", error);
+        return false;
+      }
+    },
+    markPublished: (deliveryId, reviewedHeadSha) => {
+      try {
+        return updateEntryStatus(deliveryId, "published", reviewedHeadSha);
+      } catch (error) {
+        log.error("Ronda webhook queue published-marker write failed", error);
+        return false;
+      }
+    },
+    markCheckPending: (deliveryId, checkRunInput) => {
+      try {
+        const entries = readEntries();
+        let found = false;
+        const updatedEntries = entries.map((entry) => {
+          if (entry.deliveryId !== deliveryId) {
+            return entry;
+          }
+          found = true;
+          return {
+            ...entry,
+            status: "check_pending" as const,
+            headSha: checkRunInput.headSha,
+            reviewPublished: true,
+            checkRunInput,
+          };
+        });
+        if (!found) {
+          return false;
+        }
+        writeEntries(updatedEntries);
+        return true;
+      } catch (error) {
+        log.error("Ronda webhook queue check-pending write failed", error);
+        return false;
+      }
+    },
+    complete: (deliveryId) => {
+      try {
+        const entries = readEntries();
+        const entry = entries.find((queuedEntry) => queuedEntry.deliveryId === deliveryId);
+        if (entry === undefined) {
+          return false;
+        }
+        const completedEntry: WebhookQueueEntry = {
+          ...entry,
+          status: "completed" as const,
+          completedAt: new Date().toISOString(),
+        };
+        delete completedEntry.checkRunInput;
+        const completedEntries = [
+          ...entries.filter((queuedEntry) => queuedEntry.deliveryId !== deliveryId),
+          completedEntry,
+        ];
+        writeEntries(pruneCompletedEntries(completedEntries));
+        return true;
+      } catch (error) {
+        log.error("Ronda webhook queue completion write failed", error);
+        return false;
+      }
+    },
+  };
+
+  function updateEntryStatus(
+    deliveryId: string,
+    status: WebhookQueueEntry["status"],
+    reviewedHeadSha?: string,
+  ): boolean {
+    const entries = readEntries();
+    let found = false;
+    const updatedEntries = entries.map((entry) => {
+      if (entry.deliveryId !== deliveryId) {
+        return entry;
+      }
+      found = true;
+      const updatedEntry: WebhookQueueEntry = {
+        ...entry,
+        status,
+        ...(status === "published" ? { reviewPublished: true } : {}),
+        ...(status === "published" && reviewedHeadSha !== undefined
+          ? { headSha: reviewedHeadSha }
+          : {}),
+      };
+      if (status !== "check_pending") {
+        delete updatedEntry.checkRunInput;
+      }
+      return updatedEntry;
+    });
+    if (!found) {
+      return false;
+    }
+    writeEntries(updatedEntries);
+    return true;
+  }
+}
+
+function pruneCompletedEntries(entries: WebhookQueueEntry[]): WebhookQueueEntry[] {
+  const pendingEntries = entries.filter((entry) => entry.status !== "completed");
+  const completedEntries = entries.filter((entry) => entry.status === "completed");
+  return [
+    ...pendingEntries,
+    ...completedEntries.slice(-MAX_PERSISTED_COMPLETED_WEBHOOK_JOBS),
+  ];
+}
+
+function reviewSuppressionKeysForEntries(entries: WebhookQueueEntry[]): Set<string> {
+  return new Set(
+    entries
+      .filter(
+        (entry) =>
+          entry.status === "published" ||
+          entry.status === "check_pending" ||
+          (entry.status === "completed" && entry.reviewPublished === true),
+      )
+      .map((entry) => reviewSuppressionKey(entry))
+      .filter((key): key is string => key !== undefined),
+  );
+}
+
+function reviewSuppressionKey(
+  job: WebhookReviewJob,
+  reviewedHeadSha?: string,
+): string | undefined {
+  const headSha = reviewedHeadSha ?? job.headSha;
+  if (headSha === undefined) {
+    return undefined;
+  }
+  return `${job.owner}/${job.repo}#${job.pullNumber}@${headSha}`;
+}
+
+interface WebhookQueueEntry extends WebhookReviewJob {
+  status?: "pending" | "in_progress" | "published" | "check_pending" | "completed";
+  completedAt?: string;
+  reviewPublished?: boolean;
+}
+
+function toWebhookReviewJob(entry: WebhookQueueEntry): WebhookReviewJob {
+  const { owner, repo, pullNumber, trigger, installationId, deliveryId, headSha } = entry;
+  const job: WebhookReviewJob = { owner, repo, pullNumber, trigger, installationId, deliveryId };
+  if (headSha !== undefined) {
+    job.headSha = headSha;
+  }
+  if (entry.checkRunInput !== undefined) {
+    job.checkRunInput = entry.checkRunInput;
+  }
+  return job;
+}
+
+function isWebhookQueueEntry(value: unknown): value is WebhookQueueEntry {
+  if (!isWebhookReviewJob(value)) {
+    return false;
+  }
+  const entry = value as Partial<WebhookQueueEntry>;
+  const checkRunInput = entry.checkRunInput;
+  const hasValidCheckRunInput = isPublishCheckRunInput(checkRunInput);
+  const hasMatchingCheckRunInput =
+    hasValidCheckRunInput &&
+    checkRunInput.owner === entry.owner &&
+    checkRunInput.repo === entry.repo &&
+    typeof entry.headSha === "string" &&
+    checkRunInput.headSha === entry.headSha;
+  const hasConsistentCheckRunRecovery =
+    entry.status === "check_pending"
+      ? hasMatchingCheckRunInput
+      : entry.checkRunInput === undefined;
+  return (
+    (entry.status === undefined ||
+      entry.status === "pending" ||
+      entry.status === "in_progress" ||
+      entry.status === "published" ||
+      entry.status === "check_pending" ||
+      entry.status === "completed") &&
+    (entry.completedAt === undefined || typeof entry.completedAt === "string") &&
+    (entry.reviewPublished === undefined || typeof entry.reviewPublished === "boolean") &&
+    hasConsistentCheckRunRecovery
+  );
+}
+
+function isPublishCheckRunInput(value: unknown): value is PublishCheckRunInput {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const input = value as Partial<PublishCheckRunInput>;
+  return (
+    typeof input.owner === "string" &&
+    typeof input.repo === "string" &&
+    typeof input.headSha === "string" &&
+    (typeof input.existingCheckRunId === "number" || input.existingCheckRunId === null) &&
+    typeof input.title === "string" &&
+    typeof input.summary === "string" &&
+    (input.conclusion === "success" || input.conclusion === "failure") &&
+    typeof input.startedAt === "string" &&
+    typeof input.completedAt === "string" &&
+    (input.detailsUrl === undefined || typeof input.detailsUrl === "string")
+  );
+}
+
+function isWebhookReviewJob(value: unknown): value is WebhookReviewJob {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const job = value as Partial<WebhookReviewJob>;
+  return (
+    typeof job.owner === "string" &&
+    typeof job.repo === "string" &&
+    typeof job.pullNumber === "number" &&
+    (job.trigger === "automatic" || job.trigger === "manual") &&
+    typeof job.installationId === "number" &&
+    typeof job.deliveryId === "string" &&
+    (job.headSha === undefined || typeof job.headSha === "string")
+  );
+}
+
+async function withJobTimeout(
+  runJob: (signal: AbortSignal) => Promise<WebhookReviewJobResult | void>,
+  timeoutMs: number,
+  createError: () => Error,
+  createSettlementError: () => Error,
+  settlementTimeoutMs: number,
+): Promise<WebhookReviewJobResult | void> {
+  const controller = new AbortController();
+  let timeout: NodeJS.Timeout | undefined;
+  let settlementTimeout: NodeJS.Timeout | undefined;
+  const jobPromise = runJob(controller.signal);
+  const timeoutPromise = new Promise<{ timedOut: true; error: Error }>((resolve) => {
+    timeout = setTimeout(() => {
+      const error = createError();
+      controller.abort(error);
+      resolve({ timedOut: true, error });
+    }, timeoutMs);
+    timeout.unref?.();
+  });
+  try {
+    const result = await Promise.race([
+      jobPromise.then((jobResult) => ({ timedOut: false as const, jobResult })),
+      timeoutPromise,
+    ]);
+    if (!result.timedOut) {
+      return result.jobResult;
+    }
+
+    const settled = await Promise.race([
+      jobPromise.then(
+        (jobResult) => ({ status: "resolved" as const, jobResult }),
+        (error: unknown) => ({ status: "rejected" as const, error }),
+      ),
+      new Promise<"timed_out">((resolve) => {
+        settlementTimeout = setTimeout(() => resolve("timed_out"), settlementTimeoutMs);
+        settlementTimeout.unref?.();
+      }),
+    ]);
+    if (settled === "timed_out") {
+      jobPromise.catch(() => undefined);
+      throw createSettlementError();
+    }
+    if (typeof settled === "object" && settled.status === "resolved") {
+      return settled.jobResult;
+    }
+    throw settled.error;
+  } finally {
+    if (timeout !== undefined) {
+      clearTimeout(timeout);
+    }
+    if (settlementTimeout !== undefined) {
+      clearTimeout(settlementTimeout);
+    }
+  }
+}
+
+function writeJson(res: ServerResponse, statusCode: number, body: unknown): void {
+  res.statusCode = statusCode;
+  res.setHeader("content-type", "application/json");
+  res.end(`${JSON.stringify(body)}\n`);
+}
+
+if (process.argv[1] && process.argv[1].endsWith("webhook-server.ts")) {
+  try {
+    startWebhookServer(loadWebhookConfig());
+  } catch (error) {
+    if (error instanceof WebhookConfigError) {
+      console.error(`Ronda webhook config error: ${error.message}`);
+      process.exitCode = 1;
+  } else {
+    throw error;
+  }
+}
+}

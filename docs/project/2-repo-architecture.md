@@ -5,8 +5,9 @@
 Single-repo ADF consumer (`single_repo`). Owns tracker, specs, plans, and the
 Ronda service. v0 ships the review core as a TypeScript project run directly
 via `tsx` (no committed build artifact), exposed through a reusable GitHub
-Actions workflow. The long-running HTTP server is a later item; the review
-contract this v0 workflow produces does not change when that ingress arrives.
+Actions workflow and a local GitHub App webhook service. The two ingress paths
+share the same review core and produce the same GitHub review/check-run
+contract.
 
 ## Directory Structure
 
@@ -24,7 +25,8 @@ ronda/
 │   ├── github/                   # Octokit wrapper, PR reader, diff parser, publishers
 │   ├── inference/                # ModelClient seam, OpenAI-compatible client, prompt, parser
 │   ├── core/                     # runReviewPass orchestration, deadline, summary, logger
-│   └── cli/                      # Action entrypoint (review-pr.ts), trigger resolution
+│   ├── cli/                      # Action entrypoint (review-pr.ts), trigger resolution
+│   └── webhook/                  # Local GitHub App webhook service
 ├── tests/
 │   ├── unit/
 │   ├── integration/
@@ -56,11 +58,13 @@ Local, never committed:
 | Inference client | Call an OpenAI-compatible model API | TypeScript, `fetch` | `src/inference/openai-compatible-client.ts` |
 | GitHub poster | Submit review + check run | `@octokit/rest` | `src/github/review-publisher.ts`, `src/github/check-run-publisher.ts` |
 | Action entrypoint | Translate GitHub Actions env vars into one `runReviewPass` call | TypeScript via `tsx` | `src/cli/review-pr.ts` |
+| Local webhook service | Verify GitHub App webhooks, mint installation tokens, run one in-flight `runReviewPass` job | TypeScript on Node `http` | `src/webhook/webhook-server.ts` |
 
-v0 starts as a reusable GitHub Action that calls the same review core; a
-later item moves the listener to a long-running process behind a tunnel.
-`src/core/` never imports from `src/cli/`, so that move reuses the core
-unchanged.
+The reusable Action and local webhook paths are alternate ingresses. A
+repository should not enable both for the same trigger without an external
+filter or future shared arbitration, because manual review commands would reach
+both paths. `src/core/` imports from neither `src/cli/` nor `src/webhook/`, so
+both entrypoints reuse the core unchanged.
 
 ## Common Commands
 
@@ -80,6 +84,14 @@ Product command (the Action entrypoint, also runnable locally):
 npm run review
 ```
 
+Local webhook service:
+
+```bash
+# Requires GitHub App webhook secret, app id, private key, installation access,
+# and a model credential; see docs/adoption/ronda-local-webhook.md.
+npm run webhook
+```
+
 ## Environment Setup
 
 1. Clone `lhpaul/ronda` (default branch `develop`) and run `npm ci`.
@@ -88,3 +100,5 @@ npm run review
    `~/.config/ronda/config.json` copied from `ronda.config.example.json`.
 3. To adopt Ronda in another repository, follow
    [`docs/adoption/ronda-review-adoption.md`](../adoption/ronda-review-adoption.md).
+4. To dogfood the GitHub App webhook path locally, follow
+   [`docs/adoption/ronda-local-webhook.md`](../adoption/ronda-local-webhook.md).
