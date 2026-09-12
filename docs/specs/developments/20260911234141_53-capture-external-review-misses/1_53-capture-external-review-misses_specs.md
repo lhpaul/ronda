@@ -280,8 +280,9 @@ alongside existing review comparisons and quality summaries.
 
 ## Missing And Unreadable Input
 
-These rules govern what automatic capture does when its inputs are absent,
-empty, or unusable. Nothing is written unless the row says a record is written.
+These rules govern what capture does when its inputs are absent, empty, or
+unusable, whether the finding is read automatically or supplied manually.
+Nothing is written unless the row says a record is written.
 
 | Input condition                                                                                | Outcome                                 | What the operator is told                                                        |
 | ---------------------------------------------------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
