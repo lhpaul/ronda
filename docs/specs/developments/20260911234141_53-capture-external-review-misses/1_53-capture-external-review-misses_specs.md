@@ -437,10 +437,10 @@ help output and the committed review-quality runbook the operator follows.
       action, then both values are stored on the record together with the
       operator's rationale.
 - [ ] AC6: Given records with each verdict, when captured misses are read as
-      review-quality evidence, then True positive records are reported as
-      confirmed Ronda misses, False positive records are reported as
-      external-reviewer noise, and Out of scope, Already found, and Unadjudicated
-      records are not reported as confirmed misses.
+      review-quality evidence, then True positive records are reported as a
+      Ronda miss, False positive records are reported as Ronda better, and Out
+      of scope, Already found, and Unadjudicated records are not reported as
+      confirmed misses.
 - [ ] AC7: Given captured miss records with each verdict, when they are read
       together with Ronda's existing review comparison evidence, then each
       verdict is reported under the mapping in Reported Evidence Mapping, the
