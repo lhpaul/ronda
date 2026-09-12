@@ -56,7 +56,7 @@ alongside existing review comparisons and quality summaries.
 
 - Pull request identity and the head the evidence belongs to.
 - External reviewer name.
-- Each captured finding's location and summary.
+- Each captured finding's location, title, and summary.
 - Ronda's own result for that head.
 - Verdict and intended follow-up recorded for each finding.
 - Where each record was written.
@@ -100,8 +100,10 @@ alongside existing review comparisons and quality summaries.
 **Steps**:
 
 1. The operator starts a capture for the pull request and supplies the finding
-   details directly: reviewer name, finding location, finding text, affected
-   category, and, when known, verdict and intended follow-up.
+   details directly: reviewer name, finding location, finding title, finding
+   text, affected category, and, when known, verdict and intended follow-up. When
+   the operator supplies no title, the workflow derives one from the finding text
+   under the finding-title rule.
 2. The workflow resolves the pull request's current head.
 3. The workflow writes the miss record from the supplied details.
 
@@ -219,9 +221,15 @@ alongside existing review comparisons and quality summaries.
 ## Business Rules
 
 - A miss record always names the pull request, the reviewed head, the external
-  reviewer, the finding location, the finding text, the verdict, the affected
-  category, and the intended follow-up. A record missing any of these is not
-  written.
+  reviewer, the finding location, the finding title, the finding text, the
+  verdict, the affected category, and the intended follow-up. A record missing
+  any of these is not written.
+- The finding title is the external reviewer's own short name for the finding —
+  the heading or first-line summary it published, not a description the workflow
+  invents. When the reviewer published no distinct title, the title is the first
+  line of the finding text, truncated to 120 characters. Manual entry follows the
+  same rule: the operator supplies the reviewer's title, or the workflow derives
+  one from the supplied finding text the same way.
 - Evidence is head-scoped. A record states the exact head the external finding
   and Ronda's result belong to. When the external finding and Ronda's result do
   not belong to the same head, the record is marked as stale evidence and is
@@ -419,15 +427,16 @@ help output and the committed review-quality runbook the operator follows.
       external reviewer finding, when the operator runs a capture for that pull
       request and reviewer, then a miss record is written that names the pull
       request, the reviewed head, the external reviewer, the finding location, the
-      finding text, the verdict, the affected category, and the intended follow-up.
+      finding title, the finding text, the verdict, the affected category, and the
+      intended follow-up.
 - [ ] AC2: Given the same pull request, when the capture completes, then nothing
       on the pull request has changed: no comment, review, label, or state change
       was produced by the capture.
 - [ ] AC3: Given an external finding the capture workflow cannot read
       automatically, when the operator supplies the reviewer name, finding
-      location, finding text, and affected category directly, then a miss record
-      is written with the same structure as an automatically captured record and
-      is marked as manually supplied.
+      location, finding title, finding text, and affected category directly, then
+      a miss record is written with the same structure as an automatically
+      captured record and is marked as manually supplied.
 - [ ] AC4: Given a newly captured record for which the operator supplied no
       verdict, when the record is read, then its verdict is Unadjudicated and it
       is not counted as a confirmed Ronda miss.
@@ -468,10 +477,6 @@ help output and the committed review-quality runbook the operator follows.
       then the existing record is updated in place and no second record for that
       finding and head exists. This holds when the second capture is manual and
       the first was automatic.
-- [ ] AC15: Given a record that already exists for a finding on a reviewed head,
-      when the operator captures a finding that differs from it in the finding
-      location or the finding title, then a second, separate record is written
-      rather than the first being overwritten.
 - [ ] AC13: Given an affected category outside the documented closed set, when
       the operator captures a finding with it, then the capture is refused and the
       refusal names the accepted categories.
@@ -479,6 +484,10 @@ help output and the committed review-quality runbook the operator follows.
       review-quality runbook, then the runbook states the four capture decision
       gate outcomes — record written, record updated, stale evidence recorded, and
       capture refused — and matches the capture command's own help output.
+- [ ] AC15: Given a record that already exists for a finding on a reviewed head,
+      when the operator captures a finding that differs from it in the finding
+      location or the finding title, then a second, separate record is written
+      rather than the first being overwritten.
 - [ ] AC16: Given a pull request on whose current head the named external
       reviewer has published nothing, when the operator runs a capture, then no
       record is written, the result is reported as success with nothing to
@@ -493,6 +502,13 @@ help output and the committed review-quality runbook the operator follows.
       `REDACTED`, `example`, `changeme`, or a run of one repeated character in a
       position where a credential would otherwise be recognised, when the operator
       captures it, then the capture is **not** refused and the record is written.
+- [ ] AC19: Given a manually supplied finding that omits any one of the required
+      record fields, when the operator captures it, then the capture is refused,
+      no record is written, and the refusal names the missing field.
+- [ ] AC20: Given an external finding for which the reviewer published no distinct
+      title, when the operator captures it, then the record's finding title is the
+      first line of the finding text truncated to 120 characters, and the same
+      derivation applies when the operator supplies no title in manual entry.
 
 ---
 
@@ -527,7 +543,8 @@ help output and the committed review-quality runbook the operator follows.
 | Record includes the head SHA                                                                        | AC1, AC8                                            |
 | Record includes the reviewer                                                                        | AC1, AC3                                            |
 | Record includes the finding text                                                                    | AC1, AC10, AC11                                     |
-| A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, and Missing And Unreadable Input        |
+| Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20                          |
+| A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, AC19, and Missing And Unreadable Input  |
 | Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6                                  |
 | Record includes the affected category                                                               | AC1, AC13                                           |
 | Record states whether it becomes an eval, prompt change, or backlog item                            | AC5, and the Intended follow-up enum                |
