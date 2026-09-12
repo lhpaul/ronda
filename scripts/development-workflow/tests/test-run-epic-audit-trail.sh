@@ -598,12 +598,20 @@ run_test "ledger_policy_note_renders_false_booleans" "yes" "$(
     echo yes || echo no
 )"
 
+# The sibling booleans are deliberately `true`, not `false`, so this assertion
+# isolates exactly one behavior at one location: that an absent boolean still
+# renders empty. With `false` siblings it would also flip under the original
+# falsy-`//` defect (their collapse changes the whole note string), which would
+# make it impossible to tell whether it was detecting the absent-field
+# safeguard or just the false-collapse the assertion above already covers.
+# As written it passes under the falsy-`//` defect and fails only under an
+# over-correcting fix that emits "false" for `null`.
 absent_policy_ledger_fixture="$TMP_ROOT/absent-policy-ledger.json"
-jq '.items[0].effective_policy = {"mayStartBacklog": false, "delegateReview": false, "maxRisk": "medium", "base": "develop-delegated-epic-orchestration"}' \
+jq '.items[0].effective_policy = {"mayStartBacklog": true, "delegateReview": true, "maxRisk": "medium", "base": "develop-delegated-epic-orchestration"}' \
   "$ledger_fixture" > "$absent_policy_ledger_fixture"
 absent_policy_ledger_output="$("$HELPER" render-epic-ledger --input "$absent_policy_ledger_fixture")"
 run_test "ledger_policy_note_renders_absent_boolean_as_empty" "yes" "$(
-  grep -Fq 'Effective policy: mayStartBacklog=false, delegateReview=false, mayMerge=, maxRisk=medium, base=develop-delegated-epic-orchestration' <<< "$absent_policy_ledger_output" &&
+  grep -Fq 'Effective policy: mayStartBacklog=true, delegateReview=true, mayMerge=, maxRisk=medium, base=develop-delegated-epic-orchestration' <<< "$absent_policy_ledger_output" &&
     echo yes || echo no
 )"
 run_test "ledger_notes_include_stop_gate" "yes" "$(grep -Fq 'Stop gate: blocked dependency' <<< "$ledger_output" && echo yes || echo no)"
