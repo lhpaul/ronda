@@ -200,11 +200,13 @@ alongside existing review comparisons and quality summaries.
   rather than Ronda misses.
 - Findings judged outside Ronda's review scope, already reported by Ronda, or
   still unadjudicated are not counted as confirmed misses.
+- Records carrying the stale-evidence marker are reported as stale evidence
+  rather than counted under any outcome above, whatever their verdict.
 
 **Information shown**:
 
 - Counts of confirmed misses, external-reviewer noise, out-of-scope findings,
-  duplicates, and unadjudicated records.
+  duplicates, unadjudicated records, and stale evidence.
 - The affected categories that confirmed misses fall into.
 
 **Actions available**:
@@ -479,13 +481,17 @@ marker and admits it to the mapping.
 | Unadjudicated  | Unclear                                                                  |
 | Out of scope   | Out of scope, reported distinctly and never folded into an outcome above |
 
-Two product requirements govern this mapping:
+Three product requirements govern this mapping:
 
 - The five outcomes the existing quality summary already reports keep their
   current meaning. Reading them does not change.
 - The out-of-scope count and the affected-category breakdown are **additions**
   alongside those outcomes. Neither may be expressed by redefining an existing
   outcome, and the affected category is never itself an outcome.
+- The stale-evidence count is likewise an **addition**: it is reported
+  separately from the five outcomes and from the out-of-scope count, never
+  folds into any of them, and shrinks only when a stale record is re-captured
+  on a shared head.
 
 Whether these additions are carried by extending the shared evidence contract or
 by projecting miss records into it is an implementation-plan decision, not a
@@ -700,9 +706,9 @@ action**, not a capture:
       together with Ronda's existing review comparison evidence, then each
       verdict is reported under the mapping in Reported Evidence Mapping, the
       five outcome counts the existing quality summary already reports keep their
-      current meaning, and the out-of-scope count and the affected-category
-      breakdown are reported as additions rather than by redefining any of those
-      five outcomes.
+      current meaning, and the out-of-scope count, the affected-category
+      breakdown, and the stale-evidence count are reported as additions rather
+      than by redefining any of those five outcomes.
 - [ ] AC8: Given an external finding whose reviewed head differs from the Ronda
       result head, when the operator captures it, then the record names both heads,
       labelling which is the reviewed head and which the Ronda result head, carries
