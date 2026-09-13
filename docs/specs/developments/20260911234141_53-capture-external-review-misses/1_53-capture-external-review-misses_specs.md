@@ -234,8 +234,19 @@ alongside existing review comparisons and quality summaries.
     head.
   - The **Ronda result head** is the head of the Ronda review result the record is
     compared against. The workflow always resolves it and the operator never
-    supplies it. It is the most recent head on the pull request for which Ronda
-    has published a result.
+    supplies it. It resolves to the record's **own reviewed head** when Ronda has
+    published a result for that head, and only otherwise to the most recent head
+    on the pull request for which Ronda has published a result.
+  - Resolving it against the record's own reviewed head first is what makes
+    staleness meaningful and clearable. A record is stale exactly when Ronda has
+    published no result for the head the finding was read from, so comparing the
+    two would span two different states of the code. Re-capturing that same
+    reviewed head after Ronda has published a result for it resolves the Ronda
+    result head to that head and clears the marker. Were the Ronda result head
+    always the newest reviewed head, a record on an older head could never stop
+    being stale — re-capturing it would still compare against the newer result,
+    and capturing the newer head would create a different record, because the
+    reviewed head participates in identity.
   - The two are equal in the ordinary case. When they differ, the record carries
     the stale-evidence marker and names both. Neither the stale marker nor the
     Ronda result head ever participates in identity, so re-capturing a stale
@@ -291,6 +302,9 @@ alongside existing review comparisons and quality summaries.
     capture, because the workflow always produces a value — either that default
     on a newly written record, or, on an update in place, the value the merge
     rule below preserves from the existing record.
+- A verdict or intended follow-up supplied through the adjudication action must
+  be one of that field's documented values. An invalid value refuses the
+  adjudication and leaves the record unchanged, exactly as it refuses a capture.
 - The adjudication rationale is subject to the same data-minimisation limits as
   the finding text: it is stored up to 2,000 characters, text beyond that is
   truncated with the truncation shown on the record, and it must not carry the
@@ -388,14 +402,21 @@ alongside existing review comparisons and quality summaries.
   re-entering an automatically captured finding updates that record instead of
   creating a second one.
 - **Incidental differences in how the same finding was entered never produce two
-  records.** Comparing the four identity values ignores differences that carry no
-  meaning — how a reviewer was named rather than which reviewer it is, how a
-  commit identifier was abbreviated, and differences of letter case or
-  surrounding or repeated whitespace in the location and title. A difference that
-  does carry meaning still makes two separate findings. Each record stores the
+  records.** Comparing the four identity values ignores exactly these four kinds
+  of difference and no others:
+  - how a reviewer was named, as opposed to which reviewer it is;
+  - how a commit identifier was abbreviated;
+  - letter case, in the finding location and finding title;
+  - leading, trailing, or repeated whitespace, in the finding location and
+    finding title.
+
+  Any other difference in any of the four identity values makes two separate
+  findings. The list is closed, so an implementer never has to judge whether some
+  further difference is meaningful. Each record stores the
   location and title exactly as its source gave them; the comparison never
   rewrites what is stored. The implementation plan specifies how the comparison
   achieves this.
+
 - A finding whose location is present but cannot be resolved to a file and a
   line is identified by external reviewer, reviewed head, the location text as
   given, and finding title. Its record states that the location is unresolved.
@@ -500,6 +521,15 @@ product decision.
 ---
 
 ## Capture Decision Gate
+
+A single capture may carry several findings. **Stage 1 is evaluated once for the
+capture; Stages 2, 3, and 4 are evaluated once per finding.** A finding refused
+at Stage 2 or Stage 3 is refused on its own and does not abort the others, so one
+credential-shaped or invalid finding never discards good evidence alongside it. A
+Stage 1 refusal, by contrast, refuses the whole capture, because it means the
+pull request, reviewer, or Ronda result could not be resolved at all. The capture
+reports an outcome per finding, and the outcome tables below describe one
+finding.
 
 Capture evaluates four stages in order. The first stage that reaches an outcome
 decides, and later stages run only when the earlier ones passed. That precedence
@@ -869,7 +899,20 @@ action**, not a capture:
       documented values, when the operator captures the finding, then the capture
       is refused, no record is written, and the refusal names the accepted values
       for that field. An **omitted** verdict or follow-up is not a refusal; it
-      takes its documented default.
+      takes its documented default. Given the same invalid value supplied through
+      the Use Case 3 adjudication action instead, then the adjudication is refused,
+      the record is left unchanged, and the refusal likewise names the accepted
+      values.
+- [ ] AC35: Given a capture carrying several findings of which one is refused at
+      gate Stage 2 or Stage 3, when the capture runs, then only that finding is
+      refused and the remaining findings are still written or updated, each with
+      its own reported outcome. Given instead a Stage 1 refusal, then the whole
+      capture is refused and no finding is written.
+- [ ] AC36: Given a record marked stale because Ronda had published no result for
+      its reviewed head, when Ronda later publishes a result for that same reviewed
+      head and the operator re-captures the finding, then the record's Ronda result
+      head resolves to its reviewed head, the stale marker is cleared, and the
+      record becomes eligible for the Reported Evidence Mapping.
 
 ---
 
@@ -912,23 +955,23 @@ one; the spec states only the guarantee it must deliver.
 
 ## Brief Coverage Matrix
 
-| Brief objective                                                                                     | Covered by                                                                 |
-| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Repeatable workflow for recording external-review findings Ronda missed                             | Use Cases 1-3, AC1, AC3, AC14, AC27                                        |
-| Record includes the pull request                                                                    | AC1                                                                        |
-| Record includes the head SHA                                                                        | AC1, AC8, AC22, AC31                                                       |
-| Record includes the reviewer                                                                        | AC1, AC3                                                                   |
-| Record includes the finding text                                                                    | AC1, AC10, AC11                                                            |
-| Record includes the finding location, resolvable or not                                             | AC1, AC25                                                                  |
-| Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20, AC30                                           |
-| A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, AC19, AC21, AC22, AC24, AC27, and Missing And Unreadable Input |
-| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6, AC26, AC29, AC34                                       |
-| Record includes the affected category                                                               | AC1, AC13, AC23                                                            |
-| Record states whether it becomes an eval, prompt change, or backlog item                            | AC5, and the Intended follow-up enum                                       |
-| A command or documented workflow captures a Codex GitHub finding from a PR into a structured record | Use Case 1, AC1, AC14, and the capture source field                        |
-| Records preserve current-head evidence                                                              | AC1, AC8                                                                   |
-| Records distinguish true positives, false positives, and out-of-scope findings                      | AC5, AC6, AC7, and the Verdict enum                                        |
-| Captured misses can feed the existing review comparison / quality summary tooling                   | Use Case 4, AC6, AC7, and Reported Evidence Mapping                        |
-| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11, AC18, AC28, AC32, AC33                                    |
+| Brief objective                                                                                     | Covered by                                                                       |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Repeatable workflow for recording external-review findings Ronda missed                             | Use Cases 1-3, AC1, AC3, AC14, AC27                                              |
+| Record includes the pull request                                                                    | AC1                                                                              |
+| Record includes the head SHA                                                                        | AC1, AC8, AC22, AC31, AC36                                                       |
+| Record includes the reviewer                                                                        | AC1, AC3                                                                         |
+| Record includes the finding text                                                                    | AC1, AC10, AC11                                                                  |
+| Record includes the finding location, resolvable or not                                             | AC1, AC25                                                                        |
+| Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20, AC30                                                 |
+| A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, AC19, AC21, AC22, AC24, AC27, AC35, and Missing And Unreadable Input |
+| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6, AC26, AC29, AC34                                             |
+| Record includes the affected category                                                               | AC1, AC13, AC23                                                                  |
+| Record states whether it becomes an eval, prompt change, or backlog item                            | AC5, and the Intended follow-up enum                                             |
+| A command or documented workflow captures a Codex GitHub finding from a PR into a structured record | Use Case 1, AC1, AC14, and the capture source field                              |
+| Records preserve current-head evidence                                                              | AC1, AC8                                                                         |
+| Records distinguish true positives, false positives, and out-of-scope findings                      | AC5, AC6, AC7, and the Verdict enum                                              |
+| Captured misses can feed the existing review comparison / quality summary tooling                   | Use Case 4, AC6, AC7, and Reported Evidence Mapping                              |
+| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11, AC18, AC28, AC32, AC33                                          |
 
 No brief objective is deferred to Out of Scope, so there are no deferral notes.
