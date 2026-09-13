@@ -241,13 +241,16 @@ alongside existing review comparisons and quality summaries.
     creating a second one.
   - Stage 1 condition 3 is about the **Ronda result head**: it refuses when Ronda
     has published no result for any head on the pull request, because then there
-    is nothing to compare against at all. A finding whose reviewed head is older
-    than Ronda's result is the stale case, which is recorded rather than refused.
-- A miss record always names the pull request, the reviewed head, the external
-  reviewer, the finding location, the finding title, the finding text, the
-  verdict, the affected category, and the intended follow-up. A record missing
-  any of these is not written.
-- Those nine record fields divide into two kinds, and the distinction decides
+    is nothing to compare against at all. A finding whose reviewed head differs
+    from the Ronda result head — whether the reviewed head is older, as when the
+    operator names an earlier head, or newer, as when Ronda has not yet
+    published a result for the head the finding was read from — is the stale
+    case, which is recorded rather than refused.
+- A miss record always names the pull request, the reviewed head, the Ronda
+  result head, the external reviewer, the finding location, the finding title,
+  the finding text, the verdict, the affected category, and the intended
+  follow-up. A record missing any of these is not written.
+- Those ten record fields divide into two kinds, and the distinction decides
   whether an omission refuses the capture:
   - **Required inputs** — the external reviewer, the finding location, the
     finding text, and the affected category. Automatic capture reads them; manual
@@ -270,9 +273,12 @@ alongside existing review comparisons and quality summaries.
 - The adjudication rationale is scanned against the same credential refusal list
   at the moment it enters, which is the adjudication action rather than a capture.
   A rationale matching a refusal form without being a published placeholder is
-  refused, the verdict or follow-up change does not take effect, and the record is
-  left unchanged. No text reaches a committed record without passing the refusal
-  list.
+  refused, the refusal names the matched form, the verdict or follow-up change
+  does not take effect, and the record is left unchanged. This refusal is
+  distinct from — and reported differently than — a revision refused for
+  carrying no rationale at all: one names the credential form that was matched,
+  the other states that a rationale is required. No text reaches a committed
+  record without passing the refusal list.
 - The adjudication rationale is required exactly through the **adjudication
   action in Use Case 3**: a human setting or revising a record's verdict or
   intended follow-up directly, outside of running a capture. Such a change
@@ -306,10 +312,10 @@ alongside existing review comparisons and quality summaries.
   storing an empty title. Manual entry follows the same rule: the operator
   supplies the reviewer's title, or the workflow derives one from the supplied
   finding text the same way.
-- Evidence is head-scoped. A record states the exact head the external finding
-  and Ronda's result belong to. When the external finding and Ronda's result do
-  not belong to the same head, the record is marked as stale evidence and is
-  never counted as a confirmed miss until it is re-captured on a shared head.
+- Evidence is head-scoped. A record states the exact reviewed head and the exact
+  Ronda result head it was captured against. When the two differ, the record is
+  marked as stale evidence and is never counted as a confirmed miss until it is
+  re-captured on a shared head.
 - A finding is only a confirmed Ronda miss after a human verdict says so. Every
   newly captured record starts unadjudicated unless the operator supplies a
   verdict at capture time.
@@ -447,12 +453,12 @@ decides, and later stages run only when the earlier ones passed. That precedence
 is what makes the gate complete: a same-head, credential-free finding still
 refuses when Stage 1 or Stage 2 rejects it.
 
-| Stage                 | Inputs it examines                                                                                                                                                                                                                                     | Outcomes it can reach                                                         |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| 1. Input resolution   | Whether the pull request and head resolve, a reviewer is named, and Ronda has a result for that head — plus, for automatic capture only, whether the named reviewer is present on the pull request and its output on the current head is interpretable | Capture refused; Nothing to capture (automatic path only); otherwise continue |
-| 2. Input validation   | Whether every required input is present and the affected category is in the closed set                                                                                                                                                                 | Capture refused; otherwise continue                                           |
-| 3. Credential refusal | Whether any text the record would store matches a published refusal form without being a published placeholder                                                                                                                                         | Capture refused; otherwise continue                                           |
-| 4. Record decision    | Whether a record already exists for this finding identity and head                                                                                                                                                                                     | Record written; Record updated in place                                       |
+| Stage                 | Inputs it examines                                                                                                                                                                                                                                                                    | Outcomes it can reach                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 1. Input resolution   | Whether the pull request and its current head resolve, a reviewer is named, and Ronda has a result for any head on the pull request — plus, for automatic capture only, whether the named reviewer is present on the pull request and its output on the current head is interpretable | Capture refused; Nothing to capture (automatic path only); otherwise continue |
+| 2. Input validation   | Whether every required input is present and the affected category is in the closed set                                                                                                                                                                                                | Capture refused; otherwise continue                                           |
+| 3. Credential refusal | Whether any text the record would store matches a published refusal form without being a published placeholder                                                                                                                                                                        | Capture refused; otherwise continue                                           |
+| 4. Record decision    | Whether a record already exists for this finding identity and head                                                                                                                                                                                                                    | Record written; Record updated in place                                       |
 
 Stage 1 and Stage 2 per-condition detail, including their evaluation order, is
 the Missing And Unreadable Input table above. Within Stage 1, "Nothing to
@@ -496,13 +502,13 @@ output and the committed review-quality runbook the operator follows.
 
 ### Verdict
 
-| Code value       | Display label  | Description                                                                               |
-| ---------------- | -------------- | ----------------------------------------------------------------------------------------- |
-| `unadjudicated`  | Unadjudicated  | No human has judged this finding yet. Never counted as a confirmed Ronda miss.            |
-| `true_positive`  | True positive  | A real defect Ronda should have reported on this head. Counted as a confirmed Ronda miss. |
-| `false_positive` | False positive | Not a real defect. Counted as external-reviewer noise Ronda correctly avoided.            |
-| `out_of_scope`   | Out of scope   | A real concern, but outside what Ronda is meant to review on this head.                   |
-| `already_found`  | Already found  | Ronda already reported the same defect on this head, so it is not a miss.                 |
+| Code value       | Display label  | Description                                                                                       |
+| ---------------- | -------------- | ------------------------------------------------------------------------------------------------- |
+| `unadjudicated`  | Unadjudicated  | No human has judged this finding yet. Never counted as a confirmed Ronda miss.                    |
+| `true_positive`  | True positive  | A real defect Ronda should have reported on the reviewed head. Counted as a confirmed Ronda miss. |
+| `false_positive` | False positive | Not a real defect. Counted as external-reviewer noise Ronda correctly avoided.                    |
+| `out_of_scope`   | Out of scope   | A real concern, but outside what Ronda is meant to review on the reviewed head.                   |
+| `already_found`  | Already found  | Ronda already reported the same defect on the reviewed head, so it is not a miss.                 |
 
 **Valid transitions**:
 
@@ -559,7 +565,9 @@ output and the committed review-quality runbook the operator follows.
   was written.
 - **Refusals and skips**: A refused capture states which rule refused it —
   credential-shaped content, an unrecognised affected category, or missing
-  required inputs — so the operator can correct and retry.
+  required inputs — so the operator can correct and retry. A refused
+  adjudication states which rule refused it too — a missing rationale or a
+  credential-shaped rationale — and names the matched form for the latter.
 - **Stale evidence**: A record written from heads that do not match states that
   it is stale evidence, and names both heads.
 - **Truncation**: A record whose finding text was truncated says so on the
@@ -575,9 +583,9 @@ output and the committed review-quality runbook the operator follows.
 - [ ] AC1: Given a pull request whose current head has both a Ronda result and an
       external reviewer finding, when the operator runs a capture for that pull
       request and reviewer, then a miss record is written that names the pull
-      request, the reviewed head, the external reviewer, the finding location, the
-      finding title, the finding text, the verdict, the affected category, and the
-      intended follow-up.
+      request, the reviewed head, the Ronda result head, the external reviewer,
+      the finding location, the finding title, the finding text, the verdict, the
+      affected category, and the intended follow-up.
 - [ ] AC2: Given the same pull request, when the capture completes, then nothing
       on the pull request has changed: no comment, review, label, or state change
       was produced by the capture.
@@ -727,8 +735,10 @@ output and the committed review-quality runbook the operator follows.
       Conditions 4, 5, and 6 are not evaluated on the manual path.
 - [ ] AC28: Given an existing record and an adjudication that supplies a rationale
       containing credential-shaped content, when the operator applies it, then the
-      rationale is refused, the verdict and intended follow-up are unchanged, and
-      the record is left as it was.
+      rationale is refused, the refusal names the matched form, the verdict and
+      intended follow-up are unchanged, and the record is left as it was. This
+      refusal reads differently from AC5's no-rationale-supplied refusal, which
+      names a missing rationale rather than a matched credential form.
 
 ---
 
