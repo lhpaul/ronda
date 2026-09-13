@@ -382,7 +382,13 @@ alongside existing review comparisons and quality summaries.
   The refusal says the finding text carried source or diff content. Refusing
   rather than silently trimming keeps the operator aware their evidence was
   rejected, and it is what makes the no-source-and-no-diff guarantee achievable
-  rather than aspirational.
+  rather than aspirational. This check is part of Stage 3 of the Capture
+  Decision Gate, alongside the credential scan, and it runs against the finding
+  text in full before any truncation, so content beyond the 2,000-character
+  boundary is scanned exactly like content before it. When the finding text
+  matches both this rule and the credential refusal list, the capture is
+  refused either way; the implementation plan specifies which of the two
+  reasons the refusal names.
 - Finding text is stored up to a limit of 2,000 characters. Text beyond that
   limit is truncated and the record shows that truncation happened, so a long
   reviewer comment can never silently pull a large body of source into the
@@ -554,12 +560,12 @@ decides, and later stages run only when the earlier ones passed. That precedence
 is what makes the gate complete: a same-head, credential-free finding still
 refuses when Stage 1 or Stage 2 rejects it.
 
-| Stage                                              | Inputs it examines                                                                                                                                                                                                                                                                    | Outcomes it can reach                                                         |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| 1. Input resolution                                | Whether the pull request and its current head resolve, a reviewer is named, and Ronda has a result for any head on the pull request — plus, for automatic capture only, whether the named reviewer is present on the pull request and its output on the current head is interpretable | Capture refused; Nothing to capture (automatic path only); otherwise continue |
-| 2. Input validation                                | Whether every required input is present, the affected category is in the closed set, and a supplied verdict or intended follow-up is one of its documented values                                                                                                                     | Capture refused; otherwise continue                                           |
-| 3. Credential refusal and reviewed-head validation | Whether any text the record would store matches a published refusal form without being a published placeholder, and whether a manually supplied reviewed head is a real head of the referenced pull request                                                                           | Capture refused; otherwise continue                                           |
-| 4. Record decision                                 | Whether a record already exists for this finding identity and head                                                                                                                                                                                                                    | Record written; Record updated in place                                       |
+| Stage                                              | Inputs it examines                                                                                                                                                                                                                                                                                           | Outcomes it can reach                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| 1. Input resolution                                | Whether the pull request and its current head resolve, a reviewer is named, and Ronda has a result for any head on the pull request — plus, for automatic capture only, whether the named reviewer is present on the pull request and its output on the current head is interpretable                        | Capture refused; Nothing to capture (automatic path only); otherwise continue |
+| 2. Input validation                                | Whether every required input is present, the affected category is in the closed set, and a supplied verdict or intended follow-up is one of its documented values                                                                                                                                            | Capture refused; otherwise continue                                           |
+| 3. Credential refusal and reviewed-head validation | Whether any text the record would store matches a published refusal form without being a published placeholder, whether the finding text carries the reviewed source file's contents or the pull request's diff, and whether a manually supplied reviewed head is a real head of the referenced pull request | Capture refused; otherwise continue                                           |
+| 4. Record decision                                 | Whether a record already exists for this finding identity and head                                                                                                                                                                                                                                           | Record written; Record updated in place                                       |
 
 Stage 1 and Stage 2 per-condition detail, including their evaluation order, is
 the Missing And Unreadable Input table above. Within Stage 1, "Nothing to
@@ -712,14 +718,14 @@ action**, not a capture:
 - **Refusals and skips**: A refused capture states which rule refused it, so the
   operator can correct and retry. Every refusal rule in this spec is reportable,
   and the list is closed: an unresolvable pull request or head, no reviewer named,
-  no Ronda result on any head, reviewer output that cannot be interpreted, a
-  missing required input, an affected category outside the closed set, a supplied
-  verdict or intended follow-up outside its documented values, a supplied reviewed
-  head that is malformed or was never a head of that pull request,
-  credential-shaped content in any scanned field, and finding text carrying source
-  or diff content. A credential refusal also names the matched form. This is the
-  list the gate means when it tells the operator to correct "the input the refusal
-  named".
+  no Ronda result on any head, a named reviewer with no presence anywhere on the
+  pull request, reviewer output that cannot be interpreted, a missing required
+  input, an affected category outside the closed set, a supplied verdict or
+  intended follow-up outside its documented values, a supplied reviewed head that
+  is malformed or was never a head of that pull request, credential-shaped
+  content in any scanned field, and finding text carrying source or diff content.
+  A credential refusal also names the matched form. This is the list the gate
+  means when it tells the operator to correct "the input the refusal named".
 - **Adjudication refusals**: A refused adjudication likewise states which rule
   refused it — a missing rationale, an invalid verdict or intended follow-up
   value, a credential-shaped rationale, or a rationale carrying source or diff
@@ -997,13 +1003,15 @@ because they have no product-visible consequence and pinning them in a product
 contract would state design rather than requirements. The plan must specify each
 one; the spec states only the guarantee it must deliver.
 
-| Deferred decision                                                                                                     | The guarantee the spec requires                                                                                                                                                    |
-| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| How the four identity values are compared so that meaningless differences are ignored                                 | The same finding entered two ways is one record, and stored text is never rewritten (AC30)                                                                                         |
-| Which field a refusal names when several fields carry credential-shaped content                                       | The capture is refused and the operator is told one matched field and form (AC33)                                                                                                  |
-| Which reason a refusal names when a supplied reviewed head is both credential-shaped and not a real head              | The capture is refused either way (AC9, AC31)                                                                                                                                      |
-| Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it | The five existing outcome counts keep their meaning; out-of-scope counts and category breakdowns are additive (AC7)                                                                |
-| The exact contents of the published credential refusal list and placeholder list                                      | Both are published and versioned with the workflow, the refusal list recognises at least the six named forms, and the placeholder list holds whole literal values only (AC9, AC18) |
+| Deferred decision                                                                                                       | The guarantee the spec requires                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| How the four identity values are compared so that meaningless differences are ignored                                   | The same finding entered two ways is one record, and stored text is never rewritten (AC30)                                                                                         |
+| Which field a refusal names when several fields carry credential-shaped content                                         | The capture is refused and the operator is told one matched field and form (AC33)                                                                                                  |
+| Which reason a refusal names when a supplied reviewed head is both credential-shaped and not a real head                | The capture is refused either way (AC9, AC31)                                                                                                                                      |
+| Which reason a refusal names when the finding text matches both the credential refusal list and the source-or-diff rule | The capture is refused either way (AC9, AC10)                                                                                                                                      |
+| Which reason an adjudication refusal names when more than one of its rules applies at once                              | The adjudication is refused either way and the record is left unchanged (AC5, AC28, AC34)                                                                                          |
+| Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it   | The five existing outcome counts keep their meaning; out-of-scope counts and category breakdowns are additive (AC7)                                                                |
+| The exact contents of the published credential refusal list and placeholder list                                        | Both are published and versioned with the workflow, the refusal list recognises at least the six named forms, and the placeholder list holds whole literal values only (AC9, AC18) |
 
 ## Brief Coverage Matrix
 
