@@ -139,8 +139,9 @@ alongside existing review comparisons and quality summaries.
 
 **Preconditions**:
 
-- At least one stored miss record exists with an unadjudicated verdict or an
-  undecided follow-up.
+- At least one stored miss record exists whose verdict or intended follow-up
+  the operator wants to set for the first time (from Unadjudicated or
+  Undecided) or revise (from one already-set value to another).
 
 **Steps**:
 
@@ -165,7 +166,7 @@ alongside existing review comparisons and quality summaries.
 
 - Set or change a record's verdict.
 - Set or change a record's intended follow-up.
-- Add the rationale behind the verdict.
+- Add the rationale behind the verdict or follow-up change.
 
 **Considerations**:
 
@@ -242,21 +243,29 @@ alongside existing review comparisons and quality summaries.
     when the source supplies none), the verdict (defaults to Unadjudicated), and
     the intended follow-up (defaults to Undecided). Their absence from the input
     never refuses a capture, because the workflow always produces a value.
-- The adjudication rationale is required exactly when a human sets or revises the
-  verdict or the intended follow-up **on a record that already exists** — the
-  adjudication action in Use Case 3. Such a change without a rationale is
-  refused, and the record is left unchanged.
+- The adjudication rationale is required exactly through the **adjudication
+  action in Use Case 3**: a human setting or revising a record's verdict or
+  intended follow-up directly, outside of running a capture. Such a change
+  without a rationale is refused, and the record is left unchanged.
 - The rationale is **not** required anywhere else, and its absence never refuses a
-  capture:
-  - A verdict or follow-up supplied during capture itself needs no rationale. The
-    record is written with the supplied values and no rationale, and a later
-    revision of those values is what triggers the requirement.
+  capture — including a capture that runs the Capture Decision Gate and reaches
+  Stage 4's "Record updated in place" outcome for a finding identity that already
+  has a record:
+  - A verdict or follow-up supplied during capture itself needs no rationale,
+    whether that capture writes a new record or updates an existing one in place.
+    The record is written with the supplied values and no rationale, even when
+    those values replace ones a prior human adjudication had set. A capture is
+    never the adjudication action merely because the record it writes to already
+    existed; it is a later, separate adjudication — setting or revising the
+    verdict or follow-up directly on a stored record without re-running capture —
+    that triggers the rationale requirement.
   - A value the workflow defaulted needs no rationale, so a capture leaving the
     verdict Unadjudicated and the follow-up Undecided needs none.
 
-  The requirement therefore governs changes to recorded judgements, never the act
-  of capturing evidence. A capture is never lost because a rationale was
-  missing.
+  The requirement therefore governs changes to recorded judgements made through
+  the adjudication action, never the act of capturing evidence, whether that
+  capture creates or updates a record. A capture is never lost because a
+  rationale was missing.
 
 - The finding title is the external reviewer's own short name for the finding —
   the heading or first-line summary it published, not a description the workflow
@@ -533,12 +542,14 @@ output and the committed review-quality runbook the operator follows.
 - [ ] AC4: Given a newly captured record for which the operator supplied no
       verdict, when the record is read, then its verdict is Unadjudicated and it
       is not counted as a confirmed Ronda miss.
-- [ ] AC5: Given a captured record, when the operator sets its verdict to True
-      positive, False positive, Out of scope, or Already found and sets its
-      intended follow-up to Eval record, Prompt change, Backlog item, or No
-      action, then both values are stored on the record together with the
-      operator's rationale. Given instead that the operator revises the verdict or
-      the follow-up on an existing record and supplies no rationale, then the
+- [ ] AC5: Given a captured record, when the operator adjudicates it — using the
+      Use Case 3 action, not a capture — by setting its verdict to True positive,
+      False positive, Out of scope, or Already found and setting its intended
+      follow-up to Eval record, Prompt change, Backlog item, or No action, then
+      both values are stored on the record together with the operator's
+      rationale. Given instead that the operator revises the verdict or the
+      follow-up on an existing record through that same adjudication action and
+      supplies no rationale, then the
       revision is refused and the record is left unchanged.
 - [ ] AC6: Given records with each verdict, when captured misses are read as
       review-quality evidence, then True positive records are reported as a
@@ -647,8 +658,13 @@ output and the committed review-quality runbook the operator follows.
       follow-up, or both but no rationale, when the capture runs, then the capture
       is **not** refused: the record is written with the supplied values and no
       rationale. Given that the operator later revises either value on that
-      record without a rationale, then only that revision is refused and the
-      record is left unchanged.
+      record through the Use Case 3 adjudication action without a rationale, then
+      only that revision is refused and the record is left unchanged. Given
+      instead that a further capture reaches Stage 4's "Record updated in place"
+      for that same finding identity and head and supplies a different verdict, a
+      different follow-up, or both without a rationale, then that capture is
+      **not** refused: the record is updated with the newly supplied values and no
+      rationale, even though it replaces values a prior adjudication had set.
 
 ---
 
