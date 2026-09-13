@@ -268,8 +268,8 @@ alongside existing review comparisons and quality summaries.
     classification, so accepting an unverifiable head would corrupt both. This
     check is Stage 3 of the Capture Decision Gate. When a supplied reviewed head
     is both credential-shaped and not a real head of the referenced pull
-    request, the capture is refused either way; the implementation plan
-    reports the first applicable reason in the refusal precedence list.
+    request, the capture is refused either way; the reported reason is the
+    first applicable entry in the refusal precedence list.
   - Stage 1 condition 3 is about the **Ronda result head**: it refuses when Ronda
     has published no result for any head on the pull request, because then there
     is nothing to compare against at all. A finding whose reviewed head differs
@@ -583,8 +583,8 @@ the Missing And Unreadable Input table above. Within Stage 1, "Nothing to
 capture" is reached only through condition 5, which the Missing And Unreadable
 Input table scopes to automatic capture; manual capture cannot reach it. Within
 Stage 3, a manually supplied reviewed head that is both credential-shaped and not
-a real head of the pull request is refused either way; the implementation plan
-reports the first applicable reason in the refusal precedence list. Stage 4
+a real head of the pull request is refused either way; the reported reason is the
+first applicable entry in the refusal precedence list. Stage 4
 resolves on one input only:
 
 | Existing record for this finding identity and head | Outcome                 | Required next action                                                                                                                                                                                                                                                                                                                                                                                            |
