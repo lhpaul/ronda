@@ -346,21 +346,35 @@ decides. That order is what makes simultaneous failures determinate: a capture
 naming no reviewer against an unresolvable pull request reports condition 1, not
 condition 2. Nothing is written by any condition below.
 
-| Order | Stage | Input condition                                                                                | Outcome            | What the operator is told                                                        |
-| ----- | ----- | ---------------------------------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------- |
-| 1     | 1     | The pull request cannot be resolved, or its current head cannot be determined                  | Capture refused    | That the pull request or its head could not be resolved                          |
-| 2     | 1     | No external reviewer was named                                                                 | Capture refused    | That a reviewer name is required, and that manual entry is available             |
-| 3     | 1     | Ronda has produced no review result for the resolved head                                      | Capture refused    | That there is no Ronda result to compare against on this head                    |
-| 4     | 1     | The named reviewer has published nothing at all on the pull request                            | Capture refused    | That the named reviewer has no presence on this pull request                     |
-| 5     | 1     | The named reviewer has published on the pull request, but nothing on the current head          | Nothing to capture | That there is nothing to capture on the current head, and which head was checked |
-| 6     | 1     | The named reviewer published output on the current head that cannot be interpreted as findings | Capture refused    | That the output could not be interpreted, and to use manual entry instead        |
-| 7     | 2     | A required input is absent, whether read automatically or supplied manually                    | Capture refused    | Which required input is missing                                                  |
-| 8     | 2     | The affected category is not in the documented closed set                                      | Capture refused    | Which categories are accepted                                                    |
+| Order | Stage | Applies to     | Input condition                                                                                | Outcome            | What the operator is told                                                                        |
+| ----- | ----- | -------------- | ---------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------ |
+| 1     | 1     | Both paths     | The pull request cannot be resolved, or its current head cannot be determined                  | Capture refused    | That the pull request or its head could not be resolved                                          |
+| 2     | 1     | Both paths     | No external reviewer was named                                                                 | Capture refused    | That a reviewer name is required, and that manual entry is available                             |
+| 3     | 1     | Both paths     | Ronda has produced no review result for the resolved head                                      | Capture refused    | That there is no Ronda result to compare against on this head                                    |
+| 4     | 1     | Automatic only | The named reviewer has published nothing at all on the pull request                            | Capture refused    | That the named reviewer has no presence on this pull request, and that manual entry is available |
+| 5     | 1     | Automatic only | The named reviewer has published on the pull request, but nothing on the current head          | Nothing to capture | That there is nothing to capture on the current head, and which head was checked                 |
+| 6     | 1     | Automatic only | The named reviewer published output on the current head that cannot be interpreted as findings | Capture refused    | That the output could not be interpreted, and to use manual entry instead                        |
+| 7     | 2     | Both paths     | A required input is absent, whether read automatically or supplied manually                    | Capture refused    | Which required input is missing                                                                  |
+| 8     | 2     | Both paths     | The affected category is not in the documented closed set                                      | Capture refused    | Which categories are accepted                                                                    |
 
-Conditions 4 and 5 are mutually exclusive by construction: condition 4 covers a
-reviewer with no presence anywhere on the pull request, condition 5 a reviewer
-present on the pull request but silent on the current head. Only condition 5 is a
-success.
+**Conditions 4, 5, and 6 apply to automatic capture only.** They all ask what the
+external reviewer published on the pull request, which is a question only
+automatic reading needs to answer. Manual entry supplies the finding directly, so
+those three conditions are not evaluated on that path at all.
+
+That scoping is what keeps Use Case 2 reachable. Its two motivating cases — a
+finding from a reviewer the workflow does not read, and a finding raised outside
+the pull request — are precisely conditions 4 and 6. Were those conditions
+applied to manual entry, the escape hatch could never write a record, and
+capture would have no way to record a finding the workflow cannot read. Manual
+entry still passes conditions 1, 2, 3, 7, and 8: it needs a resolvable pull
+request, a named reviewer, a Ronda result to compare against, every required
+input, and a category from the closed set.
+
+Within automatic capture, conditions 4 and 5 are mutually exclusive by
+construction: condition 4 covers a reviewer with no presence anywhere on the pull
+request, condition 5 a reviewer present on the pull request but silent on the
+current head. Only condition 5 is a success.
 
 A refusal never leaves a partially written record behind. Reporting nothing to
 capture is a successful outcome and is reported differently from a refusal, so an
@@ -472,7 +486,7 @@ output and the committed review-quality runbook the operator follows.
 | `eval_record`   | Eval record   | Becomes a seeded quality fixture so future Ronda versions are measured against this defect. |
 | `prompt_change` | Prompt change | Becomes a change to Ronda's reviewer prompts or review modes.                               |
 | `backlog_item`  | Backlog item  | Becomes tracked work larger than a prompt change.                                           |
-| `no_action`     | No action     | Deliberately not acted on, with the reason recorded.                                        |
+| `no_action`     | No action     | Deliberately not acted on. When the operator records a rationale, it explains why.          |
 
 **Valid transitions**:
 
@@ -482,19 +496,19 @@ output and the committed review-quality runbook the operator follows.
 
 ### Affected category
 
-| Code value        | Display label   | Description                                                                     |
-| ----------------- | --------------- | ------------------------------------------------------------------------------- |
-| `durability`      | Durability      | State or work is lost when a process stops, restarts, or crashes.               |
-| `idempotency`     | Idempotency     | Repeating the same operation produces duplicate or conflicting effects.         |
-| `retries`         | Retries         | Retry behavior is missing, unbounded, or retries something unsafe to repeat.    |
-| `timeouts`        | Timeouts        | A deadline is missing, unenforced, or leaves work running past its budget.      |
-| `partial_success` | Partial success | A partly completed operation leaves inconsistent or unreported state.           |
-| `concurrency`     | Concurrency     | Concurrent or out-of-order execution produces a wrong result.                   |
-| `security`        | Security        | Secret handling, authentication, authorization, or input trust is wrong.        |
-| `correctness`     | Correctness     | Ordinary logic produces a wrong result outside the categories above.            |
-| `configuration`   | Configuration   | Configuration, defaults, or environment handling is wrong or unsafe.            |
-| `observability`   | Observability   | An operator cannot tell what happened from logs, status, or published evidence. |
-| `other`           | Other           | A real category not covered above. The record carries the rationale.            |
+| Code value        | Display label   | Description                                                                                             |
+| ----------------- | --------------- | ------------------------------------------------------------------------------------------------------- |
+| `durability`      | Durability      | State or work is lost when a process stops, restarts, or crashes.                                       |
+| `idempotency`     | Idempotency     | Repeating the same operation produces duplicate or conflicting effects.                                 |
+| `retries`         | Retries         | Retry behavior is missing, unbounded, or retries something unsafe to repeat.                            |
+| `timeouts`        | Timeouts        | A deadline is missing, unenforced, or leaves work running past its budget.                              |
+| `partial_success` | Partial success | A partly completed operation leaves inconsistent or unreported state.                                   |
+| `concurrency`     | Concurrency     | Concurrent or out-of-order execution produces a wrong result.                                           |
+| `security`        | Security        | Secret handling, authentication, authorization, or input trust is wrong.                                |
+| `correctness`     | Correctness     | Ordinary logic produces a wrong result outside the categories above.                                    |
+| `configuration`   | Configuration   | Configuration, defaults, or environment handling is wrong or unsafe.                                    |
+| `observability`   | Observability   | An operator cannot tell what happened from logs, status, or published evidence.                         |
+| `other`           | Other           | A real category not covered above. When the operator records a rationale, it names the actual category. |
 
 ### Capture source
 
@@ -603,25 +617,28 @@ output and the committed review-quality runbook the operator follows.
       location or the finding title, then a second, separate record is written
       rather than the first being overwritten.
 - [ ] AC16: Given a named external reviewer that has published on the pull
-      request but nothing on its current head, when the operator runs a capture,
+      request but nothing on its current head, when the operator runs an
+      **automatic** capture,
       then no record is written, the result is reported as success with nothing to
       capture, and the head that was checked is named.
-- [ ] AC17: Given a pull request that cannot be resolved, a capture with no
-      reviewer named, a named reviewer with no presence anywhere on the pull
-      request, or reviewer output on the current head that cannot be interpreted
-      as findings, when the operator runs a capture, then the capture is refused,
-      no record and no partial record is written, and the refusal names which of
-      those conditions applied. A reviewer present on the pull request but silent
-      on the current head is AC16's success case, not a refusal.
-- [ ] AC18: Given finding text containing a plain placeholder such as
-      `REDACTED`, `example`, `changeme`, or a run of one repeated character in a
-      position where a credential would otherwise be recognised, when the operator
-      captures it, then the capture is **not** refused and the record is written,
-      because each of those values equals a literal on the published placeholder
-      list. Given instead a value that matches a refusal form and is not equal to
-      any listed literal — including a value that merely resembles a placeholder,
-      such as a long run of one repeated character — then the capture **is**
-      refused.
+- [ ] AC17: Given a pull request that cannot be resolved or a capture with no
+      reviewer named, when the operator runs a capture on **either** path, then the
+      capture is refused, no record and no partial record is written, and the
+      refusal names which condition applied. Given a named reviewer with no
+      presence anywhere on the pull request, or reviewer output on the current head
+      that cannot be interpreted as findings, when the operator runs an
+      **automatic** capture, then the capture is likewise refused. A reviewer
+      present on the pull request but silent on the current head is AC16's success
+      case, not a refusal.
+- [ ] AC18: Given finding text in which a credential would otherwise be
+      recognised but whose value equals a literal on the published placeholder
+      list, such as `REDACTED`, `example`, or `changeme`, when the operator
+      captures it, then the capture is **not** refused and the record is written.
+      Given instead a value that matches a refusal form and is not equal to any
+      listed literal — including a value that merely resembles a placeholder, such
+      as a run of one repeated character — then the capture **is** refused,
+      because the placeholder list holds whole literal values only and admits no
+      pattern or length rule.
 - [ ] AC19: Given a manually supplied finding that omits any one of the required
       inputs — the external reviewer, the finding location, the finding text, or
       the affected category — when the operator captures it, then the capture is
@@ -646,8 +663,8 @@ output and the committed review-quality runbook the operator follows.
       would otherwise have written one.
 - [ ] AC24: Given two or more Stage 1 or Stage 2 conditions failing at once, when
       the operator runs a capture, then the reported condition is the
-      lowest-numbered failing condition in the Missing And Unreadable Input
-      table.
+      lowest-numbered failing condition that **applies to the capture path in
+      use** — so a manual capture never reports condition 4, 5, or 6.
 - [ ] AC25: Given a finding whose location is present but cannot be resolved to a
       file and a line, when the operator captures it, then the capture is **not**
       refused: the record stores the location as given, marks it unresolved, and
@@ -665,6 +682,13 @@ output and the committed review-quality runbook the operator follows.
       different follow-up, or both without a rationale, then that capture is
       **not** refused: the record is updated with the newly supplied values and no
       rationale, even though it replaces values a prior adjudication had set.
+- [ ] AC27: Given a finding that automatic reading cannot return — because the
+      named reviewer has no presence on the pull request, or published output that
+      cannot be interpreted, or raised the finding outside the pull request — when
+      the operator supplies it through manual entry against a resolvable pull
+      request with a Ronda result, every required input, and a category from the
+      closed set, then the capture is **not** refused and the record is written.
+      Conditions 4, 5, and 6 are not evaluated on the manual path.
 
 ---
 
@@ -692,23 +716,23 @@ output and the committed review-quality runbook the operator follows.
 
 ## Brief Coverage Matrix
 
-| Brief objective                                                                                     | Covered by                                                           |
-| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Repeatable workflow for recording external-review findings Ronda missed                             | Use Cases 1-3, AC1, AC3, AC14                                        |
-| Record includes the pull request                                                                    | AC1                                                                  |
-| Record includes the head SHA                                                                        | AC1, AC8                                                             |
-| Record includes the reviewer                                                                        | AC1, AC3                                                             |
-| Record includes the finding text                                                                    | AC1, AC10, AC11                                                      |
-| Record includes the finding location, resolvable or not                                             | AC1, AC25                                                            |
-| Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20                                           |
-| A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, AC19, AC21, AC22, AC24, and Missing And Unreadable Input |
-| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6, AC26                                             |
-| Record includes the affected category                                                               | AC1, AC13, AC23                                                      |
-| Record states whether it becomes an eval, prompt change, or backlog item                            | AC5, and the Intended follow-up enum                                 |
-| A command or documented workflow captures a Codex GitHub finding from a PR into a structured record | Use Case 1, AC1, AC14                                                |
-| Records preserve current-head evidence                                                              | AC1, AC8                                                             |
-| Records distinguish true positives, false positives, and out-of-scope findings                      | AC5, AC6, AC7, and the Verdict enum                                  |
-| Captured misses can feed the existing review comparison / quality summary tooling                   | Use Case 4, AC6, AC7, and Reported Evidence Mapping                  |
-| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11, AC18                                                |
+| Brief objective                                                                                     | Covered by                                                                 |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Repeatable workflow for recording external-review findings Ronda missed                             | Use Cases 1-3, AC1, AC3, AC14, AC27                                        |
+| Record includes the pull request                                                                    | AC1                                                                        |
+| Record includes the head SHA                                                                        | AC1, AC8                                                                   |
+| Record includes the reviewer                                                                        | AC1, AC3                                                                   |
+| Record includes the finding text                                                                    | AC1, AC10, AC11                                                            |
+| Record includes the finding location, resolvable or not                                             | AC1, AC25                                                                  |
+| Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20                                                 |
+| A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, AC19, AC21, AC22, AC24, AC27, and Missing And Unreadable Input |
+| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6, AC26                                                   |
+| Record includes the affected category                                                               | AC1, AC13, AC23                                                            |
+| Record states whether it becomes an eval, prompt change, or backlog item                            | AC5, and the Intended follow-up enum                                       |
+| A command or documented workflow captures a Codex GitHub finding from a PR into a structured record | Use Case 1, AC1, AC14                                                      |
+| Records preserve current-head evidence                                                              | AC1, AC8                                                                   |
+| Records distinguish true positives, false positives, and out-of-scope findings                      | AC5, AC6, AC7, and the Verdict enum                                        |
+| Captured misses can feed the existing review comparison / quality summary tooling                   | Use Case 4, AC6, AC7, and Reported Evidence Mapping                        |
+| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11, AC18                                                      |
 
 No brief objective is deferred to Out of Scope, so there are no deferral notes.
