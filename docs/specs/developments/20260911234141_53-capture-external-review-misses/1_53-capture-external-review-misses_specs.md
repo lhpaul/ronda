@@ -242,11 +242,22 @@ alongside existing review comparisons and quality summaries.
     when the source supplies none), the verdict (defaults to Unadjudicated), and
     the intended follow-up (defaults to Undecided). Their absence from the input
     never refuses a capture, because the workflow always produces a value.
-- The adjudication rationale is required exactly when a human sets or revises a
-  verdict or an intended follow-up by hand. It is not required for a value the
-  workflow defaulted, so a capture that leaves the verdict Unadjudicated and the
-  follow-up Undecided needs no rationale. Setting a verdict or follow-up without
-  a rationale is refused, and the record is left unchanged.
+- The adjudication rationale is required exactly when a human sets or revises the
+  verdict or the intended follow-up **on a record that already exists** — the
+  adjudication action in Use Case 3. Such a change without a rationale is
+  refused, and the record is left unchanged.
+- The rationale is **not** required anywhere else, and its absence never refuses a
+  capture:
+  - A verdict or follow-up supplied during capture itself needs no rationale. The
+    record is written with the supplied values and no rationale, and a later
+    revision of those values is what triggers the requirement.
+  - A value the workflow defaulted needs no rationale, so a capture leaving the
+    verdict Unadjudicated and the follow-up Undecided needs none.
+
+  The requirement therefore governs changes to recorded judgements, never the act
+  of capturing evidence. A capture is never lost because a rationale was
+  missing.
+
 - The finding title is the external reviewer's own short name for the finding —
   the heading or first-line summary it published, not a description the workflow
   invents. When the reviewer published no distinct title, the title is the first
@@ -526,9 +537,9 @@ output and the committed review-quality runbook the operator follows.
       positive, False positive, Out of scope, or Already found and sets its
       intended follow-up to Eval record, Prompt change, Backlog item, or No
       action, then both values are stored on the record together with the
-      operator's rationale. Given instead that the operator sets a verdict or a
-      follow-up by hand and supplies no rationale, then the change is refused and
-      the record is left unchanged.
+      operator's rationale. Given instead that the operator revises the verdict or
+      the follow-up on an existing record and supplies no rationale, then the
+      revision is refused and the record is left unchanged.
 - [ ] AC6: Given records with each verdict, when captured misses are read as
       review-quality evidence, then True positive records are reported as a
       Ronda miss, False positive records are reported as Ronda better, and Out
@@ -632,6 +643,12 @@ output and the committed review-quality runbook the operator follows.
       uses all four identity values so a second finding with a different location
       text or title remains a separate record. Given instead a finding with no
       location at all, then the capture is refused.
+- [ ] AC26: Given a capture in which the operator supplies a verdict, an intended
+      follow-up, or both but no rationale, when the capture runs, then the capture
+      is **not** refused: the record is written with the supplied values and no
+      rationale. Given that the operator later revises either value on that
+      record without a rationale, then only that revision is refused and the
+      record is left unchanged.
 
 ---
 
@@ -669,7 +686,7 @@ output and the committed review-quality runbook the operator follows.
 | Record includes the finding location, resolvable or not                                             | AC1, AC25                                                            |
 | Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20                                           |
 | A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, AC19, AC21, AC22, AC24, and Missing And Unreadable Input |
-| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6                                                   |
+| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6, AC26                                             |
 | Record includes the affected category                                                               | AC1, AC13, AC23                                                      |
 | Record states whether it becomes an eval, prompt change, or backlog item                            | AC5, and the Intended follow-up enum                                 |
 | A command or documented workflow captures a Codex GitHub finding from a PR into a structured record | Use Case 1, AC1, AC14                                                |
