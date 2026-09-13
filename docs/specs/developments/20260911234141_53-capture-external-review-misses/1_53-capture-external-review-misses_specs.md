@@ -388,10 +388,14 @@ alongside existing review comparisons and quality summaries.
 - A record stores the external reviewer's own finding text and the location it
   points at. It never stores the reviewed source file's contents or the pull
   request's diff.
-- When the reviewer's finding text itself carries the reviewed source file's
-  contents or the pull request's diff, the capture is **refused** and nothing is
-  stored, exactly as an adjudication rationale carrying such content is refused.
-  The refusal says the finding text carried source or diff content. Refusing
+- When **any free-text field the record would store** carries the reviewed source
+  file's contents or the pull request's diff, the capture is **refused** and
+  nothing is stored, exactly as an adjudication rationale carrying such content is
+  refused. The scanned fields are the same ones the credential rule scans — the
+  reviewer name, the reviewed head as supplied, the finding location, the finding
+  title, and the finding text — because manual entry can supply any of them and a
+  title or location is as capable of carrying a pasted diff as the text is. The
+  refusal names which field carried source or diff content. Refusing
   rather than silently trimming keeps the operator aware their evidence was
   rejected, and it is what makes the no-source-and-no-diff guarantee achievable
   rather than aspirational. This check is part of Stage 3 of the Capture
@@ -789,12 +793,14 @@ action**, not a capture:
       False positive, Out of scope, or Already found and setting its intended
       follow-up to Eval record, Prompt change, Backlog item, or No action, then
       both values are stored on the record together with the operator's
-      rationale. Given that the operator sets **only one** of the two, then that
-      one is stored with the rationale and the other keeps its current value; a
-      single-field adjudication is neither refused nor treated as implying the
-      other field. Given instead that the operator sets or revises either field
-      through that same adjudication action and supplies no rationale, then the
-      adjudication is refused and the record is left unchanged.
+      rationale. Given that the operator sets **only one** of the two **and
+      supplies a rationale**, then that one is stored with the rationale and the
+      other keeps its current value: a single-field adjudication succeeds, and is
+      neither refused for being partial nor treated as implying the other field.
+      Given instead an adjudication that sets one field or both **with no
+      rationale at all**, then it is refused and the record is left unchanged —
+      the refusal is for the missing rationale, never for the adjudication being
+      partial.
 - [ ] AC6: Given **non-stale** records with each verdict, when captured misses are
       read as review-quality evidence, then True positive records are reported as a
       Ronda miss, False positive records are reported as Ronda better, and Out of
@@ -828,11 +834,13 @@ action**, not a capture:
 - [ ] AC10: Given a captured record, when the record is inspected, then it
       contains the external reviewer's finding text and the location it points at,
       and contains neither the reviewed file's source contents nor the pull
-      request's diff. Given instead a finding whose own text carries the reviewed
-      file's source contents or the pull request's diff, then the capture is
-      refused, nothing is stored, and the refusal says the finding text carried
-      source or diff content — so the guarantee is reached by refusing such input,
-      never by trimming it after the fact.
+      request's diff. Given instead a finding any of whose stored free-text fields
+      — reviewer name, supplied reviewed head, finding location, finding title, or
+      finding text — carries the reviewed file's source contents or the pull
+      request's diff, then the capture is refused for each of those fields
+      independently, nothing is stored, and the refusal names which field carried
+      it — so the guarantee is reached by refusing such input, never by trimming it
+      after the fact.
 - [ ] AC11: Given a credential-free external finding whose text exceeds 2,000
       characters, when the operator captures it, then the stored finding text is
       truncated to 2,000 characters and the record states that truncation
