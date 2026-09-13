@@ -282,10 +282,12 @@ alongside existing review comparisons and quality summaries.
   the finding text, the verdict, the affected category, the intended follow-up,
   and the capture source. A record missing any of these is not written.
 - Automatic capture reads findings published by the **Codex GitHub reviewer**,
-  the only reviewer automatic reading supports in this iteration. A capture that
-  names a different reviewer on the automatic path is reported as unsupported for
-  automatic reading and directed to manual entry, rather than refused as an
-  error; manual entry accepts any reviewer name.
+  the only reviewer automatic reading supports in this iteration. Naming a
+  different reviewer on the automatic path is refused under Stage 1 condition 4 —
+  as far as automatic reading is concerned that reviewer has no readable presence
+  on the pull request — and the refusal directs the operator to manual entry,
+  which accepts any reviewer name. This is an ordinary refusal, not a fifth gate
+  outcome, so the four-outcome model still holds.
 - The capture source records whether the finding was read from the pull request
   or supplied by the operator. When a re-capture updates a record in place from a
   different source than the one that created it, the capture source becomes the
@@ -479,17 +481,17 @@ decides. That order is what makes simultaneous failures determinate: a capture
 naming no reviewer against an unresolvable pull request reports condition 1, not
 condition 2. Nothing is written by any condition below.
 
-| Order | Stage | Applies to     | Input condition                                                                                | Outcome            | What the operator is told                                                                        |
-| ----- | ----- | -------------- | ---------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------ |
-| 1     | 1     | Both paths     | The pull request cannot be resolved, or its current head cannot be determined                  | Capture refused    | That the pull request or its head could not be resolved                                          |
-| 2     | 1     | Both paths     | No external reviewer was named                                                                 | Capture refused    | That a reviewer name is required, and that manual entry is available                             |
-| 3     | 1     | Both paths     | Ronda has published no review result for any head on the pull request                          | Capture refused    | That there is no Ronda result to compare against on this pull request                            |
-| 4     | 1     | Automatic only | The named reviewer has published nothing at all on the pull request                            | Capture refused    | That the named reviewer has no presence on this pull request, and that manual entry is available |
-| 5     | 1     | Automatic only | The named reviewer has published on the pull request, but nothing on the current head          | Nothing to capture | That there is nothing to capture on the current head, and which head was checked                 |
-| 6     | 1     | Automatic only | The named reviewer published output on the current head that cannot be interpreted as findings | Capture refused    | That the output could not be interpreted, and to use manual entry instead                        |
-| 7     | 2     | Both paths     | A required input is absent, whether read automatically or supplied manually                    | Capture refused    | Which required input is missing                                                                  |
-| 8     | 2     | Both paths     | The affected category is not in the documented closed set                                      | Capture refused    | Which categories are accepted                                                                    |
-| 9     | 2     | Both paths     | A supplied verdict or intended follow-up is not one of its documented values                   | Capture refused    | Which values are accepted for that field                                                         |
+| Order | Stage | Applies to     | Input condition                                                                                                                                  | Outcome            | What the operator is told                                                                                              |
+| ----- | ----- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| 1     | 1     | Both paths     | The pull request cannot be resolved, or its current head cannot be determined                                                                    | Capture refused    | That the pull request or its head could not be resolved                                                                |
+| 2     | 1     | Both paths     | No external reviewer was named                                                                                                                   | Capture refused    | That a reviewer name is required, and that manual entry is available                                                   |
+| 3     | 1     | Both paths     | Ronda has published no review result for any head on the pull request                                                                            | Capture refused    | That there is no Ronda result to compare against on this pull request                                                  |
+| 4     | 1     | Automatic only | The named reviewer has published nothing automatic reading can find on the pull request, including a reviewer automatic reading does not support | Capture refused    | That the named reviewer has no readable presence on this pull request, and that manual entry accepts any reviewer name |
+| 5     | 1     | Automatic only | The named reviewer has published on the pull request, but nothing on the current head                                                            | Nothing to capture | That there is nothing to capture on the current head, and which head was checked                                       |
+| 6     | 1     | Automatic only | The named reviewer published output on the current head that cannot be interpreted as findings                                                   | Capture refused    | That the output could not be interpreted, and to use manual entry instead                                              |
+| 7     | 2     | Both paths     | A required input is absent, whether read automatically or supplied manually                                                                      | Capture refused    | Which required input is missing                                                                                        |
+| 8     | 2     | Both paths     | The affected category is not in the documented closed set                                                                                        | Capture refused    | Which categories are accepted                                                                                          |
+| 9     | 2     | Both paths     | A supplied verdict or intended follow-up is not one of its documented values                                                                     | Capture refused    | Which values are accepted for that field                                                                               |
 
 **Conditions 4, 5, and 6 apply to automatic capture only.** They all ask what the
 external reviewer published on the pull request, which is a question only
@@ -928,8 +930,9 @@ action**, not a capture:
       existing rationale is **preserved** rather than cleared, matching the
       merge rule. Only the values the capture supplies change.
 - [ ] AC27: Given a finding that automatic reading cannot return — because the
-      named reviewer has no presence on the pull request, or published output that
-      cannot be interpreted, or raised the finding outside the pull request — when
+      named reviewer has no presence on the pull request, or is a reviewer
+      automatic reading does not support, or published output that cannot be
+      interpreted, or raised the finding outside the pull request — when
       the operator supplies it through manual entry against a resolvable pull
       request with a Ronda result, every required input, and a category from the
       closed set, then the capture is **not** refused and the record is written.
@@ -1008,10 +1011,10 @@ action**, not a capture:
   separately as issue #57.
 - Automatically reading findings from external reviewers other than the Codex
   GitHub reviewer, which is the one reviewer automatic capture supports. Naming
-  another reviewer on the automatic path is **not** an error refusal: the capture
-  reports that automatic reading does not support that reviewer and directs the
-  operator to manual entry, which accepts any reviewer name. Adding a second
-  automatically read reviewer is out of scope for this iteration.
+  another reviewer on the automatic path is refused under Stage 1 condition 4,
+  with the refusal directing the operator to manual entry, which accepts any
+  reviewer name. Adding a second automatically read reviewer is out of scope for
+  this iteration.
 - Capturing findings from repositories the operator cannot read with their
   existing GitHub access. No new credential or permission is introduced.
 - Any change to Ronda's own review behavior, its one-review-per-head contract,
