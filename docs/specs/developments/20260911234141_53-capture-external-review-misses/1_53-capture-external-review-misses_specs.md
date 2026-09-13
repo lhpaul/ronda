@@ -244,10 +244,10 @@ alongside existing review comparisons and quality summaries.
     commit which was never a head of that pull request, refuses the capture
     rather than being accepted — the value participates in identity and stale
     classification, so accepting an unverifiable head would corrupt both. This
-    check is Stage 3 of the Capture Decision Gate, evaluated only after the
-    reviewed head has passed credential scanning; a credential-shaped reviewed
-    head is always refused by the credential rule, never reported as merely
-    malformed.
+    check is Stage 3 of the Capture Decision Gate. When a supplied reviewed head
+    is both credential-shaped and not a real head of the referenced pull
+    request, the capture is refused either way; the implementation plan
+    specifies which of the two reasons the refusal names.
   - Stage 1 condition 3 is about the **Ronda result head**: it refuses when Ronda
     has published no result for any head on the pull request, because then there
     is nothing to compare against at all. A finding whose reviewed head differs
@@ -443,9 +443,10 @@ finding from a reviewer the workflow does not read, and a finding raised outside
 the pull request — are precisely conditions 4 and 6. Were those conditions
 applied to manual entry, the escape hatch could never write a record, and
 capture would have no way to record a finding the workflow cannot read. Manual
-entry still passes conditions 1, 2, 3, 7, and 8: it needs a resolvable pull
+entry still passes conditions 1, 2, 3, 7, 8, and 9: it needs a resolvable pull
 request, a named reviewer, a Ronda result to compare against, every required
-input, and a category from the closed set.
+input, a category from the closed set, and a documented value for any verdict
+or intended follow-up it supplies.
 
 Within automatic capture, conditions 4 and 5 are mutually exclusive by
 construction: condition 4 covers a reviewer with no presence anywhere on the pull
@@ -496,7 +497,7 @@ refuses when Stage 1 or Stage 2 rejects it.
 | Stage                                              | Inputs it examines                                                                                                                                                                                                                                                                    | Outcomes it can reach                                                         |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | 1. Input resolution                                | Whether the pull request and its current head resolve, a reviewer is named, and Ronda has a result for any head on the pull request — plus, for automatic capture only, whether the named reviewer is present on the pull request and its output on the current head is interpretable | Capture refused; Nothing to capture (automatic path only); otherwise continue |
-| 2. Input validation                                | Whether every required input is present and the affected category is in the closed set                                                                                                                                                                                                | Capture refused; otherwise continue                                           |
+| 2. Input validation                                | Whether every required input is present, the affected category is in the closed set, and a supplied verdict or intended follow-up is one of its documented values                                                                                                                     | Capture refused; otherwise continue                                           |
 | 3. Credential refusal and reviewed-head validation | Whether any text the record would store matches a published refusal form without being a published placeholder, and whether a manually supplied reviewed head is a real head of the referenced pull request                                                                           | Capture refused; otherwise continue                                           |
 | 4. Record decision                                 | Whether a record already exists for this finding identity and head                                                                                                                                                                                                                    | Record written; Record updated in place                                       |
 
@@ -643,7 +644,7 @@ output and the committed review-quality runbook the operator follows.
       request and reviewer, then a miss record is written that names the pull
       request, the reviewed head, the Ronda result head, the external reviewer,
       the finding location, the finding title, the finding text, the verdict, the
-      affected category, and the intended follow-up.
+      affected category, the intended follow-up, and the capture source.
 - [ ] AC2: Given the same pull request, when the capture completes, then nothing
       on the pull request has changed: no comment, review, label, or state change
       was produced by the capture.
