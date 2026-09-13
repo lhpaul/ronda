@@ -730,8 +730,9 @@ action**, not a capture:
 - **Refusals and skips**: A refused capture states which rule refused it, so the
   operator can correct and retry. Every refusal rule in this spec is reportable,
   and the list is closed: an unresolvable pull request or head, no reviewer named,
-  no Ronda result on any head, a named reviewer with no presence anywhere on the
-  pull request, reviewer output that cannot be interpreted, a missing required
+  no Ronda result on any head, a named reviewer with no readable presence anywhere
+  on the pull request — including a reviewer automatic reading does not support —
+  reviewer output that cannot be interpreted, a missing required
   input, an affected category outside the closed set, a supplied verdict or
   intended follow-up outside its documented values, a supplied reviewed head that
   is malformed or was never a head of that pull request, credential-shaped
