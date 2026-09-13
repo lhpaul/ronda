@@ -310,12 +310,12 @@ alongside existing review comparisons and quality summaries.
   be one of that field's documented values. An invalid value refuses the
   adjudication and leaves the record unchanged, exactly as it refuses a capture.
 - The adjudication rationale is subject to the same data-minimisation limits as
-  the finding text, and in the same order: it is scanned for credential-shaped
-  content first and refused if any is found, anywhere in the text; only a clean
-  rationale is then stored, up to 2,000 characters, with text beyond that
-  truncated and the truncation shown on the record; and it must not carry the
-  reviewed source file's contents or the pull request's diff. A rationale is a
-  short human explanation, never a place to paste a patch.
+  the finding text, and in the same order: it is scanned first — for
+  credential-shaped content anywhere in the text, and for the reviewed source
+  file's contents or the pull request's diff — and refused if either is found;
+  only a rationale that matches neither is then stored, up to 2,000 characters,
+  with text beyond that truncated and the truncation shown on the record. A
+  rationale is a short human explanation, never a place to paste a patch.
 - The adjudication rationale is scanned against the same credential refusal list
   at the moment it enters, which is the adjudication action rather than a capture.
   A rationale matching a refusal form without being a published placeholder is
@@ -557,10 +557,10 @@ Stage 3, a manually supplied reviewed head that is both credential-shaped and no
 a real head of the pull request is refused either way; the implementation plan
 specifies which of the two reasons the refusal names. Stage 4 resolves on one input only:
 
-| Existing record for this finding identity and head | Outcome                 | Required next action                                                                                                                                                                                |
-| -------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| None                                               | Record written          | Adjudicate the verdict and choose the follow-up                                                                                                                                                     |
-| Present                                            | Record updated in place | None required — the record's verdict and follow-up already stand, whether preserved or newly supplied. Revise them through the adjudication action if the refreshed evidence changes the judgement. |
+| Existing record for this finding identity and head | Outcome                 | Required next action                                                                                                                                                                                                 |
+| -------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| None                                               | Record written          | Adjudicate the verdict and choose the follow-up **when either is still at its default** of Unadjudicated or Undecided. None required when the capture supplied both, because the record already carries a judgement. |
+| Present                                            | Record updated in place | None required — the record's verdict and follow-up already stand, whether preserved or newly supplied. Revise them through the adjudication action if the refreshed evidence changes the judgement.                  |
 
 An update in place **merges rather than resets**, and the two kinds of field
 behave differently.
