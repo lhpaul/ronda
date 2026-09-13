@@ -42,8 +42,10 @@ alongside existing review comparisons and quality summaries.
 2. The workflow resolves the pull request's current head and reads the external
    reviewer's findings published against that head.
 3. The workflow presents each external finding it found and asks the operator to
-   confirm the affected category and, when already known, the verdict and the
-   intended follow-up.
+   confirm the affected category and, when the operator has already judged the
+   finding, the verdict and the intended follow-up. Not having judged it yet is
+   the ordinary case: both then take their defaults of Unadjudicated and
+   Undecided.
 4. The workflow writes one miss record per confirmed external finding.
 
 **Postconditions**:
@@ -94,8 +96,10 @@ alongside existing review comparisons and quality summaries.
 
 **Preconditions**:
 
-- A pull request exists with a resolvable current head, and Ronda has produced a
-  review result for that head.
+- A pull request exists with a resolvable current head, and Ronda has published a
+  review result for at least one of its heads. As with automatic capture, a
+  result only on some other head is enough, and the record is marked stale
+  evidence.
 - The operator has the text of an external-review finding that automatic reading
   did not return — for example a finding raised by a reviewer the workflow does
   not read, or one raised outside the pull request.
@@ -265,7 +269,7 @@ alongside existing review comparisons and quality summaries.
     check is Stage 3 of the Capture Decision Gate. When a supplied reviewed head
     is both credential-shaped and not a real head of the referenced pull
     request, the capture is refused either way; the implementation plan
-    specifies which of the two reasons the refusal names.
+    reports the first applicable reason in the refusal precedence list.
   - Stage 1 condition 3 is about the **Ronda result head**: it refuses when Ronda
     has published no result for any head on the pull request, because then there
     is nothing to compare against at all. A finding whose reviewed head differs
@@ -277,6 +281,11 @@ alongside existing review comparisons and quality summaries.
   result head, the external reviewer, the finding location, the finding title,
   the finding text, the verdict, the affected category, the intended follow-up,
   and the capture source. A record missing any of these is not written.
+- Automatic capture reads findings published by the **Codex GitHub reviewer**,
+  the only reviewer automatic reading supports in this iteration. A capture that
+  names a different reviewer on the automatic path is reported as unsupported for
+  automatic reading and directed to manual entry, rather than refused as an
+  error; manual entry accepts any reviewer name.
 - The capture source records whether the finding was read from the pull request
   or supplied by the operator. When a re-capture updates a record in place from a
   different source than the one that created it, the capture source becomes the
@@ -340,8 +349,9 @@ alongside existing review comparisons and quality summaries.
   has a record:
   - A verdict or follow-up supplied during capture itself needs no rationale,
     whether that capture writes a new record or updates an existing one in place.
-    The record is written with the supplied values and no rationale, even when
-    those values replace ones a prior human adjudication had set. A capture is
+    The record is written with the supplied values, and any rationale already on
+    the record is preserved rather than cleared, even when the supplied values
+    replace ones a prior human adjudication had set. A capture is
     never the adjudication action merely because the record it writes to already
     existed; it is a later, separate adjudication — setting or revising the
     verdict or follow-up directly on a stored record without re-running capture —
@@ -387,8 +397,8 @@ alongside existing review comparisons and quality summaries.
   text in full before any truncation, so content beyond the 2,000-character
   boundary is scanned exactly like content before it. When the finding text
   matches both this rule and the credential refusal list, the capture is
-  refused either way; the implementation plan specifies which of the two
-  reasons the refusal names.
+  refused either way, and the reported reason is the first applicable entry in
+  the refusal precedence list.
 - Finding text is stored up to a limit of 2,000 characters. Text beyond that
   limit is truncated and the record shows that truncation happened, so a long
   reviewer comment can never silently pull a large body of source into the
@@ -401,7 +411,8 @@ alongside existing review comparisons and quality summaries.
   can carry a credential into a committed record.
 - A refusal names one matched field and the form it matched, so the operator knows
   what to remove. When several fields match, the outcome is refusal either way;
-  the implementation plan specifies which field a refusal names.
+  the reported reason is the first applicable entry in the refusal precedence
+  list.
 - No amount of text can hide a credential from the scan. A credential anywhere in
   a field refuses the capture even when that field would have been truncated
   before storage, so truncation can never launder a secret out of view. That list is documented and versioned alongside the workflow, and must
@@ -573,7 +584,8 @@ capture" is reached only through condition 5, which the Missing And Unreadable
 Input table scopes to automatic capture; manual capture cannot reach it. Within
 Stage 3, a manually supplied reviewed head that is both credential-shaped and not
 a real head of the pull request is refused either way; the implementation plan
-specifies which of the two reasons the refusal names. Stage 4 resolves on one input only:
+reports the first applicable reason in the refusal precedence list. Stage 4
+resolves on one input only:
 
 | Existing record for this finding identity and head | Outcome                 | Required next action                                                                                                                                                                                                                                                                                                                                                                                            |
 | -------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -725,14 +737,19 @@ action**, not a capture:
   is malformed or was never a head of that pull request, credential-shaped
   content in any scanned field, and finding text carrying source or diff content.
   A credential refusal also names the matched form. This is the list the gate
-  means when it tells the operator to correct "the input the refusal named".
+  means when it tells the operator to correct "the input the refusal named", and
+  it is written in **precedence order**: when more than one entry applies to the
+  same capture or finding, the reported reason is the first applicable entry in
+  this list. The reason an operator sees is therefore determinate — it is
+  observable output, not an internal ordering, which is why the spec fixes it
+  here rather than deferring it to the plan.
 - **Adjudication refusals**: A refused adjudication likewise states which rule
   refused it — a missing rationale, an invalid verdict or intended follow-up
   value, a credential-shaped rationale, or a rationale carrying source or diff
   content — and names the matched form for the credential case. When more than one
   applies at once, the adjudication is refused either way and the record is left
-  unchanged; the implementation plan specifies which reason is named, exactly as
-  it does for a multi-field credential match on capture.
+  unchanged, and the reported reason is the first applicable of those four,
+  which are listed in precedence order.
 - **Stale evidence**: A record written from heads that do not match states that
   it is stale evidence, and names both heads.
 - **Truncation**: A record whose finding text was truncated says so on the
@@ -831,8 +848,9 @@ action**, not a capture:
       order, the evaluation order within Stage 1 and Stage 2, all four capture
       outcomes — capture refused, nothing to capture, record written, and record
       updated in place — that stale evidence is a record attribute rather
-      than an outcome, that Stage 1 refuses the whole capture while Stages 2
-      through 4 refuse only the affected finding, and matches the capture
+      than an outcome, that Stage 1 refuses the whole capture while Stages 2 and 3
+      refuse only the affected finding — Stage 4 never refuses, reaching only
+      "record written" or "record updated in place" — and matches the capture
       command's own help output.
 - [ ] AC15: Given a record that already exists for a finding on a reviewed head,
       when the operator captures a finding whose finding location or finding
@@ -987,8 +1005,12 @@ action**, not a capture:
   is tracked separately as issue #55.
 - Reducing local reviewer timeouts in expensive-review gates. That is tracked
   separately as issue #57.
-- Automatically reading findings from external reviewers other than the one this
-  workflow supports. Other reviewers are recorded through manual entry.
+- Automatically reading findings from external reviewers other than the Codex
+  GitHub reviewer, which is the one reviewer automatic capture supports. Naming
+  another reviewer on the automatic path is **not** an error refusal: the capture
+  reports that automatic reading does not support that reviewer and directs the
+  operator to manual entry, which accepts any reviewer name. Adding a second
+  automatically read reviewer is out of scope for this iteration.
 - Capturing findings from repositories the operator cannot read with their
   existing GitHub access. No new credential or permission is introduced.
 - Any change to Ronda's own review behavior, its one-review-per-head contract,
@@ -1003,15 +1025,11 @@ because they have no product-visible consequence and pinning them in a product
 contract would state design rather than requirements. The plan must specify each
 one; the spec states only the guarantee it must deliver.
 
-| Deferred decision                                                                                                       | The guarantee the spec requires                                                                                                                                                    |
-| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| How the four identity values are compared so that meaningless differences are ignored                                   | The same finding entered two ways is one record, and stored text is never rewritten (AC30)                                                                                         |
-| Which field a refusal names when several fields carry credential-shaped content                                         | The capture is refused and the operator is told one matched field and form (AC33)                                                                                                  |
-| Which reason a refusal names when a supplied reviewed head is both credential-shaped and not a real head                | The capture is refused either way (AC9, AC31)                                                                                                                                      |
-| Which reason a refusal names when the finding text matches both the credential refusal list and the source-or-diff rule | The capture is refused either way (AC9, AC10)                                                                                                                                      |
-| Which reason an adjudication refusal names when more than one of its rules applies at once                              | The adjudication is refused either way and the record is left unchanged (AC5, AC28, AC34)                                                                                          |
-| Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it   | The five existing outcome counts keep their meaning; out-of-scope counts and category breakdowns are additive (AC7)                                                                |
-| The exact contents of the published credential refusal list and placeholder list                                        | Both are published and versioned with the workflow, the refusal list recognises at least the six named forms, and the placeholder list holds whole literal values only (AC9, AC18) |
+| Deferred decision                                                                                                     | The guarantee the spec requires                                                                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| How the four identity values are compared so that meaningless differences are ignored                                 | The same finding entered two ways is one record, and stored text is never rewritten (AC30)                                                                                         |
+| Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it | The five existing outcome counts keep their meaning; out-of-scope counts and category breakdowns are additive (AC7)                                                                |
+| The exact contents of the published credential refusal list and placeholder list                                      | Both are published and versioned with the workflow, the refusal list recognises at least the six named forms, and the placeholder list holds whole literal values only (AC9, AC18) |
 
 ## Brief Coverage Matrix
 
