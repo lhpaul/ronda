@@ -463,7 +463,13 @@ look".
 ## Reported Evidence Mapping
 
 Captured misses are read alongside Ronda's existing review comparison evidence.
-Each verdict is reported under exactly one outcome:
+Each verdict is reported under exactly one outcome.
+
+**Only non-stale records take part in this mapping.** A record whose reviewed
+head differs from its Ronda result head is reported as stale evidence and counted
+under no outcome below, whatever its verdict — the comparison it would support is
+not valid across two different heads. Re-capturing it on a shared head clears the
+marker and admits it to the mapping.
 
 | Verdict        | Reported as                                                              |
 | -------------- | ------------------------------------------------------------------------ |
@@ -509,10 +515,10 @@ Stage 3, a manually supplied reviewed head that is both credential-shaped and no
 a real head of the pull request is refused either way; the implementation plan
 specifies which of the two reasons the refusal names. Stage 4 resolves on one input only:
 
-| Existing record for this finding identity and head | Outcome                 | Required next action                            |
-| -------------------------------------------------- | ----------------------- | ----------------------------------------------- |
-| None                                               | Record written          | Adjudicate the verdict and choose the follow-up |
-| Present                                            | Record updated in place | Confirm the corrected verdict and follow-up     |
+| Existing record for this finding identity and head | Outcome                 | Required next action                                                                                                                                                                                |
+| -------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| None                                               | Record written          | Adjudicate the verdict and choose the follow-up                                                                                                                                                     |
+| Present                                            | Record updated in place | None required — the record's verdict and follow-up already stand, whether preserved or newly supplied. Revise them through the adjudication action if the refreshed evidence changes the judgement. |
 
 An update in place **merges rather than resets**, and the two kinds of field
 behave differently.
@@ -569,12 +575,17 @@ output and the committed review-quality runbook the operator follows.
 | `out_of_scope`   | Out of scope   | A real concern, but outside what Ronda is meant to review on the reviewed head.                   |
 | `already_found`  | Already found  | Ronda already reported the same defect on the reviewed head, so it is not a miss.                 |
 
-**Valid transitions**:
+**Valid transitions** — these describe the **adjudication action** of Use Case 3,
+not a capture. A capture that supplies a verdict sets or replaces it under the
+capture rules, which never require a rationale:
 
 - `unadjudicated` → `true_positive`, `false_positive`, `out_of_scope`, or
-  `already_found` when the operator records a verdict.
-- Any verdict → any other verdict when the operator revises the verdict and
-  records the rationale.
+  `already_found` when the operator records a verdict through adjudication,
+  supplying a rationale.
+- Any verdict → any other verdict when the operator revises it through
+  adjudication, supplying a rationale.
+- Any verdict → any other verdict, with no rationale required, when a capture
+  supplies a different verdict for that record.
 
 ### Intended follow-up
 
@@ -586,11 +597,16 @@ output and the committed review-quality runbook the operator follows.
 | `backlog_item`  | Backlog item  | Becomes tracked work larger than a prompt change.                                           |
 | `no_action`     | No action     | Deliberately not acted on. When the operator records a rationale, it explains why.          |
 
-**Valid transitions**:
+**Valid transitions** — as with the verdict, these describe the **adjudication
+action**, not a capture:
 
 - `undecided` → `eval_record`, `prompt_change`, `backlog_item`, or `no_action`
-  when the operator chooses the follow-up.
-- Any follow-up → any other follow-up when the operator revises the decision.
+  when the operator chooses the follow-up through adjudication, supplying a
+  rationale.
+- Any follow-up → any other follow-up when the operator revises it through
+  adjudication, supplying a rationale.
+- Any follow-up → any other follow-up, with no rationale required, when a capture
+  supplies a different follow-up for that record.
 
 ### Affected category
 
@@ -619,9 +635,17 @@ output and the committed review-quality runbook the operator follows.
 
 ## Operational Visibility
 
-- **Capture output**: Every capture states the pull request, the reviewed head,
-  the external reviewer, how many findings were captured, and where each record
-  was written.
+- **Capture output**: What a capture can report depends on which outcome it
+  reached, because a refusal may not have resolved the values a success reports:
+  - A capture that wrote or updated records states the pull request, the reviewed
+    head, the Ronda result head, the external reviewer, how many records were
+    written and how many updated, and where each one was written.
+  - A capture that reached "nothing to capture" states the pull request, the head
+    it checked, and that the reviewer published nothing on it. No record location
+    is reported, because none was written.
+  - A refused capture reports only what it had resolved before refusing, and
+    never claims a head, reviewer, or record location it could not resolve. Its
+    required content is the refusal reason below.
 - **Refusals and skips**: A refused capture states which rule refused it —
   credential-shaped content, an unrecognised affected category, or missing
   required inputs — so the operator can correct and retry. A refused
@@ -665,11 +689,13 @@ output and the committed review-quality runbook the operator follows.
       follow-up on an existing record through that same adjudication action and
       supplies no rationale, then the
       revision is refused and the record is left unchanged.
-- [ ] AC6: Given records with each verdict, when captured misses are read as
-      review-quality evidence, then True positive records are reported as a
-      Ronda miss, False positive records are reported as Ronda better, and Out
-      of scope, Already found, and Unadjudicated records are not reported as
-      confirmed misses.
+- [ ] AC6: Given **non-stale** records with each verdict, when captured misses are
+      read as review-quality evidence, then True positive records are reported as a
+      Ronda miss, False positive records are reported as Ronda better, and Out of
+      scope, Already found, and Unadjudicated records are not reported as confirmed
+      misses. Given instead a record carrying the stale-evidence marker, then it is
+      reported as stale evidence and counted under no verdict outcome, whatever its
+      verdict, until it is re-captured on a shared head.
 - [ ] AC7: Given captured miss records with each verdict, when they are read
       together with Ronda's existing review comparison evidence, then each
       verdict is reported under the mapping in Reported Evidence Mapping, the
