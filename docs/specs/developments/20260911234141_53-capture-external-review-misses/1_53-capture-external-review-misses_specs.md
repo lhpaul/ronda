@@ -243,7 +243,11 @@ alongside existing review comparisons and quality summaries.
     head of the referenced pull request. One that is malformed, or that names a
     commit which was never a head of that pull request, refuses the capture
     rather than being accepted — the value participates in identity and stale
-    classification, so accepting an unverifiable head would corrupt both.
+    classification, so accepting an unverifiable head would corrupt both. This
+    check is Stage 3 of the Capture Decision Gate, evaluated only after the
+    reviewed head has passed credential scanning; a credential-shaped reviewed
+    head is always refused by the credential rule, never reported as merely
+    malformed.
   - Stage 1 condition 3 is about the **Ronda result head**: it refuses when Ronda
     has published no result for any head on the pull request, because then there
     is nothing to compare against at all. A finding whose reviewed head differs
@@ -272,9 +276,12 @@ alongside existing review comparisons and quality summaries.
     (both resolved by the workflow), the reviewed head (read from the reviewer's
     evidence, or supplied by the operator, defaulting to the pull request's
     current head), the finding title (derived from the finding text
-    when the source supplies none), the verdict (defaults to Unadjudicated), and
-    the intended follow-up (defaults to Undecided). Their absence from the input
-    never refuses a capture, because the workflow always produces a value.
+    when the source supplies none), the verdict (defaults to Unadjudicated on a
+    newly written record), and the intended follow-up (defaults to Undecided on
+    a newly written record). Their absence from the input never refuses a
+    capture, because the workflow always produces a value — either that default
+    on a newly written record, or, on an update in place, the value the merge
+    rule below preserves from the existing record.
 - The adjudication rationale is subject to the same data-minimisation limits as
   the finding text: it is stored up to 2,000 characters, text beyond that is
   truncated with the truncation shown on the record, and it must not carry the
@@ -484,18 +491,22 @@ decides, and later stages run only when the earlier ones passed. That precedence
 is what makes the gate complete: a same-head, credential-free finding still
 refuses when Stage 1 or Stage 2 rejects it.
 
-| Stage                 | Inputs it examines                                                                                                                                                                                                                                                                    | Outcomes it can reach                                                         |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| 1. Input resolution   | Whether the pull request and its current head resolve, a reviewer is named, and Ronda has a result for any head on the pull request — plus, for automatic capture only, whether the named reviewer is present on the pull request and its output on the current head is interpretable | Capture refused; Nothing to capture (automatic path only); otherwise continue |
-| 2. Input validation   | Whether every required input is present and the affected category is in the closed set                                                                                                                                                                                                | Capture refused; otherwise continue                                           |
-| 3. Credential refusal | Whether any text the record would store matches a published refusal form without being a published placeholder                                                                                                                                                                        | Capture refused; otherwise continue                                           |
-| 4. Record decision    | Whether a record already exists for this finding identity and head                                                                                                                                                                                                                    | Record written; Record updated in place                                       |
+| Stage                                              | Inputs it examines                                                                                                                                                                                                                                                                               | Outcomes it can reach                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| 1. Input resolution                                | Whether the pull request and its current head resolve, a reviewer is named, and Ronda has a result for any head on the pull request — plus, for automatic capture only, whether the named reviewer is present on the pull request and its output on the current head is interpretable            | Capture refused; Nothing to capture (automatic path only); otherwise continue |
+| 2. Input validation                                | Whether every required input is present and the affected category is in the closed set                                                                                                                                                                                                           | Capture refused; otherwise continue                                           |
+| 3. Credential refusal and reviewed-head validation | Whether any text the record would store matches a published refusal form without being a published placeholder — checked first, in the documented field order — and, only for a manually supplied reviewed head that passes that check, whether it is a real head of the referenced pull request | Capture refused; otherwise continue                                           |
+| 4. Record decision                                 | Whether a record already exists for this finding identity and head                                                                                                                                                                                                                               | Record written; Record updated in place                                       |
 
 Stage 1 and Stage 2 per-condition detail, including their evaluation order, is
 the Missing And Unreadable Input table above. Within Stage 1, "Nothing to
 capture" is reached only through condition 5, which the Missing And Unreadable
-Input table scopes to automatic capture; manual capture cannot reach it. Stage
-4 resolves on one input only:
+Input table scopes to automatic capture; manual capture cannot reach it. Within
+Stage 3, credential scanning always runs before reviewed-head validation: a
+manually supplied reviewed head that matches a credential refusal form is
+refused by the credential rule even when it is also not a real head of the
+pull request, so a credential-shaped value is never instead reported as merely
+malformed — see AC9 and AC31. Stage 4 resolves on one input only:
 
 | Existing record for this finding identity and head | Outcome                 | Required next action                            |
 | -------------------------------------------------- | ----------------------- | ----------------------------------------------- |
@@ -524,12 +535,12 @@ creates a duplicate:
 
 Across all stages the gate has exactly four distinct outcomes:
 
-| Outcome                 | Reached at                   | A record is written                                                                               |
-| ----------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------- |
-| Capture refused         | Stage 1, 2, or 3             | No, and never partially                                                                           |
-| Nothing to capture      | Stage 1, automatic path only | No, and this is reported as success rather than as a refusal                                      |
-| Record written          | Stage 4                      | Yes, with the stale marker set or not per the table above                                         |
-| Record updated in place | Stage 4                      | Yes, replacing the existing record for that identity and head, with the stale marker re-evaluated |
+| Outcome                 | Reached at                   | A record is written                                                                                                                                                                                                                          |
+| ----------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Capture refused         | Stage 1, 2, or 3             | No, and never partially                                                                                                                                                                                                                      |
+| Nothing to capture      | Stage 1, automatic path only | No, and this is reported as success rather than as a refusal                                                                                                                                                                                 |
+| Record written          | Stage 4                      | Yes, with the stale marker set or not per the table above                                                                                                                                                                                    |
+| Record updated in place | Stage 4                      | Yes, replacing that record's evidence fields for that identity and head and re-evaluating the stale marker, while preserving any existing verdict, follow-up, and rationale per the merge rule above unless this capture supplies new values |
 
 Mirror surfaces that must state the same four outcomes, the same stage order,
 and the stale marker's status as an attribute: the capture command's own help
@@ -699,9 +710,9 @@ output and the committed review-quality runbook the operator follows.
       updated in place — and that stale evidence is a record attribute rather
       than an outcome, and matches the capture command's own help output.
 - [ ] AC15: Given a record that already exists for a finding on a reviewed head,
-      when the operator captures a finding that differs from it in the finding
-      location or the finding title, then a second, separate record is written
-      rather than the first being overwritten.
+      when the operator captures a finding whose finding location or finding
+      title differs from it after canonical comparison, then a second, separate
+      record is written rather than the first being overwritten.
 - [ ] AC16: Given a named external reviewer that has published on the pull
       request but nothing on its current head, when the operator runs an
       **automatic** capture,
@@ -757,9 +768,9 @@ output and the committed review-quality runbook the operator follows.
 - [ ] AC25: Given a finding whose location is present but cannot be resolved to a
       file and a line, when the operator captures it, then the capture is **not**
       refused: the record stores the location as given, marks it unresolved, and
-      uses all four identity values so a second finding with a different location
-      text or title remains a separate record. Given instead a finding with no
-      location at all, then the capture is refused.
+      uses all four identity values so a second finding whose location text or
+      title differs after canonical comparison remains a separate record. Given
+      instead a finding with no location at all, then the capture is refused.
 - [ ] AC26: Given a capture in which the operator supplies a verdict, an intended
       follow-up, or both but no rationale, when the capture runs, then the capture
       is **not** refused: the record is written with the supplied values and no
