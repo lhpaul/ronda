@@ -594,7 +594,8 @@ Across all stages the gate has exactly four distinct outcomes:
 | Record updated in place | Stage 4                      | Yes, replacing that record's evidence fields for that identity and head and re-evaluating the stale marker, while preserving any existing verdict, follow-up, and rationale per the merge rule above unless this capture supplies new values |
 
 Mirror surfaces that must state the same four outcomes, the same stage order,
-and the stale marker's status as an attribute: the capture command's own help
+the stale marker's status as an attribute, and Stage 1's whole-capture scope
+against Stages 2 through 4's per-finding scope: the capture command's own help
 output and the committed review-quality runbook the operator follows.
 
 ---
@@ -672,7 +673,10 @@ action**, not a capture:
 ## Operational Visibility
 
 - **Capture output**: What a capture can report depends on which outcome it
-  reached, because a refusal may not have resolved the values a success reports:
+  reached, because a refusal may not have resolved the values a success reports.
+  A capture carrying several findings reports each finding's own outcome, so a
+  finding refused at Stage 2 or Stage 3 never withholds the written or updated
+  location already resolved for the capture's other findings:
   - A capture that wrote or updated records states the pull request, the reviewed
     head, the Ronda result head, the external reviewer, how many records were
     written and how many updated, and where each one was written.
@@ -681,7 +685,10 @@ action**, not a capture:
     is reported, because none was written.
   - A refused capture reports only what it had resolved before refusing, and
     never claims a head, reviewer, or record location it could not resolve. Its
-    required content is the refusal reason below.
+    required content is the refusal reason below. A Stage 2 or Stage 3 refusal
+    reports this per finding, alongside the outcome of every other finding in the
+    same capture; only a Stage 1 refusal leaves the whole capture with nothing
+    else to report.
 - **Refusals and skips**: A refused capture states which rule refused it —
   credential-shaped content, an unrecognised affected category, or missing
   required inputs — so the operator can correct and retry. A refused
@@ -778,8 +785,10 @@ action**, not a capture:
       review-quality runbook, then the runbook states the four gate stages in
       order, the evaluation order within Stage 1 and Stage 2, all four capture
       outcomes — capture refused, nothing to capture, record written, and record
-      updated in place — and that stale evidence is a record attribute rather
-      than an outcome, and matches the capture command's own help output.
+      updated in place — that stale evidence is a record attribute rather
+      than an outcome, that Stage 1 refuses the whole capture while Stages 2
+      through 4 refuse only the affected finding, and matches the capture
+      command's own help output.
 - [ ] AC15: Given a record that already exists for a finding on a reviewed head,
       when the operator captures a finding whose finding location or finding
       title differs from it after canonical comparison, then a second, separate
