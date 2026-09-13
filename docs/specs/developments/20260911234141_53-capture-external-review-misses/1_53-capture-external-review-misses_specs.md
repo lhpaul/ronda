@@ -239,6 +239,11 @@ alongside existing review comparisons and quality summaries.
     Ronda result head ever participates in identity, so re-capturing a stale
     finding on the same reviewed head updates its existing record rather than
     creating a second one.
+  - A reviewed head the operator supplies must be a commit identifier that is a
+    head of the referenced pull request. One that is malformed, or that names a
+    commit which was never a head of that pull request, refuses the capture
+    rather than being accepted — the value participates in identity and stale
+    classification, so accepting an unverifiable head would corrupt both.
   - Stage 1 condition 3 is about the **Ronda result head**: it refuses when Ronda
     has published no result for any head on the pull request, because then there
     is nothing to compare against at all. A finding whose reviewed head differs
@@ -270,6 +275,11 @@ alongside existing review comparisons and quality summaries.
     when the source supplies none), the verdict (defaults to Unadjudicated), and
     the intended follow-up (defaults to Undecided). Their absence from the input
     never refuses a capture, because the workflow always produces a value.
+- The adjudication rationale is subject to the same data-minimisation limits as
+  the finding text: it is stored up to 2,000 characters, text beyond that is
+  truncated with the truncation shown on the record, and it must not carry the
+  reviewed source file's contents or the pull request's diff. A rationale is a
+  short human explanation, never a place to paste a patch.
 - The adjudication rationale is scanned against the same credential refusal list
   at the moment it enters, which is the adjudication action rather than a capture.
   A rationale matching a refusal form without being a published placeholder is
@@ -329,12 +339,19 @@ alongside existing review comparisons and quality summaries.
   limit is truncated and the record shows that truncation happened, so a long
   reviewer comment can never silently pull a large body of source into the
   record.
-- A record is never written when any text the record would store — the finding
-  title, the finding text, or the finding location — matches the workflow's
-  published credential refusal list. The title
-  is scanned on the same terms as the text, whether the external reviewer
-  published it or the workflow derived it, so no field can carry a credential
-  into a committed record. That list is documented and versioned alongside the workflow, and must
+- A record is never written when **any free-text field the record would store**
+  matches the workflow's published credential refusal list. The scanned fields
+  are, in this order: the external reviewer name, the reviewed head as supplied,
+  the finding location, the finding title, and the finding text. Every one is
+  scanned on the same terms, including a reviewer name the operator typed and a
+  title the workflow derived, so no field can carry a credential into a committed
+  record.
+- When more than one field matches, the refusal names the **first matching field
+  in that order** and the form it matched, so the reported reason is determinate.
+  The remaining matches do not change the outcome, which is refusal either way.
+- Credential scanning happens **before** any truncation. A credential appearing
+  anywhere in the finding text refuses the capture even when it sits beyond the
+  2,000-character limit, so truncation can never launder a secret out of view. That list is documented and versioned alongside the workflow, and must
   recognise at least these six forms: a code-hosting access token, an API key, a
   private key block, a cloud access-key identifier, an authorization header
   bearer value, and an assignment whose name reads as a password, secret, token,
@@ -355,6 +372,20 @@ alongside existing review comparisons and quality summaries.
   is identical for automatically read and manually supplied findings, so manually
   re-entering an automatically captured finding updates that record instead of
   creating a second one.
+- Those four values are compared **canonically**, so the same finding entered two
+  ways does not produce two records:
+  - The external reviewer is compared by the reviewer account identity the
+    workflow resolved, never by a display name. Manual entry that names a
+    reviewer resolves it to that same account identity before comparing; a name
+    that resolves to no known reviewer account is compared as the trimmed,
+    case-insensitive text the operator supplied.
+  - The reviewed head is compared as a full commit identifier. An abbreviated
+    identifier is expanded to the full one before comparing.
+  - The finding location and finding title are compared with surrounding
+    whitespace removed, internal runs of whitespace collapsed to a single space,
+    and letter case ignored.
+  - Canonicalisation applies only to the comparison. Each record still stores the
+    location and title exactly as the source gave them.
 - A finding whose location is present but cannot be resolved to a file and a
   line is identified by external reviewer, reviewed head, the location text as
   given, and finding title. Its record states that the location is unresolved.
@@ -470,6 +501,14 @@ Input table scopes to automatic capture; manual capture cannot reach it. Stage
 | -------------------------------------------------- | ----------------------- | ----------------------------------------------- |
 | None                                               | Record written          | Adjudicate the verdict and choose the follow-up |
 | Present                                            | Record updated in place | Confirm the corrected verdict and follow-up     |
+
+An update in place **merges rather than resets**. The captured evidence fields
+— location, title, text, and the stale marker — are replaced with what this
+capture read or was given. An existing verdict, intended follow-up, and
+rationale are **preserved** unless this capture explicitly supplies a new
+verdict or follow-up, in which case only the values it supplies are replaced. A
+re-capture that omits those values therefore never discards a human
+adjudication, because re-reading evidence is not a judgement about it.
 
 **Stale evidence is a record attribute, not a fifth outcome.** Whether Ronda's
 result and the external finding share the reviewed head does not change which
@@ -627,17 +666,23 @@ output and the committed review-quality runbook the operator follows.
       because only the reviewed head participates in identity.
 - [ ] AC9: Given credential-shaped content such as an access token, private key,
       or password assignment placed in the finding text, the finding title, the
-      finding location — including a title the workflow derived rather than one the
-      reviewer published — when the operator captures it, then the capture is
-      refused for each of those three fields independently, no record is written,
-      and the refusal names the field and the rule that refused it.
+      finding location, the reviewer name, or the supplied reviewed head —
+      including a title the workflow derived rather than one the reviewer
+      published — when the operator captures it, then the capture is refused for
+      each of those fields independently, no record is written, and the refusal
+      names the field and the rule that refused it. This does not apply when the
+      matched value equals a published placeholder literal, which AC18 requires to
+      be accepted.
 - [ ] AC10: Given a captured record, when the record is inspected, then it
       contains the external reviewer's finding text and the location it points at,
       and contains neither the reviewed file's source contents nor the pull
       request's diff.
-- [ ] AC11: Given an external finding whose text exceeds 2,000 characters, when
-      the operator captures it, then the stored finding text is truncated to
-      2,000 characters and the record states that truncation happened.
+- [ ] AC11: Given a credential-free external finding whose text exceeds 2,000
+      characters, when the operator captures it, then the stored finding text is
+      truncated to 2,000 characters and the record states that truncation
+      happened. Given instead that the text carries credential-shaped content
+      beyond the 2,000-character boundary, then the capture is refused rather than
+      truncated, because scanning precedes truncation.
 - [ ] AC12: Given a record that already exists for a finding on a reviewed head,
       when the operator captures a finding matching all four identity values —
       same external reviewer, reviewed head, finding location, and finding title —
@@ -739,6 +784,31 @@ output and the committed review-quality runbook the operator follows.
       intended follow-up are unchanged, and the record is left as it was. This
       refusal reads differently from AC5's no-rationale-supplied refusal, which
       names a missing rationale rather than a matched credential form.
+- [ ] AC29: Given an existing record carrying a human verdict, intended follow-up,
+      and rationale, when a re-capture of that same finding supplies none of those
+      values, then the record's evidence fields are replaced and the verdict,
+      follow-up, and rationale are preserved unchanged. Given instead that the
+      re-capture supplies a new verdict, then only the verdict is replaced and the
+      follow-up and rationale are preserved.
+- [ ] AC30: Given the same finding entered twice — once read automatically and once
+      supplied manually with a differently cased reviewer display name, extra
+      surrounding whitespace in the location and title, and an abbreviated reviewed
+      head — when both captures run, then exactly one record exists, because the
+      four identity values are compared canonically while the record stores the
+      text as given.
+- [ ] AC31: Given a manual capture supplying a reviewed head that is malformed or
+      that names a commit which was never a head of the referenced pull request,
+      when the capture runs, then it is refused and no record is written.
+- [ ] AC32: Given an adjudication rationale exceeding 2,000 characters, when the
+      operator applies it, then the stored rationale is truncated to 2,000
+      characters and the record states that truncation happened; and given a
+      rationale carrying the reviewed file's source contents or the pull request's
+      diff, then the record does not store that content.
+- [ ] AC33: Given a finding in which credential-shaped content appears in more than
+      one scanned field, when the operator captures it, then the capture is refused
+      once and the refusal names the first matching field in the documented scan
+      order: reviewer name, reviewed head, finding location, finding title, finding
+      text.
 
 ---
 
@@ -770,19 +840,19 @@ output and the committed review-quality runbook the operator follows.
 | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | Repeatable workflow for recording external-review findings Ronda missed                             | Use Cases 1-3, AC1, AC3, AC14, AC27                                        |
 | Record includes the pull request                                                                    | AC1                                                                        |
-| Record includes the head SHA                                                                        | AC1, AC8, AC22                                                             |
+| Record includes the head SHA                                                                        | AC1, AC8, AC22, AC31                                                       |
 | Record includes the reviewer                                                                        | AC1, AC3                                                                   |
 | Record includes the finding text                                                                    | AC1, AC10, AC11                                                            |
 | Record includes the finding location, resolvable or not                                             | AC1, AC25                                                                  |
-| Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20                                                 |
+| Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20, AC30                                           |
 | A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, AC19, AC21, AC22, AC24, AC27, and Missing And Unreadable Input |
-| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6, AC26                                                   |
+| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6, AC26, AC29                                             |
 | Record includes the affected category                                                               | AC1, AC13, AC23                                                            |
 | Record states whether it becomes an eval, prompt change, or backlog item                            | AC5, and the Intended follow-up enum                                       |
 | A command or documented workflow captures a Codex GitHub finding from a PR into a structured record | Use Case 1, AC1, AC14                                                      |
 | Records preserve current-head evidence                                                              | AC1, AC8                                                                   |
 | Records distinguish true positives, false positives, and out-of-scope findings                      | AC5, AC6, AC7, and the Verdict enum                                        |
 | Captured misses can feed the existing review comparison / quality summary tooling                   | Use Case 4, AC6, AC7, and Reported Evidence Mapping                        |
-| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11, AC18, AC28                                                |
+| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11, AC18, AC28, AC32, AC33                                    |
 
 No brief objective is deferred to Out of Scope, so there are no deferral notes.
