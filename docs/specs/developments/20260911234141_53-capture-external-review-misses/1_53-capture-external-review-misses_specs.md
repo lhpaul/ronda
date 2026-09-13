@@ -28,9 +28,11 @@ alongside existing review comparisons and quality summaries.
 
 **Preconditions**:
 
-- A pull request exists and Ronda has produced a review result for its current
-  head.
-- An external reviewer has published at least one finding on that same head.
+- A pull request exists and Ronda has published a review result for at least one
+  of its heads. A result for the head the finding was read from is the ordinary
+  case; a result only on some other head is still enough to capture, and the
+  record is marked stale evidence.
+- An external reviewer has published at least one finding on the pull request.
 - The operator can read the pull request.
 
 **Steps**:
@@ -154,9 +156,12 @@ alongside existing review comparisons and quality summaries.
 
 **Postconditions**:
 
-- Every reviewed record carries a human verdict and an intended follow-up.
-- Records left undecided are still visibly undecided rather than silently
-  treated as confirmed misses.
+- Every record the operator adjudicated carries a human value for each field
+  they set. Adjudicating one field alone is a normal outcome, so a record may
+  carry a human verdict while its intended follow-up is still Undecided, or the
+  reverse.
+- Records left unadjudicated or undecided, in whole or in part, are still visibly
+  so rather than silently treated as confirmed misses.
 
 **Information shown**:
 
@@ -371,6 +376,13 @@ alongside existing review comparisons and quality summaries.
 - A record stores the external reviewer's own finding text and the location it
   points at. It never stores the reviewed source file's contents or the pull
   request's diff.
+- When the reviewer's finding text itself carries the reviewed source file's
+  contents or the pull request's diff, the capture is **refused** and nothing is
+  stored, exactly as an adjudication rationale carrying such content is refused.
+  The refusal says the finding text carried source or diff content. Refusing
+  rather than silently trimming keeps the operator aware their evidence was
+  rejected, and it is what makes the no-source-and-no-diff guarantee achievable
+  rather than aspirational.
 - Finding text is stored up to a limit of 2,000 characters. Text beyond that
   limit is truncated and the record shows that truncation happened, so a long
   reviewer comment can never silently pull a large body of source into the
@@ -557,10 +569,10 @@ Stage 3, a manually supplied reviewed head that is both credential-shaped and no
 a real head of the pull request is refused either way; the implementation plan
 specifies which of the two reasons the refusal names. Stage 4 resolves on one input only:
 
-| Existing record for this finding identity and head | Outcome                 | Required next action                                                                                                                                                                                                 |
-| -------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| None                                               | Record written          | Adjudicate the verdict and choose the follow-up **when either is still at its default** of Unadjudicated or Undecided. None required when the capture supplied both, because the record already carries a judgement. |
-| Present                                            | Record updated in place | None required — the record's verdict and follow-up already stand, whether preserved or newly supplied. Revise them through the adjudication action if the refreshed evidence changes the judgement.                  |
+| Existing record for this finding identity and head | Outcome                 | Required next action                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| None                                               | Record written          | Adjudicate the verdict and choose the follow-up **when either is still at its default** of Unadjudicated or Undecided. None required when the capture supplied both, because the record already carries a judgement.                                                                                                                                                                                            |
+| Present                                            | Record updated in place | Adjudicate whichever of the verdict and follow-up is **still at its default** of Unadjudicated or Undecided after the merge — an update preserves an existing judgement and may supply only one of the two, so one field can remain at its default. None required when both already carry a judgement. Either way, revise them through the adjudication action if the refreshed evidence changes the judgement. |
 
 An update in place **merges rather than resets**, and the two kinds of field
 behave differently.
@@ -594,12 +606,12 @@ Across all stages the gate has exactly four distinct outcomes. Every one has a
 required next action; where none is needed, that is stated as a reasoned
 no-action rather than left blank:
 
-| Outcome                 | Reached at                   | A record is written                                                                                                                                                                                                                          | Required next action                                                                                                                                                                                                 |
-| ----------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Capture refused         | Stage 1, 2, or 3             | No, and never partially                                                                                                                                                                                                                      | Correct the input the refusal named and capture again. No record exists to act on, and nothing is left behind to clean up.                                                                                           |
-| Nothing to capture      | Stage 1, automatic path only | No, and this is reported as success rather than as a refusal                                                                                                                                                                                 | None required — the reviewer published nothing on the head that was checked. Capture again after the reviewer reviews a later head, or use manual entry if the finding was raised elsewhere.                         |
-| Record written          | Stage 4                      | Yes, with the stale marker set or not per the table above                                                                                                                                                                                    | Adjudicate the verdict and choose the follow-up **when either is still at its default** of Unadjudicated or Undecided. None required when the capture supplied both, because the record already carries a judgement. |
-| Record updated in place | Stage 4                      | Yes, replacing that record's evidence fields for that identity and head and re-evaluating the stale marker, while preserving any existing verdict, follow-up, and rationale per the merge rule above unless this capture supplies new values | None required — the record's verdict and follow-up already stand, whether preserved or newly supplied. Revise them through the adjudication action if the refreshed evidence changes the judgement.                  |
+| Outcome                 | Reached at                   | A record is written                                                                                                                                                                                                                          | Required next action                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Capture refused         | Stage 1, 2, or 3             | No, and never partially                                                                                                                                                                                                                      | Correct the input the refusal named and capture again. No record exists to act on, and nothing is left behind to clean up.                                                                                                                                                                                                                                                                                      |
+| Nothing to capture      | Stage 1, automatic path only | No, and this is reported as success rather than as a refusal                                                                                                                                                                                 | None required — the reviewer published nothing on the head that was checked. Capture again after the reviewer reviews a later head, or use manual entry if the finding was raised elsewhere.                                                                                                                                                                                                                    |
+| Record written          | Stage 4                      | Yes, with the stale marker set or not per the table above                                                                                                                                                                                    | Adjudicate the verdict and choose the follow-up **when either is still at its default** of Unadjudicated or Undecided. None required when the capture supplied both, because the record already carries a judgement.                                                                                                                                                                                            |
+| Record updated in place | Stage 4                      | Yes, replacing that record's evidence fields for that identity and head and re-evaluating the stale marker, while preserving any existing verdict, follow-up, and rationale per the merge rule above unless this capture supplies new values | Adjudicate whichever of the verdict and follow-up is **still at its default** of Unadjudicated or Undecided after the merge — an update preserves an existing judgement and may supply only one of the two, so one field can remain at its default. None required when both already carry a judgement. Either way, revise them through the adjudication action if the refreshed evidence changes the judgement. |
 
 Mirror surfaces that must state the same four outcomes, the same stage order,
 the stale marker's status as an attribute, and Stage 1's whole-capture scope
@@ -697,11 +709,24 @@ action**, not a capture:
     reports this per finding, alongside the outcome of every other finding in the
     same capture; only a Stage 1 refusal leaves the whole capture with nothing
     else to report.
-- **Refusals and skips**: A refused capture states which rule refused it —
-  credential-shaped content, an unrecognised affected category, or missing
-  required inputs — so the operator can correct and retry. A refused
-  adjudication states which rule refused it too — a missing rationale or a
-  credential-shaped rationale — and names the matched form for the latter.
+- **Refusals and skips**: A refused capture states which rule refused it, so the
+  operator can correct and retry. Every refusal rule in this spec is reportable,
+  and the list is closed: an unresolvable pull request or head, no reviewer named,
+  no Ronda result on any head, reviewer output that cannot be interpreted, a
+  missing required input, an affected category outside the closed set, a supplied
+  verdict or intended follow-up outside its documented values, a supplied reviewed
+  head that is malformed or was never a head of that pull request,
+  credential-shaped content in any scanned field, and finding text carrying source
+  or diff content. A credential refusal also names the matched form. This is the
+  list the gate means when it tells the operator to correct "the input the refusal
+  named".
+- **Adjudication refusals**: A refused adjudication likewise states which rule
+  refused it — a missing rationale, an invalid verdict or intended follow-up
+  value, a credential-shaped rationale, or a rationale carrying source or diff
+  content — and names the matched form for the credential case. When more than one
+  applies at once, the adjudication is refused either way and the record is left
+  unchanged; the implementation plan specifies which reason is named, exactly as
+  it does for a multi-field credential match on capture.
 - **Stale evidence**: A record written from heads that do not match states that
   it is stale evidence, and names both heads.
 - **Truncation**: A record whose finding text was truncated says so on the
@@ -775,7 +800,11 @@ action**, not a capture:
 - [ ] AC10: Given a captured record, when the record is inspected, then it
       contains the external reviewer's finding text and the location it points at,
       and contains neither the reviewed file's source contents nor the pull
-      request's diff.
+      request's diff. Given instead a finding whose own text carries the reviewed
+      file's source contents or the pull request's diff, then the capture is
+      refused, nothing is stored, and the refusal says the finding text carried
+      source or diff content — so the guarantee is reached by refusing such input,
+      never by trimming it after the fact.
 - [ ] AC11: Given a credential-free external finding whose text exceeds 2,000
       characters, when the operator captures it, then the stored finding text is
       truncated to 2,000 characters and the record states that truncation
