@@ -92,7 +92,8 @@ alongside existing review comparisons and quality summaries.
 
 **Preconditions**:
 
-- A pull request exists with a resolvable current head.
+- A pull request exists with a resolvable current head, and Ronda has produced a
+  review result for that head.
 - The operator has the text of an external-review finding that automatic reading
   did not return — for example a finding raised by a reviewer the workflow does
   not read, or one raised outside the pull request.
@@ -417,15 +418,18 @@ decides, and later stages run only when the earlier ones passed. That precedence
 is what makes the gate complete: a same-head, credential-free finding still
 refuses when Stage 1 or Stage 2 rejects it.
 
-| Stage                 | Inputs it examines                                                                                                                                       | Outcomes it can reach                                   |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| 1. Input resolution   | Whether the pull request and head resolve, a reviewer is named and present, the reviewer's output is interpretable, and Ronda has a result for that head | Capture refused; Nothing to capture; otherwise continue |
-| 2. Input validation   | Whether every required input is present and the affected category is in the closed set                                                                   | Capture refused; otherwise continue                     |
-| 3. Credential refusal | Whether any text the record would store matches a published refusal form without being a published placeholder                                           | Capture refused; otherwise continue                     |
-| 4. Record decision    | Whether a record already exists for this finding identity and head                                                                                       | Record written; Record updated in place                 |
+| Stage                 | Inputs it examines                                                                                                                                                                                                                                     | Outcomes it can reach                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| 1. Input resolution   | Whether the pull request and head resolve, a reviewer is named, and Ronda has a result for that head — plus, for automatic capture only, whether the named reviewer is present on the pull request and its output on the current head is interpretable | Capture refused; Nothing to capture (automatic path only); otherwise continue |
+| 2. Input validation   | Whether every required input is present and the affected category is in the closed set                                                                                                                                                                 | Capture refused; otherwise continue                                           |
+| 3. Credential refusal | Whether any text the record would store matches a published refusal form without being a published placeholder                                                                                                                                         | Capture refused; otherwise continue                                           |
+| 4. Record decision    | Whether a record already exists for this finding identity and head                                                                                                                                                                                     | Record written; Record updated in place                                       |
 
 Stage 1 and Stage 2 per-condition detail, including their evaluation order, is
-the Missing And Unreadable Input table above. Stage 4 resolves on one input only:
+the Missing And Unreadable Input table above. Within Stage 1, "Nothing to
+capture" is reached only through condition 5, which the Missing And Unreadable
+Input table scopes to automatic capture; manual capture cannot reach it. Stage
+4 resolves on one input only:
 
 | Existing record for this finding identity and head | Outcome                 | Required next action                            |
 | -------------------------------------------------- | ----------------------- | ----------------------------------------------- |
@@ -446,12 +450,12 @@ creates a duplicate:
 
 Across all stages the gate has exactly four distinct outcomes:
 
-| Outcome                 | Reached at       | A record is written                                                                               |
-| ----------------------- | ---------------- | ------------------------------------------------------------------------------------------------- |
-| Capture refused         | Stage 1, 2, or 3 | No, and never partially                                                                           |
-| Nothing to capture      | Stage 1          | No, and this is reported as success rather than as a refusal                                      |
-| Record written          | Stage 4          | Yes, with the stale marker set or not per the table above                                         |
-| Record updated in place | Stage 4          | Yes, replacing the existing record for that identity and head, with the stale marker re-evaluated |
+| Outcome                 | Reached at                   | A record is written                                                                               |
+| ----------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| Capture refused         | Stage 1, 2, or 3             | No, and never partially                                                                           |
+| Nothing to capture      | Stage 1, automatic path only | No, and this is reported as success rather than as a refusal                                      |
+| Record written          | Stage 4                      | Yes, with the stale marker set or not per the table above                                         |
+| Record updated in place | Stage 4                      | Yes, replacing the existing record for that identity and head, with the stale marker re-evaluated |
 
 Mirror surfaces that must state the same four outcomes, the same stage order,
 and the stale marker's status as an attribute: the capture command's own help
