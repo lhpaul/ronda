@@ -803,6 +803,19 @@ the old one. A re-capture that leaves both fields unchanged, whether by omitting
 them or by supplying the same values, never discards a human adjudication or its
 rationale, because re-reading evidence is not a judgement about it.
 
+A capture supplying Unadjudicated as the verdict, or Undecided as the intended
+follow-up, is **never treated as a differing value on an update in place** when
+the record already carries a non-default value for that field — Unadjudicated
+and Undecided pass Stage 2's documented-value check like any other enum member,
+but the merge treats them the same as omitting the field: the existing
+judgement and its rationale are preserved, not replaced with the default. This
+is what makes AC47's guarantee hold against capture as well as adjudication —
+neither can revert a judged field to no judgement, so a record a human has
+judged can never become deletion-eligible again through either path. On a
+newly written record, or when the field the capture targets is already at its
+default, supplying the default explicitly is simply a no-op: it matches what
+the field already is or would become anyway.
+
 **Stale evidence is a record attribute, not a fifth outcome.** Whether Ronda's
 result and the external finding share the reviewed head does not change which
 Stage 4 outcome applies — it sets the stale-evidence marker on the record that
@@ -859,7 +872,10 @@ capture rules, which never require a rationale:
   ineligible for deletion once a human has acted on it.
 - Any verdict → any other verdict, with no rationale required, when a capture
   supplies a different verdict for that record. This too never sets a verdict to
-  `unadjudicated` — a capture only ever supplies one of the four judged values.
+  `unadjudicated` on an already-judged record: a capture may supply
+  `unadjudicated` as input, but per the merge rule above, the merge treats it as
+  though the field were omitted whenever the record already carries a
+  non-default verdict, so the transition never actually lands there.
 
 ### Intended follow-up
 
@@ -882,8 +898,8 @@ action**, not a capture:
   follow-up back to `undecided`, symmetrically with the verdict rule above.
 - Any follow-up → any other follow-up, with no rationale required, when a
   capture supplies a different follow-up for that record. This too never sets a
-  follow-up to `undecided` — a capture only ever supplies one of the four chosen
-  values.
+  follow-up to `undecided` on an already-judged record, symmetrically with the
+  verdict rule above.
 
 ### Affected category
 
@@ -1240,20 +1256,6 @@ action**, not a capture:
       capture is refused and the refusal names the finding text as carrying source
       or diff content. The same thresholds apply to every other stored free-text
       field and to an adjudication rationale.
-- [ ] AC49: Given a finding text containing the same hunk marker as AC38, but
-      formatted as a Markdown block quote (`> @@ ...`) or indented as a code
-      block, when the operator captures it, then the capture is refused for
-      carrying source or diff content exactly as the unquoted, unindented form
-      is, because the marker check strips leading block-quote markers and
-      whitespace before matching.
-- [ ] AC50: Given a finding text quoting six consecutive non-blank lines from a
-      file the pull request changes at the reviewed head, each line formatted
-      as a Markdown block quote (`> ...`) or indented as a code block, when the
-      operator captures it, then the capture is refused for carrying source or
-      diff content exactly as the unquoted, unindented form is, because the
-      five-consecutive-lines comparison strips leading block-quote markers and
-      whitespace before matching, the same way the marker check does for
-      AC49.
 - [ ] AC39: Given a finding captured automatically from
       `chatgpt-codex-connector[bot]`, when the same finding on the same reviewed
       head is then captured manually naming the reviewer as `Codex`, then exactly
@@ -1324,6 +1326,29 @@ action**, not a capture:
       drops, but the record is **not** admitted to the verdict mapping and
       needs re-capture on a shared head to clear the stale marker, unlike the
       unresolvable-only case above.
+- [ ] AC49: Given a finding text containing the same hunk marker as AC38, but
+      formatted as a Markdown block quote (`> @@ ...`) or indented as a code
+      block, when the operator captures it, then the capture is refused for
+      carrying source or diff content exactly as the unquoted, unindented form
+      is, because the marker check strips leading block-quote markers and
+      whitespace before matching.
+- [ ] AC50: Given a finding text quoting six consecutive non-blank lines from a
+      file the pull request changes at the reviewed head, each line formatted
+      as a Markdown block quote (`> ...`) or indented as a code block, when the
+      operator captures it, then the capture is refused for carrying source or
+      diff content exactly as the unquoted, unindented form is, because the
+      five-consecutive-lines comparison strips leading block-quote markers and
+      whitespace before matching, the same way the marker check does for
+      AC49.
+- [ ] AC51: Given a record carrying a human-set, non-default verdict, when a
+      further capture of that same finding explicitly supplies `unadjudicated`
+      as the verdict, then the capture is **not** refused, but the merge treats
+      the supplied value as though the verdict were omitted: the record's
+      verdict and rationale are preserved unchanged, not reset to Unadjudicated.
+      This holds symmetrically for a human-set, non-default intended follow-up
+      and a capture supplying `undecided`. Given instead a newly written
+      record, or a field already at its default, supplying the default value
+      explicitly changes nothing — it is a no-op either way.
 
 ---
 
@@ -1378,7 +1403,7 @@ one; the spec states only the guarantee it must deliver.
 | Record includes the finding location, resolvable or not                                             | AC1, AC25                                                                        |
 | Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20, AC30, AC41                                           |
 | A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, AC19, AC21, AC22, AC24, AC27, AC35, and Missing And Unreadable Input |
-| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6, AC26, AC29, AC34, AC43                                       |
+| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6, AC26, AC29, AC34, AC43, AC51                                 |
 | Record includes the affected category                                                               | AC1, AC13, AC23, AC42                                                            |
 | Record states whether it becomes an eval, prompt change, or backlog item                            | AC5, and the Intended follow-up enum                                             |
 | A command or documented workflow captures a Codex GitHub finding from a PR into a structured record | Use Case 1, AC1, AC14, and the capture source field                              |
