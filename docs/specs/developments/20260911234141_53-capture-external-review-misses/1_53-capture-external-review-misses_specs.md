@@ -205,7 +205,10 @@ alongside existing review comparisons and quality summaries.
 **Steps**:
 
 1. The operator asks for captured misses to be read as review-quality evidence.
-2. The evidence is presented in the same shape the existing review comparison
+2. Each miss record's Ronda result head is resolved against Ronda's own,
+   separately durable review output for that head — the miss record supplies no
+   copy of Ronda's result or findings of its own.
+3. The evidence is presented in the same shape the existing review comparison
    and quality summary evidence already uses.
 
 **Postconditions**:
@@ -294,6 +297,15 @@ alongside existing review comparisons and quality summaries.
   result head, the external reviewer, the finding location, the finding title,
   the finding text, the verdict, the affected category, the intended follow-up,
   and the capture source. A record missing any of these is not written.
+- **The Ronda result head is a reference, not a copy.** A miss record names
+  which Ronda review result it is evidence against; it never stores Ronda's own
+  result or Ronda's own findings. Ronda's review results are already durable —
+  Ronda posts one review per head SHA as a GitHub PR review, per the repository
+  constitution — so nothing about this workflow needs to retain a second copy of
+  them. Reading captured misses (Use Case 4) resolves the Ronda result head
+  against that existing, independently durable review output at read time; if
+  Ronda's review for that head is no longer resolvable, the captured miss record
+  itself is unaffected and continues to name the head it was captured against.
 - Automatic capture reads findings published by the **Codex GitHub reviewer**,
   the only reviewer automatic reading supports in this iteration. Naming a
   different reviewer on the automatic path is refused under Stage 1 condition 4 —
