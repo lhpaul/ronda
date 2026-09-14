@@ -486,33 +486,38 @@ alongside existing review comparisons and quality summaries.
   therefore fails closed toward refusing, never toward storing. The capture is
   refused, the refusal names the matched form, and the operator can re-capture
   with the offending text removed.
-- Two captured findings are the **same finding** when all five of these match:
+- Two captured findings are the **same finding** when all six of these match:
   the pull request, the external reviewer, the reviewed head, the finding
-  location, and the finding title. A difference in any of the five makes them
-  separate findings — including the same commit reviewed as the head of two
-  different pull requests, which is two separate findings even when the
-  reviewer, location, and title are identical. The rule is identical for
-  automatically read and manually supplied findings, so manually re-entering an
-  automatically captured finding updates that record instead of creating a
-  second one.
+  location, the finding title, and the finding text. A difference in any of the
+  six makes them separate findings — including the same commit reviewed as the
+  head of two different pull requests, which is two separate findings even when
+  the reviewer, location, and title are identical, and including two findings
+  the same reviewer reports at the same location with the same title, which are
+  two separate findings whenever their finding text differs, so neither is
+  silently discarded. The rule is identical for automatically read and manually
+  supplied findings, so manually re-entering an automatically captured finding
+  updates that record instead of creating a second one. Identity compares
+  finding text in full, before truncation, exactly as the other pre-truncation
+  scans in this spec do, so two findings that would truncate to the same stored
+  text are still told apart by what came after the 2,000-character boundary.
 - **Incidental differences in how the same finding was entered never produce two
-  records.** Comparing the five identity values ignores exactly these four kinds
+  records.** Comparing the six identity values ignores exactly these four kinds
   of difference and no others:
   - how a reviewer was named, as opposed to which reviewer it is, resolved only
     as the reviewer identity rule below states;
   - how a commit identifier was abbreviated;
-  - letter case, in the finding location and finding title;
-  - leading, trailing, or repeated whitespace, in the finding location and
-    finding title.
+  - letter case, in the finding location, finding title, and finding text;
+  - leading, trailing, or repeated whitespace, in the finding location, finding
+    title, and finding text.
 
-  Any other difference in any of the five identity values makes two separate
+  Any other difference in any of the six identity values makes two separate
   findings. The list is closed, so an implementer never has to judge whether some
   further difference is meaningful. Each record stores the
-  external reviewer, location, and title exactly as its most recent source gave
-  them: the comparison never normalises what is stored, and a matching re-capture
-  replaces the stored spelling with its own as part of refreshing the record's
-  evidence fields. The implementation plan specifies how the comparison
-  achieves this.
+  external reviewer, location, title, and finding text exactly as its most
+  recent source gave them: the comparison never normalises what is stored, and a
+  matching re-capture replaces the stored spelling with its own as part of
+  refreshing the record's evidence fields. The implementation plan specifies how
+  the comparison achieves this.
 
 - **Reviewer identity.** Automatic capture identifies the Codex GitHub reviewer
   by its GitHub login, `chatgpt-codex-connector[bot]`. The following names are
@@ -530,9 +535,9 @@ alongside existing review comparisons and quality summaries.
 
 - A finding whose location is present but cannot be resolved to a file and a
   line is identified by pull request, external reviewer, reviewed head, the
-  location text as given, and finding title. Its record states that the location
-  is unresolved. Identity still uses all five values, so an unresolved location
-  never collapses two distinct findings into one record.
+  location text as given, finding title, and finding text. Its record states
+  that the location is unresolved. Identity still uses all six values, so an
+  unresolved location never collapses two distinct findings into one record.
 - Each external finding has at most one record per pull request and reviewed
   head. Capturing the same finding on the same pull request and head again
   updates the existing record instead of creating a second one.
@@ -930,11 +935,11 @@ action**, not a capture:
       beyond the 2,000-character boundary, then the capture is refused rather than
       truncated, because scanning precedes truncation.
 - [ ] AC12: Given a record that already exists for a finding on a reviewed head,
-      when the operator captures a finding matching all five identity values —
-      same pull request, external reviewer, reviewed head, finding location, and
-      finding title — then the existing record is updated in place and no second
-      record for that finding and head exists. This holds when the second
-      capture is manual and the first was automatic.
+      when the operator captures a finding matching all six identity values —
+      same pull request, external reviewer, reviewed head, finding location,
+      finding title, and finding text — then the existing record is updated in
+      place and no second record for that finding and head exists. This holds
+      when the second capture is manual and the first was automatic.
 - [ ] AC13: Given an affected category outside the documented closed set, when
       the operator captures a finding with it, then the capture is refused and the
       refusal names the accepted categories.
@@ -1011,9 +1016,10 @@ action**, not a capture:
 - [ ] AC25: Given a finding whose location is present but cannot be resolved to a
       file and a line, when the operator captures it, then the capture is **not**
       refused: the record stores the location as given, marks it unresolved, and
-      uses all five identity values so a second finding whose location text or
-      title differs after canonical comparison remains a separate record. Given
-      instead a finding with no location at all, then the capture is refused.
+      uses all six identity values so a second finding whose location text,
+      title, or finding text differs after canonical comparison remains a
+      separate record. Given instead a finding with no location at all, then the
+      capture is refused.
 - [ ] AC26: Given a capture in which the operator supplies a verdict, an intended
       follow-up, or both but no rationale, when the capture runs, then the capture
       is **not** refused: the record is written with the supplied values and no
@@ -1049,9 +1055,9 @@ action**, not a capture:
 - [ ] AC30: Given the same finding entered twice — once read automatically and once
       supplied manually, differing only in how the reviewer was named, how the
       commit identifier was abbreviated, and in letter case and surrounding
-      whitespace in the location and title — when both captures run, then exactly
-      one record exists, and it stores the external reviewer, location, and title
-      as its most recent source gave them.
+      whitespace in the location, title, and finding text — when both captures
+      run, then exactly one record exists, and it stores the external reviewer,
+      location, title, and finding text as its most recent source gave them.
 - [ ] AC31: Given a manual capture supplying a reviewed head that is malformed or
       that names a commit which was never a head of the referenced pull request,
       when the capture runs, then it is refused and no record is written.
@@ -1117,7 +1123,15 @@ action**, not a capture:
       requests, when the operator captures the same reviewer's finding at the
       same location and title on both pull requests, then two separate records
       are written, one per pull request, because the pull request is one of the
-      five identity values.
+      six identity values.
+- [ ] AC41: Given the same reviewer reporting two distinct findings at the same
+      location with the same title on the same pull request and reviewed head,
+      when the operator captures both, then two separate records are written,
+      because their finding text differs and finding text is one of the six
+      identity values. Given instead that a second capture of the same finding
+      supplies finding text differing only by letter case or surrounding
+      whitespace, then the existing record is updated in place rather than a
+      second one being written.
 
 ---
 
@@ -1156,7 +1170,7 @@ one; the spec states only the guarantee it must deliver.
 
 | Deferred decision                                                                                                     | The guarantee the spec requires                                                                                                                                                    |
 | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| How the five identity values are compared so that meaningless differences are ignored                                 | The same finding entered two ways is one record, storing the external reviewer, location, and title as the most recent source gave them, never normalised (AC30)                   |
+| How the six identity values are compared so that meaningless differences are ignored                                  | The same finding entered two ways is one record, storing the external reviewer, location, title, and finding text as the most recent source gave them, never normalised (AC30)     |
 | Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it | The five existing outcome counts keep their meaning; out-of-scope counts, category breakdowns, and the stale-evidence count are additive (AC7)                                     |
 | The exact contents of the published credential refusal list and placeholder list                                      | Both are published and versioned with the workflow, the refusal list recognises at least the six named forms, and the placeholder list holds whole literal values only (AC9, AC18) |
 
@@ -1168,9 +1182,9 @@ one; the spec states only the guarantee it must deliver.
 | Record includes the pull request                                                                    | AC1, AC40                                                                        |
 | Record includes the head SHA                                                                        | AC1, AC8, AC22, AC31, AC36, AC37                                                 |
 | Record includes the reviewer                                                                        | AC1, AC3, AC39                                                                   |
-| Record includes the finding text                                                                    | AC1, AC10, AC11                                                                  |
+| Record includes the finding text                                                                    | AC1, AC10, AC11, AC30, AC41                                                      |
 | Record includes the finding location, resolvable or not                                             | AC1, AC25                                                                        |
-| Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20, AC30                                                 |
+| Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20, AC30, AC41                                           |
 | A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, AC19, AC21, AC22, AC24, AC27, AC35, and Missing And Unreadable Input |
 | Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6, AC26, AC29, AC34                                             |
 | Record includes the affected category                                                               | AC1, AC13, AC23                                                                  |
