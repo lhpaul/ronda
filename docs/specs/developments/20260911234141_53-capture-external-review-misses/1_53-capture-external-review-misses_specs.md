@@ -976,13 +976,16 @@ action**, not a capture:
       rationale at all**, then it is refused and the record is left unchanged —
       the refusal is for the missing rationale, never for the adjudication being
       partial.
-- [ ] AC6: Given **non-stale** records with each verdict, when captured misses are
-      read as review-quality evidence, then True positive records are reported as a
-      Ronda miss, False positive records are reported as Ronda better signal, and Out of
-      scope, Already found, and Unadjudicated records are not reported as confirmed
-      misses. Given instead a record carrying the stale-evidence marker, then it is
-      reported as stale evidence and counted under no verdict outcome, whatever its
-      verdict, until it is re-captured on a shared head.
+- [ ] AC6: Given **non-stale, resolvable** records with each verdict, when
+      captured misses are read as review-quality evidence, then True positive
+      records are reported as a Ronda miss, False positive records are reported
+      as Ronda better signal, and Out of scope, Already found, and Unadjudicated
+      records are not reported as confirmed misses. Given instead a record
+      carrying the stale-evidence marker, then it is reported as stale evidence
+      and counted under no verdict outcome, whatever its verdict, until it is
+      re-captured on a shared head. Given instead a record whose Ronda review is
+      unresolvable at read time, then it is reported as unresolvable evidence
+      and counted under no verdict outcome, whatever its verdict, per AC48.
 - [ ] AC7: Given captured miss records with each verdict, when they are read
       together with Ronda's existing review comparison evidence, then each
       verdict is reported under the mapping in Reported Evidence Mapping, the
