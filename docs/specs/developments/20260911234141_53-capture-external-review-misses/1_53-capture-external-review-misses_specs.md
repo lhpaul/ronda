@@ -377,9 +377,14 @@ alongside existing review comparisons and quality summaries.
   has a record:
   - A verdict or follow-up supplied during capture itself needs no rationale,
     whether that capture writes a new record or updates an existing one in place.
-    The record is written with the supplied values, and any rationale already on
-    the record is preserved rather than cleared, even when the supplied values
-    replace ones a prior human adjudication had set. A capture is
+    The record is written with the supplied values. Any rationale already on
+    the record is preserved when the supplied values leave both the verdict and
+    the intended follow-up unchanged from what the record already carried; when
+    a supplied value **differs** from what an existing record already carries,
+    that field is replaced and the existing rationale is **cleared**, per the
+    merge rule and AC43 — not because a rationale was required at capture time,
+    but because the rationale no longer explains the judgement the record now
+    carries. A capture is
     never the adjudication action merely because the record it writes to already
     existed; it is a later, separate adjudication — setting or revising the
     verdict or follow-up directly on a stored record without re-running capture —
@@ -690,9 +695,8 @@ behave differently.
 The **evidence** fields are all replaced with what this capture read or was
 given: the external reviewer, the finding location, title, and text, the
 affected category, the capture source, the Ronda result head, and the stale
-marker. Refreshing the
-Ronda result head matters — a
-record captured as stale, then re-captured after Ronda has reviewed the record's
+marker. Refreshing the Ronda result head matters — a record captured as stale,
+then re-captured after Ronda has reviewed the record's
 reviewed head, stores the new Ronda result head and has its stale marker
 cleared. The stored heads therefore never contradict the marker. The affected
 category is an evidence field, not a judgement, so a re-capture correcting a
@@ -1160,9 +1164,10 @@ action**, not a capture:
       newly supplied value and the existing rationale is **cleared**, so the
       record never pairs a stored rationale with a judgement it no longer
       explains. This holds symmetrically for the intended follow-up and its
-      rationale. Given instead that the further capture supplies the **same**
-      verdict, the same follow-up, or neither, then the rationale is
-      **preserved** unchanged.
+      rationale. Given instead that the further capture leaves **both** the
+      verdict and the intended follow-up unchanged from what the record already
+      carries — whether by omitting them, by supplying the same values, or any
+      combination of the two — then the rationale is **preserved** unchanged.
 
 ---
 
