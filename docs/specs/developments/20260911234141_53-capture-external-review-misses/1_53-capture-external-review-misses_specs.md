@@ -223,7 +223,8 @@ alongside existing review comparisons and quality summaries.
 **Information shown**:
 
 - Counts of confirmed misses, external-reviewer noise, out-of-scope findings,
-  duplicates, unadjudicated records, and stale evidence.
+  duplicates, unadjudicated records, the unchanged clean-agreement count, and
+  stale evidence.
 - The affected categories that confirmed misses fall into.
 
 **Actions available**:
@@ -831,9 +832,10 @@ action**, not a capture:
       verdict is reported under the mapping in Reported Evidence Mapping, the
       five outcome counts the existing quality summary already reports keep their
       current meaning — including the clean-agreement count, which no captured
-      miss record adds to, subtracts from, or reclassifies — and the out-of-scope count, the affected-category
-      breakdown, and the stale-evidence count are reported as additions rather
-      than by redefining any of those five outcomes.
+      miss record adds to, subtracts from, or reclassifies — and the
+      out-of-scope count, the affected-category breakdown, and the
+      stale-evidence count are reported as additions rather than by
+      redefining any of those five outcomes.
 - [ ] AC8: Given an external finding whose reviewed head differs from the Ronda
       result head, when the operator captures it, then the record names both heads,
       labelling which is the reviewed head and which the Ronda result head, carries
@@ -1012,8 +1014,10 @@ action**, not a capture:
 - [ ] AC34: Given a supplied verdict or intended follow-up that is not one of its
       documented values, when the operator captures the finding, then the capture
       is refused, no record is written, and the refusal names the accepted values
-      for that field. An **omitted** verdict or follow-up is not a refusal; it
-      takes its documented default. Given the same invalid value supplied through
+      for that field. An **omitted** verdict or follow-up is not a refusal: on a
+      newly written record it takes its documented default, and on an update to
+      an existing record it keeps that record's existing value under the merge
+      rule, as AC21 and AC29 state. Given the same invalid value supplied through
       the Use Case 3 adjudication action instead, then the adjudication is refused,
       the record is left unchanged, and the refusal likewise names the accepted
       values.
@@ -1066,7 +1070,7 @@ one; the spec states only the guarantee it must deliver.
 | Deferred decision                                                                                                     | The guarantee the spec requires                                                                                                                                                    |
 | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | How the four identity values are compared so that meaningless differences are ignored                                 | The same finding entered two ways is one record, storing location and title as the most recent source gave them, never normalised (AC30)                                           |
-| Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it | The five existing outcome counts keep their meaning; out-of-scope counts and category breakdowns are additive (AC7)                                                                |
+| Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it | The five existing outcome counts keep their meaning; out-of-scope counts, category breakdowns, and the stale-evidence count are additive (AC7)                                     |
 | The exact contents of the published credential refusal list and placeholder list                                      | Both are published and versioned with the workflow, the refusal list recognises at least the six named forms, and the placeholder list holds whole literal values only (AC9, AC18) |
 
 ## Brief Coverage Matrix
