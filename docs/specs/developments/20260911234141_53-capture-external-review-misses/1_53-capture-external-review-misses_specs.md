@@ -511,13 +511,20 @@ alongside existing review comparisons and quality summaries.
   findings routinely quote the code they point at. "The reviewed source file" and
   "the pull request's diff" elsewhere in this spec mean exactly the files and
   diff named here — the pull request's changed files and diff **as they stood
-  at the reviewed head**, always compared against the merge base of the
-  reviewed head and the pull request's base branch, never against whatever the
-  base branch has since become. This is the ordinary definition of a pull
-  request's diff, and it holds for a reviewed head that is not the pull
-  request's current head exactly as it does for the current head, so a
-  merged pull request, a moved base, or a rewritten base branch history never
-  changes which content an older reviewed head's scan compares against.
+  at the reviewed head**, compared against **the merge base the workflow
+  resolves at the moment of that capture**: the merge-base commit of the
+  reviewed head and the pull request's base branch, resolved once, from the
+  base branch's tip at capture time, and used only for that capture. This is
+  the ordinary definition of a pull request's diff — the same one GitHub
+  itself recomputes fresh each time a diff is viewed — and it holds for a
+  reviewed head that is not the pull request's current head exactly as it does
+  for the current head. It is fully determinate for any one capture: there is
+  exactly one merge-base commit at the instant that capture runs, and nothing
+  about a moved or rewritten base branch leaves that choice ambiguous. Two
+  captures of the identical finding separated in time can legitimately resolve
+  to different merge-base commits, and therefore compare against different
+  diff content, if the base branch moved between them — that is expected of a
+  freshly computed PR diff, not an unresolved ambiguity in this rule.
 
 - Finding text is stored up to a limit of 2,000 characters. Text beyond that
   limit is truncated and the record shows that truncation happened, so a long
@@ -1381,13 +1388,17 @@ action**, not a capture:
       to belong to the reviewed head itself, because Ronda published none
       there.
 - [ ] AC54: Given a manually supplied reviewed head that is not the pull
-      request's current head, and whose base has since moved or been
-      rewritten, when the source/diff scan runs against that reviewed head,
-      then it compares against the pull request's changed files and diff as
-      they stood at that reviewed head — the merge base of that reviewed
-      head and the pull request's base branch — never against the current
-      base, so the same finding text is refused or accepted the same way
-      regardless of what the base branch has since become.
+      request's current head, when the source/diff scan runs against that
+      reviewed head, then it compares against the pull request's changed
+      files and diff as they stood at that reviewed head, using the
+      merge-base commit of that reviewed head and the pull request's base
+      branch resolved once, from the base branch's tip at that capture, for
+      that capture only — determinate for the capture even if the base branch
+      has since moved or been rewritten. Given that the same finding is
+      captured again after the base branch has moved, then the scan resolves
+      a fresh merge-base commit for that later capture, and the two captures'
+      refusal decisions may legitimately differ if the diff content between
+      the two merge-base commits differs.
 
 ---
 
