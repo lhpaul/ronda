@@ -67,7 +67,12 @@ alongside existing review comparisons and quality summaries.
 
 **Actions available**:
 
-- Capture every reported finding, or only selected findings.
+- Capture the reported findings. Automatic capture always takes every finding
+  the reviewer reported on the head through the Capture Decision Gate; the
+  operator cannot select a subset. A finding the operator does not consider a
+  miss is captured and then adjudicated (for example as a false positive, out of
+  scope, or no action) rather than left out, so no reported finding is silently
+  dropped from the evidence.
 - Supply the verdict, category, and intended follow-up at capture time.
 - Leave the verdict unadjudicated for a later human pass.
 - Re-run capture on the same head to correct a record.
@@ -872,8 +877,9 @@ action**, not a capture:
       when the operator captures a finding whose finding location or finding
       title differs from it after canonical comparison, then a second, separate
       record is written rather than the first being overwritten.
-- [ ] AC16: Given a named external reviewer that has published on the pull
-      request but nothing on its current head, when the operator runs an
+- [ ] AC16: Given that the named external reviewer is the Codex GitHub reviewer
+      automatic reading supports, and it has published on the pull request but
+      nothing on its current head, when the operator runs an
       **automatic** capture,
       then no record is written, the result is reported as success with nothing to
       capture, and the head that was checked is named.
