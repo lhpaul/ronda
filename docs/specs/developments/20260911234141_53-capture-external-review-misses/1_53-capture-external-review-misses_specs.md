@@ -488,21 +488,20 @@ alongside existing review comparisons and quality summaries.
   carrying the reviewed source file's contents or the pull request's diff —
   every stored free-text field and the adjudication rationale alike — the test is
   exactly this, and nothing else:
-  - The text contains a diff header or hunk marker: a line, once its leading
-    Markdown block-quote markers (`>`) and leading whitespace are stripped,
-    beginning `diff --git`, beginning `@@`, or beginning `--- ` immediately
-    followed by a line stripped the same way and beginning `+++ `. Stripping
-    quoting and indentation before this check is what keeps a diff hunk pasted
-    into a block quote or an indented code block from evading it.
+  - The text contains a diff header or hunk marker: a line beginning
+    `diff --git`, beginning `@@`, or beginning `--- ` immediately followed by a
+    line beginning `+++ `. This check is not defeated by presenting the marker
+    inside ordinary Markdown quoting (a block quote) or code-block
+    indentation — the implementation plan specifies how quoting and
+    indentation are recognised and stripped before matching.
   - Or the text contains **more than five consecutive non-blank lines** that
     appear, in the same order and consecutively, in any file the pull request
     changes as that file stands at the reviewed head, or in the pull request's
-    diff at the reviewed head. Lines are compared with leading Markdown
-    block-quote markers (`>`) and leading and trailing whitespace ignored and,
-    for diff lines, the leading `+`, `-`, or space marker ignored. Stripping
-    quoting and indentation before this comparison is what keeps a quoted or
-    indented excerpt from evading the five-consecutive-lines count the same
-    way stripping keeps a hunk marker from evading the check above.
+    diff at the reviewed head. Lines are compared with leading and trailing
+    whitespace ignored and, for diff lines, the leading `+`, `-`, or space
+    marker ignored. This comparison, too, is not defeated by presenting the
+    quoted lines inside a block quote or an indented code block, for the same
+    reason.
 
   A quoted excerpt of **five or fewer** consecutive such lines, a single line, an
   identifier, or a file path is allowed and is not refused, because external
@@ -1392,11 +1391,12 @@ because they have no product-visible consequence and pinning them in a product
 contract would state design rather than requirements. The plan must specify each
 one; the spec states only the guarantee it must deliver.
 
-| Deferred decision                                                                                                     | The guarantee the spec requires                                                                                                                                                    |
-| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| How the six identity values are compared so that meaningless differences are ignored                                  | The same finding entered two ways is one record, storing the external reviewer, location, title, and finding text as the most recent source gave them, never normalised (AC30)     |
-| Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it | The five existing outcome counts keep their meaning; out-of-scope counts, category breakdowns, the stale-evidence count, and the unresolvable-evidence count are additive (AC7)    |
-| The exact contents of the published credential refusal list and placeholder list                                      | Both are published and versioned with the workflow, the refusal list recognises at least the six named forms, and the placeholder list holds whole literal values only (AC9, AC18) |
+| Deferred decision                                                                                                                    | The guarantee the spec requires                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| How the six identity values are compared so that meaningless differences are ignored                                                 | The same finding entered two ways is one record, storing the external reviewer, location, title, and finding text as the most recent source gave them, never normalised (AC30)                                                                                  |
+| Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it                | The five existing outcome counts keep their meaning; out-of-scope counts, category breakdowns, the stale-evidence count, and the unresolvable-evidence count are additive (AC7)                                                                                 |
+| The exact contents of the published credential refusal list and placeholder list                                                     | Both are published and versioned with the workflow, the refusal list recognises at least the six named forms, and the placeholder list holds whole literal values only (AC9, AC18)                                                                              |
+| How Markdown quoting and code-block indentation are recognised and stripped before the diff-marker and five-consecutive-lines checks | A diff hunk, and an excerpt exceeding five consecutive matching lines, are refused whether presented plainly, inside a block quote, or indented, exactly alike; a plain excerpt of five or fewer such lines is never refused for this reason (AC38, AC49, AC50) |
 
 ## Brief Coverage Matrix
 
