@@ -42,10 +42,13 @@ alongside existing review comparisons and quality summaries.
 2. The workflow resolves the pull request's current head and reads the external
    reviewer's findings published against that head.
 3. The workflow presents each external finding it found and asks the operator to
-   confirm the affected category and, when the operator has already judged the
-   finding, the verdict and the intended follow-up. Not having judged it yet is
-   the ordinary case: both then take their defaults of Unadjudicated and
-   Undecided.
+   supply the affected category — required on this path exactly as on manual
+   entry, because no external reviewer publishes one — and, when the operator
+   has already judged the finding, the verdict and the intended follow-up. Not
+   having judged it yet is the ordinary case: both then take their defaults of
+   Unadjudicated and Undecided. A capture whose operator supplies no category
+   when asked is refused under condition 7, exactly as an omitted category
+   refuses manual entry.
 4. The workflow runs the Capture Decision Gate on every finding from step 3 and
    writes one miss record for each finding the gate does not refuse.
 
@@ -231,14 +234,17 @@ alongside existing review comparisons and quality summaries.
   still unadjudicated are not counted as confirmed misses.
 - Records carrying the stale-evidence marker are reported as stale evidence
   rather than counted under any outcome above, whatever their verdict.
+- Records whose Ronda review is unresolvable at read time are reported as
+  unresolvable evidence rather than counted under any outcome above, whatever
+  their verdict.
 - The existing clean-agreement count is shown unchanged: no captured miss
   record adds to or subtracts from it.
 
 **Information shown**:
 
 - Counts of confirmed misses, external-reviewer noise, out-of-scope findings,
-  duplicates, unadjudicated records, the unchanged clean-agreement count, and
-  stale evidence.
+  duplicates, unadjudicated records, the unchanged clean-agreement count, stale
+  evidence, and unresolvable evidence.
 - The affected categories that confirmed misses fall into.
 
 **Actions available**:
@@ -318,6 +324,15 @@ alongside existing review comparisons and quality summaries.
   against that existing, independently durable review output at read time; if
   Ronda's review for that head is no longer resolvable, the captured miss record
   itself is unaffected and continues to name the head it was captured against.
+  A record whose Ronda review is unresolvable at read time is reported as
+  **unresolvable evidence**. Unlike the stale marker, this is never stored on
+  the record — resolvability is a property of Ronda's own review, checked fresh
+  on every read, not a fact the workflow can capture and hold — so it can never
+  co-occur with the stale marker for the same read: staleness requires Ronda to
+  have a result, only on a different head, while unresolvability requires no
+  result to be found at all. It is counted under no verdict outcome, whatever
+  the verdict, and a later read reports the same record normally once Ronda's
+  review resolves again, with no re-capture needed.
 - Automatic capture reads findings published by the **Codex GitHub reviewer**,
   the only reviewer automatic reading supports in this iteration. Naming a
   different reviewer on the automatic path is refused under Stage 1 condition 4 —
@@ -333,9 +348,13 @@ alongside existing review comparisons and quality summaries.
 - Those eleven record fields divide into two kinds, and the distinction decides
   whether an omission refuses the capture:
   - **Required inputs** — the external reviewer, the finding location, the
-    finding text, and the affected category. Automatic capture reads them; manual
-    entry must supply them. If any one is absent, the capture is refused and no
-    record is written.
+    finding text, and the affected category. Automatic capture reads the
+    reviewer, location, and text from the reviewer's own output; manual entry
+    supplies all four directly. The affected category is the one required input
+    no external reviewer publishes, so on **either** path it is supplied by the
+    operator — confirmed during automatic capture (Use Case 1 step 3) or entered
+    directly during manual capture (Use Case 2). If any one of the four is
+    absent, the capture is refused and no record is written.
     - The finding location is required as the **pointer the reviewer gave**, not
       as a pointer that resolves. A location that is present but cannot be
       resolved to a file and a line satisfies the required input; the record
@@ -570,7 +589,10 @@ alongside existing review comparisons and quality summaries.
   and the record is left unchanged, when its verdict or intended follow-up is
   not at its default — once a human judgement has been set, whether supplied
   at capture time or through the adjudication action, the record is corrected
-  through the adjudication action, never erased. This is how the workflow
+  through the adjudication action, never erased. No adjudication or capture ever
+  sets a verdict back to Unadjudicated or a follow-up back to Undecided (see the
+  transition rules below), so a record a human has judged can never become
+  deletion-eligible again. This is how the workflow
   corrects a mistake in an identity-bearing field — the location, the finding
   title, the finding text, the reviewed head, or the external reviewer — none
   of which an update in place can change without creating a second record.
@@ -642,17 +664,22 @@ look".
 Captured misses are read alongside Ronda's existing review comparison evidence.
 Each verdict is reported under exactly one outcome.
 
-**Only non-stale records take part in this mapping.** A record whose reviewed
-head differs from its Ronda result head is reported as stale evidence and counted
-under no outcome below, whatever its verdict — the comparison it would support is
-not valid across two different heads. Re-capturing it on a shared head clears the
-marker and admits it to the mapping.
+**Only non-stale, resolvable records take part in this mapping.** A record
+whose reviewed head differs from its Ronda result head is reported as stale
+evidence and counted under no outcome below, whatever its verdict — the
+comparison it would support is not valid across two different heads.
+Re-capturing it on a shared head clears the marker and admits it to the
+mapping. A record whose Ronda review cannot be resolved at read time is
+reported as unresolvable evidence and likewise counted under no outcome below,
+whatever its verdict — there is no Ronda result left to compare the finding
+against — and returns to the mapping on a later read once Ronda's review
+resolves again.
 
 | Verdict        | Reported as                                                              |
 | -------------- | ------------------------------------------------------------------------ |
 | True positive  | Ronda miss                                                               |
-| False positive | Ronda better                                                             |
-| Already found  | Duplicate                                                                |
+| False positive | Ronda better signal                                                      |
+| Already found  | Duplicate finding                                                        |
 | Unadjudicated  | Unclear                                                                  |
 | Out of scope   | Out of scope, reported distinctly and never folded into an outcome above |
 
@@ -674,6 +701,11 @@ Three product requirements govern this mapping:
   separately from the five outcomes and from the out-of-scope count, never
   folds into any of them, and shrinks only when a stale record is re-captured
   on a shared head.
+- The unresolvable-evidence count is likewise an **addition**: it is reported
+  separately from the five outcomes, the out-of-scope count, and the
+  stale-evidence count, never folds into any of them, and rises and falls only
+  with whether Ronda's review for a record's Ronda result head resolves on a
+  given read, never with any change to the record itself.
 
 Whether these additions are carried by extending the shared evidence contract or
 by projecting miss records into it is an implementation-plan decision, not a
@@ -792,10 +824,14 @@ capture rules, which never require a rationale:
 - `unadjudicated` → `true_positive`, `false_positive`, `out_of_scope`, or
   `already_found` when the operator records a verdict through adjudication,
   supplying a rationale.
-- Any verdict → any other verdict when the operator revises it through
-  adjudication, supplying a rationale.
+- Any verdict → any **other non-default** verdict when the operator revises it
+  through adjudication, supplying a rationale. Adjudication never sets a verdict
+  back to `unadjudicated`: once a human has judged a finding, that judgement is
+  revised, never withdrawn back to no judgement, which is what keeps a record
+  ineligible for deletion once a human has acted on it.
 - Any verdict → any other verdict, with no rationale required, when a capture
-  supplies a different verdict for that record.
+  supplies a different verdict for that record. This too never sets a verdict to
+  `unadjudicated` — a capture only ever supplies one of the four judged values.
 
 ### Intended follow-up
 
@@ -813,10 +849,13 @@ action**, not a capture:
 - `undecided` → `eval_record`, `prompt_change`, `backlog_item`, or `no_action`
   when the operator chooses the follow-up through adjudication, supplying a
   rationale.
-- Any follow-up → any other follow-up when the operator revises it through
-  adjudication, supplying a rationale.
-- Any follow-up → any other follow-up, with no rationale required, when a capture
-  supplies a different follow-up for that record.
+- Any follow-up → any **other non-default** follow-up when the operator revises
+  it through adjudication, supplying a rationale. Adjudication never sets a
+  follow-up back to `undecided`, symmetrically with the verdict rule above.
+- Any follow-up → any other follow-up, with no rationale required, when a
+  capture supplies a different follow-up for that record. This too never sets a
+  follow-up to `undecided` — a capture only ever supplies one of the four chosen
+  values.
 
 ### Affected category
 
@@ -935,7 +974,7 @@ action**, not a capture:
       partial.
 - [ ] AC6: Given **non-stale** records with each verdict, when captured misses are
       read as review-quality evidence, then True positive records are reported as a
-      Ronda miss, False positive records are reported as Ronda better, and Out of
+      Ronda miss, False positive records are reported as Ronda better signal, and Out of
       scope, Already found, and Unadjudicated records are not reported as confirmed
       misses. Given instead a record carrying the stale-evidence marker, then it is
       reported as stale evidence and counted under no verdict outcome, whatever its
@@ -946,9 +985,9 @@ action**, not a capture:
       five outcome counts the existing quality summary already reports keep their
       current meaning — including the clean-agreement count, which no captured
       miss record adds to, subtracts from, or reclassifies — and the
-      out-of-scope count, the affected-category breakdown, and the
-      stale-evidence count are reported as additions rather than by
-      redefining any of those five outcomes.
+      out-of-scope count, the affected-category breakdown, the stale-evidence
+      count, and the unresolvable-evidence count are reported as additions
+      rather than by redefining any of those five outcomes.
 - [ ] AC8: Given an external finding whose reviewed head differs from the Ronda
       result head, when the operator captures it, then the record names both heads,
       labelling which is the reviewed head and which the Ronda result head, carries
@@ -1210,6 +1249,23 @@ action**, not a capture:
       follow-up is not Undecided, when the operator attempts to delete it, then
       the deletion is refused, the record is left unchanged, and the refusal
       directs the operator to the adjudication action instead.
+- [ ] AC46: Given an automatic capture in which the workflow asks the operator
+      to supply the affected category, when the operator supplies none, then the
+      capture is refused under Missing And Unreadable Input condition 7, exactly
+      as an omitted category refuses manual entry.
+- [ ] AC47: Given a record carrying a human-set verdict, an intended follow-up,
+      or both, when the operator adjudicates either field again, then the new
+      value is never Unadjudicated or Undecided respectively — adjudication
+      revises a judgement, it never withdraws one back to no judgement — so a
+      record a human has judged can never satisfy AC44's deletion condition
+      again.
+- [ ] AC48: Given a captured miss record whose Ronda result head names a Ronda
+      review that can no longer be resolved, when captured misses are read
+      alongside existing quality evidence, then the record is reported as
+      unresolvable evidence, counted under no verdict outcome. Given that a
+      later read finds that same Ronda review resolvable again, then the record
+      is reported under its ordinary mapping outcome on that read, with no
+      re-capture required.
 
 ---
 
@@ -1249,7 +1305,7 @@ one; the spec states only the guarantee it must deliver.
 | Deferred decision                                                                                                     | The guarantee the spec requires                                                                                                                                                    |
 | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | How the six identity values are compared so that meaningless differences are ignored                                  | The same finding entered two ways is one record, storing the external reviewer, location, title, and finding text as the most recent source gave them, never normalised (AC30)     |
-| Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it | The five existing outcome counts keep their meaning; out-of-scope counts, category breakdowns, and the stale-evidence count are additive (AC7)                                     |
+| Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it | The five existing outcome counts keep their meaning; out-of-scope counts, category breakdowns, the stale-evidence count, and the unresolvable-evidence count are additive (AC7)    |
 | The exact contents of the published credential refusal list and placeholder list                                      | Both are published and versioned with the workflow, the refusal list recognises at least the six named forms, and the placeholder list holds whole literal values only (AC9, AC18) |
 
 ## Brief Coverage Matrix
