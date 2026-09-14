@@ -254,7 +254,11 @@ alongside existing review comparisons and quality summaries.
     compared against. The workflow always resolves it and the operator never
     supplies it. It resolves to the record's **own reviewed head** when Ronda has
     published a result for that head, and only otherwise to the most recent head
-    on the pull request for which Ronda has published a result.
+    on the pull request for which Ronda has published a result. "Most recent" is
+    decided by the order in which heads were pushed to the pull request — the head
+    pushed last wins — never by commit timestamp and never by when Ronda
+    published its result, so a result Ronda publishes late for an older head
+    does not displace the result for a head pushed after it.
   - Resolving it against the record's own reviewed head first is what makes
     staleness meaningful and clearable. A record is stale exactly when Ronda has
     published no result for the head the finding was read from, so comparing the
@@ -415,6 +419,26 @@ alongside existing review comparisons and quality summaries.
   credential refusal list, the capture is
   refused either way, and the reported reason is the first applicable entry in
   the refusal precedence list.
+- **What counts as source or diff content.** Wherever this spec refuses text for
+  carrying the reviewed source file's contents or the pull request's diff —
+  every stored free-text field and the adjudication rationale alike — the test is
+  exactly this, and nothing else:
+  - The text contains a diff header or hunk marker: a line beginning
+    `diff --git`, a line beginning `@@`, or a line beginning `--- ` immediately
+    followed by a line beginning `+++ `.
+  - Or the text contains **more than five consecutive non-blank lines** that
+    appear, in the same order and consecutively, in any file the pull request
+    changes as that file stands at the reviewed head, or in the pull request's
+    diff at the reviewed head. Lines are compared with leading and trailing
+    whitespace ignored and, for diff lines, the leading `+`, `-`, or space
+    marker ignored.
+
+  A quoted excerpt of **five or fewer** consecutive such lines, a single line, an
+  identifier, or a file path is allowed and is not refused, because external
+  findings routinely quote the code they point at. "The reviewed source file" and
+  "the pull request's diff" elsewhere in this spec mean exactly the files and
+  diff named here.
+
 - Finding text is stored up to a limit of 2,000 characters. Text beyond that
   limit is truncated and the record shows that truncation happened, so a long
   reviewer comment can never silently pull a large body of source into the
@@ -455,7 +479,8 @@ alongside existing review comparisons and quality summaries.
 - **Incidental differences in how the same finding was entered never produce two
   records.** Comparing the four identity values ignores exactly these four kinds
   of difference and no others:
-  - how a reviewer was named, as opposed to which reviewer it is;
+  - how a reviewer was named, as opposed to which reviewer it is, resolved only
+    as the reviewer identity rule below states;
   - how a commit identifier was abbreviated;
   - letter case, in the finding location and finding title;
   - leading, trailing, or repeated whitespace, in the finding location and
@@ -468,6 +493,20 @@ alongside existing review comparisons and quality summaries.
   never normalises what is stored, and a matching re-capture replaces the stored
   spelling with its own as part of refreshing the record's evidence fields. The implementation plan specifies how the comparison
   achieves this.
+
+- **Reviewer identity.** Automatic capture identifies the Codex GitHub reviewer
+  by its GitHub login, `chatgpt-codex-connector[bot]`. The following names are
+  the complete, closed list of aliases that identify that same reviewer, compared
+  with letter case and leading and trailing whitespace ignored:
+  `chatgpt-codex-connector[bot]`, `chatgpt-codex-connector`, `codex-github`, and
+  `codex`. Any other reviewer name identifies a reviewer of its own and matches
+  another name only when the two are identical with letter case and leading and
+  trailing whitespace ignored. No other alias, display name, or similarity rule
+  makes two reviewer names the same reviewer, and the alias list changes only by
+  changing this spec. The same list decides support on the automatic path:
+  naming any alias on it names the Codex GitHub reviewer automatic reading
+  supports, and naming any other reviewer is the unsupported-reviewer case of
+  Stage 1 condition 4.
 
 - A finding whose location is present but cannot be resolved to a file and a
   line is identified by external reviewer, reviewed head, the location text as
@@ -1031,6 +1070,27 @@ action**, not a capture:
       head and the operator re-captures the finding, then the record's Ronda result
       head resolves to its reviewed head, the stale marker is cleared, and the
       record becomes eligible for the Reported Evidence Mapping.
+- [ ] AC37: Given a pull request whose heads were pushed in the order A, B, C,
+      with Ronda results published for A and B, where the result for A was
+      published after the result for B, when the operator captures a finding
+      whose reviewed head is C, then the record's Ronda result head is B, because
+      B was pushed after A, and the record carries the stale-evidence marker
+      naming C and B.
+- [ ] AC38: Given a finding text that quotes five consecutive non-blank lines
+      from a file the pull request changes at the reviewed head, when the operator
+      captures it, then the capture is **not** refused for source or diff content.
+      Given instead a finding text quoting six such consecutive lines, or one
+      containing a line beginning `@@`, a line beginning `diff --git`, or a line
+      beginning `--- ` immediately followed by a line beginning `+++ `, then the
+      capture is refused and the refusal names the finding text as carrying source
+      or diff content. The same thresholds apply to every other stored free-text
+      field and to an adjudication rationale.
+- [ ] AC39: Given a finding captured automatically from
+      `chatgpt-codex-connector[bot]`, when the same finding on the same reviewed
+      head is then captured manually naming the reviewer as `Codex`, then exactly
+      one record exists. Given instead that the manual capture names the reviewer
+      as `Codex Bot`, which is not on the alias list, then a second, separate
+      record is written.
 
 ---
 
@@ -1079,8 +1139,8 @@ one; the spec states only the guarantee it must deliver.
 | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | Repeatable workflow for recording external-review findings Ronda missed                             | Use Cases 1-3, AC1, AC3, AC14, AC27                                              |
 | Record includes the pull request                                                                    | AC1                                                                              |
-| Record includes the head SHA                                                                        | AC1, AC8, AC22, AC31, AC36                                                       |
-| Record includes the reviewer                                                                        | AC1, AC3                                                                         |
+| Record includes the head SHA                                                                        | AC1, AC8, AC22, AC31, AC36, AC37                                                 |
+| Record includes the reviewer                                                                        | AC1, AC3, AC39                                                                   |
 | Record includes the finding text                                                                    | AC1, AC10, AC11                                                                  |
 | Record includes the finding location, resolvable or not                                             | AC1, AC25                                                                        |
 | Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20, AC30                                                 |
@@ -1092,6 +1152,6 @@ one; the spec states only the guarantee it must deliver.
 | Records preserve current-head evidence                                                              | AC1, AC8                                                                         |
 | Records distinguish true positives, false positives, and out-of-scope findings                      | AC5, AC6, AC7, and the Verdict enum                                              |
 | Captured misses can feed the existing review comparison / quality summary tooling                   | Use Case 4, AC6, AC7, and Reported Evidence Mapping                              |
-| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11, AC18, AC28, AC32, AC33                                          |
+| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11, AC18, AC28, AC32, AC33, AC38                                    |
 
 No brief objective is deferred to Out of Scope, so there are no deferral notes.
