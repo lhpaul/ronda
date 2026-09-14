@@ -953,9 +953,10 @@ action**, not a capture:
       "record written" or "record updated in place" — and matches the capture
       command's own help output.
 - [ ] AC15: Given a record that already exists for a finding on a reviewed head,
-      when the operator captures a finding whose finding location or finding
-      title differs from it after canonical comparison, then a second, separate
-      record is written rather than the first being overwritten.
+      when the operator captures a finding whose finding location, finding
+      title, or finding text differs from it after canonical comparison, then a
+      second, separate record is written rather than the first being
+      overwritten.
 - [ ] AC16: Given that the named external reviewer is the Codex GitHub reviewer
       automatic reading supports, and it has published on the pull request but
       nothing on its current head, when the operator runs an
