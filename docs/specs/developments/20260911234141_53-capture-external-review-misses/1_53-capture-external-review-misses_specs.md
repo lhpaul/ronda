@@ -84,11 +84,13 @@ alongside existing review comparisons and quality summaries.
 - Leave the verdict unadjudicated for a later human pass.
 - Re-run capture on the same head to correct the affected category, the
   verdict, or the intended follow-up on an existing record.
-- Delete a record whose verdict is still Unadjudicated and whose intended
-  follow-up is still Undecided, then capture it again to correct a mistake in
-  the location, the finding title, the finding text, the reviewed head, or the
-  external reviewer, because those fields participate in finding identity and
-  an update in place cannot change them without creating a second record.
+- Delete a record captured in error whose verdict is still Unadjudicated and
+  whose intended follow-up is still Undecided. Re-running capture on the same
+  source, not deletion, is how an automatically captured record's location,
+  finding title, finding text, or external reviewer is corrected, because none
+  of those fields participates in source-based identity — only the pull
+  request and the source identifier do, and re-capturing the same source
+  updates the existing record in place.
 
 **Considerations**:
 
@@ -268,9 +270,13 @@ alongside existing review comparisons and quality summaries.
 - A record involves **two distinct heads**, and every rule below names which one
   it means:
   - The **reviewed head** is the head the external finding's evidence belongs to.
-    It is the head the record is evidence _about_, the head that participates in
-    finding identity and in "each distinct finding identity has at most one
-    record".
+    It is the head the record is evidence _about_. For a content-based
+    (manual) record it also participates in finding identity and in "each
+    distinct finding identity has at most one record" below; for a
+    source-based (automatic) record it does not — only the pull request and
+    the source identifier participate in source-based identity, so the
+    reviewed head is an evidence field there, refreshed whenever the same
+    source is re-captured.
     Automatic capture reads it from the reviewer's evidence; manual entry lets the
     operator supply it and otherwise defaults it to the pull request's current
     head.
@@ -291,8 +297,10 @@ alongside existing review comparisons and quality summaries.
     result head to that head and clears the marker. Were the Ronda result head
     always the newest reviewed head, a record on an older head could never stop
     being stale — re-capturing it would still compare against the newer result,
-    and capturing the newer head would create a different record, because the
-    reviewed head participates in identity.
+    and capturing the newer head would create a different record either way — a
+    different reviewed head is a content-based identity value, and a newly
+    published review or comment on that newer head carries a different source
+    identifier.
   - The two are equal in the ordinary case. When they differ, the record carries
     the stale-evidence marker and names both. Neither the stale marker nor the
     Ronda result head ever participates in identity, so re-capturing a stale
@@ -317,7 +325,10 @@ alongside existing review comparisons and quality summaries.
 - A miss record always names the pull request, the reviewed head, the Ronda
   result head, the external reviewer, the finding location, the finding title,
   the finding text, the verdict, the affected category, the intended follow-up,
-  and the capture source. A record missing any of these is not written.
+  the capture source, and the source identifier. A record missing any of these
+  is not written; the source identifier's value is an identifier on an
+  automatically captured record and is explicitly none on a manually entered
+  one, per the source identifier rule below.
 - **The Ronda result head is a reference, not a copy.** A miss record names
   which Ronda review result it is evidence against; it never stores Ronda's own
   result or Ronda's own findings. Ronda's review results are already durable —
@@ -356,12 +367,43 @@ alongside existing review comparisons and quality summaries.
   on the pull request — and the refusal directs the operator to manual entry,
   which accepts any reviewer name. This is an ordinary refusal, not a fifth gate
   outcome, so the four-outcome model still holds.
-- The capture source records whether the finding was read from the pull request
-  or supplied by the operator. When a re-capture updates a record in place from a
-  different source than the one that created it, the capture source becomes the
-  source of the most recent capture, because it describes how the record's
-  current evidence got there.
-- Those eleven record fields divide into two kinds, and the distinction decides
+- The capture source records whether the finding was read from the pull
+  request or supplied by the operator, and is fixed for the life of a record.
+  Because content-based and source-based identity never match each other, an
+  update in place is always reached from the same capture source that created
+  the record — an automatically captured record is only ever updated by a
+  later automatic capture of the same source identifier, and a manually
+  entered record is only ever updated by a later manual entry matching all six
+  content-based identity values — so the capture source never changes on an
+  existing record.
+- **Two identity kinds.** A record's identity kind is fixed by its capture
+  source and never changes:
+  - A record captured on the **automatic** path has **source-based
+    identity** — the pull request and the **source identifier**: the
+    identifier of the published review or review comment the finding was read
+    from, plus the finding's position within it when that review or comment
+    carries more than one finding. The external reviewer, reviewed head,
+    finding location, finding title, and finding text do not participate in
+    source-based identity; they are evidence fields, refreshed whenever the
+    same source is re-captured, for example after the reviewer edits the
+    comment's wording or the location or title changes.
+  - A record captured on the **manual** path has **content-based identity** —
+    the same six values this spec has always used: the pull request, the
+    external reviewer, the reviewed head, the finding location, the finding
+    title, and the finding text, compared under the ignored-difference rules
+    below.
+  - **Manual entry never carries a source identifier**, so a source-based
+    record and a content-based record never match each other, even when they
+    describe what is, to a human reader, the same underlying finding. A
+    manual entry of a finding already captured automatically always writes a
+    separate manual record; that manual record can be deleted while it is
+    still unadjudicated, exactly as any other record can be.
+- **The source identifier** is recorded on an automatically captured record
+  and is explicitly **none** on a manually entered one. It is set once, when
+  the record is written, from the published review or comment the finding was
+  read from; it never changes on an update in place, because it is identity,
+  not evidence, and it is never supplied by the operator on either path.
+- Those twelve record fields divide into two kinds, and the distinction decides
   whether an omission refuses the capture:
   - **Required inputs** — the external reviewer, the finding location, the
     finding text, and the affected category. Automatic capture reads the
@@ -379,7 +421,10 @@ alongside existing review comparisons and quality summaries.
       finding that cannot be mapped to a commentable diff line still carries its
       path.
   - **Derived or defaulted fields** — the capture source (set by the workflow
-    from the path in use, never supplied by the operator), the pull request and
+    from the path in use, never supplied by the operator), the source
+    identifier (set by the workflow from the published review or comment on
+    the automatic path, and always none on the manual path, never supplied by
+    the operator on either path), the pull request and
     the Ronda result head
     (both resolved by the workflow), the reviewed head (read from the reviewer's
     evidence, or supplied by the operator, defaulting to the pull request's
@@ -557,23 +602,31 @@ alongside existing review comparisons and quality summaries.
   therefore fails closed toward refusing, never toward storing. The capture is
   refused, the refusal names the matched form, and the operator can re-capture
   with the offending text removed.
-- Two captured findings are the **same finding** when all six of these match:
-  the pull request, the external reviewer, the reviewed head, the finding
-  location, the finding title, and the finding text. A difference in any of the
-  six makes them separate findings — including the same commit reviewed as the
-  head of two different pull requests, which is two separate findings even when
-  the reviewer, location, and title are identical, and including two findings
-  the same reviewer reports at the same location with the same title, which are
+- Two **manually entered** findings are the **same finding** — matching
+  **content-based identity** — when all six of these match: the pull request,
+  the external reviewer, the reviewed head, the finding location, the finding
+  title, and the finding text. A difference in any of the six makes them
+  separate findings — including the same commit reviewed as the head of two
+  different pull requests, which is two separate findings even when the
+  reviewer, location, and title are identical, and including two findings the
+  same reviewer reports at the same location with the same title, which are
   two separate findings whenever their finding text differs, so neither is
-  silently discarded. The rule is identical for automatically read and manually
-  supplied findings, so manually re-entering an automatically captured finding
-  updates that record instead of creating a second one. Identity compares
-  finding text in full, before truncation, exactly as the other pre-truncation
-  scans in this spec do, so two findings that would truncate to the same stored
-  text are still told apart by what came after the 2,000-character boundary.
-- **Incidental differences in how the same finding was entered never produce two
-  records.** Comparing the six identity values ignores exactly these four kinds
-  of difference and no others:
+  silently discarded. Two **automatically captured** findings are the same
+  finding — matching **source-based identity** — when they share the pull
+  request and the source identifier, per the source identifier rule above;
+  none of the six content-based values above participates in that comparison.
+  Because manual entry never carries a source identifier, a manually entered
+  finding and an automatically captured finding never match each other,
+  however similar their content: manually re-entering a finding already
+  captured automatically writes a separate manual record rather than updating
+  the automatic one. Content-based identity compares finding text in full,
+  before truncation, exactly as the other pre-truncation scans in this spec
+  do, so two findings that would truncate to the same stored text are still
+  told apart by what came after the 2,000-character boundary.
+- **Incidental differences in how the same manually entered finding was
+  entered never produce two records.** Comparing the six content-based
+  identity values ignores exactly these four kinds of difference and no
+  others:
   - how a reviewer was named, as opposed to which reviewer it is, resolved only
     as the reviewer identity rule below states;
   - how a commit identifier was abbreviated;
@@ -585,9 +638,9 @@ alongside existing review comparisons and quality summaries.
   - leading, trailing, or repeated whitespace, in the finding location, finding
     title, and finding text.
 
-  Any other difference in any of the six identity values makes two separate
-  findings. The list is closed, so an implementer never has to judge whether some
-  further difference is meaningful. Each record stores the
+  Any other difference in any of the six content-based identity values makes
+  two separate findings. The list is closed, so an implementer never has to
+  judge whether some further difference is meaningful. Each record stores the
   external reviewer, location, title, and finding text exactly as its most
   recent source gave them: the comparison never normalises what is stored, and a
   matching re-capture replaces the stored spelling with its own as part of
@@ -608,16 +661,26 @@ alongside existing review comparisons and quality summaries.
   supports, and naming any other reviewer is the unsupported-reviewer case of
   Stage 1 condition 4.
 
-- A finding whose location is present but cannot be resolved to a file and a
-  line is identified by pull request, external reviewer, reviewed head, the
-  location text as given, finding title, and finding text. Its record states
-  that the location is unresolved. Identity still uses all six values, so an
-  unresolved location never collapses two distinct findings into one record.
-- **Each distinct finding identity has at most one record.** A pull request and
-  reviewed head can hold several records at once — one per distinct finding
-  identity reported against it — but capturing the same finding (all six
-  identity values matching) on the same pull request and reviewed head again
-  updates that one existing record instead of creating a second one.
+- A **manually entered** finding whose location is present but cannot be
+  resolved to a file and a line is identified by pull request, external
+  reviewer, reviewed head, the location text as given, finding title, and
+  finding text — its content-based identity is unaffected. Its record states
+  that the location is unresolved. Identity still uses all six content-based
+  values, so an unresolved location never collapses two distinct findings into
+  one record. An **automatically captured** finding whose location cannot be
+  resolved is identified the same way as any other automatically captured
+  finding — by the pull request and the source identifier — because the
+  location never participates in source-based identity; the record likewise
+  states that the location is unresolved.
+- **Each distinct finding identity has at most one record, whichever kind that
+  identity is.** A pull request can hold several records at once — one per
+  distinct source-based identity and one per distinct content-based identity
+  reported against it — but capturing again against an existing identity
+  updates that one record instead of creating a second one: an automatic
+  re-capture sharing the pull request and source identifier, or a manual entry
+  matching all six content-based identity values. An identity kind never
+  changes for an existing record, so a re-capture never crosses from one kind
+  to the other.
 - **Deleting an erroneous record.** An operator may delete a record whose
   verdict is still Unadjudicated and whose intended follow-up is still
   Undecided — a record no human has yet acted on. Deletion removes the record
@@ -631,13 +694,18 @@ alongside existing review comparisons and quality summaries.
   through the adjudication action, never erased. No adjudication or capture ever
   sets a verdict back to Unadjudicated or a follow-up back to Undecided (see the
   transition rules below), so a record a human has judged can never become
-  deletion-eligible again. Delete-then-recapture is how the workflow
-  corrects a mistake in an identity-bearing field — the location, the finding
-  title, the finding text, the reviewed head, or the external reviewer — none
-  of which an update in place can change without creating a second record.
-  Correcting the affected category, the verdict, or the intended follow-up
-  needs no deletion, because none of those three fields participates in
-  finding identity and an update in place already replaces them.
+  deletion-eligible again. Delete-then-recapture corrects a mistake in an
+  identity-bearing field of a **content-based (manual)** record — the
+  location, the finding title, the finding text, the reviewed head, or the
+  external reviewer — none of which an update in place can change there
+  without creating a second record. A **source-based (automatic)** record has
+  no such field: its location, finding title, finding text, and external
+  reviewer are evidence, not identity, so simply re-capturing the same source
+  corrects them in place, and delete-then-recapture is never needed to fix
+  them. Correcting the affected category, the verdict, or the intended
+  follow-up needs no deletion on either kind of record, because none of those
+  three fields participates in finding identity of either kind and an update
+  in place already replaces them.
 - The affected category comes from a closed set. An unrecognised category is
   refused rather than stored, so category evidence stays aggregatable.
 - Records are stored in the repository alongside Ronda's other committed
@@ -782,7 +850,7 @@ refuses when Stage 1 or Stage 2 rejects it.
 | 1. Input resolution                                | Whether the pull request and its current head resolve, a reviewer is named, and Ronda has a result for any head on the pull request — plus, for automatic capture only, whether the named reviewer is one automatic reading supports and is present on the pull request, and whether its output on the current head is interpretable   | Capture refused; Nothing to capture (automatic path only); otherwise continue |
 | 2. Input validation                                | Whether every required input is present, the affected category is in the closed set, and a supplied verdict or intended follow-up is one of its documented values                                                                                                                                                                      | Capture refused; otherwise continue                                           |
 | 3. Credential refusal and reviewed-head validation | Whether any text the record would store matches a published refusal form without being a published placeholder, whether any free-text field the record would store carries the reviewed source file's contents or the pull request's diff, and whether a manually supplied reviewed head is a real head of the referenced pull request | Capture refused; otherwise continue                                           |
-| 4. Record decision                                 | Whether a record already exists for this finding identity and head                                                                                                                                                                                                                                                                     | Record written; Record updated in place                                       |
+| 4. Record decision                                 | Whether a record already exists for this finding's identity                                                                                                                                                                                                                                                                            | Record written; Record updated in place                                       |
 
 Stage 1 and Stage 2 per-condition detail, including their evaluation order, is
 the Missing And Unreadable Input table above. Within Stage 1, "Nothing to
@@ -793,18 +861,23 @@ a real head of the pull request is refused either way; the reported reason is th
 first applicable entry in the refusal precedence list. Stage 4
 resolves on one input only:
 
-| Existing record for this finding identity and head | Outcome                 | Required next action                                                                                                                                                                                                                                                                                                                                                                                            |
-| -------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| None                                               | Record written          | Adjudicate the verdict and choose the follow-up **when either is still at its default** of Unadjudicated or Undecided. None required when the capture supplied both, because the record already carries a judgement.                                                                                                                                                                                            |
-| Present                                            | Record updated in place | Adjudicate whichever of the verdict and follow-up is **still at its default** of Unadjudicated or Undecided after the merge — an update preserves an existing judgement and may supply only one of the two, so one field can remain at its default. None required when both already carry a judgement. Either way, revise them through the adjudication action if the refreshed evidence changes the judgement. |
+| Existing record for this finding's identity | Outcome                 | Required next action                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| None                                        | Record written          | Adjudicate the verdict and choose the follow-up **when either is still at its default** of Unadjudicated or Undecided. None required when the capture supplied both, because the record already carries a judgement.                                                                                                                                                                                            |
+| Present                                     | Record updated in place | Adjudicate whichever of the verdict and follow-up is **still at its default** of Unadjudicated or Undecided after the merge — an update preserves an existing judgement and may supply only one of the two, so one field can remain at its default. None required when both already carry a judgement. Either way, revise them through the adjudication action if the refreshed evidence changes the judgement. |
 
 An update in place **merges rather than resets**, and the two kinds of field
 behave differently.
 
 The **evidence** fields are all replaced with what this capture read or was
-given: the external reviewer, the finding location, title, and text, the
-affected category, the capture source, the Ronda result head, and the stale
-marker. Refreshing the Ronda result head matters — a record captured as stale,
+given: the external reviewer, the reviewed head, the finding location, title,
+and text, the affected category, the capture source, the Ronda result head,
+and the stale marker. For a content-based (manual) record the reviewed head is
+also one of the six values that must already match for this to be the same
+record, so replacing it is a no-op; for a source-based (automatic) record the
+reviewed head is not an identity value, so re-capturing the same source
+identifier refreshes it like any other evidence field. Refreshing the Ronda
+result head matters — a record captured as stale,
 then re-captured after Ronda has reviewed the record's
 reviewed head, stores the new Ronda result head and has its stale marker
 cleared. The stored heads therefore never contradict the marker. The affected
@@ -852,12 +925,12 @@ Across all stages the gate has exactly four distinct outcomes. Every one has a
 required next action; where none is needed, that is stated as a reasoned
 no-action rather than left blank:
 
-| Outcome                 | Reached at                   | A record is written                                                                                                                                                                                                                          | Required next action                                                                                                                                                                                                                                                                                                                                                                                            |
-| ----------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Capture refused         | Stage 1, 2, or 3             | No, and never partially                                                                                                                                                                                                                      | Correct the input the refusal named and capture again. No record exists to act on, and nothing is left behind to clean up.                                                                                                                                                                                                                                                                                      |
-| Nothing to capture      | Stage 1, automatic path only | No, and this is reported as success rather than as a refusal                                                                                                                                                                                 | None required — the reviewer published nothing on the head that was checked. Capture again after the reviewer reviews a later head, or use manual entry if the finding was raised elsewhere.                                                                                                                                                                                                                    |
-| Record written          | Stage 4                      | Yes, with the stale marker set or not per the table above                                                                                                                                                                                    | Adjudicate the verdict and choose the follow-up **when either is still at its default** of Unadjudicated or Undecided. None required when the capture supplied both, because the record already carries a judgement.                                                                                                                                                                                            |
-| Record updated in place | Stage 4                      | Yes, replacing that record's evidence fields for that identity and head and re-evaluating the stale marker, while preserving any existing verdict, follow-up, and rationale per the merge rule above unless this capture supplies new values | Adjudicate whichever of the verdict and follow-up is **still at its default** of Unadjudicated or Undecided after the merge — an update preserves an existing judgement and may supply only one of the two, so one field can remain at its default. None required when both already carry a judgement. Either way, revise them through the adjudication action if the refreshed evidence changes the judgement. |
+| Outcome                 | Reached at                   | A record is written                                                                                                                                                                                                                 | Required next action                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Capture refused         | Stage 1, 2, or 3             | No, and never partially                                                                                                                                                                                                             | Correct the input the refusal named and capture again. No record exists to act on, and nothing is left behind to clean up.                                                                                                                                                                                                                                                                                      |
+| Nothing to capture      | Stage 1, automatic path only | No, and this is reported as success rather than as a refusal                                                                                                                                                                        | None required — the reviewer published nothing on the head that was checked. Capture again after the reviewer reviews a later head, or use manual entry if the finding was raised elsewhere.                                                                                                                                                                                                                    |
+| Record written          | Stage 4                      | Yes, with the stale marker set or not per the table above                                                                                                                                                                           | Adjudicate the verdict and choose the follow-up **when either is still at its default** of Unadjudicated or Undecided. None required when the capture supplied both, because the record already carries a judgement.                                                                                                                                                                                            |
+| Record updated in place | Stage 4                      | Yes, replacing that record's evidence fields for that identity and re-evaluating the stale marker, while preserving any existing verdict, follow-up, and rationale per the merge rule above unless this capture supplies new values | Adjudicate whichever of the verdict and follow-up is **still at its default** of Unadjudicated or Undecided after the merge — an update preserves an existing judgement and may supply only one of the two, so one field can remain at its default. None required when both already carry a judgement. Either way, revise them through the adjudication action if the refreshed evidence changes the judgement. |
 
 Mirror surfaces that must state the same four outcomes, the same stage order,
 the stale marker's status as an attribute, and Stage 1's whole-capture scope
@@ -1015,7 +1088,8 @@ action**, not a capture:
       request and reviewer, then a miss record is written that names the pull
       request, the reviewed head, the Ronda result head, the external reviewer,
       the finding location, the finding title, the finding text, the verdict, the
-      affected category, the intended follow-up, and the capture source.
+      affected category, the intended follow-up, the capture source, and the
+      source identifier.
 - [ ] AC2: Given the same pull request, when the capture completes, then nothing
       on the pull request has changed: no comment, review, label, or state change
       was produced by the capture.
@@ -1065,7 +1139,8 @@ action**, not a capture:
       the stale-evidence marker, and is not counted as a confirmed miss. Given that
       the same stale finding is then captured again on the same reviewed head, then
       its existing record is updated in place and no duplicate record is created,
-      because only the reviewed head participates in identity.
+      because the Ronda result head, unlike the value or values that decide
+      identity for that record's kind, never participates in identity.
 - [ ] AC9: Given credential-shaped content such as an access token, private key,
       or password assignment placed in the finding text, the finding title, the
       finding location, the reviewer name, or the supplied reviewed head —
@@ -1092,12 +1167,17 @@ action**, not a capture:
       happened. Given instead that the text carries credential-shaped content
       beyond the 2,000-character boundary, then the capture is refused rather than
       truncated, because scanning precedes truncation.
-- [ ] AC12: Given a record that already exists for a finding on a reviewed head,
-      when the operator captures a finding matching all six identity values —
-      same pull request, external reviewer, reviewed head, finding location,
-      finding title, and finding text — then the existing record is updated in
-      place and no second record for that finding and head exists. This holds
-      when the second capture is manual and the first was automatic.
+- [ ] AC12: Given an automatically captured record, when the operator runs a
+      further automatic capture sharing the same pull request and source
+      identifier, then the existing record is updated in place and no second
+      record for that source identifier exists. Given instead a manually
+      entered record, when the operator supplies a further manual entry
+      matching all six content-based identity values — the same pull request,
+      external reviewer, reviewed head, finding location, finding title, and
+      finding text — then the existing record is updated in place and no
+      second record for that identity exists. A source-based record and a
+      content-based record never satisfy each other's match, whatever they
+      describe, because manual entry never carries a source identifier.
 - [ ] AC13: Given an affected category outside the documented closed set, when
       the operator captures a finding with it, then the capture is refused and the
       refusal names the accepted categories.
@@ -1110,11 +1190,11 @@ action**, not a capture:
       refuse only the affected finding — Stage 4 never refuses, reaching only
       "record written" or "record updated in place" — and matches the capture
       command's own help output.
-- [ ] AC15: Given a record that already exists for a finding on a reviewed head,
-      when the operator captures a finding whose finding location, finding
-      title, or finding text differs from it after canonical comparison, then a
-      second, separate record is written rather than the first being
-      overwritten.
+- [ ] AC15: Given a **manually entered** record that already exists for a
+      finding, when the operator supplies a further manual entry whose finding
+      location, finding title, or finding text differs from it after canonical
+      comparison, then a second, separate record is written rather than the
+      first being overwritten.
 - [ ] AC16: Given that the named external reviewer is the Codex GitHub reviewer
       automatic reading supports, and it has published on the pull request but
       nothing on its current head, when the operator runs an
@@ -1174,11 +1254,12 @@ action**, not a capture:
       use** — so a manual capture never reports condition 4, 5, or 6.
 - [ ] AC25: Given a finding whose location is present but cannot be resolved to a
       file and a line, when the operator captures it, then the capture is **not**
-      refused: the record stores the location as given, marks it unresolved, and
-      uses all six identity values so a second finding whose location text,
-      title, or finding text differs after canonical comparison remains a
-      separate record. Given instead a finding with no location at all, then the
-      capture is refused.
+      refused: the record stores the location as given and marks it unresolved.
+      Given a **manually entered** finding with an unresolved location, then its
+      content-based identity still uses all six values, so a second
+      manual entry whose location text, title, or finding text differs after
+      canonical comparison remains a separate record. Given instead a finding
+      with no location at all, then the capture is refused.
 - [ ] AC26: Given a capture in which the operator supplies a verdict, an intended
       follow-up, or both but no rationale, when the capture runs, then the capture
       is **not** refused: the record is written with the supplied values and no
@@ -1186,7 +1267,7 @@ action**, not a capture:
       record through the Use Case 3 adjudication action without a rationale, then
       only that revision is refused and the record is left unchanged. Given
       instead that a further capture reaches Stage 4's "Record updated in place"
-      for that same finding identity and head and supplies a verdict, a
+      for that same finding's identity and supplies a verdict, a
       follow-up, or both that **match** what the record already carries, or
       supplies neither, then that capture is **not** refused: the record is
       updated and the existing rationale is **preserved**, matching the merge
@@ -1219,15 +1300,15 @@ action**, not a capture:
       re-capture supplies the **same** verdict the record already carries, then
       the outcome is identical: the verdict, follow-up, and rationale are all
       preserved unchanged, per AC43.
-- [ ] AC30: Given the same finding entered twice — once read automatically and once
-      supplied manually, differing only in how the reviewer was named, how the
-      commit identifier was abbreviated, in letter case in the title and finding
-      text, and in surrounding whitespace in the location, title, and finding
-      text — when both captures run, then exactly one record exists, and it
-      stores the external reviewer, location, title, and finding text as its
-      most recent source gave them. Given instead that the two entries differ
-      only in the letter case of the location, then two separate records exist,
-      because location is compared case-sensitively.
+- [ ] AC30: Given the same finding manually entered twice, differing only in how
+      the reviewer was named, how the commit identifier was abbreviated, in
+      letter case in the title and finding text, and in surrounding whitespace
+      in the location, title, and finding text, when both manual entries are
+      captured, then exactly one record exists, and it stores the external
+      reviewer, location, title, and finding text as its most recent source
+      gave them. Given instead that the two entries differ only in the letter
+      case of the location, then two separate records exist, because location
+      is compared case-sensitively.
 - [ ] AC31: Given a manual capture supplying a reviewed head that is malformed or
       that names a commit which was never a head of the referenced pull request,
       when the capture runs, then it is refused and no record is written.
@@ -1283,25 +1364,34 @@ action**, not a capture:
       capture is refused and the refusal names the finding text as carrying source
       or diff content. The same thresholds apply to every other stored free-text
       field and to an adjudication rationale.
-- [ ] AC39: Given a finding captured automatically from
-      `chatgpt-codex-connector[bot]`, when the same finding on the same reviewed
-      head is then captured manually naming the reviewer as `Codex`, then exactly
-      one record exists. Given instead that the manual capture names the reviewer
-      as `Codex Bot`, which is not on the alias list, then a second, separate
+- [ ] AC39: Given the same finding manually entered twice on the same reviewed
+      head, once naming the reviewer `chatgpt-codex-connector[bot]` and once
+      naming the reviewer `Codex`, when both manual entries are captured, then
+      exactly one record exists, because the two names are aliases for the same
+      reviewer. Given instead that the second manual entry names the reviewer as
+      `Codex Bot`, which is not on the alias list, then a second, separate
       record is written.
 - [ ] AC40: Given the same commit as the current head of two different pull
-      requests, when the operator captures the same reviewer's finding at the
-      same location and title on both pull requests, then two separate records
-      are written, one per pull request, because the pull request is one of the
-      six identity values.
-- [ ] AC41: Given the same reviewer reporting two distinct findings at the same
-      location with the same title on the same pull request and reviewed head,
-      when the operator captures both, then two separate records are written,
-      because their finding text differs and finding text is one of the six
-      identity values. Given instead that a second capture of the same finding
-      supplies finding text differing only by letter case or surrounding
-      whitespace, then the existing record is updated in place rather than a
-      second one being written.
+      requests, when the operator manually enters the same reviewer's finding at
+      the same location and title on both pull requests, then two separate
+      records are written, one per pull request, because the pull request is
+      one of the six content-based identity values. The same holds for
+      automatic capture: the pull request is part of source-based identity
+      together with the source identifier, so an automatically captured finding
+      on one pull request never merges with a record on another.
+- [ ] AC41: Given the Codex GitHub reviewer publishing two distinct findings at
+      the same location with the same title on the same pull request and
+      reviewed head, when the operator runs automatic capture, then two
+      separate records are written, because the two findings' source
+      identifiers — or their positions within one review or comment — differ.
+      Given instead the same reviewer's two distinct findings manually entered
+      at the same location and title, when the operator captures both, then two
+      separate records are written, because their finding text differs and
+      finding text is one of the six content-based identity values. Given
+      instead that a second manual entry of the same finding supplies finding
+      text differing only by letter case or surrounding whitespace, then the
+      existing record is updated in place rather than a second one being
+      written.
 - [ ] AC42: Given an existing record whose affected category was captured
       incorrectly, when the operator re-captures the same finding supplying the
       corrected category, then the existing record is updated in place and its
@@ -1379,9 +1469,10 @@ action**, not a capture:
 - [ ] AC52: Given two findings the same reviewer reports at case-only-different
       locations in a repository that holds both paths — `src/Foo.ts` and
       `src/foo.ts` — with the same title and finding text, when the operator
-      captures both, then two separate records are written, because the
-      location is compared case-sensitively even though the title and finding
-      text are not.
+      **manually enters** both, then two separate records are written, because
+      the location is compared case-sensitively even though the title and
+      finding text are not, and location is one of the six content-based
+      identity values.
 - [ ] AC53: Given a stale capture, when the operator sees the finding's
       information, then Ronda's own result shown is the result for the Ronda
       result head, named alongside the reviewed head, never a result claimed
@@ -1399,6 +1490,51 @@ action**, not a capture:
       a fresh merge-base commit for that later capture, and the two captures'
       refusal decisions may legitimately differ if the diff content between
       the two merge-base commits differs.
+- [ ] AC55: Given an automatically captured record, when the reviewer edits the
+      comment's wording and the operator re-captures the same source, then the
+      existing record is updated in place, stores the new finding text — and
+      the new location or title if either changed — and no second record is
+      written, because the source identifier, not the finding text, location,
+      or title, is what source-based identity compares.
+- [ ] AC56: Given a finding already captured automatically, when the operator
+      supplies the same finding through manual entry, then a separate manual
+      record is written, because content-based identity never matches a
+      source-based record, and that manual record can be deleted while its
+      verdict is still Unadjudicated and its intended follow-up is still
+      Undecided, exactly as any other unadjudicated record can be.
+
+---
+
+## Delivery Phasing
+
+The implementation plan should deliver this feature in two phases.
+
+**Phase 1 (MVP):** automatic Codex GitHub capture with source-based identity,
+manual entry with content-based identity, the Capture Decision Gate and its
+refusal reporting, the credential refusal scan, stale-evidence marking,
+adjudication with rationale, and the Reported Evidence Mapping into the
+existing quality summary.
+
+**Phase 2 (follow-up):** record deletion, unresolvable-evidence reporting, and
+the full source/diff content scan — consecutive-line matching against changed
+files and the merge-base diff. Until Phase 2 lands, Phase 1 enforces at least
+the diff-marker refusal and the 2,000-character cap.
+
+This section only orders delivery; it does not narrow or contradict the
+Acceptance Criteria, which remain the full contract regardless of phase.
+
+The plan must also answer three open questions:
+
+- Whether confirmed-miss counts should count distinct defects or per-head
+  occurrences, since a defect re-flagged across several heads becomes several
+  records.
+- The threat model the full source/diff scan protects against — records can
+  come from other repositories (for example
+  `lhpaul/ai-dev-framework-template`) — and whether the diff-marker check plus
+  the size cap suffices until Phase 2 lands.
+- That deletion and adjudication rules are enforced only by the workflow
+  tooling, since records are committed files anyone can edit directly, and the
+  runbook should say so.
 
 ---
 
@@ -1435,12 +1571,12 @@ because they have no product-visible consequence and pinning them in a product
 contract would state design rather than requirements. The plan must specify each
 one; the spec states only the guarantee it must deliver.
 
-| Deferred decision                                                                                                                    | The guarantee the spec requires                                                                                                                                                                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| How the six identity values are compared so that meaningless differences are ignored                                                 | The same finding entered two ways is one record, storing the external reviewer, location, title, and finding text as the most recent source gave them, never normalised (AC30)                                                                                  |
-| Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it                | The five existing outcome counts keep their meaning; out-of-scope counts, category breakdowns, the stale-evidence count, and the unresolvable-evidence count are additive (AC7)                                                                                 |
-| The exact contents of the published credential refusal list and placeholder list                                                     | Both are published and versioned with the workflow, the refusal list recognises at least the six named forms, and the placeholder list holds whole literal values only (AC9, AC18)                                                                              |
-| How Markdown quoting and code-block indentation are recognised and stripped before the diff-marker and five-consecutive-lines checks | A diff hunk, and an excerpt exceeding five consecutive matching lines, are refused whether presented plainly, inside a block quote, or indented, exactly alike; a plain excerpt of five or fewer such lines is never refused for this reason (AC38, AC49, AC50) |
+| Deferred decision                                                                                                                                                                                                                      | The guarantee the spec requires                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| How the six content-based identity values are compared so that meaningless differences are ignored, and how the source identifier and a finding's within-review or within-comment position are read from a published review or comment | The same finding manually entered two ways is one record, storing the external reviewer, location, title, and finding text as the most recent source gave them, never normalised (AC30); an automatically captured finding re-read after the reviewer edits the comment's wording updates the existing record in place rather than creating a second one (AC55) |
+| Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it                                                                                                                  | The five existing outcome counts keep their meaning; out-of-scope counts, category breakdowns, the stale-evidence count, and the unresolvable-evidence count are additive (AC7)                                                                                                                                                                                 |
+| The exact contents of the published credential refusal list and placeholder list                                                                                                                                                       | Both are published and versioned with the workflow, the refusal list recognises at least the six named forms, and the placeholder list holds whole literal values only (AC9, AC18)                                                                                                                                                                              |
+| How Markdown quoting and code-block indentation are recognised and stripped before the diff-marker and five-consecutive-lines checks                                                                                                   | A diff hunk, and an excerpt exceeding five consecutive matching lines, are refused whether presented plainly, inside a block quote, or indented, exactly alike; a plain excerpt of five or fewer such lines is never refused for this reason (AC38, AC49, AC50)                                                                                                 |
 
 ## Brief Coverage Matrix
 
@@ -1449,8 +1585,8 @@ one; the spec states only the guarantee it must deliver.
 | Repeatable workflow for recording external-review findings Ronda missed                             | Use Cases 1-3, AC1, AC3, AC14, AC27                                              |
 | Record includes the pull request                                                                    | AC1, AC40                                                                        |
 | Record includes the head SHA                                                                        | AC1, AC8, AC22, AC31, AC36, AC37                                                 |
-| Record includes the reviewer                                                                        | AC1, AC3, AC39                                                                   |
-| Record includes the finding text                                                                    | AC1, AC10, AC11, AC30, AC41                                                      |
+| Record includes the reviewer                                                                        | AC1, AC3, AC39, AC56                                                             |
+| Record includes the finding text                                                                    | AC1, AC10, AC11, AC30, AC41, AC55                                                |
 | Record includes the finding location, resolvable or not                                             | AC1, AC25, AC52                                                                  |
 | Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20, AC30, AC41                                           |
 | A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, AC19, AC21, AC22, AC24, AC27, AC35, and Missing And Unreadable Input |
