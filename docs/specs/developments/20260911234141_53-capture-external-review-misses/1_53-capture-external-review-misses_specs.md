@@ -1336,16 +1336,13 @@ action**, not a capture:
       formatted as a Markdown block quote (`> @@ ...`) or indented as a code
       block, when the operator captures it, then the capture is refused for
       carrying source or diff content exactly as the unquoted, unindented form
-      is, because the marker check strips leading block-quote markers and
-      whitespace before matching.
+      is.
 - [ ] AC50: Given a finding text quoting six consecutive non-blank lines from a
       file the pull request changes at the reviewed head, each line formatted
       as a Markdown block quote (`> ...`) or indented as a code block, when the
       operator captures it, then the capture is refused for carrying source or
-      diff content exactly as the unquoted, unindented form is, because the
-      five-consecutive-lines comparison strips leading block-quote markers and
-      whitespace before matching, the same way the marker check does for
-      AC49.
+      diff content exactly as the unquoted, unindented form is, the same way
+      AC49 is refused for a quoted or indented hunk marker.
 - [ ] AC51: Given a record carrying a human-set, non-default verdict, when a
       further capture of that same finding explicitly supplies `unadjudicated`
       as the verdict, then the capture is **not** refused, but the merge treats
