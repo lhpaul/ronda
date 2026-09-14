@@ -248,8 +248,9 @@ alongside existing review comparisons and quality summaries.
 - A record involves **two distinct heads**, and every rule below names which one
   it means:
   - The **reviewed head** is the head the external finding's evidence belongs to.
-    It is the head the record is evidence _about_, the head named by "one record
-    per reviewed head", and the head that participates in finding identity.
+    It is the head the record is evidence _about_, the head named by "at most one
+    record per pull request and reviewed head", and the head that participates in
+    finding identity.
     Automatic capture reads it from the reviewer's evidence; manual entry lets the
     operator supply it and otherwise defaults it to the pull request's current
     head.
