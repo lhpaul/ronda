@@ -455,8 +455,9 @@ alongside existing review comparisons and quality summaries.
   Any other difference in any of the four identity values makes two separate
   findings. The list is closed, so an implementer never has to judge whether some
   further difference is meaningful. Each record stores the
-  location and title exactly as its source gave them; the comparison never
-  rewrites what is stored. The implementation plan specifies how the comparison
+  location and title exactly as its most recent source gave them: the comparison
+  never normalises what is stored, and a matching re-capture replaces the stored
+  spelling with its own as part of refreshing the record's evidence fields. The implementation plan specifies how the comparison
   achieves this.
 
 - A finding whose location is present but cannot be resolved to a file and a
@@ -1044,7 +1045,7 @@ one; the spec states only the guarantee it must deliver.
 
 | Deferred decision                                                                                                     | The guarantee the spec requires                                                                                                                                                    |
 | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| How the four identity values are compared so that meaningless differences are ignored                                 | The same finding entered two ways is one record, and stored text is never rewritten (AC30)                                                                                         |
+| How the four identity values are compared so that meaningless differences are ignored                                 | The same finding entered two ways is one record, storing location and title as the most recent source gave them, never normalised (AC30)                                           |
 | Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it | The five existing outcome counts keep their meaning; out-of-scope counts and category breakdowns are additive (AC7)                                                                |
 | The exact contents of the published credential refusal list and placeholder list                                      | Both are published and versioned with the workflow, the refusal list recognises at least the six named forms, and the placeholder list holds whole literal values only (AC9, AC18) |
 
