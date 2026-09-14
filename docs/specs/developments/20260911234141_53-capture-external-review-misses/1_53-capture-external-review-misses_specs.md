@@ -327,12 +327,18 @@ alongside existing review comparisons and quality summaries.
   A record whose Ronda review is unresolvable at read time is reported as
   **unresolvable evidence**. Unlike the stale marker, this is never stored on
   the record — resolvability is a property of Ronda's own review, checked fresh
-  on every read, not a fact the workflow can capture and hold — so it can never
-  co-occur with the stale marker for the same read: staleness requires Ronda to
-  have a result, only on a different head, while unresolvability requires no
-  result to be found at all. It is counted under no verdict outcome, whatever
-  the verdict, and a later read reports the same record normally once Ronda's
-  review resolves again, with no re-capture needed.
+  on every read, not a fact the workflow can capture and hold. The two are
+  independent, not mutually exclusive: the stale marker reflects the heads
+  compared **at capture time**, while resolvability reflects whether Ronda's
+  review still exists **at read time**, so a record already carrying the
+  stale-evidence marker can also become unresolvable later, if Ronda's review
+  for its stored Ronda result head stops resolving. When both apply, the record
+  is reported under **both** the stale-evidence count and the
+  unresolvable-evidence count for that read — the two counts are independent
+  additions, not competing outcomes, so neither takes precedence over the
+  other. Either way the record is counted under no verdict outcome, and a later
+  read reports it under only whichever of the two still applies, with no
+  re-capture needed for either to clear.
 - Automatic capture reads findings published by the **Codex GitHub reviewer**,
   the only reviewer automatic reading supports in this iteration. Naming a
   different reviewer on the automatic path is refused under Stage 1 condition 4 —
@@ -673,7 +679,11 @@ mapping. A record whose Ronda review cannot be resolved at read time is
 reported as unresolvable evidence and likewise counted under no outcome below,
 whatever its verdict — there is no Ronda result left to compare the finding
 against — and returns to the mapping on a later read once Ronda's review
-resolves again.
+resolves again. These two conditions are independent and can hold at once: a
+stale record whose Ronda review later becomes unresolvable is reported under
+**both** the stale-evidence and the unresolvable-evidence counts for that
+read, never under just one at the other's expense, and stays out of the
+mapping either way.
 
 | Verdict        | Reported as                                                              |
 | -------------- | ------------------------------------------------------------------------ |
@@ -1272,7 +1282,10 @@ action**, not a capture:
       unresolvable evidence, counted under no verdict outcome. Given that a
       later read finds that same Ronda review resolvable again, then the record
       is reported under its ordinary mapping outcome on that read, with no
-      re-capture required.
+      re-capture required. Given instead a record already carrying the
+      stale-evidence marker whose Ronda result head also names a Ronda review
+      that cannot be resolved, then that read reports the record under **both**
+      the stale-evidence and the unresolvable-evidence counts, not just one.
 
 ---
 
