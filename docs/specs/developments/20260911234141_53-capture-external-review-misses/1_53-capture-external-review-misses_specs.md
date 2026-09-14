@@ -46,7 +46,8 @@ alongside existing review comparisons and quality summaries.
    finding, the verdict and the intended follow-up. Not having judged it yet is
    the ordinary case: both then take their defaults of Unadjudicated and
    Undecided.
-4. The workflow writes one miss record per confirmed external finding.
+4. The workflow runs the Capture Decision Gate on every finding from step 3 and
+   writes one miss record for each finding the gate does not refuse.
 
 **Postconditions**:
 
