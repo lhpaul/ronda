@@ -1384,10 +1384,10 @@ action**, not a capture:
       request's current head, and whose base has since moved or been
       rewritten, when the source/diff scan runs against that reviewed head,
       then it compares against the pull request's changed files and diff as
-      they stood at that reviewed head — merge-based against the pull
-      request's base branch at that reviewed head — never against the
-      current base, so the same finding text is refused or accepted the same
-      way regardless of what the base branch has since become.
+      they stood at that reviewed head — the merge base of that reviewed
+      head and the pull request's base branch — never against the current
+      base, so the same finding text is refused or accepted the same way
+      regardless of what the base branch has since become.
 
 ---
 
