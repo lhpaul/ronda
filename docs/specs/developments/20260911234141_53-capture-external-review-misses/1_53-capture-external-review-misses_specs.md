@@ -399,10 +399,11 @@ alongside existing review comparisons and quality summaries.
   rather than silently trimming keeps the operator aware their evidence was
   rejected, and it is what makes the no-source-and-no-diff guarantee achievable
   rather than aspirational. This check is part of Stage 3 of the Capture
-  Decision Gate, alongside the credential scan, and it runs against the finding
-  text in full before any truncation, so content beyond the 2,000-character
-  boundary is scanned exactly like content before it. When the finding text
-  matches both this rule and the credential refusal list, the capture is
+  Decision Gate, alongside the credential scan, and it runs against each scanned
+  field in full before any truncation, so content beyond the finding text's
+  2,000-character boundary or a derived title's 120-character boundary is scanned
+  exactly like content before it. When a field matches both this rule and the
+  credential refusal list, the capture is
   refused either way, and the reported reason is the first applicable entry in
   the refusal precedence list.
 - Finding text is stored up to a limit of 2,000 characters. Text beyond that
@@ -583,7 +584,7 @@ refuses when Stage 1 or Stage 2 rejects it.
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | 1. Input resolution                                | Whether the pull request and its current head resolve, a reviewer is named, and Ronda has a result for any head on the pull request — plus, for automatic capture only, whether the named reviewer is one automatic reading supports and is present on the pull request, and whether its output on the current head is interpretable | Capture refused; Nothing to capture (automatic path only); otherwise continue |
 | 2. Input validation                                | Whether every required input is present, the affected category is in the closed set, and a supplied verdict or intended follow-up is one of its documented values                                                                                                                                                                    | Capture refused; otherwise continue                                           |
-| 3. Credential refusal and reviewed-head validation | Whether any text the record would store matches a published refusal form without being a published placeholder, whether the finding text carries the reviewed source file's contents or the pull request's diff, and whether a manually supplied reviewed head is a real head of the referenced pull request                         | Capture refused; otherwise continue                                           |
+| 3. Credential refusal and reviewed-head validation | Whether any text the record would store matches a published refusal form without being a published placeholder, whether any free-text field the record would store carries the reviewed source file's contents or the pull request's diff, and whether a manually supplied reviewed head is a real head of the referenced pull request                   | Capture refused; otherwise continue                                           |
 | 4. Record decision                                 | Whether a record already exists for this finding identity and head                                                                                                                                                                                                                                                                   | Record written; Record updated in place                                       |
 
 Stage 1 and Stage 2 per-condition detail, including their evaluation order, is
@@ -744,7 +745,8 @@ action**, not a capture:
   input, an affected category outside the closed set, a supplied verdict or
   intended follow-up outside its documented values, a supplied reviewed head that
   is malformed or was never a head of that pull request, credential-shaped
-  content in any scanned field, and finding text carrying source or diff content.
+  content in any scanned field, and source or diff content in any free-text
+  field the record would store.
   A credential refusal also names the matched form. This is the list the gate
   means when it tells the operator to correct "the input the refusal named", and
   it is written in **precedence order**: when more than one entry applies to the
