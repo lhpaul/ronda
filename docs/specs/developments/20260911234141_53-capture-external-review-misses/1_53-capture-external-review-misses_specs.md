@@ -497,9 +497,12 @@ alongside existing review comparisons and quality summaries.
   - Or the text contains **more than five consecutive non-blank lines** that
     appear, in the same order and consecutively, in any file the pull request
     changes as that file stands at the reviewed head, or in the pull request's
-    diff at the reviewed head. Lines are compared with leading and trailing
-    whitespace ignored and, for diff lines, the leading `+`, `-`, or space
-    marker ignored.
+    diff at the reviewed head. Lines are compared with leading Markdown
+    block-quote markers (`>`) and leading and trailing whitespace ignored and,
+    for diff lines, the leading `+`, `-`, or space marker ignored. Stripping
+    quoting and indentation before this comparison is what keeps a quoted or
+    indented excerpt from evading the five-consecutive-lines count the same
+    way stripping keeps a hunk marker from evading the check above.
 
   A quoted excerpt of **five or fewer** consecutive such lines, a single line, an
   identifier, or a file path is allowed and is not refused, because external
@@ -688,12 +691,17 @@ Re-capturing it on a shared head clears the marker and admits it to the
 mapping. A record whose Ronda review cannot be resolved at read time is
 reported as unresolvable evidence and likewise counted under no outcome below,
 whatever its verdict — there is no Ronda result left to compare the finding
-against — and returns to the mapping on a later read once Ronda's review
-resolves again. These two conditions are independent and can hold at once: a
-stale record whose Ronda review later becomes unresolvable is reported under
-**both** the stale-evidence and the unresolvable-evidence counts for that
-read, never under just one at the other's expense, and stays out of the
-mapping either way.
+against. A **non-stale** such record returns to the mapping on a later read
+once Ronda's review resolves again, with no re-capture required. These two
+conditions are independent and can hold at once: a stale record whose Ronda
+review later becomes unresolvable is reported under **both** the
+stale-evidence and the unresolvable-evidence counts for that read, never
+under just one at the other's expense, and stays out of the mapping either
+way. When that same record's Ronda review later resolves again while the
+stale marker is still set, the unresolvable-evidence count drops but the
+record is reported under stale evidence alone and stays out of the mapping
+until it is re-captured on a shared head — resolving the Ronda review never
+substitutes for the re-capture the stale marker requires, per AC48.
 
 | Verdict        | Reported as                                                              |
 | -------------- | ------------------------------------------------------------------------ |
@@ -710,7 +718,7 @@ external finding, so no verdict maps to clean agreement: captured miss records
 never add to, subtract from, or reclassify the clean-agreement count, which is
 reported exactly as the existing comparison evidence reports it.
 
-Three product requirements govern this mapping:
+Four product requirements govern this mapping:
 
 - The five outcomes the existing quality summary already reports keep their
   current meaning. Reading them does not change.
@@ -1238,6 +1246,14 @@ action**, not a capture:
       carrying source or diff content exactly as the unquoted, unindented form
       is, because the marker check strips leading block-quote markers and
       whitespace before matching.
+- [ ] AC50: Given a finding text quoting six consecutive non-blank lines from a
+      file the pull request changes at the reviewed head, each line formatted
+      as a Markdown block quote (`> ...`) or indented as a code block, when the
+      operator captures it, then the capture is refused for carrying source or
+      diff content exactly as the unquoted, unindented form is, because the
+      five-consecutive-lines comparison strips leading block-quote markers and
+      whitespace before matching, the same way the marker check does for
+      AC49.
 - [ ] AC39: Given a finding captured automatically from
       `chatgpt-codex-connector[bot]`, when the same finding on the same reviewed
       head is then captured manually naming the reviewer as `Codex`, then exactly
@@ -1369,6 +1385,6 @@ one; the spec states only the guarantee it must deliver.
 | Records preserve current-head evidence                                                              | AC1, AC8                                                                         |
 | Records distinguish true positives, false positives, and out-of-scope findings                      | AC5, AC6, AC7, and the Verdict enum                                              |
 | Captured misses can feed the existing review comparison / quality summary tooling                   | Use Case 4, AC6, AC7, and Reported Evidence Mapping                              |
-| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11, AC18, AC28, AC32, AC33, AC38                                    |
+| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11, AC18, AC28, AC32, AC33, AC38, AC49, AC50                        |
 
 No brief objective is deferred to Out of Scope, so there are no deferral notes.
