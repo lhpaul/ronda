@@ -248,9 +248,9 @@ alongside existing review comparisons and quality summaries.
 - A record involves **two distinct heads**, and every rule below names which one
   it means:
   - The **reviewed head** is the head the external finding's evidence belongs to.
-    It is the head the record is evidence _about_, the head named by "at most one
-    record per pull request and reviewed head", and the head that participates in
-    finding identity.
+    It is the head the record is evidence _about_, the head that participates in
+    finding identity and in "each distinct finding identity has at most one
+    record".
     Automatic capture reads it from the reviewer's evidence; manual entry lets the
     operator supply it and otherwise defaults it to the pull request's current
     head.
@@ -538,9 +538,11 @@ alongside existing review comparisons and quality summaries.
   location text as given, finding title, and finding text. Its record states
   that the location is unresolved. Identity still uses all six values, so an
   unresolved location never collapses two distinct findings into one record.
-- Each external finding has at most one record per pull request and reviewed
-  head. Capturing the same finding on the same pull request and head again
-  updates the existing record instead of creating a second one.
+- **Each distinct finding identity has at most one record.** A pull request and
+  reviewed head can hold several records at once — one per distinct finding
+  identity reported against it — but capturing the same finding (all six
+  identity values matching) on the same pull request and reviewed head again
+  updates that one existing record instead of creating a second one.
 - The affected category comes from a closed set. An unrecognised category is
   refused rather than stored, so category evidence stays aggregatable.
 - Records are stored in the repository alongside Ronda's other committed
