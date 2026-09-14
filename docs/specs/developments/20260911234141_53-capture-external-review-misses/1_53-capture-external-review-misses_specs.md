@@ -489,9 +489,10 @@ alongside existing review comparisons and quality summaries.
   Any other difference in any of the four identity values makes two separate
   findings. The list is closed, so an implementer never has to judge whether some
   further difference is meaningful. Each record stores the
-  location and title exactly as its most recent source gave them: the comparison
-  never normalises what is stored, and a matching re-capture replaces the stored
-  spelling with its own as part of refreshing the record's evidence fields. The implementation plan specifies how the comparison
+  external reviewer, location, and title exactly as its most recent source gave
+  them: the comparison never normalises what is stored, and a matching re-capture
+  replaces the stored spelling with its own as part of refreshing the record's
+  evidence fields. The implementation plan specifies how the comparison
   achieves this.
 
 - **Reviewer identity.** Automatic capture identifies the Codex GitHub reviewer
@@ -661,8 +662,9 @@ An update in place **merges rather than resets**, and the two kinds of field
 behave differently.
 
 The **evidence** fields are all replaced with what this capture read or was
-given: the finding location, title, and text, the capture source, the Ronda
-result head, and the stale marker. Refreshing the Ronda result head matters — a
+given: the external reviewer, the finding location, title, and text, the
+capture source, the Ronda result head, and the stale marker. Refreshing the
+Ronda result head matters — a
 record captured as stale, then re-captured after Ronda has reviewed the record's
 reviewed head, stores the new Ronda result head and has its stale marker
 cleared. The stored heads therefore never contradict the marker.
@@ -893,10 +895,10 @@ action**, not a capture:
       be accepted.
 - [ ] AC10: Given a captured record, when the record is inspected, then it
       contains the external reviewer's finding text and the location it points at,
-      and contains neither the reviewed file's source contents nor the pull
+      and contains neither the reviewed source file's contents nor the pull
       request's diff. Given instead a finding any of whose stored free-text fields
       — reviewer name, supplied reviewed head, finding location, finding title, or
-      finding text — carries the reviewed file's source contents or the pull
+      finding text — carries the reviewed source file's contents or the pull
       request's diff, then the capture is refused for each of those fields
       independently, nothing is stored, and the refusal names which field carried
       it — so the guarantee is reached by refusing such input, never by trimming it
@@ -1028,8 +1030,8 @@ action**, not a capture:
       supplied manually, differing only in how the reviewer was named, how the
       commit identifier was abbreviated, and in letter case and surrounding
       whitespace in the location and title — when both captures run, then exactly
-      one record exists, and it stores the location and title as its most recent
-      source gave them.
+      one record exists, and it stores the external reviewer, location, and title
+      as its most recent source gave them.
 - [ ] AC31: Given a manual capture supplying a reviewed head that is malformed or
       that names a commit which was never a head of the referenced pull request,
       when the capture runs, then it is refused and no record is written.
@@ -1041,7 +1043,7 @@ action**, not a capture:
       anywhere, including beyond the 2,000-character boundary, then AC28's refusal
       applies and nothing is stored, because scanning precedes truncation here
       exactly as it does for the finding text. Given instead a rationale carrying the
-      reviewed file's source contents or the pull request's diff, then the whole
+      reviewed source file's contents or the pull request's diff, then the whole
       adjudication is **refused**: nothing is stored, the verdict and follow-up are
       unchanged, and the refusal says the rationale carried source or diff
       content. Refusing rather than silently sanitising keeps the operator aware
@@ -1071,8 +1073,8 @@ action**, not a capture:
       head resolves to its reviewed head, the stale marker is cleared, and the
       record becomes eligible for the Reported Evidence Mapping.
 - [ ] AC37: Given a pull request whose heads were pushed in the order A, B, C,
-      with Ronda results published for A and B, where the result for A was
-      published after the result for B, when the operator captures a finding
+      with Ronda results published for A and B but not for C, where the result
+      for A was published after the result for B, when the operator captures a finding
       whose reviewed head is C, then the record's Ronda result head is B, because
       B was pushed after A, and the record carries the stale-evidence marker
       naming C and B.
@@ -1129,7 +1131,7 @@ one; the spec states only the guarantee it must deliver.
 
 | Deferred decision                                                                                                     | The guarantee the spec requires                                                                                                                                                    |
 | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| How the four identity values are compared so that meaningless differences are ignored                                 | The same finding entered two ways is one record, storing location and title as the most recent source gave them, never normalised (AC30)                                           |
+| How the four identity values are compared so that meaningless differences are ignored                                 | The same finding entered two ways is one record, storing the external reviewer, location, and title as the most recent source gave them, never normalised (AC30)                   |
 | Whether captured misses reach the existing quality evidence by extending the shared contract or by projecting into it | The five existing outcome counts keep their meaning; out-of-scope counts, category breakdowns, and the stale-evidence count are additive (AC7)                                     |
 | The exact contents of the published credential refusal list and placeholder list                                      | Both are published and versioned with the workflow, the refusal list recognises at least the six named forms, and the placeholder list holds whole literal values only (AC9, AC18) |
 
