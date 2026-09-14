@@ -592,7 +592,7 @@ alongside existing review comparisons and quality summaries.
   through the adjudication action, never erased. No adjudication or capture ever
   sets a verdict back to Unadjudicated or a follow-up back to Undecided (see the
   transition rules below), so a record a human has judged can never become
-  deletion-eligible again. This is how the workflow
+  deletion-eligible again. Delete-then-recapture is how the workflow
   corrects a mistake in an identity-bearing field — the location, the finding
   title, the finding text, the reviewed head, or the external reviewer — none
   of which an update in place can change without creating a second record.
@@ -928,6 +928,10 @@ action**, not a capture:
   which are listed in precedence order.
 - **Stale evidence**: A record written from heads that do not match states that
   it is stale evidence, and names both heads.
+- **Unresolvable evidence**: A record read while its Ronda result head names a
+  Ronda review that cannot be resolved states that it is unresolvable evidence
+  for that read, counted under no verdict outcome, rather than being silently
+  omitted from the read.
 - **Truncation**: A record whose finding text was truncated says so on the
   record, so nobody reads a truncated finding as the reviewer's full comment.
 - **Deletion**: A deletion reports whether it succeeded or was refused. A
