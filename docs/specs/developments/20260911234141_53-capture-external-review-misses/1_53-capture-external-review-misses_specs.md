@@ -217,6 +217,8 @@ alongside existing review comparisons and quality summaries.
   still unadjudicated are not counted as confirmed misses.
 - Records carrying the stale-evidence marker are reported as stale evidence
   rather than counted under any outcome above, whatever their verdict.
+- The existing clean-agreement count is shown unchanged: no captured miss
+  record adds to or subtracts from it.
 
 **Information shown**:
 
@@ -553,6 +555,13 @@ marker and admits it to the mapping.
 | Unadjudicated  | Unclear                                                                  |
 | Out of scope   | Out of scope, reported distinctly and never folded into an outcome above |
 
+**Clean agreement is retained, not mapped.** The existing comparison evidence's
+fifth outcome, clean agreement, records that Ronda and the external reviewer
+agreed with no finding between them. A captured miss record always carries an
+external finding, so no verdict maps to clean agreement: captured miss records
+never add to, subtract from, or reclassify the clean-agreement count, which is
+reported exactly as the existing comparison evidence reports it.
+
 Three product requirements govern this mapping:
 
 - The five outcomes the existing quality summary already reports keep their
@@ -821,7 +830,8 @@ action**, not a capture:
       together with Ronda's existing review comparison evidence, then each
       verdict is reported under the mapping in Reported Evidence Mapping, the
       five outcome counts the existing quality summary already reports keep their
-      current meaning, and the out-of-scope count, the affected-category
+      current meaning — including the clean-agreement count, which no captured
+      miss record adds to, subtracts from, or reclassifies — and the out-of-scope count, the affected-category
       breakdown, and the stale-evidence count are reported as additions rather
       than by redefining any of those five outcomes.
 - [ ] AC8: Given an external finding whose reviewed head differs from the Ronda
@@ -914,9 +924,12 @@ action**, not a capture:
       operator supplies no title in manual entry.
 - [ ] AC21: Given a manually supplied finding that omits only derived or defaulted
       fields — the finding title, the verdict, or the intended follow-up — when
-      the operator captures it, then the capture is **not** refused: the title is
-      derived, the verdict is Unadjudicated, and the intended follow-up is
-      Undecided.
+      the operator captures it, then the capture is **not** refused and the title
+      is derived. Given that no record yet exists for the finding's identity, then
+      the new record's verdict is Unadjudicated and its intended follow-up is
+      Undecided. Given instead that a record already exists for that identity,
+      then the omitted verdict and intended follow-up keep the record's existing
+      values under the merge rule, as AC29 states.
 - [ ] AC22: Given a resolved pull request for which Ronda has published no review
       result on any head, when the operator captures a finding against it on either
       path, then the capture is refused and no record is written. Given instead that
