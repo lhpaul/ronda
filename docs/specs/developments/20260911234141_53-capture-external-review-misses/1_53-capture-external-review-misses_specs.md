@@ -336,9 +336,16 @@ alongside existing review comparisons and quality summaries.
   is reported under **both** the stale-evidence count and the
   unresolvable-evidence count for that read — the two counts are independent
   additions, not competing outcomes, so neither takes precedence over the
-  other. Either way the record is counted under no verdict outcome, and a later
-  read reports it under only whichever of the two still applies, with no
-  re-capture needed for either to clear.
+  other. Either way the record is counted under no verdict outcome. The two
+  clear differently, and a later read never treats them alike: unresolvable
+  evidence clears on its own — the very next read that finds Ronda's review
+  resolvable again drops that count for the record, with no re-capture needed —
+  while stale evidence clears only by re-capturing the finding on a shared
+  head, per the Reported Evidence Mapping below. A record whose Ronda review
+  resolves again while it still carries the stale-evidence marker is reported
+  under stale evidence alone on that read, exactly as a stale-but-resolvable
+  record already is, and stays out of the verdict mapping until it is
+  re-captured.
 - Automatic capture reads findings published by the **Codex GitHub reviewer**,
   the only reviewer automatic reading supports in this iteration. Naming a
   different reviewer on the automatic path is refused under Stage 1 condition 4 —
@@ -481,9 +488,12 @@ alongside existing review comparisons and quality summaries.
   carrying the reviewed source file's contents or the pull request's diff —
   every stored free-text field and the adjudication rationale alike — the test is
   exactly this, and nothing else:
-  - The text contains a diff header or hunk marker: a line beginning
-    `diff --git`, a line beginning `@@`, or a line beginning `--- ` immediately
-    followed by a line beginning `+++ `.
+  - The text contains a diff header or hunk marker: a line, once its leading
+    Markdown block-quote markers (`>`) and leading whitespace are stripped,
+    beginning `diff --git`, beginning `@@`, or beginning `--- ` immediately
+    followed by a line stripped the same way and beginning `+++ `. Stripping
+    quoting and indentation before this check is what keeps a diff hunk pasted
+    into a block quote or an indented code block from evading it.
   - Or the text contains **more than five consecutive non-blank lines** that
     appear, in the same order and consecutively, in any file the pull request
     changes as that file stands at the reviewed head, or in the pull request's
@@ -1222,6 +1232,12 @@ action**, not a capture:
       capture is refused and the refusal names the finding text as carrying source
       or diff content. The same thresholds apply to every other stored free-text
       field and to an adjudication rationale.
+- [ ] AC49: Given a finding text containing the same hunk marker as AC38, but
+      formatted as a Markdown block quote (`> @@ ...`) or indented as a code
+      block, when the operator captures it, then the capture is refused for
+      carrying source or diff content exactly as the unquoted, unindented form
+      is, because the marker check strips leading block-quote markers and
+      whitespace before matching.
 - [ ] AC39: Given a finding captured automatically from
       `chatgpt-codex-connector[bot]`, when the same finding on the same reviewed
       head is then captured manually naming the reviewer as `Codex`, then exactly
@@ -1276,16 +1292,22 @@ action**, not a capture:
       revises a judgement, it never withdraws one back to no judgement — so a
       record a human has judged can never satisfy AC44's deletion condition
       again.
-- [ ] AC48: Given a captured miss record whose Ronda result head names a Ronda
-      review that can no longer be resolved, when captured misses are read
-      alongside existing quality evidence, then the record is reported as
-      unresolvable evidence, counted under no verdict outcome. Given that a
+- [ ] AC48: Given a captured **non-stale** miss record whose Ronda result head
+      names a Ronda review that can no longer be resolved, when captured misses
+      are read alongside existing quality evidence, then the record is reported
+      as unresolvable evidence, counted under no verdict outcome. Given that a
       later read finds that same Ronda review resolvable again, then the record
       is reported under its ordinary mapping outcome on that read, with no
       re-capture required. Given instead a record already carrying the
       stale-evidence marker whose Ronda result head also names a Ronda review
       that cannot be resolved, then that read reports the record under **both**
       the stale-evidence and the unresolvable-evidence counts, not just one.
+      Given that a later read then finds that same Ronda review resolvable
+      again while the stale-evidence marker is still set, then the record is
+      reported under stale evidence alone — the unresolvable-evidence count
+      drops, but the record is **not** admitted to the verdict mapping and
+      needs re-capture on a shared head to clear the stale marker, unlike the
+      unresolvable-only case above.
 
 ---
 
