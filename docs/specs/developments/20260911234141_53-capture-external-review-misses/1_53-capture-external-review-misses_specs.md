@@ -65,7 +65,10 @@ alongside existing review comparisons and quality summaries.
 - Pull request identity and the head the evidence belongs to.
 - External reviewer name.
 - Each captured finding's location, title, and summary.
-- Ronda's own result for that head.
+- Ronda's own result for the Ronda result head — the reviewed head itself in the
+  ordinary case, or, for a stale capture, the different head named alongside it
+  (see Business Rules), because Ronda has no result for the reviewed head in
+  that case.
 - Verdict and intended follow-up recorded for each finding.
 - Where each record was written.
 
@@ -507,7 +510,14 @@ alongside existing review comparisons and quality summaries.
   identifier, or a file path is allowed and is not refused, because external
   findings routinely quote the code they point at. "The reviewed source file" and
   "the pull request's diff" elsewhere in this spec mean exactly the files and
-  diff named here.
+  diff named here — the pull request's changed files and diff **as they stood
+  at the reviewed head**, always compared against the merge base of the
+  reviewed head and the pull request's base branch, never against whatever the
+  base branch has since become. This is the ordinary definition of a pull
+  request's diff, and it holds for a reviewed head that is not the pull
+  request's current head exactly as it does for the current head, so a
+  merged pull request, a moved base, or a rewritten base branch history never
+  changes which content an older reviewed head's scan compares against.
 
 - Finding text is stored up to a limit of 2,000 characters. Text beyond that
   limit is truncated and the record shows that truncation happened, so a long
@@ -560,7 +570,11 @@ alongside existing review comparisons and quality summaries.
   - how a reviewer was named, as opposed to which reviewer it is, resolved only
     as the reviewer identity rule below states;
   - how a commit identifier was abbreviated;
-  - letter case, in the finding location, finding title, and finding text;
+  - letter case, in the finding title and finding text, but **not** in the
+    finding location — a git tree can hold two paths differing only by case
+    (`src/Foo.ts` and `src/foo.ts`), so the location is compared
+    case-sensitively to keep two findings at such paths from ever comparing
+    as one;
   - leading, trailing, or repeated whitespace, in the finding location, finding
     title, and finding text.
 
@@ -1200,10 +1214,13 @@ action**, not a capture:
       preserved unchanged, per AC43.
 - [ ] AC30: Given the same finding entered twice — once read automatically and once
       supplied manually, differing only in how the reviewer was named, how the
-      commit identifier was abbreviated, and in letter case and surrounding
-      whitespace in the location, title, and finding text — when both captures
-      run, then exactly one record exists, and it stores the external reviewer,
-      location, title, and finding text as its most recent source gave them.
+      commit identifier was abbreviated, in letter case in the title and finding
+      text, and in surrounding whitespace in the location, title, and finding
+      text — when both captures run, then exactly one record exists, and it
+      stores the external reviewer, location, title, and finding text as its
+      most recent source gave them. Given instead that the two entries differ
+      only in the letter case of the location, then two separate records exist,
+      because location is compared case-sensitively.
 - [ ] AC31: Given a manual capture supplying a reviewed head that is malformed or
       that names a commit which was never a head of the referenced pull request,
       when the capture runs, then it is refused and no record is written.
@@ -1352,6 +1369,25 @@ action**, not a capture:
       and a capture supplying `undecided`. Given instead a newly written
       record, or a field already at its default, supplying the default value
       explicitly changes nothing — it is a no-op either way.
+- [ ] AC52: Given two findings the same reviewer reports at case-only-different
+      locations in a repository that holds both paths — `src/Foo.ts` and
+      `src/foo.ts` — with the same title and finding text, when the operator
+      captures both, then two separate records are written, because the
+      location is compared case-sensitively even though the title and finding
+      text are not.
+- [ ] AC53: Given a stale capture, when the operator sees the finding's
+      information, then Ronda's own result shown is the result for the Ronda
+      result head, named alongside the reviewed head, never a result claimed
+      to belong to the reviewed head itself, because Ronda published none
+      there.
+- [ ] AC54: Given a manually supplied reviewed head that is not the pull
+      request's current head, and whose base has since moved or been
+      rewritten, when the source/diff scan runs against that reviewed head,
+      then it compares against the pull request's changed files and diff as
+      they stood at that reviewed head — merge-based against the pull
+      request's base branch at that reviewed head — never against the
+      current base, so the same finding text is refused or accepted the same
+      way regardless of what the base branch has since become.
 
 ---
 
@@ -1404,7 +1440,7 @@ one; the spec states only the guarantee it must deliver.
 | Record includes the head SHA                                                                        | AC1, AC8, AC22, AC31, AC36, AC37                                                 |
 | Record includes the reviewer                                                                        | AC1, AC3, AC39                                                                   |
 | Record includes the finding text                                                                    | AC1, AC10, AC11, AC30, AC41                                                      |
-| Record includes the finding location, resolvable or not                                             | AC1, AC25                                                                        |
+| Record includes the finding location, resolvable or not                                             | AC1, AC25, AC52                                                                  |
 | Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20, AC30, AC41                                           |
 | A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, AC19, AC21, AC22, AC24, AC27, AC35, and Missing And Unreadable Input |
 | Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6, AC26, AC29, AC34, AC43, AC51                                 |
@@ -1414,6 +1450,6 @@ one; the spec states only the guarantee it must deliver.
 | Records preserve current-head evidence                                                              | AC1, AC8                                                                         |
 | Records distinguish true positives, false positives, and out-of-scope findings                      | AC5, AC6, AC7, and the Verdict enum                                              |
 | Captured misses can feed the existing review comparison / quality summary tooling                   | Use Case 4, AC6, AC7, and Reported Evidence Mapping                              |
-| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11, AC18, AC28, AC32, AC33, AC38, AC49, AC50                        |
+| The workflow avoids storing secrets or full sensitive patches unnecessarily                         | AC9, AC10, AC11, AC18, AC28, AC32, AC33, AC38, AC49, AC50, AC54                  |
 
 No brief objective is deferred to Out of Scope, so there are no deferral notes.
