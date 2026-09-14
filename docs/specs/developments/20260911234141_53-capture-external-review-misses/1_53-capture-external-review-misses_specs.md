@@ -689,17 +689,26 @@ behave differently.
 
 The **evidence** fields are all replaced with what this capture read or was
 given: the external reviewer, the finding location, title, and text, the
-capture source, the Ronda result head, and the stale marker. Refreshing the
+affected category, the capture source, the Ronda result head, and the stale
+marker. Refreshing the
 Ronda result head matters — a
 record captured as stale, then re-captured after Ronda has reviewed the record's
 reviewed head, stores the new Ronda result head and has its stale marker
-cleared. The stored heads therefore never contradict the marker.
+cleared. The stored heads therefore never contradict the marker. The affected
+category is an evidence field, not a judgement, so a re-capture correcting a
+mistaken category always replaces it, with no rationale needed — the same as
+correcting the location or the finding text.
 
 The **judgement** fields — verdict, intended follow-up, and rationale — are
-preserved, unless this capture explicitly supplies a new verdict or follow-up, in
-which case only the values it supplies are replaced and the existing rationale is
-kept. A re-capture that omits them never discards a human adjudication, because
-re-reading evidence is not a judgement about it.
+preserved when this capture omits both verdict and follow-up, or supplies them
+with the same values the record already carries. When this capture explicitly
+supplies a verdict or intended follow-up that **differs** from what the record
+currently carries, that field is replaced with the newly supplied value and the
+existing rationale is **cleared** — it explained a judgement the record no
+longer has, and keeping it would pair the new judgement with an explanation for
+the old one. A re-capture that leaves both fields unchanged, whether by omitting
+them or by supplying the same values, never discards a human adjudication or its
+rationale, because re-reading evidence is not a judgement about it.
 
 **Stale evidence is a record attribute, not a fifth outcome.** Whether Ronda's
 result and the external finding share the reviewed head does not change which
@@ -1030,11 +1039,14 @@ action**, not a capture:
       record through the Use Case 3 adjudication action without a rationale, then
       only that revision is refused and the record is left unchanged. Given
       instead that a further capture reaches Stage 4's "Record updated in place"
-      for that same finding identity and head and supplies a different verdict, a
-      different follow-up, or both without a rationale, then that capture is
-      **not** refused: the record is updated with the newly supplied values and the
-      existing rationale is **preserved** rather than cleared, matching the
-      merge rule. Only the values the capture supplies change.
+      for that same finding identity and head and supplies a verdict, a
+      follow-up, or both that **match** what the record already carries, or
+      supplies neither, then that capture is **not** refused: the record is
+      updated and the existing rationale is **preserved**, matching the merge
+      rule. Given instead that such a capture supplies a verdict or follow-up
+      that **differs** from what the record already carries, then that capture
+      is likewise **not** refused, but the changed field is replaced and the
+      existing rationale is **cleared**, per AC43.
 - [ ] AC27: Given a finding that automatic reading cannot return — because the
       named reviewer has no presence on the pull request, or is a reviewer
       automatic reading does not support, or published output that cannot be
@@ -1053,8 +1065,9 @@ action**, not a capture:
       and rationale, when a re-capture of that same finding supplies none of those
       values, then the record's evidence fields are replaced and the verdict,
       follow-up, and rationale are preserved unchanged. Given instead that the
-      re-capture supplies a new verdict, then only the verdict is replaced and the
-      follow-up and rationale are preserved.
+      re-capture supplies the **same** verdict the record already carries, then
+      the outcome is identical: the verdict, follow-up, and rationale are all
+      preserved unchanged, per AC43.
 - [ ] AC30: Given the same finding entered twice — once read automatically and once
       supplied manually, differing only in how the reviewer was named, how the
       commit identifier was abbreviated, and in letter case and surrounding
@@ -1135,6 +1148,21 @@ action**, not a capture:
       supplies finding text differing only by letter case or surrounding
       whitespace, then the existing record is updated in place rather than a
       second one being written.
+- [ ] AC42: Given an existing record whose affected category was captured
+      incorrectly, when the operator re-captures the same finding supplying the
+      corrected category, then the existing record is updated in place and its
+      stored affected category is replaced with the corrected value, with no
+      rationale needed, because the affected category is an evidence field, not
+      a judgement.
+- [ ] AC43: Given an existing record carrying a human verdict and a rationale
+      that explains it, when a further capture of that same finding supplies a
+      **different** verdict, then the record's verdict is replaced with the
+      newly supplied value and the existing rationale is **cleared**, so the
+      record never pairs a stored rationale with a judgement it no longer
+      explains. This holds symmetrically for the intended follow-up and its
+      rationale. Given instead that the further capture supplies the **same**
+      verdict, the same follow-up, or neither, then the rationale is
+      **preserved** unchanged.
 
 ---
 
@@ -1189,8 +1217,8 @@ one; the spec states only the guarantee it must deliver.
 | Record includes the finding location, resolvable or not                                             | AC1, AC25                                                                        |
 | Record includes the finding title used for finding identity                                         | AC1, AC3, AC12, AC15, AC20, AC30, AC41                                           |
 | A repeatable workflow handles missing, empty, and unreadable input                                  | AC16, AC17, AC19, AC21, AC22, AC24, AC27, AC35, and Missing And Unreadable Input |
-| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6, AC26, AC29, AC34                                             |
-| Record includes the affected category                                                               | AC1, AC13, AC23                                                                  |
+| Record includes the adjudication                                                                    | AC1, AC4, AC5, AC6, AC26, AC29, AC34, AC43                                       |
+| Record includes the affected category                                                               | AC1, AC13, AC23, AC42                                                            |
 | Record states whether it becomes an eval, prompt change, or backlog item                            | AC5, and the Intended follow-up enum                                             |
 | A command or documented workflow captures a Codex GitHub finding from a PR into a structured record | Use Case 1, AC1, AC14, and the capture source field                              |
 | Records preserve current-head evidence                                                              | AC1, AC8                                                                         |
