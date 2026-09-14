@@ -1171,9 +1171,13 @@ action**, not a capture:
       supplies neither, then that capture is **not** refused: the record is
       updated and the existing rationale is **preserved**, matching the merge
       rule. Given instead that such a capture supplies a verdict or follow-up
-      that **differs** from what the record already carries, then that capture
-      is likewise **not** refused, but the changed field is replaced and the
-      existing rationale is **cleared**, per AC43.
+      that **differs from what the record already carries and is not that
+      field's documented default**, then that capture is likewise **not**
+      refused, but the changed field is replaced and the existing rationale is
+      **cleared**, per AC43. Given instead that the supplied value **is** that
+      field's documented default of Unadjudicated or Undecided, then per AC51
+      the capture is not refused, but the field and rationale are preserved
+      unchanged.
 - [ ] AC27: Given a finding that automatic reading cannot return — because the
       named reviewer has no presence on the pull request, or is a reviewer
       automatic reading does not support, or published output that cannot be
@@ -1283,14 +1287,17 @@ action**, not a capture:
       a judgement.
 - [ ] AC43: Given an existing record carrying a human verdict and a rationale
       that explains it, when a further capture of that same finding supplies a
-      **different** verdict, then the record's verdict is replaced with the
-      newly supplied value and the existing rationale is **cleared**, so the
-      record never pairs a stored rationale with a judgement it no longer
+      verdict that **differs from the record's current value and is not that
+      field's documented default**, then the record's verdict is replaced with
+      the newly supplied value and the existing rationale is **cleared**, so
+      the record never pairs a stored rationale with a judgement it no longer
       explains. This holds symmetrically for the intended follow-up and its
-      rationale. Given instead that the further capture leaves **both** the
-      verdict and the intended follow-up unchanged from what the record already
-      carries — whether by omitting them, by supplying the same values, or any
-      combination of the two — then the rationale is **preserved** unchanged.
+      rationale. AC51 covers the case where the newly supplied value is that
+      field's documented default instead. Given instead that the further
+      capture leaves **both** the verdict and the intended follow-up
+      unchanged from what the record already carries — whether by omitting
+      them, by supplying the same values, or any combination of the two —
+      then the rationale is **preserved** unchanged.
 - [ ] AC44: Given a record whose verdict is Unadjudicated and whose intended
       follow-up is Undecided, when the operator deletes it, then the record is
       removed from the committed evidence, and a later capture of the same
