@@ -78,7 +78,8 @@ alongside existing review comparisons and quality summaries.
 - Leave the verdict unadjudicated for a later human pass.
 - Re-run capture on the same head to correct the affected category, the
   verdict, or the intended follow-up on an existing record.
-- Delete an unadjudicated record and capture it again to correct a mistake in
+- Delete a record whose verdict is still Unadjudicated and whose intended
+  follow-up is still Undecided, then capture it again to correct a mistake in
   the location, the finding title, the finding text, the reviewed head, or the
   external reviewer, because those fields participate in finding identity and
   an update in place cannot change them without creating a second record.
@@ -142,7 +143,8 @@ alongside existing review comparisons and quality summaries.
   rather than the current one.
 - Correct the affected category, the verdict, or the intended follow-up on a
   previously supplied record by capturing it again for the same head.
-- Delete an unadjudicated record and supply it again to correct a mistake in
+- Delete a record whose verdict is still Unadjudicated and whose intended
+  follow-up is still Undecided, then supply it again to correct a mistake in
   the location, the finding title, the finding text, the reviewed head, or the
   external reviewer.
 
@@ -422,9 +424,10 @@ alongside existing review comparisons and quality summaries.
 - A finding is only a confirmed Ronda miss after a human verdict says so. Every
   newly captured record starts unadjudicated unless the operator supplies a
   verdict at capture time.
-- Capture is read-only toward GitHub. The workflow never posts, edits, labels,
-  merges, closes, or reopens anything on a pull request, and a captured record
-  never decides a pull request's outcome.
+- Capture and deletion are read-only toward GitHub. The workflow never posts,
+  edits, labels, merges, closes, or reopens anything on a pull request; a
+  captured record never decides a pull request's outcome, and deleting a
+  record touches only the committed evidence, never the pull request.
 - A record stores the external reviewer's own finding text and the location it
   points at. It never stores more of the reviewed source file's contents or the
   pull request's diff than the short quoted excerpt the source-or-diff content
@@ -893,8 +896,8 @@ action**, not a capture:
   human has already set, directing the operator to the adjudication action
   instead of deletion.
 - **Audit trail**: Records are committed review-quality evidence, so the
-  repository history shows when each record was captured and when a verdict or
-  follow-up changed.
+  repository history shows when each record was captured, when a verdict or
+  follow-up changed, and when a record was deleted.
 
 ---
 
