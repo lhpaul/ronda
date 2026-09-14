@@ -412,8 +412,10 @@ alongside existing review comparisons and quality summaries.
   merges, closes, or reopens anything on a pull request, and a captured record
   never decides a pull request's outcome.
 - A record stores the external reviewer's own finding text and the location it
-  points at. It never stores the reviewed source file's contents or the pull
-  request's diff.
+  points at. It never stores more of the reviewed source file's contents or the
+  pull request's diff than the short quoted excerpt the source-or-diff content
+  rule below permits — never a diff hunk, and never more than five consecutive
+  matching lines.
 - When **any free-text field the record would store** carries the reviewed source
   file's contents or the pull request's diff, the capture is **refused** and
   nothing is stored, exactly as an adjudication rationale carrying such content is
@@ -423,8 +425,9 @@ alongside existing review comparisons and quality summaries.
   title or location is as capable of carrying a pasted diff as the text is. The
   refusal names which field carried source or diff content. Refusing
   rather than silently trimming keeps the operator aware their evidence was
-  rejected, and it is what makes the no-source-and-no-diff guarantee achievable
-  rather than aspirational. This check is part of Stage 3 of the Capture
+  rejected, and it is what makes the bounded-excerpt guarantee — never more than
+  a short quoted excerpt, never a diff hunk — achievable rather than
+  aspirational. This check is part of Stage 3 of the Capture
   Decision Gate, alongside the credential scan, and it runs against each scanned
   field in full before any truncation, so content beyond the finding text's
   2,000-character boundary or a derived title's 120-character boundary is scanned
@@ -911,14 +914,15 @@ action**, not a capture:
       be accepted.
 - [ ] AC10: Given a captured record, when the record is inspected, then it
       contains the external reviewer's finding text and the location it points at,
-      and contains neither the reviewed source file's contents nor the pull
-      request's diff. Given instead a finding any of whose stored free-text fields
-      — reviewer name, supplied reviewed head, finding location, finding title, or
-      finding text — carries the reviewed source file's contents or the pull
-      request's diff, then the capture is refused for each of those fields
-      independently, nothing is stored, and the refusal names which field carried
-      it — so the guarantee is reached by refusing such input, never by trimming it
-      after the fact.
+      and carries no more of the reviewed source file's contents or the pull
+      request's diff than the short quoted excerpt AC38 permits — never a diff
+      hunk, and never more than five consecutive matching lines. Given instead a
+      finding any of whose stored free-text fields — reviewer name, supplied
+      reviewed head, finding location, finding title, or finding text — carries
+      source or diff content beyond that permitted excerpt, then the capture is
+      refused for each of those fields independently, nothing is stored, and the
+      refusal names which field carried it — so the guarantee is reached by
+      refusing such input, never by trimming it after the fact.
 - [ ] AC11: Given a credential-free external finding whose text exceeds 2,000
       characters, when the operator captures it, then the stored finding text is
       truncated to 2,000 characters and the record states that truncation
