@@ -76,7 +76,12 @@ alongside existing review comparisons and quality summaries.
   dropped from the evidence.
 - Supply the verdict, category, and intended follow-up at capture time.
 - Leave the verdict unadjudicated for a later human pass.
-- Re-run capture on the same head to correct a record.
+- Re-run capture on the same head to correct the affected category, the
+  verdict, or the intended follow-up on an existing record.
+- Delete an unadjudicated record and capture it again to correct a mistake in
+  the location, the finding title, the finding text, the reviewed head, or the
+  external reviewer, because those fields participate in finding identity and
+  an update in place cannot change them without creating a second record.
 
 **Considerations**:
 
@@ -135,7 +140,11 @@ alongside existing review comparisons and quality summaries.
 
 - Supply the reviewed head explicitly when the record belongs to an older head
   rather than the current one.
-- Correct a previously supplied record by capturing it again for the same head.
+- Correct the affected category, the verdict, or the intended follow-up on a
+  previously supplied record by capturing it again for the same head.
+- Delete an unadjudicated record and supply it again to correct a mistake in
+  the location, the finding title, the finding text, the reviewed head, or the
+  external reviewer.
 
 **Considerations**:
 
@@ -548,6 +557,23 @@ alongside existing review comparisons and quality summaries.
   identity reported against it — but capturing the same finding (all six
   identity values matching) on the same pull request and reviewed head again
   updates that one existing record instead of creating a second one.
+- **Deleting an erroneous record.** An operator may delete a record whose
+  verdict is still Unadjudicated and whose intended follow-up is still
+  Undecided — a record no human has yet acted on. Deletion removes the record
+  from the committed evidence entirely, freeing its finding identity to be
+  captured again correctly; the deleted record's history remains visible in
+  the repository's commit history, per the audit-trail guarantee below,
+  exactly as any other change to committed evidence does. Deletion is refused,
+  and the record is left unchanged, when its verdict or intended follow-up is
+  not at its default — once a human judgement has been set, whether supplied
+  at capture time or through the adjudication action, the record is corrected
+  through the adjudication action, never erased. This is how the workflow
+  corrects a mistake in an identity-bearing field — the location, the finding
+  title, the finding text, the reviewed head, or the external reviewer — none
+  of which an update in place can change without creating a second record.
+  Correcting the affected category, the verdict, or the intended follow-up
+  needs no deletion, because none of those three fields participates in
+  finding identity and an update in place already replaces them.
 - The affected category comes from a closed set. An unrecognised category is
   refused rather than stored, so category evidence stays aggregatable.
 - Records are stored in the repository alongside Ronda's other committed
@@ -862,6 +888,10 @@ action**, not a capture:
   it is stale evidence, and names both heads.
 - **Truncation**: A record whose finding text was truncated says so on the
   record, so nobody reads a truncated finding as the reviewer's full comment.
+- **Deletion**: A deletion reports whether it succeeded or was refused. A
+  refusal states that the record carries a verdict or intended follow-up a
+  human has already set, directing the operator to the adjudication action
+  instead of deletion.
 - **Audit trail**: Records are committed review-quality evidence, so the
   repository history shows when each record was captured and when a verdict or
   follow-up changed.
@@ -1168,6 +1198,15 @@ action**, not a capture:
       verdict and the intended follow-up unchanged from what the record already
       carries — whether by omitting them, by supplying the same values, or any
       combination of the two — then the rationale is **preserved** unchanged.
+- [ ] AC44: Given a record whose verdict is Unadjudicated and whose intended
+      follow-up is Undecided, when the operator deletes it, then the record is
+      removed from the committed evidence, and a later capture of the same
+      finding identity writes a new record rather than finding an existing one
+      to update.
+- [ ] AC45: Given a record whose verdict is not Unadjudicated, or whose intended
+      follow-up is not Undecided, when the operator attempts to delete it, then
+      the deletion is refused, the record is left unchanged, and the refusal
+      directs the operator to the adjudication action instead.
 
 ---
 
