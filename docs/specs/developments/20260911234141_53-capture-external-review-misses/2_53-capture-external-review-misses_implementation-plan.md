@@ -203,6 +203,11 @@ no competing change.
 7. A stale capture displays the review result for its stored Ronda-result head,
    and an older-head manual capture scans against its preserved capture-time
    base-tip merge base despite later base movement (AC53–AC54).
+8. Automatic capture refuses a missing operator-supplied category; a re-capture
+   does not reset adjudicated fields to their defaults; manual location remains
+   case-sensitive; automatic re-capture refreshes edited reviewer wording; and
+   a manual capture remains a separate record from an automatic record even
+   when the human-visible finding is the same (AC46–AC47, AC52, AC55–AC56).
 
 **Smoke test runbook**:
 `docs/testing/ronda/capture-external-review-misses.smoke-test.md`
@@ -292,7 +297,10 @@ mutable state across execution contexts.
 6. Add fixtures and unit tests for every gate stage, parser-risk boundary,
    source/content identity, stale/unresolvable summary behavior, and audit
    transitions, including AC53 stored-result-head display and AC54 preserved
-   capture-time merge-base scanning for manual older-head input.
+   capture-time merge-base scanning for manual older-head input, plus AC46
+   missing-category automatic refusal, AC47 default preservation, AC52
+   case-sensitive location identity, AC55 refreshed automatic evidence, and
+   AC56 automatic/manual record separation.
 7. Update the README, software architecture testing section, comparison
    collection guide, and smoke runbook.
 8. Run `npm run typecheck`, `npm run lint`, `npm test`, the targeted capture
