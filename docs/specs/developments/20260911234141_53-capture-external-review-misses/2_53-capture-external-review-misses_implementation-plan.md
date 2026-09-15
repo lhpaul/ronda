@@ -277,14 +277,16 @@ mutable state across execution contexts.
 ## Implementation Order
 
 1. Define the record schema, closed enums, canonical identity helpers, JSON
-   storage boundary, and fixture format under the CLI layer.
+   storage boundary, fixture format, and the safety-validation module that scans
+   credentials and source/diff content before any capture gate consumes input.
 2. Implement GitHub evidence readers and the Capture Decision Gate with
-   path-specific precedence and no GitHub write operation.
+   path-specific precedence and no GitHub write operation, using the validator
+   created in step 1.
 3. Add automatic/manual capture, read, adjudicate, and guarded-delete command
    operations; make help text mirror the four-stage runbook.
-4. Add sensitive-content/source-diff validation before all derivation,
-   truncation, persistence, or adjudication writes; execute the planted-
-   violation fail/pass proof.
+4. Integrate the step-1 validator before all derivation, truncation,
+   persistence, or adjudication writes; execute the planted-violation fail/pass
+   proof.
 5. Extend comparison/quality types and the summary output with the new miss
    classifications while preserving legacy counts.
 6. Add fixtures and unit tests for every gate stage, parser-risk boundary,
