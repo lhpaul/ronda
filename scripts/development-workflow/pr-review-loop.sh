@@ -8737,16 +8737,16 @@ reviewer_loop_sync_compare_first_blocking_after_local_confirmation() {
     return 0
   fi
 
-  _cv_idx=0
-  while [ "$_cv_idx" -lt "${#compare_verdicts[@]}" ]; do
+  _cv_idx=$((${#compare_verdicts[@]} - 2))
+  while [ "$_cv_idx" -ge 0 ]; do
     if [ "${compare_verdicts[$_cv_idx]}" = "local-ai-reviewer" ]; then
       compare_verdicts[$((_cv_idx + 1))]="$(normalize_platform_verdict "$aggregate_result" "$aggregate_output")"
       break
     fi
-    _cv_idx=$((_cv_idx + 2))
+    _cv_idx=$((_cv_idx - 2))
   done
 
-  if [ -z "${compare_first_blocking_result:-}" ] || [ "${compare_first_blocking_output:-}" != "$original_output" ]; then
+  if [ -n "${compare_first_blocking_result:-}" ] && [ "${compare_first_blocking_output:-}" != "$original_output" ]; then
     return 0
   fi
 

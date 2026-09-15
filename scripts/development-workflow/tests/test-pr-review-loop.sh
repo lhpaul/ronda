@@ -18229,6 +18229,18 @@ run_test "1656_lbc_compare_later_first_preserved" "codex_blocking" "$compare_fir
 run_test "1656_lbc_compare_later_verdict_replaced" "unavailable" "${compare_verdicts[3]}"
 run_test "1656_lbc_compare_later_failed_label" "1" "$reviewer_failed_required"
 unset _1656_external_blocker
+
+_1656_reset_guard_globals
+compare_mode=1
+compare_verdicts=("local-ai-reviewer" "clean" "local-ai-reviewer" "blocking")
+aggregate_result="escalate"
+aggregate_reason="local_finding_unconfirmed"
+aggregate_output="$(printf 'RESULT=escalate\nREASON=local_finding_unconfirmed\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+aggregate_status=2
+reviewer_loop_sync_compare_first_blocking_after_local_confirmation "$_1656_local_blocker_primary"
+run_test "1656_lbc_compare_latest_local_replaced" "unavailable" "${compare_verdicts[3]}"
+run_test "1656_lbc_compare_prior_local_preserved" "clean" "${compare_verdicts[1]}"
+run_test "1656_lbc_compare_empty_first_initialized" "local_finding_unconfirmed" "$compare_first_blocking_reason"
 unset _1656_local_blocker_primary
 
 _1656_main_confirm_hook="$(
@@ -18328,6 +18340,7 @@ _1656_stub_pass_result="needs_fixes"
 reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
 run_test "1656_s7_compare_guard_continues" "0" "$_st"
 run_test "1656_s7_compare_verdict_blocking" "blocking" "${compare_verdicts[1]}"
+run_test "1656_s7_compare_first_result" "needs_fixes" "$compare_first_blocking_result"
 run_test "1656_s7_compare_failed_head" "$_1656_guard_head" "$local_second_pass_failed_head_record"
 
 # Scenario 7b: needs_rerun pass — unavailable escalation, phase not started
