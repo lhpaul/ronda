@@ -286,6 +286,15 @@ run_test "whitespace_blocker_text_exit" "2" "$(exit_code)"
 
 reset_mocks
 LOCAL_AI_REVIEWER_COMMAND=local-reviewer-mock
+set_mock_stdout '{"result":"needs_fixes","findings":[{"severity":"important","path":"scripts/example.sh","message":"=fix leading equals"}]}'
+export LOCAL_AI_REVIEWER_COMMAND MOCK_LOCAL_REVIEWER_STDOUT
+run_reviewer "$MOCK_BIN:$PATH"
+run_test "leading_equals_blocker_text_result" "RESULT=needs_fixes" "$(line_for RESULT)"
+run_test "leading_equals_blocker_text_count" "BLOCKING_COUNT=1" "$(line_for BLOCKING_COUNT)"
+run_test "leading_equals_blocker_text_body" "BLOCKING_1_BODY==fix leading equals" "$(line_for BLOCKING_1_BODY)"
+
+reset_mocks
+LOCAL_AI_REVIEWER_COMMAND=local-reviewer-mock
 set_mock_stdout '{"result":"clean","findings":[{"severity":"important","message":"fix before ready"}]}'
 export LOCAL_AI_REVIEWER_COMMAND MOCK_LOCAL_REVIEWER_STDOUT
 run_reviewer "$MOCK_BIN:$PATH"
