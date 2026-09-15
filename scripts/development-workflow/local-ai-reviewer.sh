@@ -1303,6 +1303,16 @@ blocking_count="${blocking_count:-0}"
 suggestion_count="${suggestion_count:-0}"
 reason="${reason:-}"
 
+# A needs_fixes verdict must identify at least one blocking finding.  Do not
+# manufacture a blocker for an otherwise-valid JSON response: doing so turns
+# an un-actionable model verdict into a self-sustaining reviewer-loop failure
+# on an unchanged head.
+if [ "$result" = "needs_fixes" ] && [ "$blocking_count" -eq 0 ]; then
+  echo "WARN: local AI reviewer reported needs_fixes without a blocking finding" >&2
+  print_result escalate 0 0 0 malformed_output malformed_output
+  exit 2
+fi
+
 # --- Strict registry passes (at most one dispatches; never merges into blocking) ---
 strict_run_all_registry_entries
 
@@ -1476,7 +1486,6 @@ case "$result" in
     exit 0
     ;;
   needs_fixes)
-    [ "$blocking_count" -eq 0 ] && blocking_count=1
     [ "$comment_count" -eq 0 ] && comment_count=1
     write_evidence_file needs_fixes local_ai_review_findings "$comment_count" "$blocking_count" "$suggestion_count"
     emit_ordinary_and_strict needs_fixes "$comment_count" "$blocking_count" "$suggestion_count" local_ai_review_findings
