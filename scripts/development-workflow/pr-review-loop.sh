@@ -8541,7 +8541,7 @@ reviewer_loop_second_local_pass_confirm_live_head() {
 reviewer_loop_second_local_pass_before_ready_gate() {
   local pr_number_arg="${1:-}"
   local _sl_prior_payload _sl_next_iteration _sl_configured _sl_composed _sl_required
-  local _sl_output _sl_status _sl_platform_index _sl_pass_result _sl_pass_reason
+  local _sl_output _sl_status _sl_platform_index _sl_pass_result _sl_pass_reason _sl_emit
   local _sl_gate_result _sl_gate_reason _sl_reviewed_head _sl_head_state
 
   local_second_pass_reason="not_required"
@@ -8592,7 +8592,11 @@ reviewer_loop_second_local_pass_before_ready_gate() {
   set -e
   _sl_platform_index=$((${#platforms[@]} + 1))
   reviewer_loop_platform_loop_should_break=0
-  reviewer_loop_process_platform_output "local-ai-reviewer" "$_sl_platform_index" "$_sl_output" "$_sl_status" 0
+  _sl_emit=1
+  if [ "$(kv_value_default RESULT "$_sl_output" skipped)" = "needs_fixes" ]; then
+    _sl_emit=0
+  fi
+  reviewer_loop_process_platform_output "local-ai-reviewer" "$_sl_platform_index" "$_sl_output" "$_sl_status" 0 "$_sl_emit"
   _sl_pass_result="$reviewer_loop_last_platform_result"
   _sl_pass_reason="$reviewer_loop_last_platform_reason"
   _sl_pass_output="$reviewer_loop_last_platform_output"
@@ -8627,6 +8631,7 @@ reviewer_loop_second_local_pass_before_ready_gate() {
   if [ "$_sl_gate_result" = "needs_fixes" ]; then
     if ! reviewer_loop_confirm_local_blocker "$pr_number_arg" "$_sl_pass_output"; then
       reviewer_loop_sync_compare_first_blocking_after_local_confirmation "$_sl_pass_output"
+      reviewer_loop_emit_platform_output_contract "local-ai-reviewer" "$_sl_platform_index" "$aggregate_output"
       if [ "$aggregate_reason" != "head_moved_during_run" ]; then
         local_second_pass_failed_head_record="$loop_head_sha"
       fi
@@ -8643,6 +8648,7 @@ reviewer_loop_second_local_pass_before_ready_gate() {
       "$(kv_value_default SUGGESTION_COUNT "$_sl_pass_output" 0)")"
     aggregate_status="$_sl_pass_status"
     reviewer_loop_sync_compare_first_blocking_after_local_confirmation "$_sl_pass_output"
+    reviewer_loop_emit_platform_output_contract "local-ai-reviewer" "$_sl_platform_index" "$aggregate_output"
     if [ "$compare_mode" -eq 1 ]; then
       return 0
     fi

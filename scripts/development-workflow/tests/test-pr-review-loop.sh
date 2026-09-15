@@ -18469,11 +18469,21 @@ reviewer_loop_confirm_local_blocker() {
 _1656_reset_guard_globals
 _1656_guard_hist_payload='{"schema":"reviewer_loop_history.v1","entries":[]}'
 _1656_stub_pass_result="needs_fixes"
-reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
+_1656_s7e_output_file="$(mktemp)"
+reviewer_loop_second_local_pass_before_ready_gate 1693 >"$_1656_s7e_output_file" && _st=0 || _st=$?
+_1656_s7e_output="$(cat "$_1656_s7e_output_file")"
 run_test "1656_s7e_guard_blocked" "1" "$_st"
 run_test "1656_s7e_guard_unconfirmed" "local_finding_unconfirmed" "$aggregate_reason"
 run_test "1656_s7e_guard_failed_head" "$_1656_guard_head" "$local_second_pass_failed_head_record"
 run_test "1656_s7e_phase_not_started" "0" "$phase_after_clean_started"
+run_test "1656_s7e_terminal_emit_result" "PLATFORM_3_RESULT=escalate" \
+  "$(printf '%s\n' "$_1656_s7e_output" | awk '/^PLATFORM_3_RESULT=/{print; exit}')"
+run_test "1656_s7e_terminal_emit_count" "PLATFORM_3_BLOCKING_COUNT=0" \
+  "$(printf '%s\n' "$_1656_s7e_output" | awk '/^PLATFORM_3_BLOCKING_COUNT=/{print; exit}')"
+run_test "1656_s7e_terminal_emit_no_stale_blocker" "0" \
+  "$(printf '%s\n' "$_1656_s7e_output" | grep -Ec '^PLATFORM_3_BLOCKING_1_' || true)"
+rm -f "$_1656_s7e_output_file"
+unset _1656_s7e_output _1656_s7e_output_file
 
 _1656_reset_guard_globals
 compare_mode=1
