@@ -17760,6 +17760,18 @@ _1656_head="cccccccccccccccccccccccccccccccccccccccc"
 _1656_ancestor="dddddddddddddddddddddddddddddddddddddddd"
 _1656_unrelated="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 _1656_cfg=$'local-ai-reviewer\ncodex-github'
+_1656_skipped_branch="$(
+  awk '
+    index($0, "if [ -z \"\$last_platform\" ]; then") { capture = 1 }
+    capture { print }
+    capture && /exit 0/ { exit }
+  ' "$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh"
+)"
+run_test "1656_skipped_branch_confirmation_key" "1" \
+  "$(printf '%s\n' "$_1656_skipped_branch" | grep -Ec 'print_kv LOCAL_BLOCKER_CONFIRMATION 0' || true)"
+run_test "1656_skipped_branch_confirmation_reason" "1" \
+  "$(printf '%s\n' "$_1656_skipped_branch" | grep -Ec 'print_kv LOCAL_BLOCKER_CONFIRMATION_REASON not_required' || true)"
+unset _1656_skipped_branch
 
 _1656_hist_clean_same() {
   jq -nc --arg head "$_1656_head" '{

@@ -12830,6 +12830,8 @@ EOF
 if [ -z "$last_platform" ]; then
   print_kv LOCAL_SECOND_PASS 0
   print_kv LOCAL_SECOND_PASS_REASON not_required
+  print_kv LOCAL_BLOCKER_CONFIRMATION 0
+  print_kv LOCAL_BLOCKER_CONFIRMATION_REASON not_required
   print_kv RESULT skipped
   print_kv REASON not_configured
   print_kv PLATFORM ""
