@@ -18175,7 +18175,31 @@ run_test "1656_lbc_unreadable_live_head_status" "1" "$_st"
 run_test "1656_lbc_unreadable_live_head_reason" "local_blocker_confirmation_unavailable" "$local_blocker_confirmation_reason"
 run_test "1656_lbc_unreadable_live_head_aggregate" "local_blocker_confirmation_unavailable" "$aggregate_reason"
 run_test "1656_lbc_unreadable_live_head_count" "0" "$total_blocking_count"
+
+_1656_reset_guard_globals
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="needs_fixes"
+_1656_stub_pass_head="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+_1656_stub_pr_head="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+run_test "1656_lbc_moved_head_status" "1" "$_st"
+run_test "1656_lbc_moved_head_reason" "head_moved_during_pass" "$local_blocker_confirmation_reason"
+run_test "1656_lbc_moved_head_aggregate" "head_moved_during_run" "$aggregate_reason"
+run_test "1656_lbc_moved_head_count" "0" "$total_blocking_count"
 unset _1656_local_blocker_primary
+
+_1656_main_confirm_hook="$(
+  awk '
+    /reviewer_loop_confirm_local_blocker "\$pr_number" "\$platform_output"/ { capture = 1 }
+    capture { print }
+    capture && /fi/ { exit }
+  ' "$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh"
+)"
+run_test "1656_main_confirm_hook_compare_mode" "0" \
+  "$(printf '%s\n' "$_1656_main_confirm_hook" | grep -Ec 'compare_mode.*-eq 0' || true)"
+unset _1656_main_confirm_hook
 
 # Scenario 4 / not_required: clean on loop_head_sha — no dispatch
 _1656_reset_guard_globals

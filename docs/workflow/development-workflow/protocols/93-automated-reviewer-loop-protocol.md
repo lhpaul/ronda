@@ -350,11 +350,12 @@ the next cycle (cross-invocation), without relying on cycle caps.
 ### Local blocker confirmation
 
 When `local-ai-reviewer` returns `RESULT=needs_fixes` during the draft reviewer
-phase, `pr-review-loop.sh` immediately runs one same-head confirmation pass
-before allowing the local finding to block the loop. The confirmation pass must
-report `RESULT=needs_fixes` with `REVIEWED_HEAD` current on the loop head, and
-the live PR head must still match the loop head. Only then does the original
-local blocker remain a fixable `needs_fixes` result.
+phase, compare mode, or the second local pass before the ready-phase gate,
+`pr-review-loop.sh` immediately runs one same-head confirmation pass before
+allowing the local finding to block the loop. The confirmation pass must report
+`RESULT=needs_fixes` with `REVIEWED_HEAD` current on the loop head, and the live
+PR head must still match the loop head. Only then does the original local
+blocker remain a fixable `needs_fixes` result.
 
 If the confirmation pass returns `clean`, the loop clears the original local
 blocker counts and records `RESULT=escalate`,
