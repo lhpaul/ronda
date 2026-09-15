@@ -266,6 +266,16 @@ run_test "unstructured_needs_fixes_exit" "2" "$(exit_code)"
 
 reset_mocks
 LOCAL_AI_REVIEWER_COMMAND=local-reviewer-mock
+set_mock_stdout '{"result":"needs_fixes","findings":[{"severity":"important","path":"scripts/example.sh"}]}'
+export LOCAL_AI_REVIEWER_COMMAND MOCK_LOCAL_REVIEWER_STDOUT
+run_reviewer "$MOCK_BIN:$PATH"
+run_test "empty_blocker_text_result" "RESULT=escalate" "$(line_for RESULT)"
+run_test "empty_blocker_text_reason" "REASON=malformed_output" "$(line_for REASON)"
+run_test "empty_blocker_text_no_blocker" "BLOCKING_COUNT=0" "$(line_for BLOCKING_COUNT)"
+run_test "empty_blocker_text_exit" "2" "$(exit_code)"
+
+reset_mocks
+LOCAL_AI_REVIEWER_COMMAND=local-reviewer-mock
 set_mock_stdout '{"result":"clean","findings":[{"severity":"important","message":"fix before ready"}]}'
 export LOCAL_AI_REVIEWER_COMMAND MOCK_LOCAL_REVIEWER_STDOUT
 run_reviewer "$MOCK_BIN:$PATH"

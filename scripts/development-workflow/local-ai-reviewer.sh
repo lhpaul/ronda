@@ -1303,15 +1303,21 @@ blocking_count="${blocking_count:-0}"
 suggestion_count="${suggestion_count:-0}"
 reason="${reason:-}"
 
-# A needs_fixes verdict must identify at least one blocking finding.  Do not
-# manufacture a blocker for an otherwise-valid JSON response: doing so turns
-# an un-actionable model verdict into a self-sustaining reviewer-loop failure
-# on an unchanged head.
-if [ "$result" = "needs_fixes" ] && [ "$blocking_count" -eq 0 ]; then
-  echo "WARN: local AI reviewer reported needs_fixes without a blocking finding" >&2
+# A needs_fixes verdict must identify actionable text for every blocking
+# finding. Do not manufacture a blocker for an otherwise-valid JSON response:
+# doing so turns an un-actionable model verdict into a self-sustaining
+# reviewer-loop failure on an unchanged head.
+blocking_body_count="$(printf '%s\n' "$parse_result" | awk -F= '
+  $1 ~ /^BLOCKING_[0-9]+_BODY$/ && length($2) > 0 { count += 1 }
+  END { print count + 0 }
+')"
+if [ "$result" = "needs_fixes" ] \
+    && { [ "$blocking_count" -eq 0 ] || [ "$blocking_body_count" -ne "$blocking_count" ]; }; then
+  echo "WARN: local AI reviewer reported needs_fixes without actionable blocking findings" >&2
   print_result escalate 0 0 0 malformed_output malformed_output
   exit 2
 fi
+unset blocking_body_count
 
 # --- Strict registry passes (at most one dispatches; never merges into blocking) ---
 strict_run_all_registry_entries
