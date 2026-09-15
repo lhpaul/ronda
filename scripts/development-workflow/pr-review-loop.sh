@@ -706,6 +706,9 @@ Outputs stable key=value lines including:
     (head_moved_during_pass: live PR head != loop_head_sha on a proceed path,
     including not_required/no_local_reviewer when no pass ran, and after a
     clean pass; aggregate REASON remains head_moved_during_run)
+  LOCAL_BLOCKER_CONFIRMATION=0|1 (1 when a local-ai-reviewer needs_fixes verdict
+    required a same-head confirmation pass before it could block the loop)
+  LOCAL_BLOCKER_CONFIRMATION_REASON=not_required|confirmed|local_finding_unconfirmed|local_blocker_confirmation_unavailable|head_moved_during_pass
   POST_CLEAN_RECHECK=0|1 (1 when the post-clean settle-and-recheck ran)
   POST_CLEAN_RECHECK_SKIP_REASON=<reason> (present only when POST_CLEAN_RECHECK=0: not_clean,
     compare_mode, skip_env, no_thread_posting_platforms, or no_pr_number — so a caller can tell
@@ -8636,6 +8639,127 @@ reviewer_loop_second_local_pass_before_ready_gate() {
   return 1
 }
 
+reviewer_loop_remove_blocking_findings_for_platform() {
+  local platform_name="${1:-}"
+  local finding finding_platform
+  local -a kept_findings=()
+  local -a kept_paths=()
+
+  [ -n "$platform_name" ] || return 0
+  for finding in "${aggregate_blocking_findings[@]}"; do
+    finding_platform="$(printf '%s\n' "$finding" | jq -r '.platform // ""' 2>/dev/null)" || finding_platform=""
+    if [ "$finding_platform" = "$platform_name" ]; then
+      continue
+    fi
+    kept_findings+=("$finding")
+    kept_paths+=("$(printf '%s\n' "$finding" | jq -r '.path // ""' 2>/dev/null)")
+  done
+
+  aggregate_blocking_findings=("${kept_findings[@]}")
+  aggregate_blocking_paths=()
+  for finding in "${kept_paths[@]}"; do
+    [ -n "$finding" ] && aggregate_blocking_paths+=("$finding")
+  done
+}
+
+reviewer_loop_decrement_total_count() {
+  local current="${1:-0}"
+  local decrement="${2:-0}"
+
+  [[ "$current" =~ ^[0-9]+$ ]] || current=0
+  [[ "$decrement" =~ ^[0-9]+$ ]] || decrement=0
+  if [ "$current" -le "$decrement" ]; then
+    printf '0\n'
+  else
+    printf '%s\n' "$((current - decrement))"
+  fi
+}
+
+reviewer_loop_clear_unconfirmed_local_blocker() {
+  local original_output="${1:-}"
+  local original_comments original_blocking original_suggestions
+
+  original_comments="$(kv_value_default COMMENT_COUNT "$original_output" 0)"
+  original_blocking="$(kv_value_default BLOCKING_COUNT "$original_output" 0)"
+  original_suggestions="$(kv_value_default SUGGESTION_COUNT "$original_output" 0)"
+  total_comment_count="$(reviewer_loop_decrement_total_count "$total_comment_count" "$original_comments")"
+  total_blocking_count="$(reviewer_loop_decrement_total_count "$total_blocking_count" "$original_blocking")"
+  total_suggestion_count="$(reviewer_loop_decrement_total_count "$total_suggestion_count" "$original_suggestions")"
+  reviewer_loop_remove_blocking_findings_for_platform "local-ai-reviewer"
+}
+
+reviewer_loop_confirm_local_blocker() {
+  local pr_number_arg="${1:-}"
+  local original_output="${2:-}"
+  local _lc_output _lc_status _lc_result _lc_reason _lc_reviewed_head _lc_head_state
+
+  local_blocker_confirmation=1
+  local_blocker_confirmation_reason="dispatched"
+  local_blocker_confirmation_result=""
+
+  set +e
+  _lc_output="$(run_platform_review "local-ai-reviewer" "$pr_number_arg" "$branch_name" "$poll_interval" "$max_wait")"
+  _lc_status=$?
+  set -e
+
+  _lc_result="$(kv_value_default RESULT "$_lc_output" skipped)"
+  _lc_reason="$(kv_value_default REASON "$_lc_output" "")"
+  _lc_reviewed_head="$(kv_value_default REVIEWED_HEAD "$_lc_output" "")"
+  local_blocker_confirmation_result="$_lc_result"
+
+  _lc_head_state="$(reviewer_loop_head_evidence_classify "$_lc_reviewed_head" "$loop_head_sha")"
+  _lc_head_state="${_lc_head_state%%|*}"
+  if [ "$_lc_head_state" != "current" ]; then
+    local_blocker_confirmation_reason="local_blocker_confirmation_unavailable"
+    reviewer_loop_clear_unconfirmed_local_blocker "$original_output"
+    aggregate_result="escalate"
+    aggregate_reason="local_blocker_confirmation_unavailable"
+    aggregate_output="$(printf 'RESULT=escalate\nREASON=local_blocker_confirmation_unavailable\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+    aggregate_status=2
+    reviewer_loop_platform_loop_should_break=1
+    last_platform="local-ai-reviewer"
+    return 1
+  fi
+  if ! reviewer_loop_second_local_pass_confirm_live_head "$pr_number_arg"; then
+    local_blocker_confirmation_reason="${local_second_pass_reason:-local_blocker_confirmation_unavailable}"
+    reviewer_loop_clear_unconfirmed_local_blocker "$original_output"
+    reviewer_loop_platform_loop_should_break=1
+    last_platform="local-ai-reviewer"
+    return 1
+  fi
+
+  : "$_lc_status" "$_lc_reason"
+
+  case "$_lc_result" in
+    needs_fixes)
+      local_blocker_confirmation_reason="confirmed"
+      return 0
+      ;;
+    clean)
+      local_blocker_confirmation_reason="local_finding_unconfirmed"
+      reviewer_loop_clear_unconfirmed_local_blocker "$original_output"
+      aggregate_result="escalate"
+      aggregate_reason="local_finding_unconfirmed"
+      aggregate_output="$(printf 'RESULT=escalate\nREASON=local_finding_unconfirmed\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+      aggregate_status=2
+      reviewer_loop_platform_loop_should_break=1
+      last_platform="local-ai-reviewer"
+      return 1
+      ;;
+    *)
+      local_blocker_confirmation_reason="local_blocker_confirmation_unavailable"
+      reviewer_loop_clear_unconfirmed_local_blocker "$original_output"
+      aggregate_result="escalate"
+      aggregate_reason="local_blocker_confirmation_unavailable"
+      aggregate_output="$(printf 'RESULT=escalate\nREASON=local_blocker_confirmation_unavailable\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+      aggregate_status=2
+      reviewer_loop_platform_loop_should_break=1
+      last_platform="local-ai-reviewer"
+      return 1
+      ;;
+  esac
+}
+
 # reviewer_loop_process_platform_output <platform_name> <platform_index> <output> <status> [update_aggregate]
 #
 # Shared post-dispatch processor for the platform loop and the second local pass
@@ -11886,6 +12010,9 @@ local_second_pass=0
 local_second_pass_reason="not_required"
 local_second_pass_result=""
 local_second_pass_failed_head_record=""
+local_blocker_confirmation=0
+local_blocker_confirmation_reason="not_required"
+local_blocker_confirmation_result=""
 reviewer_loop_platform_loop_should_break=0
 reviewer_loop_last_platform_result=""
 reviewer_loop_last_platform_reason=""
@@ -12092,6 +12219,11 @@ for index in "${!platforms[@]}"; do
 
   reviewer_loop_platform_loop_should_break=0
   reviewer_loop_process_platform_output "$platform_name" "$platform_index" "$platform_output" "$platform_status" 1
+  if [ "$platform_name" = "local-ai-reviewer" ] \
+      && [ "$reviewer_loop_last_platform_result" = "needs_fixes" ] \
+      && [ "$compare_mode" -eq 0 ]; then
+    reviewer_loop_confirm_local_blocker "$pr_number" "$platform_output" || true
+  fi
   if [ "$reviewer_loop_platform_loop_should_break" -eq 1 ]; then
     break
   fi
@@ -12340,6 +12472,13 @@ $(reviewer_loop_head_evidence_render "${loop_head_sha:-}" "${platform_reviewed_h
 **Second local pass:** second local pass: ${local_second_pass_reason:-unknown} → ${local_second_pass_result}"
   fi
 
+  local local_blocker_confirmation_section=""
+  if [ "${local_blocker_confirmation:-0}" -eq 1 ]; then
+    local_blocker_confirmation_section="
+
+**Local blocker confirmation:** ${local_blocker_confirmation_reason:-unknown}${local_blocker_confirmation_result:+ → ${local_blocker_confirmation_result}}"
+  fi
+
   local phase_section=""
   if [ "$phase_enabled" -eq 1 ]; then
     local _phase_value_line
@@ -12578,7 +12717,7 @@ ${_attr_line}"
 **Result:** ${result_line}
 **Platforms:** ${platform_list:-none}${policy_status_section}
 **Findings:** ${blocking} blocking, ${suggestions} suggestions
-${small_findings_section}${missed_findings_section}${attribution_section}${missed_finding_telemetry_section}${head_evidence_section}${expensive_gate_section}${second_local_pass_section}${phase_section}${compare_section}${advisory_section}${advisory_checks_section}${strict_spec_summary_section}${strict_plan_summary_section}${regression_label_section}
+${small_findings_section}${missed_findings_section}${attribution_section}${missed_finding_telemetry_section}${head_evidence_section}${expensive_gate_section}${second_local_pass_section}${local_blocker_confirmation_section}${phase_section}${compare_section}${advisory_section}${advisory_checks_section}${strict_spec_summary_section}${strict_plan_summary_section}${regression_label_section}
 
 *Posted automatically by \`pr-review-loop.sh\`.*
 EOF
@@ -13225,6 +13364,10 @@ sync_reviewer_failed_label "$pr_number" "$reviewer_failed_required"
 
 print_kv LOCAL_SECOND_PASS "${local_second_pass:-0}"
 print_kv LOCAL_SECOND_PASS_REASON "${local_second_pass_reason:-not_required}"
+print_kv LOCAL_BLOCKER_CONFIRMATION "${local_blocker_confirmation:-0}"
+print_kv LOCAL_BLOCKER_CONFIRMATION_REASON "${local_blocker_confirmation_reason:-not_required}"
+[ -n "${local_blocker_confirmation_result:-}" ] && \
+  print_kv LOCAL_BLOCKER_CONFIRMATION_RESULT "$local_blocker_confirmation_result"
 print_kv RESULT "$aggregate_result"
 print_kv PLATFORM "$last_platform"
 [ -n "$aggregate_reason" ] && print_kv REASON "$aggregate_reason"

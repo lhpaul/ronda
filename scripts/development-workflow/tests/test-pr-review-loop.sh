@@ -18022,7 +18022,7 @@ run_platform_review() {
     clean) printf 'RESULT=clean\nREVIEWED_HEAD=%s\n' "${loop_head_sha:-}" ;;
     clean_no_head) printf 'RESULT=clean\n' ;;
     skipped) printf 'RESULT=skipped\nREASON=unavailable\n' ;;
-    needs_fixes) printf 'RESULT=needs_fixes\nREASON=blocking\nBLOCKING_COUNT=1\n' ;;
+    needs_fixes) printf 'RESULT=needs_fixes\nREASON=blocking\nREVIEWED_HEAD=%s\nBLOCKING_COUNT=1\n' "${loop_head_sha:-}" ;;
     needs_rerun) printf 'RESULT=needs_rerun\nREASON=stale_verdict\n' ;;
     escalate_pass) printf 'RESULT=escalate\nREASON=timeout\n' ;;
     unparseable) printf 'not-key=value-garbage\n' ;;
@@ -18059,6 +18059,9 @@ _1656_reset_guard_globals() {
   local_second_pass_reason="not_required"
   local_second_pass_result=""
   local_second_pass_failed_head_record=""
+  local_blocker_confirmation=0
+  local_blocker_confirmation_reason="not_required"
+  local_blocker_confirmation_result=""
   loop_head_sha="$_1656_guard_head"
   branch_name="refactor/1656-second-local-pass"
   pr_number=1693
@@ -18085,6 +18088,43 @@ _1656_reset_guard_globals() {
   _1656_stub_pass_result="clean"
   _1656_stub_pr_head=""
 }
+
+_1656_local_blocker_primary=$'RESULT=needs_fixes\nREASON=blocking\nREVIEWED_HEAD='"$_1656_guard_head"$'\nCOMMENT_COUNT=1\nBLOCKING_COUNT=1\nSUGGESTION_COUNT=0\nBLOCKING_1_PATH=scripts/example.sh\nBLOCKING_1_BODY=real finding\n'
+
+_1656_reset_guard_globals
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="needs_fixes"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+run_test "1656_lbc_confirmed_status" "0" "$_st"
+run_test "1656_lbc_confirmed_result" "needs_fixes" "$aggregate_result"
+run_test "1656_lbc_confirmed_reason" "confirmed" "$local_blocker_confirmation_reason"
+run_test "1656_lbc_confirmed_count" "1" "$total_blocking_count"
+
+_1656_reset_guard_globals
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="clean"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+run_test "1656_lbc_unconfirmed_status" "1" "$_st"
+run_test "1656_lbc_unconfirmed_result" "escalate" "$aggregate_result"
+run_test "1656_lbc_unconfirmed_reason" "local_finding_unconfirmed" "$aggregate_reason"
+run_test "1656_lbc_unconfirmed_count" "0" "$total_blocking_count"
+run_test "1656_lbc_unconfirmed_findings" "0" "${#aggregate_blocking_findings[@]}"
+
+_1656_reset_guard_globals
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="skipped"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+run_test "1656_lbc_unavailable_status" "1" "$_st"
+run_test "1656_lbc_unavailable_result" "escalate" "$aggregate_result"
+run_test "1656_lbc_unavailable_reason" "local_blocker_confirmation_unavailable" "$aggregate_reason"
+run_test "1656_lbc_unavailable_count" "0" "$total_blocking_count"
+unset _1656_local_blocker_primary
 
 # Scenario 4 / not_required: clean on loop_head_sha — no dispatch
 _1656_reset_guard_globals
