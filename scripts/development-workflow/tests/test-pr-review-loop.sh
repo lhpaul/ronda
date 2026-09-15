@@ -18022,7 +18022,7 @@ run_platform_review() {
     clean) printf 'RESULT=clean\nREVIEWED_HEAD=%s\n' "${loop_head_sha:-}" ;;
     clean_no_head) printf 'RESULT=clean\n' ;;
     skipped) printf 'RESULT=skipped\nREASON=unavailable\n' ;;
-    needs_fixes) printf 'RESULT=needs_fixes\nREASON=blocking\nREVIEWED_HEAD=%s\nBLOCKING_COUNT=1\n' "${loop_head_sha:-}" ;;
+    needs_fixes) printf 'RESULT=needs_fixes\nREASON=blocking\nREVIEWED_HEAD=%s\nBLOCKING_COUNT=1\n' "${_1656_stub_pass_head:-${loop_head_sha:-}}" ;;
     needs_rerun) printf 'RESULT=needs_rerun\nREASON=stale_verdict\n' ;;
     escalate_pass) printf 'RESULT=escalate\nREASON=timeout\n' ;;
     unparseable) printf 'not-key=value-garbage\n' ;;
@@ -18086,6 +18086,7 @@ _1656_reset_guard_globals() {
   compare_first_blocking_result=""
   _1656_run_platform_review_calls=0
   _1656_stub_pass_result="clean"
+  _1656_stub_pass_head=""
   _1656_stub_pr_head=""
 }
 
@@ -18136,6 +18137,20 @@ run_test "1656_lbc_unavailable_record_result" "escalate" \
   "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
 run_test "1656_lbc_unavailable_record_reason" "local_blocker_confirmation_unavailable" \
   "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_reason')"
+
+_1656_reset_guard_globals
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="needs_fixes"
+_1656_stub_pass_head="dddddddddddddddddddddddddddddddddddddddd"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+run_test "1656_lbc_stale_confirm_status" "1" "$_st"
+run_test "1656_lbc_stale_confirm_result" "escalate" "$aggregate_result"
+run_test "1656_lbc_stale_confirm_reason" "local_blocker_confirmation_unavailable" "$aggregate_reason"
+run_test "1656_lbc_stale_confirm_count" "0" "$total_blocking_count"
+run_test "1656_lbc_stale_confirm_record_result" "escalate" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
 unset _1656_local_blocker_primary
 
 # Scenario 4 / not_required: clean on loop_head_sha — no dispatch
