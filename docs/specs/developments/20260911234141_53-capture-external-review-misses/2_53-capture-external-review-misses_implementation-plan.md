@@ -20,8 +20,10 @@ two head identities, source-specific upsert behavior, sensitive-content refusal,
 and summary rules all need deterministic unit coverage. Automatic Codex GitHub
 review parsing and live smoke evidence add external variability.
 
-**Dependencies**: None. The merged spec PR #59 is the required completed
-specification stage.
+**Dependencies**: The merged spec PR #59 is the required completed
+specification stage. Before implementation starts, verify #59 remains merged
+to `develop`; if it is not merged or its specification is superseded, stop and
+return to plan/spec review rather than implementing this plan.
 
 ---
 
@@ -69,6 +71,11 @@ no competing change.
       abbreviated head, title, and text case/whitespace-insensitive; location
       whitespace-insensitive but case-sensitive. Treat a changed manual
       location/title/text as a distinct record.
+- [ ] Treat the JSON format as additive committed evidence. A rollback removes
+      the feature command and readers in a follow-up revert while preserving
+      already committed records for auditability; a record captured in error is
+      removed only through the guarded delete operation. No migration rollback
+      exists because no database or remote schema is introduced.
 
 ### GitHub Evidence Reader and Capture CLI
 
@@ -81,6 +88,10 @@ no competing change.
       needed for automatic capture. Resolve the Ronda result head as same-head
       first, otherwise the latest PR head with a result; record stale evidence
       rather than rejecting that fallback.
+- [ ] When reporting a stale capture, present the Ronda result for the stored
+      Ronda-result head alongside the reviewed head and its stale marker; do
+      not present a result from the reviewed head as though it were the stored
+      comparison result.
 - [ ] Implement the four-stage Capture Decision Gate with deterministic
       precedence: whole-capture resolution/reviewer/Ronda-result checks;
       per-finding required fields and closed enum validation; supplied-head,
@@ -104,6 +115,10 @@ no competing change.
 - [ ] Refuse diff headers/hunks and more than five consecutive nonblank lines
       that match changed-file or diff content for the reviewed head. Permit only
       the spec's bounded short excerpts; never silently trim a refused payload.
+- [ ] For a manual capture on an older reviewed head, obtain the reviewed
+      source/diff comparison baseline from that head's capture-time PR base-tip
+      merge base. Persist the evidence needed to reproduce that check so later
+      base-branch movement cannot change the scan's result.
 - [ ] Bound stored finding text and rationale to 2,000 characters after scans;
       mark truncation. Keep refusal reports field-specific and never echo a
       rejected secret, patch, or full source content.
@@ -185,6 +200,9 @@ no competing change.
 6. Credential placeholder handling, pre-truncation scanning, diff/source
    rejection, and bounded stored content satisfy data minimization (AC9–AC11,
    AC18, AC32–AC42).
+7. A stale capture displays the review result for its stored Ronda-result head,
+   and an older-head manual capture scans against its preserved capture-time
+   base-tip merge base despite later base movement (AC53–AC54).
 
 **Smoke test runbook**:
 `docs/testing/ronda/capture-external-review-misses.smoke-test.md`
@@ -208,6 +226,10 @@ review prose and diff/source-content detection.
       `tests/unit/cli/capture-external-review-misses.test.ts` (or focused
       validation sibling) with one named assertion per listed boundary case,
       plus CLI fixtures for interpreted Codex review structures.
+- **Additional historical-evidence cases**: include fixture tests that prove a
+      stale display reads the stored Ronda-result head, not the reviewed head,
+      and that older-head manual capture retains the capture-time base-tip
+      merge-base scan after the PR base advances.
 - **Suppression semantics**: Not applicable. The capture command accepts no
       inline suppression directives; it refuses unsafe content rather than
       skipping a validation rule.
@@ -267,7 +289,8 @@ mutable state across execution contexts.
    classifications while preserving legacy counts.
 6. Add fixtures and unit tests for every gate stage, parser-risk boundary,
    source/content identity, stale/unresolvable summary behavior, and audit
-   transitions.
+   transitions, including AC53 stored-result-head display and AC54 preserved
+   capture-time merge-base scanning for manual older-head input.
 7. Update the README, software architecture testing section, comparison
    collection guide, and smoke runbook.
 8. Run `npm run typecheck`, `npm run lint`, `npm test`, the targeted capture
@@ -276,3 +299,5 @@ mutable state across execution contexts.
 9. Add `changelog.d/53.added.external-review-misses.md` in the implementation
    PR with: `- **Capture external-review misses** (#53): Add durable,
    privacy-bounded eval records for adjudicated external reviewer findings.`
+   This is a repository release-note obligation for a feature PR, not a
+   separately traced product acceptance criterion.
