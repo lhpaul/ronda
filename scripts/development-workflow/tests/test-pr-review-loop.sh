@@ -18036,7 +18036,7 @@ run_platform_review() {
     clean) printf 'RESULT=clean\nREVIEWED_HEAD=%s\n' "${loop_head_sha:-}" ;;
     clean_no_head) printf 'RESULT=clean\n' ;;
     skipped) printf 'RESULT=skipped\nREASON=unavailable\n' ;;
-    needs_fixes) printf 'RESULT=needs_fixes\nREASON=blocking\nREVIEWED_HEAD=%s\nBLOCKING_COUNT=1\n' "${_1656_stub_pass_head:-${loop_head_sha:-}}" ;;
+    needs_fixes) printf 'RESULT=needs_fixes\nREASON=blocking\nREVIEWED_HEAD=%s\nCOMMENT_COUNT=1\nBLOCKING_COUNT=1\nSUGGESTION_COUNT=0\nBLOCKING_1_PATH=scripts/example.sh\nBLOCKING_1_BODY=real finding\n' "${_1656_stub_pass_head:-${loop_head_sha:-}}" ;;
     needs_rerun) printf 'RESULT=needs_rerun\nREASON=stale_verdict\n' ;;
     escalate_pass) printf 'RESULT=escalate\nREASON=timeout\n' ;;
     unparseable) printf 'not-key=value-garbage\n' ;;
@@ -18343,11 +18343,17 @@ run_test "1656_s7a_phase_not_started" "0" "$phase_after_clean_started"
 _1656_reset_guard_globals
 _1656_guard_hist_payload='{"schema":"reviewer_loop_history.v1","entries":[]}'
 _1656_stub_pass_result="needs_fixes"
-reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
+_1656_s7_output_file="$(mktemp)"
+reviewer_loop_second_local_pass_before_ready_gate 1693 >"$_1656_s7_output_file" && _st=0 || _st=$?
+_1656_s7_output="$(cat "$_1656_s7_output_file")"
 run_test "1656_s7_guard_blocked" "1" "$_st"
 run_test "1656_s7_guard_needs_fixes" "needs_fixes" "$aggregate_result"
 run_test "1656_s7_guard_failed_head" "$_1656_guard_head" "$local_second_pass_failed_head_record"
 run_test "1656_s7_phase_not_started" "0" "$phase_after_clean_started"
+run_test "1656_s7_terminal_emit_preserves_path" "PLATFORM_3_BLOCKING_1_PATH=scripts/example.sh" \
+  "$(printf '%s\n' "$_1656_s7_output" | awk '/^PLATFORM_3_BLOCKING_1_PATH=/{print; exit}')"
+rm -f "$_1656_s7_output_file"
+unset _1656_s7_output _1656_s7_output_file
 
 # Compare mode records the second-pass local blocker but keeps evaluating later reviewers.
 _1656_reset_guard_globals

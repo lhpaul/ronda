@@ -8641,11 +8641,7 @@ reviewer_loop_second_local_pass_before_ready_gate() {
       return 1
     fi
     local_second_pass_failed_head_record="$loop_head_sha"
-    aggregate_output="$(printf 'RESULT=needs_fixes\nREASON=%s\nCOMMENT_COUNT=%s\nBLOCKING_COUNT=%s\nSUGGESTION_COUNT=%s\n' \
-      "${_sl_gate_reason:-}" \
-      "$(kv_value_default COMMENT_COUNT "$_sl_pass_output" 0)" \
-      "$(kv_value_default BLOCKING_COUNT "$_sl_pass_output" 0)" \
-      "$(kv_value_default SUGGESTION_COUNT "$_sl_pass_output" 0)")"
+    aggregate_output="$_sl_pass_output"
     aggregate_status="$_sl_pass_status"
     reviewer_loop_sync_compare_first_blocking_after_local_confirmation "$_sl_pass_output"
     reviewer_loop_emit_platform_output_contract "local-ai-reviewer" "$_sl_platform_index" "$aggregate_output"
