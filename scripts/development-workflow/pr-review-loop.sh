@@ -8626,8 +8626,12 @@ reviewer_loop_second_local_pass_before_ready_gate() {
   fi
   if [ "$_sl_gate_result" = "needs_fixes" ]; then
     if ! reviewer_loop_confirm_local_blocker "$pr_number_arg" "$_sl_pass_output"; then
+      reviewer_loop_sync_compare_first_blocking_after_local_confirmation "$_sl_pass_output"
       if [ "$aggregate_reason" != "head_moved_during_run" ]; then
         local_second_pass_failed_head_record="$loop_head_sha"
+      fi
+      if [ "$compare_mode" -eq 1 ]; then
+        return 0
       fi
       return 1
     fi
@@ -8638,6 +8642,10 @@ reviewer_loop_second_local_pass_before_ready_gate() {
       "$(kv_value_default BLOCKING_COUNT "$_sl_pass_output" 0)" \
       "$(kv_value_default SUGGESTION_COUNT "$_sl_pass_output" 0)")"
     aggregate_status="$_sl_pass_status"
+    reviewer_loop_sync_compare_first_blocking_after_local_confirmation "$_sl_pass_output"
+    if [ "$compare_mode" -eq 1 ]; then
+      return 0
+    fi
   else
     local_second_pass_failed_head_record="$loop_head_sha"
     aggregate_output="$(printf 'RESULT=escalate\nREASON=%s\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n' "${_sl_gate_reason:-local_pass_unavailable}")"

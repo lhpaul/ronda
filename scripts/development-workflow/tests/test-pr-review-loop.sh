@@ -18320,6 +18320,16 @@ run_test "1656_s7_guard_needs_fixes" "needs_fixes" "$aggregate_result"
 run_test "1656_s7_guard_failed_head" "$_1656_guard_head" "$local_second_pass_failed_head_record"
 run_test "1656_s7_phase_not_started" "0" "$phase_after_clean_started"
 
+# Compare mode records the second-pass local blocker but keeps evaluating later reviewers.
+_1656_reset_guard_globals
+compare_mode=1
+_1656_guard_hist_payload='{"schema":"reviewer_loop_history.v1","entries":[]}'
+_1656_stub_pass_result="needs_fixes"
+reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
+run_test "1656_s7_compare_guard_continues" "0" "$_st"
+run_test "1656_s7_compare_verdict_blocking" "blocking" "${compare_verdicts[1]}"
+run_test "1656_s7_compare_failed_head" "$_1656_guard_head" "$local_second_pass_failed_head_record"
+
 # Scenario 7b: needs_rerun pass — unavailable escalation, phase not started
 _1656_reset_guard_globals
 _1656_guard_hist_payload='{"schema":"reviewer_loop_history.v1","entries":[]}'
@@ -18434,6 +18444,15 @@ run_test "1656_s7e_guard_blocked" "1" "$_st"
 run_test "1656_s7e_guard_unconfirmed" "local_finding_unconfirmed" "$aggregate_reason"
 run_test "1656_s7e_guard_failed_head" "$_1656_guard_head" "$local_second_pass_failed_head_record"
 run_test "1656_s7e_phase_not_started" "0" "$phase_after_clean_started"
+
+_1656_reset_guard_globals
+compare_mode=1
+_1656_guard_hist_payload='{"schema":"reviewer_loop_history.v1","entries":[]}'
+_1656_stub_pass_result="needs_fixes"
+reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
+run_test "1656_s7e_compare_guard_continues" "0" "$_st"
+run_test "1656_s7e_compare_verdict_synced" "unavailable" "${compare_verdicts[1]}"
+run_test "1656_s7e_compare_unconfirmed" "local_finding_unconfirmed" "$aggregate_reason"
 
 unset _1656_guard_head _1656_guard_hist_clean _1656_guard_hist_failed _1656_guard_hist_payload
 unset _1656_run_platform_review_calls _1656_stub_pass_result

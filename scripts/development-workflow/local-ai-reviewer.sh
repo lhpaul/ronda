@@ -335,7 +335,7 @@ parse_strict_checks_response() {
     def known($c): $c != null and ($admission_checks | index($c) != null);
     def text_value:
       [.body?, .message?, .description?, .title?, .summary?, .comment?, .text?]
-      | map(select(type == "string" and length > 0)) | .[0] // "";
+      | map(select(type == "string" and (gsub("\\s"; "") | length > 0))) | .[0] // "";
     def path_value:
       [.path?, .file?, .filename?, .filepath?, .location.path?]
       | map(select(type == "string" and length > 0)) | .[0] // "";
@@ -1216,7 +1216,7 @@ parse_result="$(
       else [] end;
     def text_value:
       [.body?, .message?, .description?, .title?, .summary?, .comment?, .text?]
-      | map(select(type == "string" and length > 0)) | .[0] // "";
+      | map(select(type == "string" and (gsub("\\s"; "") | length > 0))) | .[0] // "";
     def path_value:
       [.path?, .file?, .filename?, .filepath?, .location.path?]
       | map(select(type == "string" and length > 0)) | .[0] // "";
