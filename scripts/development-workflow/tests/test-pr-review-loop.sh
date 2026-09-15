@@ -18139,6 +18139,23 @@ run_test "1656_lbc_unconfirmed_output_result" "escalate" \
   "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^RESULT=/{print $2; exit}')"
 
 _1656_reset_guard_globals
+_1656_suppressed_emit="$(
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1 0
+)"
+_1656_stub_pass_result="clean"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" >/dev/null || true
+_1656_terminal_emit="$(reviewer_loop_emit_platform_output_contract "local-ai-reviewer" 1 "$aggregate_output")"
+run_test "1656_lbc_suppressed_initial_emit" "0" \
+  "$(printf '%s\n' "$_1656_suppressed_emit" | grep -Ec '^PLATFORM_1_RESULT=' || true)"
+run_test "1656_lbc_terminal_emit_result" "PLATFORM_1_RESULT=escalate" \
+  "$(printf '%s\n' "$_1656_terminal_emit" | awk '/^PLATFORM_1_RESULT=/{print; exit}')"
+run_test "1656_lbc_terminal_emit_count" "PLATFORM_1_BLOCKING_COUNT=0" \
+  "$(printf '%s\n' "$_1656_terminal_emit" | awk '/^PLATFORM_1_BLOCKING_COUNT=/{print; exit}')"
+run_test "1656_lbc_terminal_emit_no_stale_blocker" "0" \
+  "$(printf '%s\n' "$_1656_terminal_emit" | grep -Ec '^PLATFORM_1_BLOCKING_1_' || true)"
+unset _1656_suppressed_emit _1656_terminal_emit
+
+_1656_reset_guard_globals
 {
   reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
 } >/dev/null

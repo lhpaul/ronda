@@ -8854,6 +8854,22 @@ reviewer_loop_confirm_local_blocker() {
   esac
 }
 
+reviewer_loop_emit_platform_output_contract() {
+  local platform_name="$1"
+  local platform_index="$2"
+  local platform_output="$3"
+  local platform_result
+
+  platform_result="$(kv_value_default RESULT "$platform_output" skipped)"
+  print_kv "PLATFORM_${platform_index}_NAME" "$platform_name"
+  print_kv "PLATFORM_${platform_index}_RESULT" "$platform_result"
+  emit_prefixed_platform_output "$platform_index" "$platform_output"
+  if [ "$platform_name" = "local-ai-reviewer" ]; then
+    capture_strict_spec_globals_from_output "$platform_output"
+    capture_strict_plan_globals_from_output "$platform_output"
+  fi
+}
+
 # reviewer_loop_process_platform_output <platform_name> <platform_index> <output> <status> [update_aggregate]
 #
 # Shared post-dispatch processor for the platform loop and the second local pass
@@ -8865,6 +8881,7 @@ reviewer_loop_process_platform_output() {
   local platform_output="$3"
   local platform_status="$4"
   local update_aggregate="${5:-1}"
+  local emit_platform="${6:-1}"
   local platform_result platform_comment_count platform_blocking_count
   local platform_suggestion_count platform_advisory_labels platform_reason
   local _prt_reason _prt_display_override _prt_disp _reviewed_head
@@ -8907,12 +8924,8 @@ reviewer_loop_process_platform_output() {
   fi
   last_platform="$platform_name"
 
-  print_kv "PLATFORM_${platform_index}_NAME" "$platform_name"
-  print_kv "PLATFORM_${platform_index}_RESULT" "$platform_result"
-  emit_prefixed_platform_output "$platform_index" "$platform_output"
-  if [ "$platform_name" = "local-ai-reviewer" ]; then
-    capture_strict_spec_globals_from_output "$platform_output"
-    capture_strict_plan_globals_from_output "$platform_output"
+  if [ "$emit_platform" -eq 1 ]; then
+    reviewer_loop_emit_platform_output_contract "$platform_name" "$platform_index" "$platform_output"
   fi
   _prt_reason="$platform_reason"
   _prt_display_override="$(kv_value_default DISPLAY_RESULT "$platform_output" "")"
@@ -12312,15 +12325,22 @@ for index in "${!platforms[@]}"; do
   set -e
 
   reviewer_loop_platform_loop_should_break=0
-  reviewer_loop_process_platform_output "$platform_name" "$platform_index" "$platform_output" "$platform_status" 1
+  _platform_result="$(kv_value_default RESULT "$platform_output" skipped)"
+  _platform_emit=1
+  if [ "$platform_name" = "local-ai-reviewer" ] && [ "$_platform_result" = "needs_fixes" ]; then
+    _platform_emit=0
+  fi
+  reviewer_loop_process_platform_output "$platform_name" "$platform_index" "$platform_output" "$platform_status" 1 "$_platform_emit"
   if [ "$platform_name" = "local-ai-reviewer" ] \
       && [ "$reviewer_loop_last_platform_result" = "needs_fixes" ]; then
     reviewer_loop_confirm_local_blocker "$pr_number" "$platform_output" || true
     reviewer_loop_sync_compare_first_blocking_after_local_confirmation "$platform_output"
+    reviewer_loop_emit_platform_output_contract "$platform_name" "$platform_index" "$aggregate_output"
     if [ "$compare_mode" -eq 1 ]; then
       reviewer_loop_platform_loop_should_break=0
     fi
   fi
+  unset _platform_result _platform_emit
   if [ "$reviewer_loop_platform_loop_should_break" -eq 1 ]; then
     break
   fi
