@@ -8717,6 +8717,7 @@ reviewer_loop_record_local_confirmation_outcome() {
 
 reviewer_loop_sync_compare_first_blocking_after_local_confirmation() {
   local original_output="${1:-}"
+  local _cv_idx
 
   if [ "${compare_mode:-0}" -ne 1 ] || [ -z "${compare_first_blocking_result:-}" ]; then
     return 0
@@ -8729,6 +8730,15 @@ reviewer_loop_sync_compare_first_blocking_after_local_confirmation() {
   compare_first_blocking_reason="$aggregate_reason"
   compare_first_blocking_output="$aggregate_output"
   compare_first_blocking_status=$aggregate_status
+
+  _cv_idx=0
+  while [ "$_cv_idx" -lt "${#compare_verdicts[@]}" ]; do
+    if [ "${compare_verdicts[$_cv_idx]}" = "local-ai-reviewer" ]; then
+      compare_verdicts[$((_cv_idx + 1))]="$(normalize_platform_verdict "$aggregate_result" "$aggregate_output")"
+      break
+    fi
+    _cv_idx=$((_cv_idx + 2))
+  done
 }
 
 reviewer_loop_confirm_local_blocker() {

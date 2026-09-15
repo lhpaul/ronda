@@ -18211,6 +18211,7 @@ run_test "1656_lbc_compare_unconfirmed_status" "1" "$_st"
 run_test "1656_lbc_compare_first_result" "escalate" "$compare_first_blocking_result"
 run_test "1656_lbc_compare_first_reason" "local_finding_unconfirmed" "$compare_first_blocking_reason"
 run_test "1656_lbc_compare_first_count" "0" "$(kv_value_default BLOCKING_COUNT "$compare_first_blocking_output" 0)"
+run_test "1656_lbc_compare_verdict_replaced" "unavailable" "${compare_verdicts[1]}"
 unset _1656_local_blocker_primary
 
 _1656_main_confirm_hook="$(
