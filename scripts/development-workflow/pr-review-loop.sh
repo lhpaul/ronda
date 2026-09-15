@@ -8626,6 +8626,9 @@ reviewer_loop_second_local_pass_before_ready_gate() {
   fi
   if [ "$_sl_gate_result" = "needs_fixes" ]; then
     if ! reviewer_loop_confirm_local_blocker "$pr_number_arg" "$_sl_pass_output"; then
+      if [ "$aggregate_reason" != "head_moved_during_run" ]; then
+        local_second_pass_failed_head_record="$loop_head_sha"
+      fi
       return 1
     fi
     local_second_pass_failed_head_record="$loop_head_sha"

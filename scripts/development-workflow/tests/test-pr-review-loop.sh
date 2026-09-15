@@ -18401,9 +18401,27 @@ reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
 run_test "1656_s13_guard_noop" "0" "$_st"
 run_test "1656_s13_guard_no_dispatch" "0" "$_1656_run_platform_review_calls"
 
+# Scenario 7e: needs_fixes pass but failed confirmation — failed head still recorded
+reviewer_loop_confirm_local_blocker() {
+  aggregate_result="escalate"
+  aggregate_reason="local_finding_unconfirmed"
+  aggregate_output="$(printf 'RESULT=escalate\nREASON=local_finding_unconfirmed\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+  aggregate_status=2
+  return 1
+}
+_1656_reset_guard_globals
+_1656_guard_hist_payload='{"schema":"reviewer_loop_history.v1","entries":[]}'
+_1656_stub_pass_result="needs_fixes"
+reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
+run_test "1656_s7e_guard_blocked" "1" "$_st"
+run_test "1656_s7e_guard_unconfirmed" "local_finding_unconfirmed" "$aggregate_reason"
+run_test "1656_s7e_guard_failed_head" "$_1656_guard_head" "$local_second_pass_failed_head_record"
+run_test "1656_s7e_phase_not_started" "0" "$phase_after_clean_started"
+
 unset _1656_guard_head _1656_guard_hist_clean _1656_guard_hist_failed _1656_guard_hist_payload
-unset _1656_run_platform_review_calls _1656_stub_pass_result _1656_stub_pr_head _1656_moved_head _st
-unset -f reviewer_loop_prior_history_payload_from_pr run_platform_review 2>/dev/null || true
+unset _1656_run_platform_review_calls _1656_stub_pass_result
+unset _1656_stub_pr_head _1656_moved_head _st
+unset -f reviewer_loop_prior_history_payload_from_pr run_platform_review reviewer_loop_confirm_local_blocker 2>/dev/null || true
 if declare -F gh >/dev/null 2>&1; then
   unset -f gh
 fi

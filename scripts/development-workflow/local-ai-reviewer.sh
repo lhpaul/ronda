@@ -1259,6 +1259,7 @@ parse_result="$(
                 [
                   "BLOCKING_\(.key + 1)_PATH=\(.value | path_value)",
                   "BLOCKING_\(.key + 1)_LINE=\(.value | line_value)",
+                  "BLOCKING_\(.key + 1)_BODY_HAS_TEXT=\(.value | text_value | gsub("\\s"; "") | length > 0)",
                   "BLOCKING_\(.key + 1)_BODY=\(.value | text_value | gsub("\n"; "\\n"))"
                 ]
               )
@@ -1308,12 +1309,7 @@ reason="${reason:-}"
 # doing so turns an un-actionable model verdict into a self-sustaining
 # reviewer-loop failure on an unchanged head.
 blocking_body_count="$(printf '%s\n' "$parse_result" | awk -F= '
-  $1 ~ /^BLOCKING_[0-9]+_BODY$/ {
-    body = substr($0, index($0, "=") + 1)
-    if (body ~ /[^[:space:]]/) {
-      count += 1
-    }
-  }
+  $1 ~ /^BLOCKING_[0-9]+_BODY_HAS_TEXT$/ && $2 == "true" { count += 1 }
   END { print count + 0 }
 ')"
 if [ "$result" = "needs_fixes" ] \
