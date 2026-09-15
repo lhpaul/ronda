@@ -18188,6 +18188,14 @@ run_test "1656_lbc_moved_head_status" "1" "$_st"
 run_test "1656_lbc_moved_head_reason" "head_moved_during_pass" "$local_blocker_confirmation_reason"
 run_test "1656_lbc_moved_head_aggregate" "head_moved_during_run" "$aggregate_reason"
 run_test "1656_lbc_moved_head_count" "0" "$total_blocking_count"
+run_test "1656_lbc_moved_head_record_result" "needs_fixes" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
+run_test "1656_lbc_moved_head_record_reason" "head_moved_during_run" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_reason')"
+run_test "1656_lbc_moved_head_token" "local-ai-reviewer:needs_fixes" \
+  "$(printf '%s\n' "${platform_result_tokens[@]}")"
+run_test "1656_lbc_moved_head_output_result" "needs_fixes" \
+  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^RESULT=/{print $2; exit}')"
 
 _1656_reset_guard_globals
 compare_mode=1

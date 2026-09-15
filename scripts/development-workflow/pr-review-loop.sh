@@ -8772,6 +8772,7 @@ reviewer_loop_confirm_local_blocker() {
     aggregate_result="needs_fixes"
     aggregate_reason="head_moved_during_run"
     aggregate_output="$(printf 'RESULT=needs_fixes\nREASON=head_moved_during_run\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+    reviewer_loop_record_local_confirmation_outcome "$aggregate_result" "$aggregate_reason" "$aggregate_output" "$_lc_reviewed_head"
     aggregate_status=1
     reviewer_loop_platform_loop_should_break=1
     last_platform="local-ai-reviewer"
