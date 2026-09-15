@@ -17771,6 +17771,8 @@ run_test "1656_skipped_branch_confirmation_key" "1" \
   "$(printf '%s\n' "$_1656_skipped_branch" | grep -Ec 'print_kv LOCAL_BLOCKER_CONFIRMATION 0' || true)"
 run_test "1656_skipped_branch_confirmation_reason" "1" \
   "$(printf '%s\n' "$_1656_skipped_branch" | grep -Ec 'print_kv LOCAL_BLOCKER_CONFIRMATION_REASON not_required' || true)"
+run_test "1656_help_lists_confirmation_result" "yes" \
+  "$(grep -q 'LOCAL_BLOCKER_CONFIRMATION_RESULT=<result>' "$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh" && echo yes || echo no)"
 unset _1656_skipped_branch
 
 _1656_hist_clean_same() {

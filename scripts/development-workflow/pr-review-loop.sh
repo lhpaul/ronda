@@ -709,6 +709,7 @@ Outputs stable key=value lines including:
   LOCAL_BLOCKER_CONFIRMATION=0|1 (1 when a local-ai-reviewer needs_fixes verdict
     required a same-head confirmation pass before it could block the loop)
   LOCAL_BLOCKER_CONFIRMATION_REASON=not_required|confirmed|local_finding_unconfirmed|local_blocker_confirmation_unavailable|head_moved_during_pass
+  LOCAL_BLOCKER_CONFIRMATION_RESULT=<result> (emitted when a confirmation pass ran)
   POST_CLEAN_RECHECK=0|1 (1 when the post-clean settle-and-recheck ran)
   POST_CLEAN_RECHECK_SKIP_REASON=<reason> (present only when POST_CLEAN_RECHECK=0: not_clean,
     compare_mode, skip_env, no_thread_posting_platforms, or no_pr_number — so a caller can tell
