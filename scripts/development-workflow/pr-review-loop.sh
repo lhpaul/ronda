@@ -8745,6 +8745,11 @@ reviewer_loop_confirm_local_blocker() {
   fi
   if ! reviewer_loop_second_local_pass_confirm_live_head "$pr_number_arg"; then
     local_blocker_confirmation_reason="${local_second_pass_reason:-local_blocker_confirmation_unavailable}"
+    if [ "$local_blocker_confirmation_reason" = "local_pass_unavailable" ]; then
+      local_blocker_confirmation_reason="local_blocker_confirmation_unavailable"
+      aggregate_reason="local_blocker_confirmation_unavailable"
+      aggregate_output="$(printf 'RESULT=escalate\nREASON=local_blocker_confirmation_unavailable\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+    fi
     reviewer_loop_clear_unconfirmed_local_blocker "$original_output"
     reviewer_loop_record_local_confirmation_outcome "$aggregate_result" "$aggregate_reason" "$aggregate_output" "$_lc_reviewed_head"
     reviewer_loop_platform_loop_should_break=1

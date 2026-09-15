@@ -18151,6 +18151,18 @@ run_test "1656_lbc_stale_confirm_reason" "local_blocker_confirmation_unavailable
 run_test "1656_lbc_stale_confirm_count" "0" "$total_blocking_count"
 run_test "1656_lbc_stale_confirm_record_result" "escalate" \
   "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
+
+_1656_reset_guard_globals
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="clean"
+_1656_stub_pr_head="UNAVAILABLE"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+run_test "1656_lbc_unreadable_live_head_status" "1" "$_st"
+run_test "1656_lbc_unreadable_live_head_reason" "local_blocker_confirmation_unavailable" "$local_blocker_confirmation_reason"
+run_test "1656_lbc_unreadable_live_head_aggregate" "local_blocker_confirmation_unavailable" "$aggregate_reason"
+run_test "1656_lbc_unreadable_live_head_count" "0" "$total_blocking_count"
 unset _1656_local_blocker_primary
 
 # Scenario 4 / not_required: clean on loop_head_sha — no dispatch
