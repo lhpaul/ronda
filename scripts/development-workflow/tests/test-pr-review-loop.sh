@@ -18097,6 +18097,7 @@ _1656_reset_guard_globals() {
   total_suggestion_count=0
   reviewer_failed_required=0
   compare_mode=0
+  compare_verdicts=()
   compare_first_blocking_result=""
   _1656_run_platform_review_calls=0
   _1656_stub_pass_result="clean"
@@ -18212,6 +18213,22 @@ run_test "1656_lbc_compare_first_result" "escalate" "$compare_first_blocking_res
 run_test "1656_lbc_compare_first_reason" "local_finding_unconfirmed" "$compare_first_blocking_reason"
 run_test "1656_lbc_compare_first_count" "0" "$(kv_value_default BLOCKING_COUNT "$compare_first_blocking_output" 0)"
 run_test "1656_lbc_compare_verdict_replaced" "unavailable" "${compare_verdicts[1]}"
+
+_1656_reset_guard_globals
+compare_mode=1
+_1656_external_blocker=$'RESULT=needs_fixes\nREASON=codex_blocking\nREVIEWED_HEAD='"$_1656_guard_head"$'\nCOMMENT_COUNT=1\nBLOCKING_COUNT=1\nSUGGESTION_COUNT=0\nBLOCKING_1_PATH=scripts/external.sh\nBLOCKING_1_BODY=external finding\n'
+{
+  reviewer_loop_process_platform_output "codex-github" 1 "$_1656_external_blocker" 1 1
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="skipped"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+reviewer_loop_sync_compare_first_blocking_after_local_confirmation "$_1656_local_blocker_primary"
+run_test "1656_lbc_compare_later_unavailable_status" "1" "$_st"
+run_test "1656_lbc_compare_later_first_preserved" "codex_blocking" "$compare_first_blocking_reason"
+run_test "1656_lbc_compare_later_verdict_replaced" "unavailable" "${compare_verdicts[3]}"
+run_test "1656_lbc_compare_later_failed_label" "1" "$reviewer_failed_required"
+unset _1656_external_blocker
 unset _1656_local_blocker_primary
 
 _1656_main_confirm_hook="$(

@@ -8708,6 +8708,9 @@ reviewer_loop_record_local_confirmation_outcome() {
   platform_result_records+=("$(reviewer_loop_platform_result_record_json "local-ai-reviewer" "$result" "$reason")")
   platform_reviewed_heads+=("local-ai-reviewer:${reviewed_head}")
   platform_blocking_outputs+=("local-ai-reviewer"$'\036'"${output}")
+  if reviewer_failed_label_required_for_result "$result" "$reason"; then
+    reviewer_failed_required=1
+  fi
   case "$result" in
     clean) display_result="clean" ;;
     skipped) display_result="skipped" ;;
@@ -8722,17 +8725,9 @@ reviewer_loop_sync_compare_first_blocking_after_local_confirmation() {
   local original_output="${1:-}"
   local _cv_idx
 
-  if [ "${compare_mode:-0}" -ne 1 ] || [ -z "${compare_first_blocking_result:-}" ]; then
+  if [ "${compare_mode:-0}" -ne 1 ]; then
     return 0
   fi
-  if [ "${compare_first_blocking_output:-}" != "$original_output" ]; then
-    return 0
-  fi
-
-  compare_first_blocking_result="$aggregate_result"
-  compare_first_blocking_reason="$aggregate_reason"
-  compare_first_blocking_output="$aggregate_output"
-  compare_first_blocking_status=$aggregate_status
 
   _cv_idx=0
   while [ "$_cv_idx" -lt "${#compare_verdicts[@]}" ]; do
@@ -8742,6 +8737,15 @@ reviewer_loop_sync_compare_first_blocking_after_local_confirmation() {
     fi
     _cv_idx=$((_cv_idx + 2))
   done
+
+  if [ -z "${compare_first_blocking_result:-}" ] || [ "${compare_first_blocking_output:-}" != "$original_output" ]; then
+    return 0
+  fi
+
+  compare_first_blocking_result="$aggregate_result"
+  compare_first_blocking_reason="$aggregate_reason"
+  compare_first_blocking_output="$aggregate_output"
+  compare_first_blocking_status=$aggregate_status
 }
 
 reviewer_loop_confirm_local_blocker() {
