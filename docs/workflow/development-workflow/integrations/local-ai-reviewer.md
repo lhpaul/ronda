@@ -337,6 +337,16 @@ The local reviewer fails closed:
 A skipped or escalated local result is availability evidence, not clean review
 evidence.
 
+When `pr-review-loop.sh` receives a local `RESULT=needs_fixes`, it runs one
+same-head local confirmation pass before treating the finding as a blocker. A
+confirmed same-head `needs_fixes` result remains blocking. A clean confirmation
+escalates with `REASON=local_finding_unconfirmed`; skipped, escalated,
+unparseable, missing-head, or stale-head confirmation escalates with
+`REASON=local_blocker_confirmation_unavailable`. The loop emits
+`LOCAL_BLOCKER_CONFIRMATION=0|1`,
+`LOCAL_BLOCKER_CONFIRMATION_REASON=<reason>`, and, when a confirmation ran,
+`LOCAL_BLOCKER_CONFIRMATION_RESULT=<result>`.
+
 ---
 
 ## Graph Context

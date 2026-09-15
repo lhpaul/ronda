@@ -347,6 +347,35 @@ The pass does not increment `CYCLE_COUNT` or `TOTAL_CYCLE_COUNT`. A failed pass
 on an unchanged head refuses with `RESULT=escalate`, `REASON=failed_for_head` on
 the next cycle (cross-invocation), without relying on cycle caps.
 
+### Local blocker confirmation
+
+When `local-ai-reviewer` returns `RESULT=needs_fixes` during the draft reviewer
+phase, compare mode, or the second local pass before the ready-phase gate,
+`pr-review-loop.sh` immediately runs one same-head confirmation pass before
+allowing the local finding to block the loop. The confirmation pass must report
+`RESULT=needs_fixes` with `REVIEWED_HEAD` current on the loop head, and the live
+PR head must still match the loop head. Only then does the original local
+blocker remain a fixable `needs_fixes` result.
+
+If the confirmation pass returns `clean`, the loop clears the original local
+blocker counts and records `RESULT=escalate`,
+`REASON=local_finding_unconfirmed`. If the confirmation is skipped,
+escalated, unparseable, missing current-head evidence, or uses a stale
+`REVIEWED_HEAD`, the loop records `RESULT=escalate`,
+`REASON=local_blocker_confirmation_unavailable`. If the live PR head moves
+during confirmation, the existing head-moved path owns the result:
+`RESULT=needs_fixes`, `REASON=head_moved_during_run`, with zero blockers.
+
+The loop always emits `LOCAL_BLOCKER_CONFIRMATION=0|1` and
+`LOCAL_BLOCKER_CONFIRMATION_REASON=<reason>`. Reasons are `not_required`,
+`confirmed`, `local_finding_unconfirmed`,
+`local_blocker_confirmation_unavailable`, and `head_moved_during_pass`.
+When a confirmation pass ran, the loop also emits
+`LOCAL_BLOCKER_CONFIRMATION_RESULT=<result>`. On unconfirmed paths the loop
+replaces stale local `needs_fixes` records in the summary/history surfaces with
+the terminal escalation record, so machine consumers do not see a fixable local
+blocker when the aggregate result is an unconfirmed-review escalation.
+
 **Scope note**: This pre-flight checks `review.on_draft.github` and
 `review.on_ready.github` (external reviewers used by Protocol 93 / Step 7). The
 internal reviewer gate in Protocol 91 Step 7a separately checks

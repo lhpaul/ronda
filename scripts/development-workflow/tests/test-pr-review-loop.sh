@@ -17760,6 +17760,20 @@ _1656_head="cccccccccccccccccccccccccccccccccccccccc"
 _1656_ancestor="dddddddddddddddddddddddddddddddddddddddd"
 _1656_unrelated="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 _1656_cfg=$'local-ai-reviewer\ncodex-github'
+_1656_skipped_branch="$(
+  awk '
+    index($0, "if [ -z \"\$last_platform\" ]; then") { capture = 1 }
+    capture { print }
+    capture && /exit 0/ { exit }
+  ' "$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh"
+)"
+run_test "1656_skipped_branch_confirmation_key" "1" \
+  "$(printf '%s\n' "$_1656_skipped_branch" | grep -Ec 'print_kv LOCAL_BLOCKER_CONFIRMATION 0' || true)"
+run_test "1656_skipped_branch_confirmation_reason" "1" \
+  "$(printf '%s\n' "$_1656_skipped_branch" | grep -Ec 'print_kv LOCAL_BLOCKER_CONFIRMATION_REASON not_required' || true)"
+run_test "1656_help_lists_confirmation_result" "yes" \
+  "$(grep -q 'LOCAL_BLOCKER_CONFIRMATION_RESULT=<result>' "$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh" && echo yes || echo no)"
+unset _1656_skipped_branch
 
 _1656_hist_clean_same() {
   jq -nc --arg head "$_1656_head" '{
@@ -18022,7 +18036,7 @@ run_platform_review() {
     clean) printf 'RESULT=clean\nREVIEWED_HEAD=%s\n' "${loop_head_sha:-}" ;;
     clean_no_head) printf 'RESULT=clean\n' ;;
     skipped) printf 'RESULT=skipped\nREASON=unavailable\n' ;;
-    needs_fixes) printf 'RESULT=needs_fixes\nREASON=blocking\nBLOCKING_COUNT=1\n' ;;
+    needs_fixes) printf 'RESULT=needs_fixes\nREASON=blocking\nREVIEWED_HEAD=%s\nCOMMENT_COUNT=1\nBLOCKING_COUNT=1\nSUGGESTION_COUNT=0\nBLOCKING_1_PATH=scripts/example.sh\nBLOCKING_1_BODY=real finding\n' "${_1656_stub_pass_head:-${loop_head_sha:-}}" ;;
     needs_rerun) printf 'RESULT=needs_rerun\nREASON=stale_verdict\n' ;;
     escalate_pass) printf 'RESULT=escalate\nREASON=timeout\n' ;;
     unparseable) printf 'not-key=value-garbage\n' ;;
@@ -18059,6 +18073,9 @@ _1656_reset_guard_globals() {
   local_second_pass_reason="not_required"
   local_second_pass_result=""
   local_second_pass_failed_head_record=""
+  local_blocker_confirmation=0
+  local_blocker_confirmation_reason="not_required"
+  local_blocker_confirmation_result=""
   loop_head_sha="$_1656_guard_head"
   branch_name="refactor/1656-second-local-pass"
   pr_number=1693
@@ -18080,11 +18097,191 @@ _1656_reset_guard_globals() {
   total_suggestion_count=0
   reviewer_failed_required=0
   compare_mode=0
+  compare_verdicts=()
   compare_first_blocking_result=""
   _1656_run_platform_review_calls=0
   _1656_stub_pass_result="clean"
+  _1656_stub_pass_head=""
   _1656_stub_pr_head=""
 }
+
+_1656_local_blocker_primary=$'RESULT=needs_fixes\nREASON=blocking\nREVIEWED_HEAD='"$_1656_guard_head"$'\nCOMMENT_COUNT=1\nBLOCKING_COUNT=1\nSUGGESTION_COUNT=0\nBLOCKING_1_PATH=scripts/example.sh\nBLOCKING_1_BODY=real finding\nREVIEW_STAGE=implementation\nREVIEW_STAGE_SOURCE=branch+files\nREVIEW_DOCTRINE_STATE=supplied\nSTRICT_SPEC_STATE=not_applicable\nSTRICT_PLAN_STATE=not_applicable\n'
+
+_1656_reset_guard_globals
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="needs_fixes"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+run_test "1656_lbc_confirmed_status" "0" "$_st"
+run_test "1656_lbc_confirmed_result" "needs_fixes" "$aggregate_result"
+run_test "1656_lbc_confirmed_reason" "confirmed" "$local_blocker_confirmation_reason"
+run_test "1656_lbc_confirmed_count" "1" "$total_blocking_count"
+
+_1656_reset_guard_globals
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="clean"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+run_test "1656_lbc_unconfirmed_status" "1" "$_st"
+run_test "1656_lbc_unconfirmed_result" "escalate" "$aggregate_result"
+run_test "1656_lbc_unconfirmed_reason" "local_finding_unconfirmed" "$aggregate_reason"
+run_test "1656_lbc_unconfirmed_count" "0" "$total_blocking_count"
+run_test "1656_lbc_unconfirmed_findings" "0" "${#aggregate_blocking_findings[@]}"
+run_test "1656_lbc_unconfirmed_record_result" "escalate" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
+run_test "1656_lbc_unconfirmed_record_reason" "local_finding_unconfirmed" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_reason')"
+run_test "1656_lbc_unconfirmed_token" "local-ai-reviewer:escalated (local_finding_unconfirmed)" \
+  "$(printf '%s\n' "${platform_result_tokens[@]}")"
+run_test "1656_lbc_unconfirmed_output_result" "escalate" \
+  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^RESULT=/{print $2; exit}')"
+run_test "1656_lbc_unconfirmed_output_head" "$_1656_guard_head" \
+  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^REVIEWED_HEAD=/{print $2; exit}')"
+run_test "1656_lbc_unconfirmed_output_stage" "implementation" \
+  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^REVIEW_STAGE=/{print $2; exit}')"
+run_test "1656_lbc_unconfirmed_output_strict_spec" "not_applicable" \
+  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^STRICT_SPEC_STATE=/{print $2; exit}')"
+
+_1656_reset_guard_globals
+_1656_suppressed_emit="$(
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1 0
+)"
+_1656_stub_pass_result="clean"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" >/dev/null || true
+_1656_terminal_emit="$(reviewer_loop_emit_platform_output_contract "local-ai-reviewer" 1 "$aggregate_output")"
+run_test "1656_lbc_suppressed_initial_emit" "0" \
+  "$(printf '%s\n' "$_1656_suppressed_emit" | grep -Ec '^PLATFORM_1_RESULT=' || true)"
+run_test "1656_lbc_terminal_emit_result" "PLATFORM_1_RESULT=escalate" \
+  "$(printf '%s\n' "$_1656_terminal_emit" | awk '/^PLATFORM_1_RESULT=/{print; exit}')"
+run_test "1656_lbc_terminal_emit_count" "PLATFORM_1_BLOCKING_COUNT=0" \
+  "$(printf '%s\n' "$_1656_terminal_emit" | awk '/^PLATFORM_1_BLOCKING_COUNT=/{print; exit}')"
+run_test "1656_lbc_terminal_emit_no_stale_blocker" "0" \
+  "$(printf '%s\n' "$_1656_terminal_emit" | grep -Ec '^PLATFORM_1_BLOCKING_1_' || true)"
+run_test "1656_lbc_terminal_emit_preserves_stage" "PLATFORM_1_REVIEW_STAGE=implementation" \
+  "$(printf '%s\n' "$_1656_terminal_emit" | awk '/^PLATFORM_1_REVIEW_STAGE=/{print; exit}')"
+run_test "1656_lbc_terminal_emit_preserves_doctrine" "PLATFORM_1_REVIEW_DOCTRINE_STATE=supplied" \
+  "$(printf '%s\n' "$_1656_terminal_emit" | awk '/^PLATFORM_1_REVIEW_DOCTRINE_STATE=/{print; exit}')"
+run_test "1656_lbc_terminal_emit_preserves_strict" "PLATFORM_1_STRICT_SPEC_STATE=not_applicable" \
+  "$(printf '%s\n' "$_1656_terminal_emit" | awk '/^PLATFORM_1_STRICT_SPEC_STATE=/{print; exit}')"
+unset _1656_suppressed_emit _1656_terminal_emit
+
+_1656_reset_guard_globals
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="skipped"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+run_test "1656_lbc_unavailable_status" "1" "$_st"
+run_test "1656_lbc_unavailable_result" "escalate" "$aggregate_result"
+run_test "1656_lbc_unavailable_reason" "local_blocker_confirmation_unavailable" "$aggregate_reason"
+run_test "1656_lbc_unavailable_count" "0" "$total_blocking_count"
+run_test "1656_lbc_unavailable_record_result" "escalate" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
+run_test "1656_lbc_unavailable_record_reason" "local_blocker_confirmation_unavailable" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_reason')"
+
+_1656_reset_guard_globals
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="needs_fixes"
+_1656_stub_pass_head="dddddddddddddddddddddddddddddddddddddddd"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+run_test "1656_lbc_stale_confirm_status" "1" "$_st"
+run_test "1656_lbc_stale_confirm_result" "escalate" "$aggregate_result"
+run_test "1656_lbc_stale_confirm_reason" "local_blocker_confirmation_unavailable" "$aggregate_reason"
+run_test "1656_lbc_stale_confirm_count" "0" "$total_blocking_count"
+run_test "1656_lbc_stale_confirm_record_result" "escalate" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
+
+_1656_reset_guard_globals
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="clean"
+_1656_stub_pr_head="UNAVAILABLE"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+run_test "1656_lbc_unreadable_live_head_status" "1" "$_st"
+run_test "1656_lbc_unreadable_live_head_reason" "local_blocker_confirmation_unavailable" "$local_blocker_confirmation_reason"
+run_test "1656_lbc_unreadable_live_head_aggregate" "local_blocker_confirmation_unavailable" "$aggregate_reason"
+run_test "1656_lbc_unreadable_live_head_count" "0" "$total_blocking_count"
+
+_1656_reset_guard_globals
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="needs_fixes"
+_1656_stub_pass_head="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+_1656_stub_pr_head="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+run_test "1656_lbc_moved_head_status" "1" "$_st"
+run_test "1656_lbc_moved_head_reason" "head_moved_during_pass" "$local_blocker_confirmation_reason"
+run_test "1656_lbc_moved_head_aggregate" "head_moved_during_run" "$aggregate_reason"
+run_test "1656_lbc_moved_head_count" "0" "$total_blocking_count"
+run_test "1656_lbc_moved_head_record_result" "needs_fixes" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
+run_test "1656_lbc_moved_head_record_reason" "head_moved_during_run" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_reason')"
+run_test "1656_lbc_moved_head_token" "local-ai-reviewer:needs_fixes" \
+  "$(printf '%s\n' "${platform_result_tokens[@]}")"
+run_test "1656_lbc_moved_head_output_result" "needs_fixes" \
+  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^RESULT=/{print $2; exit}')"
+
+_1656_reset_guard_globals
+compare_mode=1
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="clean"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+reviewer_loop_sync_compare_first_blocking_after_local_confirmation "$_1656_local_blocker_primary"
+run_test "1656_lbc_compare_unconfirmed_status" "1" "$_st"
+run_test "1656_lbc_compare_first_result" "escalate" "$compare_first_blocking_result"
+run_test "1656_lbc_compare_first_reason" "local_finding_unconfirmed" "$compare_first_blocking_reason"
+run_test "1656_lbc_compare_first_count" "0" "$(kv_value_default BLOCKING_COUNT "$compare_first_blocking_output" 0)"
+run_test "1656_lbc_compare_verdict_replaced" "unavailable" "${compare_verdicts[1]}"
+
+_1656_reset_guard_globals
+compare_mode=1
+_1656_external_blocker=$'RESULT=needs_fixes\nREASON=codex_blocking\nREVIEWED_HEAD='"$_1656_guard_head"$'\nCOMMENT_COUNT=1\nBLOCKING_COUNT=1\nSUGGESTION_COUNT=0\nBLOCKING_1_PATH=scripts/external.sh\nBLOCKING_1_BODY=external finding\n'
+{
+  reviewer_loop_process_platform_output "codex-github" 1 "$_1656_external_blocker" 1 1
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="skipped"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+reviewer_loop_sync_compare_first_blocking_after_local_confirmation "$_1656_local_blocker_primary"
+run_test "1656_lbc_compare_later_unavailable_status" "1" "$_st"
+run_test "1656_lbc_compare_later_first_preserved" "codex_blocking" "$compare_first_blocking_reason"
+run_test "1656_lbc_compare_later_verdict_replaced" "unavailable" "${compare_verdicts[3]}"
+run_test "1656_lbc_compare_later_failed_label" "1" "$reviewer_failed_required"
+unset _1656_external_blocker
+
+_1656_reset_guard_globals
+compare_mode=1
+compare_verdicts=("local-ai-reviewer" "clean" "local-ai-reviewer" "blocking")
+aggregate_result="escalate"
+aggregate_reason="local_finding_unconfirmed"
+aggregate_output="$(printf 'RESULT=escalate\nREASON=local_finding_unconfirmed\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+aggregate_status=2
+reviewer_loop_sync_compare_first_blocking_after_local_confirmation "$_1656_local_blocker_primary"
+run_test "1656_lbc_compare_latest_local_replaced" "unavailable" "${compare_verdicts[3]}"
+run_test "1656_lbc_compare_prior_local_preserved" "clean" "${compare_verdicts[1]}"
+run_test "1656_lbc_compare_empty_first_initialized" "local_finding_unconfirmed" "$compare_first_blocking_reason"
+unset _1656_local_blocker_primary
+
+_1656_main_confirm_hook="$(
+  awk '
+    /reviewer_loop_confirm_local_blocker "\$pr_number" "\$platform_output"/ { capture = 1 }
+    capture { print }
+    capture && /fi/ { exit }
+  ' "$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh"
+)"
+run_test "1656_main_confirm_hook_compare_mode" "0" \
+  "$(printf '%s\n' "$_1656_main_confirm_hook" | grep -Ec 'compare_mode.*-eq 0' || true)"
+unset _1656_main_confirm_hook
 
 # Scenario 4 / not_required: clean on loop_head_sha — no dispatch
 _1656_reset_guard_globals
@@ -18158,11 +18355,28 @@ run_test "1656_s7a_phase_not_started" "0" "$phase_after_clean_started"
 _1656_reset_guard_globals
 _1656_guard_hist_payload='{"schema":"reviewer_loop_history.v1","entries":[]}'
 _1656_stub_pass_result="needs_fixes"
-reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
+_1656_s7_output_file="$(mktemp)"
+reviewer_loop_second_local_pass_before_ready_gate 1693 >"$_1656_s7_output_file" && _st=0 || _st=$?
+_1656_s7_output="$(cat "$_1656_s7_output_file")"
 run_test "1656_s7_guard_blocked" "1" "$_st"
 run_test "1656_s7_guard_needs_fixes" "needs_fixes" "$aggregate_result"
 run_test "1656_s7_guard_failed_head" "$_1656_guard_head" "$local_second_pass_failed_head_record"
 run_test "1656_s7_phase_not_started" "0" "$phase_after_clean_started"
+run_test "1656_s7_terminal_emit_preserves_path" "PLATFORM_3_BLOCKING_1_PATH=scripts/example.sh" \
+  "$(printf '%s\n' "$_1656_s7_output" | awk '/^PLATFORM_3_BLOCKING_1_PATH=/{print; exit}')"
+rm -f "$_1656_s7_output_file"
+unset _1656_s7_output _1656_s7_output_file
+
+# Compare mode records the second-pass local blocker but keeps evaluating later reviewers.
+_1656_reset_guard_globals
+compare_mode=1
+_1656_guard_hist_payload='{"schema":"reviewer_loop_history.v1","entries":[]}'
+_1656_stub_pass_result="needs_fixes"
+reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
+run_test "1656_s7_compare_guard_continues" "0" "$_st"
+run_test "1656_s7_compare_verdict_blocking" "blocking" "${compare_verdicts[1]}"
+run_test "1656_s7_compare_first_result" "needs_fixes" "$compare_first_blocking_result"
+run_test "1656_s7_compare_failed_head" "$_1656_guard_head" "$local_second_pass_failed_head_record"
 
 # Scenario 7b: needs_rerun pass — unavailable escalation, phase not started
 _1656_reset_guard_globals
@@ -18262,9 +18476,46 @@ reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
 run_test "1656_s13_guard_noop" "0" "$_st"
 run_test "1656_s13_guard_no_dispatch" "0" "$_1656_run_platform_review_calls"
 
+# Scenario 7e: needs_fixes pass but failed confirmation — failed head still recorded
+reviewer_loop_confirm_local_blocker() {
+  aggregate_result="escalate"
+  aggregate_reason="local_finding_unconfirmed"
+  aggregate_output="$(printf 'RESULT=escalate\nREASON=local_finding_unconfirmed\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+  aggregate_status=2
+  return 1
+}
+_1656_reset_guard_globals
+_1656_guard_hist_payload='{"schema":"reviewer_loop_history.v1","entries":[]}'
+_1656_stub_pass_result="needs_fixes"
+_1656_s7e_output_file="$(mktemp)"
+reviewer_loop_second_local_pass_before_ready_gate 1693 >"$_1656_s7e_output_file" && _st=0 || _st=$?
+_1656_s7e_output="$(cat "$_1656_s7e_output_file")"
+run_test "1656_s7e_guard_blocked" "1" "$_st"
+run_test "1656_s7e_guard_unconfirmed" "local_finding_unconfirmed" "$aggregate_reason"
+run_test "1656_s7e_guard_failed_head" "$_1656_guard_head" "$local_second_pass_failed_head_record"
+run_test "1656_s7e_phase_not_started" "0" "$phase_after_clean_started"
+run_test "1656_s7e_terminal_emit_result" "PLATFORM_3_RESULT=escalate" \
+  "$(printf '%s\n' "$_1656_s7e_output" | awk '/^PLATFORM_3_RESULT=/{print; exit}')"
+run_test "1656_s7e_terminal_emit_count" "PLATFORM_3_BLOCKING_COUNT=0" \
+  "$(printf '%s\n' "$_1656_s7e_output" | awk '/^PLATFORM_3_BLOCKING_COUNT=/{print; exit}')"
+run_test "1656_s7e_terminal_emit_no_stale_blocker" "0" \
+  "$(printf '%s\n' "$_1656_s7e_output" | grep -Ec '^PLATFORM_3_BLOCKING_1_' || true)"
+rm -f "$_1656_s7e_output_file"
+unset _1656_s7e_output _1656_s7e_output_file
+
+_1656_reset_guard_globals
+compare_mode=1
+_1656_guard_hist_payload='{"schema":"reviewer_loop_history.v1","entries":[]}'
+_1656_stub_pass_result="needs_fixes"
+reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
+run_test "1656_s7e_compare_guard_continues" "0" "$_st"
+run_test "1656_s7e_compare_verdict_synced" "unavailable" "${compare_verdicts[1]}"
+run_test "1656_s7e_compare_unconfirmed" "local_finding_unconfirmed" "$aggregate_reason"
+
 unset _1656_guard_head _1656_guard_hist_clean _1656_guard_hist_failed _1656_guard_hist_payload
-unset _1656_run_platform_review_calls _1656_stub_pass_result _1656_stub_pr_head _1656_moved_head _st
-unset -f reviewer_loop_prior_history_payload_from_pr run_platform_review 2>/dev/null || true
+unset _1656_run_platform_review_calls _1656_stub_pass_result
+unset _1656_stub_pr_head _1656_moved_head _st
+unset -f reviewer_loop_prior_history_payload_from_pr run_platform_review reviewer_loop_confirm_local_blocker 2>/dev/null || true
 if declare -F gh >/dev/null 2>&1; then
   unset -f gh
 fi

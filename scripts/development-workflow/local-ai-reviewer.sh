@@ -335,7 +335,7 @@ parse_strict_checks_response() {
     def known($c): $c != null and ($admission_checks | index($c) != null);
     def text_value:
       [.body?, .message?, .description?, .title?, .summary?, .comment?, .text?]
-      | map(select(type == "string" and length > 0)) | .[0] // "";
+      | map(select(type == "string" and (gsub("\\s"; "") | length > 0))) | .[0] // "";
     def path_value:
       [.path?, .file?, .filename?, .filepath?, .location.path?]
       | map(select(type == "string" and length > 0)) | .[0] // "";
@@ -1216,7 +1216,7 @@ parse_result="$(
       else [] end;
     def text_value:
       [.body?, .message?, .description?, .title?, .summary?, .comment?, .text?]
-      | map(select(type == "string" and length > 0)) | .[0] // "";
+      | map(select(type == "string" and (gsub("\\s"; "") | length > 0))) | .[0] // "";
     def path_value:
       [.path?, .file?, .filename?, .filepath?, .location.path?]
       | map(select(type == "string" and length > 0)) | .[0] // "";
@@ -1259,6 +1259,7 @@ parse_result="$(
                 [
                   "BLOCKING_\(.key + 1)_PATH=\(.value | path_value)",
                   "BLOCKING_\(.key + 1)_LINE=\(.value | line_value)",
+                  "BLOCKING_\(.key + 1)_BODY_HAS_TEXT=\(.value | text_value | gsub("\\s"; "") | length > 0)",
                   "BLOCKING_\(.key + 1)_BODY=\(.value | text_value | gsub("\n"; "\\n"))"
                 ]
               )
@@ -1302,6 +1303,22 @@ comment_count="${comment_count:-0}"
 blocking_count="${blocking_count:-0}"
 suggestion_count="${suggestion_count:-0}"
 reason="${reason:-}"
+
+# A needs_fixes verdict must identify actionable text for every blocking
+# finding. Do not manufacture a blocker for an otherwise-valid JSON response:
+# doing so turns an un-actionable model verdict into a self-sustaining
+# reviewer-loop failure on an unchanged head.
+blocking_body_count="$(printf '%s\n' "$parse_result" | awk -F= '
+  $1 ~ /^BLOCKING_[0-9]+_BODY_HAS_TEXT$/ && $2 == "true" { count += 1 }
+  END { print count + 0 }
+')"
+if [ "$result" = "needs_fixes" ] \
+    && { [ "$blocking_count" -eq 0 ] || [ "$blocking_body_count" -ne "$blocking_count" ]; }; then
+  echo "WARN: local AI reviewer reported needs_fixes without actionable blocking findings" >&2
+  print_result escalate 0 0 0 malformed_output malformed_output
+  exit 2
+fi
+unset blocking_body_count
 
 # --- Strict registry passes (at most one dispatches; never merges into blocking) ---
 strict_run_all_registry_entries
@@ -1476,7 +1493,6 @@ case "$result" in
     exit 0
     ;;
   needs_fixes)
-    [ "$blocking_count" -eq 0 ] && blocking_count=1
     [ "$comment_count" -eq 0 ] && comment_count=1
     write_evidence_file needs_fixes local_ai_review_findings "$comment_count" "$blocking_count" "$suggestion_count"
     emit_ordinary_and_strict needs_fixes "$comment_count" "$blocking_count" "$suggestion_count" local_ai_review_findings
