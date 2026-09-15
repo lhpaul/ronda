@@ -8714,6 +8714,22 @@ reviewer_loop_record_local_confirmation_outcome() {
   platform_result_tokens+=("local-ai-reviewer:${display_result}")
 }
 
+reviewer_loop_sync_compare_first_blocking_after_local_confirmation() {
+  local original_output="${1:-}"
+
+  if [ "${compare_mode:-0}" -ne 1 ] || [ -z "${compare_first_blocking_result:-}" ]; then
+    return 0
+  fi
+  if [ "${compare_first_blocking_output:-}" != "$original_output" ]; then
+    return 0
+  fi
+
+  compare_first_blocking_result="$aggregate_result"
+  compare_first_blocking_reason="$aggregate_reason"
+  compare_first_blocking_output="$aggregate_output"
+  compare_first_blocking_status=$aggregate_status
+}
+
 reviewer_loop_confirm_local_blocker() {
   local pr_number_arg="${1:-}"
   local original_output="${2:-}"
@@ -12273,6 +12289,7 @@ for index in "${!platforms[@]}"; do
   if [ "$platform_name" = "local-ai-reviewer" ] \
       && [ "$reviewer_loop_last_platform_result" = "needs_fixes" ]; then
     reviewer_loop_confirm_local_blocker "$pr_number" "$platform_output" || true
+    reviewer_loop_sync_compare_first_blocking_after_local_confirmation "$platform_output"
     if [ "$compare_mode" -eq 1 ]; then
       reviewer_loop_platform_loop_should_break=0
     fi

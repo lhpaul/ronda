@@ -18188,6 +18188,19 @@ run_test "1656_lbc_moved_head_status" "1" "$_st"
 run_test "1656_lbc_moved_head_reason" "head_moved_during_pass" "$local_blocker_confirmation_reason"
 run_test "1656_lbc_moved_head_aggregate" "head_moved_during_run" "$aggregate_reason"
 run_test "1656_lbc_moved_head_count" "0" "$total_blocking_count"
+
+_1656_reset_guard_globals
+compare_mode=1
+{
+  reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1656_local_blocker_primary" 1 1
+} >/dev/null
+_1656_stub_pass_result="clean"
+reviewer_loop_confirm_local_blocker 1693 "$_1656_local_blocker_primary" && _st=0 || _st=$?
+reviewer_loop_sync_compare_first_blocking_after_local_confirmation "$_1656_local_blocker_primary"
+run_test "1656_lbc_compare_unconfirmed_status" "1" "$_st"
+run_test "1656_lbc_compare_first_result" "escalate" "$compare_first_blocking_result"
+run_test "1656_lbc_compare_first_reason" "local_finding_unconfirmed" "$compare_first_blocking_reason"
+run_test "1656_lbc_compare_first_count" "0" "$(kv_value_default BLOCKING_COUNT "$compare_first_blocking_output" 0)"
 unset _1656_local_blocker_primary
 
 _1656_main_confirm_hook="$(
