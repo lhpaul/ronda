@@ -1308,7 +1308,7 @@ reason="${reason:-}"
 # doing so turns an un-actionable model verdict into a self-sustaining
 # reviewer-loop failure on an unchanged head.
 blocking_body_count="$(printf '%s\n' "$parse_result" | awk -F= '
-  $1 ~ /^BLOCKING_[0-9]+_BODY$/ && length($2) > 0 { count += 1 }
+  $1 ~ /^BLOCKING_[0-9]+_BODY$/ && $2 ~ /[^[:space:]]/ { count += 1 }
   END { print count + 0 }
 ')"
 if [ "$result" = "needs_fixes" ] \
