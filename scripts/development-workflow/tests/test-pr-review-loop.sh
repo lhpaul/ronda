@@ -18105,7 +18105,7 @@ _1656_reset_guard_globals() {
   _1656_stub_pr_head=""
 }
 
-_1656_local_blocker_primary=$'RESULT=needs_fixes\nREASON=blocking\nREVIEWED_HEAD='"$_1656_guard_head"$'\nCOMMENT_COUNT=1\nBLOCKING_COUNT=1\nSUGGESTION_COUNT=0\nBLOCKING_1_PATH=scripts/example.sh\nBLOCKING_1_BODY=real finding\n'
+_1656_local_blocker_primary=$'RESULT=needs_fixes\nREASON=blocking\nREVIEWED_HEAD='"$_1656_guard_head"$'\nCOMMENT_COUNT=1\nBLOCKING_COUNT=1\nSUGGESTION_COUNT=0\nBLOCKING_1_PATH=scripts/example.sh\nBLOCKING_1_BODY=real finding\nREVIEW_STAGE=implementation\nREVIEW_STAGE_SOURCE=branch+files\nREVIEW_DOCTRINE_STATE=supplied\nSTRICT_SPEC_STATE=not_applicable\nSTRICT_PLAN_STATE=not_applicable\n'
 
 _1656_reset_guard_globals
 {
@@ -18137,6 +18137,12 @@ run_test "1656_lbc_unconfirmed_token" "local-ai-reviewer:escalated (local_findin
   "$(printf '%s\n' "${platform_result_tokens[@]}")"
 run_test "1656_lbc_unconfirmed_output_result" "escalate" \
   "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^RESULT=/{print $2; exit}')"
+run_test "1656_lbc_unconfirmed_output_head" "$_1656_guard_head" \
+  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^REVIEWED_HEAD=/{print $2; exit}')"
+run_test "1656_lbc_unconfirmed_output_stage" "implementation" \
+  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^REVIEW_STAGE=/{print $2; exit}')"
+run_test "1656_lbc_unconfirmed_output_strict_spec" "not_applicable" \
+  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^STRICT_SPEC_STATE=/{print $2; exit}')"
 
 _1656_reset_guard_globals
 _1656_suppressed_emit="$(
@@ -18153,6 +18159,12 @@ run_test "1656_lbc_terminal_emit_count" "PLATFORM_1_BLOCKING_COUNT=0" \
   "$(printf '%s\n' "$_1656_terminal_emit" | awk '/^PLATFORM_1_BLOCKING_COUNT=/{print; exit}')"
 run_test "1656_lbc_terminal_emit_no_stale_blocker" "0" \
   "$(printf '%s\n' "$_1656_terminal_emit" | grep -Ec '^PLATFORM_1_BLOCKING_1_' || true)"
+run_test "1656_lbc_terminal_emit_preserves_stage" "PLATFORM_1_REVIEW_STAGE=implementation" \
+  "$(printf '%s\n' "$_1656_terminal_emit" | awk '/^PLATFORM_1_REVIEW_STAGE=/{print; exit}')"
+run_test "1656_lbc_terminal_emit_preserves_doctrine" "PLATFORM_1_REVIEW_DOCTRINE_STATE=supplied" \
+  "$(printf '%s\n' "$_1656_terminal_emit" | awk '/^PLATFORM_1_REVIEW_DOCTRINE_STATE=/{print; exit}')"
+run_test "1656_lbc_terminal_emit_preserves_strict" "PLATFORM_1_STRICT_SPEC_STATE=not_applicable" \
+  "$(printf '%s\n' "$_1656_terminal_emit" | awk '/^PLATFORM_1_STRICT_SPEC_STATE=/{print; exit}')"
 unset _1656_suppressed_emit _1656_terminal_emit
 
 _1656_reset_guard_globals

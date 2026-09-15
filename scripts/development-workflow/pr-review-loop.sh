@@ -8650,7 +8650,7 @@ reviewer_loop_second_local_pass_before_ready_gate() {
     fi
   else
     local_second_pass_failed_head_record="$loop_head_sha"
-    aggregate_output="$(printf 'RESULT=escalate\nREASON=%s\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n' "${_sl_gate_reason:-local_pass_unavailable}")"
+    aggregate_output="$(reviewer_loop_rewrite_local_terminal_output "$_sl_pass_output" "escalate" "${_sl_gate_reason:-local_pass_unavailable}")"
     aggregate_status=2
   fi
   last_platform="local-ai-reviewer"
@@ -8705,6 +8705,31 @@ reviewer_loop_clear_unconfirmed_local_blocker() {
   total_suggestion_count="$(reviewer_loop_decrement_total_count "$total_suggestion_count" "$original_suggestions")"
   reviewer_loop_remove_blocking_findings_for_platform "local-ai-reviewer"
   reviewer_loop_replace_current_round_platform_record "local-ai-reviewer"
+}
+
+reviewer_loop_rewrite_local_terminal_output() {
+  local original_output="${1:-}"
+  local result="${2:-escalate}"
+  local reason="${3:-local_blocker_confirmation_unavailable}"
+  local metadata
+
+  metadata="$(
+    printf '%s\n' "$original_output" | awk -F= '
+      /^[A-Za-z0-9_]+=/{ 
+        key = $1
+        if (key == "RESULT" || key == "REASON" || key == "DISPLAY_RESULT") next
+        if (key == "COMMENT_COUNT" || key == "BLOCKING_COUNT" || key == "SUGGESTION_COUNT") next
+        if (key ~ /^BLOCKING_[0-9]+_/) next
+        if (key ~ /^SUGGESTION_[0-9]+_/) next
+        print
+      }
+    '
+  )"
+
+  printf 'RESULT=%s\nREASON=%s\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n' "$result" "$reason"
+  if [ -n "$metadata" ]; then
+    printf '%s\n' "$metadata"
+  fi
 }
 
 reviewer_loop_record_local_confirmation_outcome() {
@@ -8787,7 +8812,7 @@ reviewer_loop_confirm_local_blocker() {
     reviewer_loop_clear_unconfirmed_local_blocker "$original_output"
     aggregate_result="escalate"
     aggregate_reason="local_blocker_confirmation_unavailable"
-    aggregate_output="$(printf 'RESULT=escalate\nREASON=local_blocker_confirmation_unavailable\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+    aggregate_output="$(reviewer_loop_rewrite_local_terminal_output "$original_output" "$aggregate_result" "$aggregate_reason")"
     reviewer_loop_record_local_confirmation_outcome "$aggregate_result" "$aggregate_reason" "$aggregate_output" "$_lc_reviewed_head"
     aggregate_status=2
     reviewer_loop_platform_loop_should_break=1
@@ -8799,7 +8824,7 @@ reviewer_loop_confirm_local_blocker() {
     reviewer_loop_clear_unconfirmed_local_blocker "$original_output"
     aggregate_result="needs_fixes"
     aggregate_reason="head_moved_during_run"
-    aggregate_output="$(printf 'RESULT=needs_fixes\nREASON=head_moved_during_run\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+    aggregate_output="$(reviewer_loop_rewrite_local_terminal_output "$original_output" "$aggregate_result" "$aggregate_reason")"
     reviewer_loop_record_local_confirmation_outcome "$aggregate_result" "$aggregate_reason" "$aggregate_output" "$_lc_reviewed_head"
     aggregate_status=1
     reviewer_loop_platform_loop_should_break=1
@@ -8814,7 +8839,7 @@ reviewer_loop_confirm_local_blocker() {
     reviewer_loop_clear_unconfirmed_local_blocker "$original_output"
     aggregate_result="escalate"
     aggregate_reason="local_blocker_confirmation_unavailable"
-    aggregate_output="$(printf 'RESULT=escalate\nREASON=local_blocker_confirmation_unavailable\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+    aggregate_output="$(reviewer_loop_rewrite_local_terminal_output "$original_output" "$aggregate_result" "$aggregate_reason")"
     reviewer_loop_record_local_confirmation_outcome "$aggregate_result" "$aggregate_reason" "$aggregate_output" "$_lc_reviewed_head"
     aggregate_status=2
     reviewer_loop_platform_loop_should_break=1
@@ -8834,7 +8859,7 @@ reviewer_loop_confirm_local_blocker() {
       reviewer_loop_clear_unconfirmed_local_blocker "$original_output"
       aggregate_result="escalate"
       aggregate_reason="local_finding_unconfirmed"
-      aggregate_output="$(printf 'RESULT=escalate\nREASON=local_finding_unconfirmed\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+      aggregate_output="$(reviewer_loop_rewrite_local_terminal_output "$original_output" "$aggregate_result" "$aggregate_reason")"
       reviewer_loop_record_local_confirmation_outcome "$aggregate_result" "$aggregate_reason" "$aggregate_output" "$_lc_reviewed_head"
       aggregate_status=2
       reviewer_loop_platform_loop_should_break=1
@@ -8846,7 +8871,7 @@ reviewer_loop_confirm_local_blocker() {
       reviewer_loop_clear_unconfirmed_local_blocker "$original_output"
       aggregate_result="escalate"
       aggregate_reason="local_blocker_confirmation_unavailable"
-      aggregate_output="$(printf 'RESULT=escalate\nREASON=local_blocker_confirmation_unavailable\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+      aggregate_output="$(reviewer_loop_rewrite_local_terminal_output "$original_output" "$aggregate_result" "$aggregate_reason")"
       reviewer_loop_record_local_confirmation_outcome "$aggregate_result" "$aggregate_reason" "$aggregate_output" "$_lc_reviewed_head"
       aggregate_status=2
       reviewer_loop_platform_loop_should_break=1
