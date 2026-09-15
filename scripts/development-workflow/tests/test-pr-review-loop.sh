@@ -18113,6 +18113,14 @@ run_test "1656_lbc_unconfirmed_result" "escalate" "$aggregate_result"
 run_test "1656_lbc_unconfirmed_reason" "local_finding_unconfirmed" "$aggregate_reason"
 run_test "1656_lbc_unconfirmed_count" "0" "$total_blocking_count"
 run_test "1656_lbc_unconfirmed_findings" "0" "${#aggregate_blocking_findings[@]}"
+run_test "1656_lbc_unconfirmed_record_result" "escalate" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
+run_test "1656_lbc_unconfirmed_record_reason" "local_finding_unconfirmed" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_reason')"
+run_test "1656_lbc_unconfirmed_token" "local-ai-reviewer:escalated (local_finding_unconfirmed)" \
+  "$(printf '%s\n' "${platform_result_tokens[@]}")"
+run_test "1656_lbc_unconfirmed_output_result" "escalate" \
+  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^RESULT=/{print $2; exit}')"
 
 _1656_reset_guard_globals
 {
@@ -18124,6 +18132,10 @@ run_test "1656_lbc_unavailable_status" "1" "$_st"
 run_test "1656_lbc_unavailable_result" "escalate" "$aggregate_result"
 run_test "1656_lbc_unavailable_reason" "local_blocker_confirmation_unavailable" "$aggregate_reason"
 run_test "1656_lbc_unavailable_count" "0" "$total_blocking_count"
+run_test "1656_lbc_unavailable_record_result" "escalate" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
+run_test "1656_lbc_unavailable_record_reason" "local_blocker_confirmation_unavailable" \
+  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_reason')"
 unset _1656_local_blocker_primary
 
 # Scenario 4 / not_required: clean on loop_head_sha — no dispatch

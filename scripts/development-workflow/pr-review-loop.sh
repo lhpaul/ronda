@@ -8686,6 +8686,28 @@ reviewer_loop_clear_unconfirmed_local_blocker() {
   total_blocking_count="$(reviewer_loop_decrement_total_count "$total_blocking_count" "$original_blocking")"
   total_suggestion_count="$(reviewer_loop_decrement_total_count "$total_suggestion_count" "$original_suggestions")"
   reviewer_loop_remove_blocking_findings_for_platform "local-ai-reviewer"
+  reviewer_loop_replace_current_round_platform_record "local-ai-reviewer"
+}
+
+reviewer_loop_record_local_confirmation_outcome() {
+  local result="${1:-escalate}"
+  local reason="${2:-local_blocker_confirmation_unavailable}"
+  local output="${3:-}"
+  local reviewed_head="${4:-}"
+  local display_result
+
+  platform_peer_evidence+=("local-ai-reviewer|${result}|${reason}")
+  platform_result_records+=("$(reviewer_loop_platform_result_record_json "local-ai-reviewer" "$result" "$reason")")
+  platform_reviewed_heads+=("local-ai-reviewer:${reviewed_head}")
+  platform_blocking_outputs+=("local-ai-reviewer"$'\036'"${output}")
+  case "$result" in
+    clean) display_result="clean" ;;
+    skipped) display_result="skipped" ;;
+    escalate) display_result="escalated (${reason:-unknown})" ;;
+    needs_fixes) display_result="needs_fixes" ;;
+    *) display_result="$result" ;;
+  esac
+  platform_result_tokens+=("local-ai-reviewer:${display_result}")
 }
 
 reviewer_loop_confirm_local_blocker() {
@@ -8715,6 +8737,7 @@ reviewer_loop_confirm_local_blocker() {
     aggregate_result="escalate"
     aggregate_reason="local_blocker_confirmation_unavailable"
     aggregate_output="$(printf 'RESULT=escalate\nREASON=local_blocker_confirmation_unavailable\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+    reviewer_loop_record_local_confirmation_outcome "$aggregate_result" "$aggregate_reason" "$aggregate_output" "$_lc_reviewed_head"
     aggregate_status=2
     reviewer_loop_platform_loop_should_break=1
     last_platform="local-ai-reviewer"
@@ -8723,6 +8746,7 @@ reviewer_loop_confirm_local_blocker() {
   if ! reviewer_loop_second_local_pass_confirm_live_head "$pr_number_arg"; then
     local_blocker_confirmation_reason="${local_second_pass_reason:-local_blocker_confirmation_unavailable}"
     reviewer_loop_clear_unconfirmed_local_blocker "$original_output"
+    reviewer_loop_record_local_confirmation_outcome "$aggregate_result" "$aggregate_reason" "$aggregate_output" "$_lc_reviewed_head"
     reviewer_loop_platform_loop_should_break=1
     last_platform="local-ai-reviewer"
     return 1
@@ -8741,6 +8765,7 @@ reviewer_loop_confirm_local_blocker() {
       aggregate_result="escalate"
       aggregate_reason="local_finding_unconfirmed"
       aggregate_output="$(printf 'RESULT=escalate\nREASON=local_finding_unconfirmed\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+      reviewer_loop_record_local_confirmation_outcome "$aggregate_result" "$aggregate_reason" "$aggregate_output" "$_lc_reviewed_head"
       aggregate_status=2
       reviewer_loop_platform_loop_should_break=1
       last_platform="local-ai-reviewer"
@@ -8752,6 +8777,7 @@ reviewer_loop_confirm_local_blocker() {
       aggregate_result="escalate"
       aggregate_reason="local_blocker_confirmation_unavailable"
       aggregate_output="$(printf 'RESULT=escalate\nREASON=local_blocker_confirmation_unavailable\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n')"
+      reviewer_loop_record_local_confirmation_outcome "$aggregate_result" "$aggregate_reason" "$aggregate_output" "$_lc_reviewed_head"
       aggregate_status=2
       reviewer_loop_platform_loop_should_break=1
       last_platform="local-ai-reviewer"
