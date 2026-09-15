@@ -8715,7 +8715,7 @@ reviewer_loop_rewrite_local_terminal_output() {
 
   metadata="$(
     printf '%s\n' "$original_output" | awk -F= '
-      /^[A-Za-z0-9_]+=/{ 
+      $1 ~ /^[A-Za-z0-9_]+$/ {
         key = $1
         if (key == "RESULT" || key == "REASON" || key == "DISPLAY_RESULT") next
         if (key == "COMMENT_COUNT" || key == "BLOCKING_COUNT" || key == "SUGGESTION_COUNT") next
