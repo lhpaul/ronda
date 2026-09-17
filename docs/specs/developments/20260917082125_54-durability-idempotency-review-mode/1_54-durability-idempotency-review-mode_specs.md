@@ -299,7 +299,7 @@ Rows are evaluated in order for implementation-stage reviews. The first match de
 
 - [ ] **AC-1.** On an implementation-stage pull request whose changed surfaces match documented automatic activation rules, durability mode state is `active` with activation reason `automatic_match`.
 - [ ] **AC-2.** On an implementation-stage pull request whose changed surfaces do not match automatic rules and no operator default or override applies, durability mode state is `inactive`, and the record states that automatic rules did not match.
-- [ ] **AC-3.** When durability mode is `active`, the reviewer receives instructions that explicitly require reasoning about restart/recovery, retry semantics, timeout/watchdog behavior, duplicate delivery, partial success, and persistence integrity — the six scenario families in Statuses / Enum Values.
+- [ ] **AC-3.** When durability mode is `active`, the reviewer receives instructions that explicitly require reasoning about every scenario family defined in **Scenario families** under Statuses / Enum Values (restart/recovery through persistence integrity).
 - [ ] **AC-4.** For each scenario family marked in scope, the reviewer considers failures that appear only after crash, replay, redelivery, or partial external success, not only defects visible in a single happy-path read of the diff.
 - [ ] **AC-5.** When a scenario family is marked **not applicable** for an activation, the activation record names that family and gives a one-line justification tied to the changed surfaces; no other family is silently skipped.
 - [ ] **AC-6.** An operator can enable durability mode for all implementation reviews in a repository without automatic matches (`operator_default`), and the activation record reflects that reason.
