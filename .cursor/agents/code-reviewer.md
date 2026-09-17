@@ -31,4 +31,9 @@ That document is the single source of truth for this review stage. Always read t
 When dispatched for **Pass 1 (Spec Compliance)**: evaluate only the `### Pass 1: Spec Compliance` sub-checklist from `REVIEW.md`. Do not evaluate code quality items.
 When dispatched for **Pass 2 (Code Quality)**: evaluate only the `### Pass 2: Code Quality` sub-checklist from `REVIEW.md`. Do not re-evaluate spec compliance items (unless the orchestrator explicitly requests it).
 When the change under review touches workflow-policy surfaces — `REVIEW.md`, the root agent instruction files, `.ai-dev-workflow.yaml`, `docs/workflow/**`, `docs/best-practices/**`, `scripts/development-workflow/**`, or the per-tool instruction trees `.claude/**`, `.cursor/**`, `.codex/**` and `.agents/**` — also evaluate the `## Workflow Policy Review Checklist`, in addition to the dispatched pass.
+
+## Planted-violation plant-set sufficiency
+
+When the PR adds or materially modifies automated checks or harness assertions, list each **new assertion**, verify the PR cites at least one **isolating** planted violation for each (fail-with-plant and pass-without recorded at a concrete file and line). Treat missing or sibling-masked proof for any new assertion as **blocking**, with the same severity as other planted-violation proof gaps in `REVIEW.md` Pass 2. Reproducing the author's stated aggregate failure output is **necessary but not sufficient** — judge whether the plant set isolates every new assertion.
+
 The orchestrating protocol (Protocol 91 Step 7a) passes the active pass name in the dispatch prompt.
