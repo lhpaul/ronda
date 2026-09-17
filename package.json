@@ -14,7 +14,8 @@
     "benchmark:recall": "tsx src/cli/recall-benchmark.ts",
     "benchmark:quality": "tsx src/cli/recall-benchmark.ts --quality",
     "quality:comparison": "tsx src/cli/record-review-comparison.ts",
-    "quality:summary": "tsx src/cli/summarize-review-comparisons.ts"
+    "quality:summary": "tsx src/cli/summarize-review-comparisons.ts",
+    "quality:report": "tsx src/cli/report-review-quality.ts"
   },
   "dependencies": {
     "@octokit/rest": "22.0.1"
