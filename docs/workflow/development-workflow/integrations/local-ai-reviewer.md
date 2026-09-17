@@ -391,6 +391,15 @@ Required.
 `local-ai-reviewer` does not own a GitHub bot login. `bot_login_for_platform`
 returns empty, and the Automated Reviewer Loop Summary is the durable evidence.
 
+When the local reviewer reports blocking findings and they survive local blocker
+confirmation, `pr-review-loop.sh` adds a **Local reviewer blocking findings**
+subsection to the Automated Reviewer Loop Summary (path, optional line, redacted
+message per finding). The same pass stores matching `local_blocking_findings[]`
+on the `reviewer_loop_history.v1` ledger entry. Redaction uses the shared
+`workflow_audit_redact_text` rules documented in guardrails enforcement §6;
+finding bodies are not redacted inside `local-ai-reviewer.sh`. Hosted reviewer
+comments are not duplicated in this section.
+
 The companion script emits:
 
 - `REVIEWED_HEAD`
