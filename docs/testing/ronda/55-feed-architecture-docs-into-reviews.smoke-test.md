@@ -34,7 +34,8 @@ via tests or debug logging).
    ```
 
 2. Confirm output includes a case where `src/webhook/webhook-server.ts` (or
-   equivalent) yields constitution and at least one additional catalog doc.
+   equivalent) yields constitution first among candidates and the other three
+   catalog docs as candidates before budget trimming.
 
 3. Run prompt test:
 
@@ -66,24 +67,26 @@ via tests or debug logging).
 ## Scenario C — Budget caps (AC 3, 5)
 
 1. Run selection tests that set `maxAuthoritativeDocCount` or
-   `maxAuthoritativeDocChars` below the candidate set size.
+   `maxAuthoritativeDocChars` below the candidate set size (phase-2 helper).
 
 2. Confirm skipped entries include documented reasons (`over_doc_count` or
    `over_doc_chars`) and higher-priority docs remain selected.
 
-**Pass**: Skip reasons and priority behavior match plan Decision 3.
+**Pass**: Skip reasons and priority behavior match plan Decision 1 phase 2 /
+Decision 3.
 
 ---
 
-## Scenario D — Missing catalog file (AC 7)
+## Scenario D — Missing or empty catalog file (AC 7)
 
 1. Run unit tests for `repo-content-reader` and run-review-pass with
-   `readFileAtRef` returning `undefined` for one catalog path.
+   `readFileAtRef` returning `undefined` for one catalog path, and a fixture
+   with empty string content for another.
 
 2. Confirm pass outcome is still success (or normal review failure unrelated to
-   docs) and logs reference skip reason `unreadable`.
+   docs) and logs reference skip reasons `unreadable` and/or `empty`.
 
-**Pass**: No throw solely due to missing doc content.
+**Pass**: No throw solely due to missing or empty doc content.
 
 ---
 
@@ -105,7 +108,8 @@ Skip when credentials are unavailable.
 3. Inspect structured logs for `authoritative_docs_selection` and confirm
    `selectedIds` is non-empty for the webhook change.
 
-4. Confirm a GitHub review and check run still publish (comment-only contract).
+4. Confirm a GitHub review and check run still publish (comment-only contract;
+   AC 9 publication half).
 
 **Pass**: Log shows selected docs; review/check run complete.
 
@@ -125,6 +129,16 @@ Skip when credentials are unavailable.
 
 ---
 
+## Scenario G — Diff budget still independent (AC 9)
+
+1. Run existing or extended `review-prompt` unit tests confirming oversized
+   **patch** text still throws `ChangesTooLargeError` even when authoritative
+   docs are absent or within budget.
+
+**Pass**: Doc budgets do not relax or replace `maxPatchChars`.
+
+---
+
 ## Sign-off
 
 | Scenario | Result (Pass/Fail/Skip) | Notes |
@@ -135,3 +149,4 @@ Skip when credentials are unavailable.
 | D | | |
 | E | | |
 | F | | |
+| G | | |
