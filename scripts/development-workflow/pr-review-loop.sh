@@ -741,6 +741,9 @@ Outputs stable key=value lines including:
       Observational only — never changes readiness, labels, or merge decisions. Summary shows one
       ≤200-character line per record. When history is unappendable and a record was owed, the prior
       history block is preserved and the summary reports the telemetry failure.
+    local_blocking_findings[] — optional per-pass redacted blocking findings from local-ai-reviewer
+      only ({path, line?, message}). Omitted on clean passes, zero local blocking, or when local
+      findings were cleared by local blocker confirmation. Orthogonal to #57 local_outcome_class.
   RESULT=needs_fixes REASON=head_moved_during_run (the PR head changed while the reviewers ran, so
     the clean verdict describes a commit the PR has left; nothing to fix — re-run the loop for the
     current HEAD)
@@ -8380,7 +8383,7 @@ reviewer_loop_blocking_findings_from_output() {
   local output="${1:-}"
   local blocking_count="${2:-0}"
   local platform="${3:-}"
-  local index path body
+  local index path body line
 
   [[ "$blocking_count" =~ ^[0-9]+$ ]] || blocking_count=0
   [ "$blocking_count" -gt 0 ] || return 0
@@ -8388,12 +8391,103 @@ reviewer_loop_blocking_findings_from_output() {
   for index in $(seq 1 "$blocking_count"); do
     path="$(kv_value_default "BLOCKING_${index}_PATH" "$output" "")"
     body="$(kv_value_default "BLOCKING_${index}_BODY" "$output" "")"
+    line="$(kv_value_default "BLOCKING_${index}_LINE" "$output" "")"
     jq -c -n \
       --arg path "$path" \
       --arg platform "$platform" \
       --arg body "$body" \
-      '{path: $path, platform: $platform, body: $body}'
+      --arg line "$line" \
+      '({path: $path, platform: $platform, body: $body}
+        | if ($line | length) > 0 then . + {line: $line} else . end)'
   done
+}
+
+# Redact a finding message before GitHub publish (#64). Fail closed on pipeline errors.
+reviewer_loop_redact_finding_message() {
+  local message="${1:-}"
+  local redacted=""
+
+  if ! redacted="$(printf '%s' "$message" | workflow_audit_redact_text 2>/dev/null)"; then
+    printf '%s' '[REDACTED]'
+    return 0
+  fi
+  printf '%s' "$redacted"
+}
+
+reviewer_loop_truncate_summary_finding_message() {
+  local text="${1:-}"
+  local max="${2:-400}"
+
+  [[ "$max" =~ ^[0-9]+$ ]] || max=400
+  if [ "${#text}" -le "$max" ]; then
+    printf '%s' "$text"
+    return 0
+  fi
+  printf '%s… (full text in reviewer-loop history)' "${text:0:max}"
+}
+
+# Build redacted local_blocking_findings JSON from post-confirmation aggregate_blocking_findings (#64).
+reviewer_loop_local_blocking_findings_json() {
+  local finding platform path body line message redacted
+  local -a redacted_objects=()
+
+  if ! declare -p aggregate_blocking_findings >/dev/null 2>&1 \
+      || [ "${#aggregate_blocking_findings[@]}" -eq 0 ]; then
+    printf '[]'
+    return 0
+  fi
+
+  for finding in "${aggregate_blocking_findings[@]}"; do
+    platform="$(printf '%s' "$finding" | jq -r '.platform // ""' 2>/dev/null)" || platform=""
+    [ "$platform" = "local-ai-reviewer" ] || continue
+    path="$(printf '%s' "$finding" | jq -r '.path // ""' 2>/dev/null)" || path=""
+    body="$(printf '%s' "$finding" | jq -r '.body // ""' 2>/dev/null)" || body=""
+    line="$(printf '%s' "$finding" | jq -r '.line // empty' 2>/dev/null)" || line=""
+    message="$(reviewer_loop_redact_finding_message "$body")"
+    redacted_objects+=("$(
+      jq -c -n \
+        --arg path "$path" \
+        --arg message "$message" \
+        --arg line "$line" \
+        'if ($line | length) > 0 then {path: $path, line: $line, message: $message} else {path: $path, message: $message} end'
+    )")
+  done
+
+  if [ "${#redacted_objects[@]}" -eq 0 ]; then
+    printf '[]'
+    return 0
+  fi
+  printf '%s\n' "${redacted_objects[@]}" | jq -s -c '.'
+}
+
+reviewer_loop_local_blocking_findings_summary_section() {
+  local findings_json="${1:-[]}"
+  local record path line message loc display_msg section=""
+
+  if ! printf '%s' "$findings_json" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
+    return 0
+  fi
+
+  section="
+
+**Local reviewer blocking findings:**"
+
+  while IFS= read -r record; do
+    [ -n "$record" ] || continue
+    path="$(printf '%s' "$record" | jq -r '.path // ""' 2>/dev/null)" || path=""
+    line="$(printf '%s' "$record" | jq -r '.line // empty' 2>/dev/null)" || line=""
+    message="$(printf '%s' "$record" | jq -r '.message // ""' 2>/dev/null)" || message=""
+    if [ -n "$line" ]; then
+      loc="${path}:${line}"
+    else
+      loc="$path"
+    fi
+    display_msg="$(reviewer_loop_truncate_summary_finding_message "$message" 400)"
+    section="${section}
+- \`${loc}\` — ${display_msg}"
+  done < <(printf '%s' "$findings_json" | jq -c '.[]?' 2>/dev/null)
+
+  printf '%s' "$section"
 }
 
 # Normalise a finding body for contract-surface matching only (#1652).
@@ -10567,6 +10661,10 @@ reviewer_loop_history_build_entry() {
     )" || contributing_platforms_json='[]'
   fi
 
+  local local_blocking_findings_json='[]'
+  local_blocking_findings_json="$(reviewer_loop_local_blocking_findings_json)" \
+    || local_blocking_findings_json='[]'
+
   # run_id (#1502 dual-cap follow-up): read from the current_run_id global,
   # following the same convention already used in this function for
   # unresolved_thread_count/late_thread_count (set by the caller before
@@ -10627,6 +10725,7 @@ reviewer_loop_history_build_entry() {
     --arg localInfraPartial "${reviewer_loop_local_infrastructure_partial_output:-}" \
     --arg localInfraElapsed "${reviewer_loop_local_infrastructure_elapsed_seconds:-}" \
     --arg localInfraGateReason "${expensive_gate_last_reason:-}" \
+    --argjson localBlockingFindings "$local_blocking_findings_json" \
     '{
       iteration: $iteration,
       recorded_at: $recordedAt,
@@ -10734,6 +10833,11 @@ reviewer_loop_history_build_entry() {
             gate_reason: $localInfraGateReason
           }
         }
+      else
+        .
+      end
+    | if ($localBlockingFindings | length) > 0 then
+        . + {local_blocking_findings: $localBlockingFindings}
       else
         .
       end'
@@ -13143,6 +13247,14 @@ ${_attr_line}"
     missed_findings_section=""
   fi
 
+  local local_blocking_findings_section=""
+  local _local_blocking_findings_json='[]'
+  _local_blocking_findings_json="$(reviewer_loop_local_blocking_findings_json)" \
+    || _local_blocking_findings_json='[]'
+  if printf '%s' "$_local_blocking_findings_json" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
+    local_blocking_findings_section="$(reviewer_loop_local_blocking_findings_summary_section "$_local_blocking_findings_json")"
+  fi
+
   local comment_body
   comment_body="$(cat <<EOF
 ### Automated Reviewer Loop Summary
@@ -13150,7 +13262,7 @@ ${_attr_line}"
 **Result:** ${result_line}
 **Platforms:** ${platform_list:-none}${policy_status_section}
 **Findings:** ${blocking} blocking, ${suggestions} suggestions
-${small_findings_section}${missed_findings_section}${attribution_section}${missed_finding_telemetry_section}${head_evidence_section}${expensive_gate_section}${local_infrastructure_section}${second_local_pass_section}${local_blocker_confirmation_section}${phase_section}${compare_section}${advisory_section}${advisory_checks_section}${strict_spec_summary_section}${strict_plan_summary_section}${regression_label_section}
+${local_blocking_findings_section}${small_findings_section}${missed_findings_section}${attribution_section}${missed_finding_telemetry_section}${head_evidence_section}${expensive_gate_section}${local_infrastructure_section}${second_local_pass_section}${local_blocker_confirmation_section}${phase_section}${compare_section}${advisory_section}${advisory_checks_section}${strict_spec_summary_section}${strict_plan_summary_section}${regression_label_section}
 
 *Posted automatically by \`pr-review-loop.sh\`.*
 EOF
