@@ -35,12 +35,14 @@ export function countBySeverity(findings: Finding[]): SeverityCounts {
   return counts;
 }
 
+export const RONDA_REVIEW_HEADING = "## Ronda review";
+
 /** Renders the review body: what was reviewed, severity counts, model, duration, findings list. */
 export function buildReviewSummary(input: ReviewSummaryInput): string {
   const counts = countBySeverity(input.findings);
   const lines: string[] = [];
 
-  lines.push("## Ronda review");
+  lines.push(RONDA_REVIEW_HEADING);
   lines.push("");
   lines.push(
     `Reviewed ${input.changedFileCount} changed file(s) (+${input.additions}/-${input.deletions}).`,

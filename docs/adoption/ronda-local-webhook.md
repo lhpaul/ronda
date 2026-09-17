@@ -111,6 +111,18 @@ indefinitely. A thrown job failure before a terminal review/check-run outcome
 also stops the worker and leaves the accepted job in the queue file for recovery
 instead of silently discarding it.
 
+When `RONDA_WEBHOOK_QUEUE_PATH` is set, startup inspects queue rows left
+`in_progress` by an unclean exit before the HTTP listener accepts new deliveries.
+For each stranded job the service reconciles against GitHub for an existing Ronda
+pull-request review on the head commit (matching the `## Ronda review` summary
+marker). If no public review exists yet, the job is resumed automatically. If
+GitHub already shows the review, local state is advanced to a safe terminal path
+without publishing a second review. Startup logs name the repository, pull
+request, delivery id, head SHA, and outcome (`resumed`,
+`reconciled_existing_review`, or `reconciliation_failed`). Manual redelivery is
+still available when recovery reports a blocking ambiguity or reconciliation
+error.
+
 ## Mini or MiniPC Hosting Path
 
 After the MacBook dogfood path is reliable, move the same environment variables,

@@ -17,6 +17,8 @@ import {
 import type { WebhookConfig } from "../../../src/webhook/webhook-config.js";
 import type { WebhookReviewJob } from "../../../src/webhook/webhook-job.js";
 import type { PublishCheckRunInput } from "../../../src/domain/review-pass.types.js";
+import type { ExistingRondaPullRequestReview } from "../../../src/github/pull-request-reader.js";
+import type { PullRequestMetadata } from "../../../src/domain/review-pass.types.js";
 
 const config: WebhookConfig = {
   host: "127.0.0.1",
@@ -68,6 +70,38 @@ interface WebhookQueueFileEntry extends WebhookReviewJob {
 
 function readQueueFile(path: string): WebhookQueueFileEntry[] {
   return JSON.parse(readFileSync(path, "utf8")) as WebhookQueueFileEntry[];
+}
+
+function pullRequestMetadata(headSha = "a".repeat(40)): PullRequestMetadata {
+  return {
+    number: 7,
+    title: "Example pull request",
+    body: "",
+    draft: false,
+    headSha,
+  };
+}
+
+function startupRecoveryWithoutExistingReview(headSha = "a".repeat(40)) {
+  return {
+    startupRecovery: {
+      createInstallationOctokit: async () => ({}) as never,
+      findExistingRondaReview: async () => null,
+      readPullRequest: async () => pullRequestMetadata(headSha),
+    },
+  };
+}
+
+function startupRecoveryWithExistingReview(headSha = "a".repeat(40)) {
+  return {
+    startupRecovery: {
+      createInstallationOctokit: async () => ({}) as never,
+      findExistingRondaReview: async (): Promise<ExistingRondaPullRequestReview> => ({
+        headSha,
+      }),
+      readPullRequest: async () => pullRequestMetadata(headSha),
+    },
+  };
 }
 
 async function withWebhookServer<T>(
@@ -754,13 +788,15 @@ test("published webhook queue entries reject new deliveries for the same head", 
   }
 });
 
-test("in-progress webhook queue entries can be recovered by redelivery after startup", async () => {
+test("in-progress webhook queue entries are resumed automatically on startup when no GitHub review exists", async () => {
   const queuePath = tempQueuePath();
+  const headSha = "a".repeat(40);
   const inProgressJob: WebhookQueueFileEntry = {
     owner: "lhpaul",
     repo: "example",
     pullNumber: 7,
     trigger: "manual",
+    headSha,
     installationId: 42,
     deliveryId: "delivery-in-progress",
     status: "in_progress",
@@ -770,6 +806,7 @@ test("in-progress webhook queue entries can be recovered by redelivery after sta
   const server = startWebhookServer(
     { ...config, port: 0, webhookQueuePath: queuePath },
     {
+      ...startupRecoveryWithoutExistingReview(headSha),
       runJob: async (job) => {
         jobs.push(job.deliveryId);
       },
@@ -780,33 +817,8 @@ test("in-progress webhook queue entries can be recovered by redelivery after sta
   await new Promise<void>((resolve) => {
     server.once("listening", resolve);
   });
-  const address = server.address() as AddressInfo;
   try {
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    assert.deepEqual(jobs, []);
-    assert.deepEqual(
-      readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
-      [["delivery-in-progress", "in_progress"]],
-    );
-
-    const body = JSON.stringify(pullRequestPayload());
-    const response = await fetch(`http://127.0.0.1:${address.port}/webhook`, {
-      method: "POST",
-      headers: {
-        "x-github-event": "pull_request",
-        "x-github-delivery": "delivery-in-progress",
-        "x-hub-signature-256": signature(body),
-      },
-      body,
-    });
-
-    assert.equal(response.status, 202);
-    assert.deepEqual(await response.json(), {
-      ok: true,
-      queued: true,
-      pullNumber: 7,
-    });
-
+    await eventually(() => jobs.length === 1);
     await eventually(() => readQueueFile(queuePath).every((job) => job.status === "completed"));
     assert.deepEqual(jobs, ["delivery-in-progress"]);
     assert.deepEqual(
@@ -815,6 +827,105 @@ test("in-progress webhook queue entries can be recovered by redelivery after sta
     );
   } finally {
     server.close();
+  }
+});
+
+test("in-progress webhook queue entries reconcile to an existing GitHub review without running a full job", async () => {
+  const queuePath = tempQueuePath();
+  const headSha = "c".repeat(40);
+  const inProgressJob: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 7,
+    trigger: "manual",
+    headSha,
+    installationId: 42,
+    deliveryId: "delivery-reconcile-review",
+    status: "in_progress",
+  };
+  writeFileSync(queuePath, `${JSON.stringify([inProgressJob], null, 2)}\n`);
+  const jobs: string[] = [];
+  const server = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      ...startupRecoveryWithExistingReview(headSha),
+      runJob: async (job) => {
+        jobs.push(job.deliveryId);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.deepEqual(jobs, []);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
+      [["delivery-reconcile-review", "completed"]],
+    );
+  } finally {
+    server.close();
+  }
+});
+
+test("reconciled in-progress webhook jobs stay idempotent across a second startup", async () => {
+  const queuePath = tempQueuePath();
+  const headSha = "d".repeat(40);
+  const inProgressJob: WebhookQueueFileEntry = {
+    owner: "lhpaul",
+    repo: "example",
+    pullNumber: 7,
+    trigger: "manual",
+    headSha,
+    installationId: 42,
+    deliveryId: "delivery-reconcile-idempotent",
+    status: "in_progress",
+  };
+  writeFileSync(queuePath, `${JSON.stringify([inProgressJob], null, 2)}\n`);
+  const firstRunJobs: string[] = [];
+  const firstServer = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      ...startupRecoveryWithExistingReview(headSha),
+      runJob: async (job) => {
+        firstRunJobs.push(job.deliveryId);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+  await new Promise<void>((resolve) => {
+    firstServer.once("listening", resolve);
+  });
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  firstServer.close();
+
+  const secondRunJobs: string[] = [];
+  const secondServer = startWebhookServer(
+    { ...config, port: 0, webhookQueuePath: queuePath },
+    {
+      ...startupRecoveryWithExistingReview(headSha),
+      runJob: async (job) => {
+        secondRunJobs.push(job.deliveryId);
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+  await new Promise<void>((resolve) => {
+    secondServer.once("listening", resolve);
+  });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.deepEqual(firstRunJobs, []);
+    assert.deepEqual(secondRunJobs, []);
+    assert.deepEqual(
+      readQueueFile(queuePath).map((job) => [job.deliveryId, job.status]),
+      [["delivery-reconcile-idempotent", "completed"]],
+    );
+  } finally {
+    secondServer.close();
   }
 });
 
