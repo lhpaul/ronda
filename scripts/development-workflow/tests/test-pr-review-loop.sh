@@ -18527,6 +18527,85 @@ unset -f _1656_hist_clean_same _1656_hist_clean_ancestor _1656_hist_needs_fixes 
 echo "=== Area 1656 complete ==="
 
 # ---------------------------------------------------------------------------
+# Area 64: local blocking findings on summary + history (#64)
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Area 64: local blocking findings visibility ==="
+
+_64_output=$'RESULT=needs_fixes\nREASON=blocking\nBLOCKING_COUNT=1\nBLOCKING_1_PATH=src/example.ts\nBLOCKING_1_LINE=12\nBLOCKING_1_BODY=token ghp_FAKE1234567890123456789012345678901234 in /Users/alice/secret/file\n'
+_64_finding="$(reviewer_loop_blocking_findings_from_output "$_64_output" 1 "local-ai-reviewer" | head -1)"
+run_test "64_blocking_finding_includes_line" "12" "$(printf '%s' "$_64_finding" | jq -r '.line // empty')"
+run_test "64_blocking_finding_platform" "local-ai-reviewer" "$(printf '%s' "$_64_finding" | jq -r '.platform')"
+
+aggregate_blocking_findings=("$_64_finding")
+_64_local_json="$(reviewer_loop_local_blocking_findings_json)"
+run_test "64_local_json_length" "1" "$(printf '%s' "$_64_local_json" | jq 'length')"
+run_test "64_local_json_redacts_token" "yes" "$(printf '%s' "$_64_local_json" | jq -r '.[0].message' | grep -q 'REDACTED_TOKEN' && printf yes || printf no)"
+run_test "64_local_json_redacts_path" "yes" "$(printf '%s' "$_64_local_json" | jq -r '.[0].message' | grep -q 'REDACTED_LOCAL_PATH' && printf yes || printf no)"
+
+_64_section="$(reviewer_loop_local_blocking_findings_summary_section "$_64_local_json")"
+run_test "64_summary_section_header" "yes" "$(printf '%s' "$_64_section" | grep -q 'Local reviewer blocking findings' && printf yes || printf no)"
+run_test "64_summary_section_loc" "yes" "$(printf '%s' "$_64_section" | grep -q 'src/example.ts:12' && printf yes || printf no)"
+
+pr_number=64
+branch_name="feature/64-surface-local-ai-reviewer-findings"
+MOCK_GH_HEAD_SHA="abc64head1"
+MOCK_GH_UPDATED_AT="2026-09-17T12:00:00Z"
+export MOCK_GH_HEAD_SHA MOCK_GH_UPDATED_AT
+_history_payload_64="$(reviewer_loop_history_payload_from_existing "" \
+  "needs_fixes" "blocking" "local-ai-reviewer (needs_fixes)" "1" "0" "0" "" "0" "0" "")"
+run_test "64_history_local_blocking_count" "1" \
+  "$(printf '%s\n' "$_history_payload_64" | jq -r '.entries[-1].local_blocking_findings | length')"
+run_test "64_history_local_blocking_message" "yes" \
+  "$(printf '%s\n' "$_history_payload_64" | jq -r '.entries[-1].local_blocking_findings[0].message' | grep -q 'REDACTED_TOKEN' && printf yes || printf no)"
+
+aggregate_blocking_findings=()
+_history_payload_64_clean="$(reviewer_loop_history_payload_from_existing "" \
+  "clean" "" "local-ai-reviewer (clean)" "0" "0" "0" "" "0" "0" "")"
+run_test "64_history_omits_field_when_clean" "null" \
+  "$(printf '%s\n' "$_history_payload_64_clean" | jq -r '.entries[-1].local_blocking_findings // "null"')"
+
+aggregate_blocking_findings=("$_64_finding")
+reviewer_loop_remove_blocking_findings_for_platform "local-ai-reviewer"
+_64_after_clear="$(reviewer_loop_local_blocking_findings_json)"
+run_test "64_local_json_empty_after_lbc_clear" "0" "$(printf '%s' "$_64_after_clear" | jq 'length')"
+
+_eval_64_summary_source="$(
+  {
+    awk '/^post_reviewer_loop_completion_guard_status\(\)/,/^}$/' \
+      "$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh"
+    awk '/^_post_review_summary\(\)/,/^}$/' \
+      "$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh"
+  }
+)"
+eval "$_eval_64_summary_source"
+# shellcheck disable=SC2329
+repo_slug() { printf "owner/repo\n"; }
+if ! _64_summary_body_capture="$(mktemp)"; then
+  echo "ERROR: failed to allocate Area 64 summary body capture temp file" >&2
+  exit 1
+fi
+export MOCK_GH_BODY_CAPTURE="$_64_summary_body_capture"
+MOCK_GH_EXIT=0
+export MOCK_GH_EXIT
+aggregate_blocking_findings=("$_64_finding")
+_post_review_summary "needs_fixes" "blocking" "local-ai-reviewer (needs_fixes)" "1" "0" || true
+run_test "64_summary_comment_lists_findings" "yes" \
+  "$(grep -q 'Local reviewer blocking findings' "$_64_summary_body_capture" && printf yes || printf no)"
+rm -f "$_64_summary_body_capture"
+unset MOCK_GH_BODY_CAPTURE MOCK_GH_EXIT _64_summary_body_capture _eval_64_summary_source
+unset -f _post_review_summary post_reviewer_loop_completion_guard_status repo_slug 2>/dev/null || true
+
+_redact_sample="$(printf 'ghp_ABCDEFGHIJKLMNOP1234567890' | workflow_audit_redact_text)"
+run_test "64_shared_redact_helper" "yes" "$(printf '%s' "$_redact_sample" | grep -q 'REDACTED_TOKEN' && printf yes || printf no)"
+
+unset _64_output _64_finding _64_local_json _64_section _history_payload_64 _history_payload_64_clean
+unset _64_after_clear _redact_sample aggregate_blocking_findings
+unset pr_number branch_name MOCK_GH_HEAD_SHA MOCK_GH_UPDATED_AT
+
+echo "=== Area 64 complete ==="
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
