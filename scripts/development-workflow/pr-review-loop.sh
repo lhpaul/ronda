@@ -1332,11 +1332,9 @@ ${justification}
   )" || existing_id=""
 
   if [ -n "$existing_id" ]; then
-    gh api -X PATCH "repos/$repo/issues/comments/$existing_id" \
-      -f body="$new_body" >/dev/null 2>&1 || true
+    gh api -X PATCH "repos/$repo/issues/comments/$existing_id" -f body="$new_body" >/dev/null 2>&1 || true # workflow-shell-guard: allow SH001 - best-effort upsert of override justification; GraphQL rate limits or missing comment must not abort the reviewer loop
   else
-    gh api -X POST "repos/$repo/issues/$pr_number_arg/comments" \
-      -f body="$new_body" >/dev/null 2>&1 || true
+    gh api -X POST "repos/$repo/issues/$pr_number_arg/comments" -f body="$new_body" >/dev/null 2>&1 || true # workflow-shell-guard: allow SH001 - best-effort post of override justification; comment API failure must not abort the reviewer loop
   fi
 }
 
