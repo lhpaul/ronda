@@ -1,7 +1,16 @@
 import { buildCommentableLinesByFile } from "../github/diff-lines.js";
 import { GithubClientError } from "../github/github-client.js";
 import { ModelClientError } from "../inference/model-client.js";
-import { ChangesTooLargeError, buildReviewPrompt } from "../inference/review-prompt.js";
+import {
+  AuthoritativeDocsTooLargeError,
+  ChangesTooLargeError,
+  buildReviewPrompt,
+} from "../inference/review-prompt.js";
+import {
+  applyAuthoritativeDocBudgets,
+  collectChangedPaths,
+  selectAuthoritativeDocCandidates,
+} from "./select-authoritative-docs.js";
 import {
   UnusableModelOutputError,
   parseModelResponse,
@@ -161,11 +170,53 @@ export async function runReviewPass(
       deadline.signal,
     );
 
+    const changedPaths = collectChangedPaths(changedFiles);
+    const phase1 = selectAuthoritativeDocCandidates(changedPaths);
+    const candidatesWithText = [];
+    for (const candidate of phase1.candidates) {
+      const text = await deps.github.readFileAtRef(
+        input.owner,
+        input.repo,
+        candidate.path,
+        pr.headSha,
+        deadline.signal,
+      );
+      candidatesWithText.push({
+        id: candidate.id,
+        path: candidate.path,
+        role: candidate.role,
+        priority: candidate.priority,
+        text,
+      });
+    }
+    const phase2 = applyAuthoritativeDocBudgets(candidatesWithText, {
+      maxAuthoritativeDocCount: deps.config.maxAuthoritativeDocCount,
+      maxAuthoritativeDocChars: deps.config.maxAuthoritativeDocChars,
+    });
+    const allSkipped = [...phase1.skipped, ...phase2.skipped];
+    if (phase2.selected.length > 0 || allSkipped.length > 0) {
+      deps.logger.event("authoritative_docs_selection", {
+        selectedIds: phase2.selected.map((doc) => doc.id),
+        skippedCount: allSkipped.length,
+        docCharTotal: phase2.selected.reduce((sum, doc) => sum + doc.text.length, 0),
+      });
+      for (const skip of allSkipped) {
+        deps.logger.event("authoritative_doc_skipped", {
+          id: skip.id,
+          path: skip.path,
+          reason: skip.reason,
+        });
+      }
+    }
+
     const prompt = buildReviewPrompt({
       title: pr.title,
       body: pr.body,
       changedFiles,
       maxPatchChars: deps.config.maxPatchChars,
+      authoritativeDocs: phase2.selected,
+      maxAuthoritativeDocCount: deps.config.maxAuthoritativeDocCount,
+      maxAuthoritativeDocChars: deps.config.maxAuthoritativeDocChars,
     });
 
     const raw = await deps.model.complete(prompt, deadline.signal);
@@ -406,7 +457,7 @@ function mapErrorToFailureReason(error: unknown, deadlineExpired: boolean): Fail
   if (error instanceof GithubClientError) {
     return error.reason;
   }
-  if (error instanceof ChangesTooLargeError) {
+  if (error instanceof ChangesTooLargeError || error instanceof AuthoritativeDocsTooLargeError) {
     return "changes_too_large";
   }
   if (error instanceof UnusableModelOutputError) {

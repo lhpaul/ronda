@@ -178,8 +178,21 @@ path) and fill in `modelApiKey` there when you want to run `npm run review`
 from your own machine instead of through the reusable workflow. That real
 file is never committed — see `.gitignore`. Environment variables
 (`RONDA_MODEL_API_KEY`, `RONDA_MODEL_BASE_URL`, `RONDA_MODEL_NAME`,
-`RONDA_PASS_TIMEOUT_MS`, `RONDA_MAX_PATCH_CHARS`) take precedence over the
-config file, which takes precedence over Ronda's built-in defaults.
+`RONDA_PASS_TIMEOUT_MS`, `RONDA_MAX_PATCH_CHARS`,
+`RONDA_MAX_AUTHORITATIVE_DOC_COUNT`, `RONDA_MAX_AUTHORITATIVE_DOC_CHARS`) take
+precedence over the config file, which takes precedence over Ronda's built-in
+defaults.
+
+When a pull request touches governed surfaces (webhook ingress, review
+publication, inference, operator config, or workflow review contract paths),
+Ronda may attach a bounded set of authoritative repository documents fetched
+at the reviewed head SHA. Selection is deterministic from changed paths and
+the in-repo catalog — not keyword overlap alone. Each included excerpt is
+labeled **binding** (product/review constraints) or **advisory** (operating
+context). `maxAuthoritativeDocCount` (default `4`) and
+`maxAuthoritativeDocChars` (default `120000`) cap doc attachments
+independently of the diff (`maxPatchChars`) budget. Missing or unreadable
+catalog files are skipped with structured log events; the pass still completes.
 
 ## 7. Review quality reporting (operator checkout)
 

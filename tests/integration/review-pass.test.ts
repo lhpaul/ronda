@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runReviewPass } from "../../src/core/run-review-pass.js";
+import {
+  DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+  DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+} from "../../src/config/load-config.js";
 import { createOpenAiCompatibleClient } from "../../src/inference/openai-compatible-client.js";
 import { startMockModelServer } from "../support/mock-model-server.js";
 import type {
@@ -45,6 +49,9 @@ test("integration: a ready pull request with one finding produces exact review a
           },
         ];
       },
+      async readFileAtRef() {
+        return undefined;
+      },
       async findExistingCheckRun() {
         return null;
       },
@@ -71,6 +78,8 @@ test("integration: a ready pull request with one finding produces exact review a
           model: { apiKey: "test-key", baseUrl: server.url, modelName: "mock-model" },
           passTimeoutMs: 600_000,
           maxPatchChars: 400_000,
+          maxAuthoritativeDocCount: DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+          maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
         },
         // A fixed clock makes durationMs deterministic (always 0) so the
         // rendered summary/check-run text is reproducible for exact assertions.
@@ -173,6 +182,9 @@ test("integration: multiple findings in the same changed file remain distinct in
           },
         ];
       },
+      async readFileAtRef() {
+        return undefined;
+      },
       async findExistingCheckRun() {
         return null;
       },
@@ -198,6 +210,8 @@ test("integration: multiple findings in the same changed file remain distinct in
           model: { apiKey: "test-key", baseUrl: server.url, modelName: "mock-model" },
           passTimeoutMs: 600_000,
           maxPatchChars: 400_000,
+          maxAuthoritativeDocCount: DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+          maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
         },
         clock: { now: () => 0, isoNow: () => "2026-01-01T00:00:00.000Z" },
         logger: { event: () => undefined },
@@ -213,6 +227,78 @@ test("integration: multiple findings in the same changed file remain distinct in
     );
     assert.equal(publishedCheckRuns.length, 1);
     assert.equal(publishedCheckRuns[0].title, "Review posted — 2 finding(s)");
+  } finally {
+    await server.close();
+  }
+});
+
+test("integration: webhook file changes attach fetched authoritative docs to the model request", async () => {
+  const headSha = "c".repeat(40);
+  const { FAKE_AUTHORITATIVE_DOC_CONTENT_BY_PATH } = await import(
+    "../support/fake-authoritative-docs.js"
+  );
+  const server = await startMockModelServer({
+    modelName: "mock-model",
+    responseContent: '{"findings":[]}',
+  });
+
+  try {
+    let capturedUserPrompt = "";
+    const github: GithubOperations = {
+      async readPullRequest() {
+        return { number: 6, title: "Webhook tweak", body: "", draft: false, headSha };
+      },
+      async readChangedFiles() {
+        return [
+          {
+            path: "src/webhook/webhook-server.ts",
+            status: "modified",
+            additions: 1,
+            deletions: 0,
+            patch: "+// change",
+          },
+        ];
+      },
+      async readFileAtRef(_owner, _repo, path) {
+        return FAKE_AUTHORITATIVE_DOC_CONTENT_BY_PATH[path];
+      },
+      async findExistingCheckRun() {
+        return null;
+      },
+      async publishReview() {},
+      async publishCheckRun() {},
+    };
+
+    const model = createOpenAiCompatibleClient({
+      apiKey: "test-key",
+      baseUrl: server.url,
+      modelName: "mock-model",
+    });
+    const originalComplete = model.complete.bind(model);
+    model.complete = async (request, signal) => {
+      capturedUserPrompt = request.userPrompt;
+      return originalComplete(request, signal);
+    };
+
+    const result = await runReviewPass(
+      { owner: "lhpaul", repo: "ronda", pullNumber: 6, trigger: "automatic" },
+      {
+        github,
+        model,
+        config: {
+          model: { apiKey: "test-key", baseUrl: server.url, modelName: "mock-model" },
+          passTimeoutMs: 600_000,
+          maxPatchChars: 400_000,
+          maxAuthoritativeDocCount: DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+          maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+        },
+        clock: { now: () => 0, isoNow: () => "2026-01-01T00:00:00.000Z" },
+        logger: { event: () => undefined },
+      },
+    );
+
+    assert.equal(result.outcome, "succeeded");
+    assert.match(capturedUserPrompt, /### \[binding\] docs\/constitution\.md/);
   } finally {
     await server.close();
   }

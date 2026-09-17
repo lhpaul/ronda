@@ -125,6 +125,19 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   the implementation plan's parser-risk addendum) since there is no local
   git history to fall back on.
 
+### Authoritative documentation in review passes
+
+- **Catalog** (`src/domain/authoritative-doc-catalog.ts`): fixed paths for the
+  constitution, `REVIEW.md`, software architecture, and review adoption docs.
+- **Selection** (`src/core/select-authoritative-docs.ts`): two-phase, pre-model
+  logic — path/surface relevance, then operator doc count/character budgets after
+  content is fetched at `headSha`.
+- **GitHub read** (`src/github/repo-content-reader.ts`): `repos.getContent` for
+  individual files; missing, directory, or truncated payloads are treated as
+  skips, not pass failures.
+- **Prompt** (`src/inference/review-prompt.ts`): optional binding/advisory doc
+  sections in the user message; diff-only passes omit doc headers entirely.
+
 ## Security
 
 - Ronda never pushes to, merges, or otherwise mutates the pull request
