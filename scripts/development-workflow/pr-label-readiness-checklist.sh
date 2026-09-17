@@ -227,11 +227,17 @@ while :; do
     echo "ERROR: could not aggregate status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
     exit 5
   fi
-  CHECKS_HAS_NEXT=$(printf '%s' "$CHECKS_PAGE" | jq -r '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.hasNextPage // false')
+  if ! CHECKS_HAS_NEXT=$(printf '%s' "$CHECKS_PAGE" | jq -er '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.hasNextPage // false'); then
+    echo "ERROR: could not read status check pagination for $HEAD_SHA — refusing to label on an incomplete CI read."
+    exit 5
+  fi
   if [ "$CHECKS_HAS_NEXT" != "true" ]; then
     break
   fi
-  CHECKS_CURSOR=$(printf '%s' "$CHECKS_PAGE" | jq -r '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.endCursor // ""')
+  if ! CHECKS_CURSOR=$(printf '%s' "$CHECKS_PAGE" | jq -er '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.endCursor // ""'); then
+    echo "ERROR: could not read status check pagination cursor for $HEAD_SHA — refusing to label on an incomplete CI read."
+    exit 5
+  fi
   if [ -z "$CHECKS_CURSOR" ] || [ "$CHECKS_CURSOR" = "null" ]; then
     echo "ERROR: status check rollup pagination did not provide an end cursor."
     exit 5
@@ -419,7 +425,7 @@ fi
 # (pr-ci-loop.sh) before continuing — the label triggers e2e/regression CI and
 # that workflow MUST be waited upon. Do NOT skip directly to Check 3/4.
 if [ "$IS_IMPLEMENTATION_PR" = "true" ]; then
-  HAS_REGRESSION_LABEL=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -c "^ready-for-regression$" || true)
+  HAS_REGRESSION_LABEL=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -c "^ready-for-regression$" || true) # workflow-shell-guard: allow SH001 - grep exits 1 when label absent; count must be 0
   if [ "$HAS_REGRESSION_LABEL" -eq 0 ]; then
     echo "WARNING: Implementation PR is missing 'ready-for-regression' label — Step 7b was not completed before Step 8."
     echo "Applying 'ready-for-regression' label now and logging as protocol deviation."
@@ -436,7 +442,7 @@ fi
 # Check 3: record needs-fixes label state.
 # Do not remove it yet. Later gates in this checklist, including residual and
 # documentation-stage alignment, can still prove that needs-fixes is current.
-HAS_NEEDS_FIXES=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -c "^needs-fixes$" || true)
+HAS_NEEDS_FIXES=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -c "^needs-fixes$" || true) # workflow-shell-guard: allow SH001 - grep exits 1 when label absent; count must be 0
 if [ "$HAS_NEEDS_FIXES" -gt 0 ]; then
   echo "INFO: needs-fixes is present; it will be removed only after all Step 8a gates pass."
 fi
@@ -529,7 +535,7 @@ set -e
 if [ "$ALIGNMENT_STATUS" -eq 8 ]; then
   echo "$ALIGNMENT_OUTPUT"
   echo "ERROR: Documentation-stage alignment mismatch blocks ready-for-human-review."
-  HAS_HUMAN_REVIEW_LABEL=$(gh pr view "$PR_NUMBER" --repo "$TARGET_REPO" --json labels --jq '.labels[].name' | grep -c "^ready-for-human-review$" || true)
+  HAS_HUMAN_REVIEW_LABEL=$(gh pr view "$PR_NUMBER" --repo "$TARGET_REPO" --json labels --jq '.labels[].name' | grep -c "^ready-for-human-review$" || true) # workflow-shell-guard: allow SH001 - grep exits 1 when label absent; count must be 0
   if [ "$HAS_HUMAN_REVIEW_LABEL" -gt 0 ]; then
     workflow_pr_edit "$PR_NUMBER" --repo "$TARGET_REPO" --remove-label "ready-for-human-review" ||
       echo "WARNING: failed to remove stale ready-for-human-review; mismatch still exits 8 and remains blocked."
@@ -552,7 +558,7 @@ echo "✅ Documentation-stage alignment verified."
 # without the regression label and bypassing e2e/regression CI.
 if [ "$IS_IMPLEMENTATION_PR" = "true" ]; then
   echo "⛔ STOP: Verifying ready-for-regression label before applying ready-for-human-review..."
-  REGRESSION_PRESENT=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -c "^ready-for-regression$" || true)
+  REGRESSION_PRESENT=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -c "^ready-for-regression$" || true) # workflow-shell-guard: allow SH001 - grep exits 1 when label absent; count must be 0
   if [ "$REGRESSION_PRESENT" -eq 0 ]; then
     echo "ERROR: Cannot proceed to Check 4 — ready-for-regression label is NOT present."
     echo "You MUST apply ready-for-regression (Step 7b) and re-run pr-ci-loop.sh (Step 8) before continuing."
@@ -618,7 +624,7 @@ if [ "$HAS_NEEDS_FIXES" -gt 0 ]; then
 fi
 
 # Check 4: ready-for-human-review label NOT yet applied (we are about to apply it)
-HAS_HUMAN_REVIEW_LABEL=$(gh pr view "$PR_NUMBER" --repo "$TARGET_REPO" --json labels --jq '.labels[].name' | grep -c "^ready-for-human-review$" || true)
+HAS_HUMAN_REVIEW_LABEL=$(gh pr view "$PR_NUMBER" --repo "$TARGET_REPO" --json labels --jq '.labels[].name' | grep -c "^ready-for-human-review$" || true) # workflow-shell-guard: allow SH001 - grep exits 1 when label absent; count must be 0
 # Last look before the label (issue #1574): several API-backed gates ran since
 # Check 0.6, and a push during any of them leaves the settled verdict
 # describing a head the PR has left. The label stays on — or goes on — the
