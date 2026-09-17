@@ -5,6 +5,7 @@
 # (BASH_SOURCE unavailable) instead of resolving to the filesystem root.
 #
 # Usage: bash scripts/development-workflow/tests/test-workflow-lib-repo-root-sourcing.sh
+# covers: scripts/development-workflow/workflow-lib.sh
 
 set -euo pipefail
 
