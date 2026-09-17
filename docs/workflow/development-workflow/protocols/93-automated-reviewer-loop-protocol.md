@@ -382,6 +382,12 @@ replaces stale local `needs_fixes` records in the summary/history surfaces with
 the terminal escalation record, so machine consumers do not see a fixable local
 blocker when the aggregate result is an unconfirmed-review escalation.
 
+When local blocking findings remain after confirmation, the summary comment
+includes a labeled list of redacted local finding locations and messages, and
+the durable history entry for that pass may include optional
+`local_blocking_findings[]`. This visibility is comment-only — it does not add
+gates, change readiness labels, or alter hosted reviewer dispatch.
+
 **Scope note**: This pre-flight checks `review.on_draft.github` and
 `review.on_ready.github` (external reviewers used by Protocol 93 / Step 7). The
 internal reviewer gate in Protocol 91 Step 7a separately checks
