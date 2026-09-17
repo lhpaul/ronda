@@ -125,8 +125,10 @@ That document is the single source of truth for this supporting role. Key respon
   items, run `scope-residual-gate.sh` before readiness; `block` and
   `escalate` results are non-terminal until resolved or explicitly accepted by
   a human decision.
-- For `spec/*` and `implementation-plan/*` PRs, run Protocol 91 Step 8a's
-  documentation-stage alignment checker before readiness. Include the alignment
+- Run Step 8a via `scripts/development-workflow/pr-label-readiness-checklist.sh`
+  (not an inline protocol bash block). For `spec/*` and `implementation-plan/*`
+  PRs, the script runs the documentation-stage alignment checker before
+  readiness. Include the alignment
   result in the runner summary when readiness is blocked; correct or escalate
   mismatches instead of applying `ready-for-human-review`.
 - Before emitting any terminal Work Item Runner Summary, run
