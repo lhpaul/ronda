@@ -10,6 +10,8 @@ export const DEFAULT_MODEL_BASE_URL =
   "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
 export const DEFAULT_MODEL_NAME = "qwen-plus";
 export const DEFAULT_MAX_PATCH_CHARS = 400_000;
+export const DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT = 4;
+export const DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS = 120_000;
 
 /**
  * Thrown when the operator config file exists but cannot be read or parsed.
@@ -34,6 +36,8 @@ interface OperatorConfigFile {
   modelName?: string;
   passTimeoutMs?: number | string;
   maxPatchChars?: number | string;
+  maxAuthoritativeDocCount?: number | string;
+  maxAuthoritativeDocChars?: number | string;
 }
 
 export interface LoadConfigOptions {
@@ -90,11 +94,21 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
     positiveInt(env.RONDA_MAX_PATCH_CHARS) ??
     positiveInt(fileConfig.maxPatchChars) ??
     DEFAULT_MAX_PATCH_CHARS;
+  const maxAuthoritativeDocCount =
+    positiveInt(env.RONDA_MAX_AUTHORITATIVE_DOC_COUNT) ??
+    positiveInt(fileConfig.maxAuthoritativeDocCount) ??
+    DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT;
+  const maxAuthoritativeDocChars =
+    positiveInt(env.RONDA_MAX_AUTHORITATIVE_DOC_CHARS) ??
+    positiveInt(fileConfig.maxAuthoritativeDocChars) ??
+    DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS;
 
   return {
     model: { apiKey, baseUrl, modelName },
     passTimeoutMs,
     maxPatchChars,
+    maxAuthoritativeDocCount,
+    maxAuthoritativeDocChars,
   };
 }
 

@@ -152,6 +152,13 @@ export interface GithubOperations {
     pullNumber: number,
     signal?: AbortSignal,
   ): Promise<ChangedFile[]>;
+  readFileAtRef(
+    owner: string,
+    repo: string,
+    path: string,
+    ref: string,
+    signal?: AbortSignal,
+  ): Promise<string | undefined>;
   findExistingCheckRun(
     owner: string,
     repo: string,

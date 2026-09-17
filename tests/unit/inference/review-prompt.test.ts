@@ -30,6 +30,50 @@ test("review prompt asks for independently actionable findings and sensitive-val
   assert.match(prompt.systemPrompt, /Blocking/i);
 });
 
+test("review prompt renders binding and advisory doc sections with labels", () => {
+  const prompt = buildReviewPrompt({
+    title: "Webhook change",
+    body: "",
+    changedFiles: [],
+    maxPatchChars: 400_000,
+    authoritativeDocs: [
+      { id: "constitution", path: "docs/constitution.md", role: "binding", text: "Comment-only." },
+      {
+        id: "architecture",
+        path: "docs/project/3-software-architecture.md",
+        role: "advisory",
+        text: "Use injected deps in tests.",
+      },
+    ],
+    maxAuthoritativeDocCount: 4,
+    maxAuthoritativeDocChars: 120_000,
+  });
+
+  assert.match(prompt.userPrompt, /Authoritative repository documentation \(binding\)/);
+  assert.match(prompt.userPrompt, /### \[binding\] docs\/constitution\.md/);
+  assert.match(prompt.userPrompt, /Authoritative repository documentation \(advisory\)/);
+  assert.match(prompt.userPrompt, /### \[advisory\] docs\/project\/3-software-architecture\.md/);
+});
+
+test("review prompt omits doc headers when no authoritative docs are provided", () => {
+  const prompt = buildReviewPrompt({
+    title: "Small change",
+    body: "",
+    changedFiles: [
+      {
+        path: "src/example.ts",
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        patch: "+const x = 1;",
+      },
+    ],
+    maxPatchChars: 400_000,
+  });
+
+  assert.doesNotMatch(prompt.userPrompt, /Authoritative repository documentation/);
+});
+
 test("review prompt still fails instead of truncating over-budget patch text", () => {
   assert.throws(
     () =>
