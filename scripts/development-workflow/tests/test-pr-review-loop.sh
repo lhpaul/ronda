@@ -4340,12 +4340,14 @@ run_test "manual_readiness_audit_outdated_codex_passes" "0" \
   "$(printf '%s\n' "$_manual_audit_fixture_outdated_only" | manual_readiness_audit_count)"
 
 _docs_is_outdated_field_count="$(grep -h 'nodes { isResolved isOutdated comments(first: 1)' \
+  "$REPO_ROOT/scripts/development-workflow/pr-label-readiness-checklist.sh" \
   "$REPO_ROOT/docs/workflow/development-workflow/protocols/03-implement-development-protocol.md" \
   "$REPO_ROOT/docs/workflow/development-workflow/protocols/91-orchestrate-work-protocol.md" \
   | wc -l | tr -d ' ')"
 run_test "manual_readiness_audit_docs_request_is_outdated" "5" "$_docs_is_outdated_field_count"
 
 _docs_is_outdated_filter_count="$(grep -h 'select((.isOutdated // false) == false)' \
+  "$REPO_ROOT/scripts/development-workflow/pr-label-readiness-checklist.sh" \
   "$REPO_ROOT/docs/workflow/development-workflow/protocols/03-implement-development-protocol.md" \
   "$REPO_ROOT/docs/workflow/development-workflow/protocols/91-orchestrate-work-protocol.md" \
   | wc -l | tr -d ' ')"
@@ -16002,6 +16004,7 @@ echo ""
 echo "=== Area 20: late-thread re-check contract (#1574) ==="
 
 _1574_loop="$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh"
+_1574_checklist="$REPO_ROOT/scripts/development-workflow/pr-label-readiness-checklist.sh"
 _1574_p91="$REPO_ROOT/docs/workflow/development-workflow/protocols/91-orchestrate-work-protocol.md"
 _1574_p92="$REPO_ROOT/docs/workflow/development-workflow/protocols/92-pr-readiness-signal-protocol.md"
 
@@ -16052,9 +16055,9 @@ run_test "cap_skipped_for_head_moved" "yes" \
 # The head is re-validated in Check 4 on BOTH paths — before the
 # label-present/absent branch — and a stale existing label is pulled back.
 run_test "p91_revalidates_head_before_label" "yes" \
-  "$(awk '/^# Check 4:/{p=1} p && /SETTLE_APPLIES:-1}" -eq 1 \] && ! settle_head_ok/{found=1} p && /^if \[ "\$HAS_HUMAN_REVIEW_LABEL" -gt 0 \]; then/{ if (found) ok=1 } END{exit !ok}' "$_1574_p91" && echo yes || echo no)"
+  "$(awk '/^# Check 4:/{p=1} p && /SETTLE_APPLIES:-1}" -eq 1 \] && ! settle_head_ok/{found=1} p && /^if \[ "\$HAS_HUMAN_REVIEW_LABEL" -gt 0 \]; then/{ if (found) ok=1 } END{exit !ok}' "$_1574_checklist" && echo yes || echo no)"
 run_test "p91_pulls_stale_label_back" "yes" \
-  "$(grep -q 'it covers a head that is no longer the PR head' "$_1574_p91" && echo yes || echo no)"
+  "$(grep -q 'it covers a head that is no longer the PR head' "$_1574_checklist" && echo yes || echo no)"
 # A head-move rerun never escalates on a failed ledger persist: no fixer is
 # dispatched, so there is nothing for the ledger to bound.
 run_test "persist_failure_ignores_head_moved" "1" \
@@ -16066,14 +16069,14 @@ run_test "p91_step7_snippet_fails_fast" "yes" \
 unset _1574_ledger_body
 for _field in POST_CLEAN_SETTLED POST_CLEAN_SETTLE_TIMEOUT POST_CLEAN_NO_SUBMITTED_REVIEW POST_CLEAN_SETTLED_AT POST_CLEAN_RECHECK_SKIP_REASON POST_CLEAN_HEAD_SHA; do
   run_test "p91_consumes_$_field" "yes" \
-    "$(grep -q "$_field" "$_1574_p91" && echo yes || echo no)"
+    "$(grep -q "$_field" "$_1574_checklist" && echo yes || echo no)"
   run_test "p92_names_$_field" "yes" \
     "$(grep -q "$_field" "$_1574_p92" && echo yes || echo no)"
 done
 # AC-4: an unsettled clean verdict without a submitted review is refused before
 # the label, not merely discouraged after it.
 run_test "p91_checklist_refuses_no_submitted_review" "yes" \
-  "$(grep -q 'POST_CLEAN_NO_SUBMITTED_REVIEW:-0}" = "1"' "$_1574_p91" && echo yes || echo no)"
+  "$(grep -q 'POST_CLEAN_NO_SUBMITTED_REVIEW:-0}" = "1"' "$_1574_checklist" && echo yes || echo no)"
 # Stale telemetry from a previous invocation must never survive into Check 0.6:
 # the Step 7 block clears POST_CLEAN_* before the loop runs and exports nothing
 # when the loop exits non-zero.
@@ -16102,7 +16105,7 @@ gh() {
   esac
 }
 STUB
-  awk '/^# Check 0\.5:/{p=1} /^# Check 1:/{p=0} p' "$_1574_p91"
+  awk '/^# Check 0\.5:/{p=1} /^# Check 1:/{p=0} p' "$_1574_checklist"
 } > "$_1574_gate"
 run_test "gate_extracted_has_check_0_6" "yes" "$(grep -q '^# Check 0.6' "$_1574_gate" && echo yes || echo no)"
 # The extracted gate must parse in every shell the fence's contract names;
@@ -16154,7 +16157,7 @@ run_test "gate_planted_inversion_is_caught" "12" "$_1574_bad_status"
 rm -f "$_1574_gate" "$_1574_gate_bad"
 unset -f _1574_run_gate
 unset _1574_gate _1574_gate_bad _1574_clean _1574_skipped _1574_bad_status _1574_head
-unset _1574_loop _1574_p91 _1574_p92 _1574_cw _1574_cq _1574_help _reason _field
+unset _1574_loop _1574_checklist _1574_p91 _1574_p92 _1574_cw _1574_cq _1574_help _reason _field
 
 # ---------------------------------------------------------------------------
 # Area 14: CodeRabbit rate-limit window is read from the vendor, not guessed
