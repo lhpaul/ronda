@@ -131,6 +131,9 @@ npm ci
 # a model credential — see docs/adoption/ronda-review-adoption.md)
 npm run review
 
+# Roll up committed comparison/miss evidence into a quality report (no GitHub calls)
+npm run quality:report
+
 # Build
 # No build step — TypeScript runs directly via tsx; there is no committed
 # build artifact (dist/ is gitignored).

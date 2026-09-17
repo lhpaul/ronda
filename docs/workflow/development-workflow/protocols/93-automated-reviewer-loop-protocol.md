@@ -221,7 +221,13 @@ Conditions are evaluated in order and stop at the first unmet one:
    `current` against `loop_head_sha`. Exact-match allow-list: both derived
    values must be the literal `1`. Missing, unexpected, or stale values defer
    (`local_reviewer_not_configured`, `local_evidence_missing`, or
-   `local_evidence_stale`). Derived from in-loop state — never from the
+   `local_evidence_stale`). When the latest local attempt on the current head
+   ended in a non-verdict infrastructure outcome (`timeout`, missing model
+   access, missing credentials, or malformed output with no parseable verdict),
+   the gate defers with `local_infrastructure_failure` (or
+   `local_infrastructure_repeated` after repeated infrastructure deferrals on
+   the same head) instead of mis-labeling the situation as
+   `local_evidence_missing`. Derived from in-loop state — never from the
    `LOCAL_AI_*` stdout keys as environment variables. On `spec/*` branches the
    local reviewer also runs a second, non-blocking strict-spec pass (see
    [`integrations/local-ai-reviewer.md`](../integrations/local-ai-reviewer.md)
@@ -346,6 +352,41 @@ When a pass fails on an unchanged head, the ledger entry records
 The pass does not increment `CYCLE_COUNT` or `TOTAL_CYCLE_COUNT`. A failed pass
 on an unchanged head refuses with `RESULT=escalate`, `REASON=failed_for_head` on
 the next cycle (cross-invocation), without relying on cycle caps.
+
+### Local blocker confirmation
+
+When `local-ai-reviewer` returns `RESULT=needs_fixes` during the draft reviewer
+phase, compare mode, or the second local pass before the ready-phase gate,
+`pr-review-loop.sh` immediately runs one same-head confirmation pass before
+allowing the local finding to block the loop. The confirmation pass must report
+`RESULT=needs_fixes` with `REVIEWED_HEAD` current on the loop head, and the live
+PR head must still match the loop head. Only then does the original local
+blocker remain a fixable `needs_fixes` result.
+
+If the confirmation pass returns `clean`, the loop clears the original local
+blocker counts and records `RESULT=escalate`,
+`REASON=local_finding_unconfirmed`. If the confirmation is skipped,
+escalated, unparseable, missing current-head evidence, or uses a stale
+`REVIEWED_HEAD`, the loop records `RESULT=escalate`,
+`REASON=local_blocker_confirmation_unavailable`. If the live PR head moves
+during confirmation, the existing head-moved path owns the result:
+`RESULT=needs_fixes`, `REASON=head_moved_during_run`, with zero blockers.
+
+The loop always emits `LOCAL_BLOCKER_CONFIRMATION=0|1` and
+`LOCAL_BLOCKER_CONFIRMATION_REASON=<reason>`. Reasons are `not_required`,
+`confirmed`, `local_finding_unconfirmed`,
+`local_blocker_confirmation_unavailable`, and `head_moved_during_pass`.
+When a confirmation pass ran, the loop also emits
+`LOCAL_BLOCKER_CONFIRMATION_RESULT=<result>`. On unconfirmed paths the loop
+replaces stale local `needs_fixes` records in the summary/history surfaces with
+the terminal escalation record, so machine consumers do not see a fixable local
+blocker when the aggregate result is an unconfirmed-review escalation.
+
+When local blocking findings remain after confirmation, the summary comment
+includes a labeled list of redacted local finding locations and messages, and
+the durable history entry for that pass may include optional
+`local_blocking_findings[]`. This visibility is comment-only — it does not add
+gates, change readiness labels, or alter hosted reviewer dispatch.
 
 **Scope note**: This pre-flight checks `review.on_draft.github` and
 `review.on_ready.github` (external reviewers used by Protocol 93 / Step 7). The
@@ -785,10 +826,12 @@ run the draft GitHub reviewer gate (`pr-review-loop.sh --draft-github-only`) for
 to completion for `review.on_ready.github`, then Step 7b (regression label,
 implementation PRs only), then Step 8. Dispatch fixers and re-run as specified
 in 91 until the PR is clean and ready for human review or escalated. After Step
-8 returns `green`, run Step 8a (label readiness checklist — this is a **hard
-gate** that verifies non-draft status, `ready-for-regression` label on
-implementation PRs, documentation-stage alignment on `spec/*` and
-`implementation-plan/*` PRs, and applies `ready-for-human-review`). Standalone
+8 returns `green`, run Step 8a via
+`scripts/development-workflow/pr-label-readiness-checklist.sh` (label readiness
+checklist — this is a **hard gate** that verifies non-draft status,
+`ready-for-regression` label on implementation PRs, documentation-stage alignment
+on `spec/*` and `implementation-plan/*` PRs, and applies
+`ready-for-human-review`). Standalone
 reviewer-loop users preparing spec or plan PRs must route through Protocol 91
 Step 8a and must not apply readiness directly after reviewer/CI success. Once
 Step 8a passes, run Step 8b to update tracker status, then run Step 8c

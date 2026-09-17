@@ -12,6 +12,10 @@ import {
   type WebhookReviewJobLifecycle,
   type WebhookReviewJobResult,
 } from "./webhook-job.js";
+import {
+  recoverInProgressWebhookJobs,
+  type WebhookQueueRecoveryDeps,
+} from "./webhook-queue-recovery.js";
 
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
 const MAX_SEEN_DELIVERY_IDS = 1_000;
@@ -28,6 +32,7 @@ export interface WebhookServerDeps {
   onJobFailure?: (error: unknown) => void;
   queueStore?: WebhookQueueStore;
   log?: Pick<Console, "error" | "log">;
+  startupRecovery?: WebhookQueueRecoveryDeps;
 }
 
 export class WebhookJobTimeoutError extends Error {
@@ -211,13 +216,41 @@ export function startWebhookServer(
       });
   };
 
-  server.listen(config.port, config.host, () => {
-    log.log(`Ronda webhook listening on http://${config.host}:${config.port}`);
-    const nextJob = pendingJobs.shift();
-    if (nextJob !== undefined) {
-      runNextJob(nextJob);
-    }
-  });
+  const beginListening = (): void => {
+    server.listen(config.port, config.host, () => {
+      log.log(`Ronda webhook listening on http://${config.host}:${config.port}`);
+      const nextJob = pendingJobs.shift();
+      if (nextJob !== undefined) {
+        runNextJob(nextJob);
+      }
+    });
+  };
+
+  if (config.webhookQueuePath === undefined) {
+    beginListening();
+    return server;
+  }
+
+  void recoverInProgressWebhookJobs(config, queueStore, log, deps.startupRecovery ?? {})
+    .then(({ jobsToRun, suppressedReviewKeys }) => {
+      for (const reviewKey of suppressedReviewKeys) {
+        suppressReviewKeyByValue(deliveryIds, reviewKey);
+      }
+      for (const job of jobsToRun) {
+        pendingJobs.push(job);
+        deliveryIds.active.add(job.deliveryId);
+      }
+      beginListening();
+    })
+    .catch((error: unknown) => {
+      log.error("Ronda webhook startup recovery failed", error);
+      deps.onJobFailure?.(error);
+      if (!deps.onJobFailure) {
+        process.exitCode = 1;
+        process.exit(1);
+      }
+    });
+
   return server;
 }
 
@@ -247,6 +280,7 @@ interface DeliveryIdState {
 
 export interface WebhookQueueStore {
   load: () => WebhookReviewJob[];
+  loadInProgressEntries?: () => WebhookReviewJob[];
   loadSuppressedDeliveryIds: () => string[];
   loadSuppressedReviewKeys?: () => string[];
   add: (job: WebhookReviewJob) => boolean;
@@ -390,7 +424,14 @@ function suppressReviewKey(
   reviewedHeadSha?: string,
 ): void {
   const reviewKey = reviewSuppressionKey(job, reviewedHeadSha);
-  if (reviewKey === undefined || deliveryIds.suppressedReviewKeys.has(reviewKey)) {
+  if (reviewKey === undefined) {
+    return;
+  }
+  suppressReviewKeyByValue(deliveryIds, reviewKey);
+}
+
+function suppressReviewKeyByValue(deliveryIds: DeliveryIdState, reviewKey: string): void {
+  if (deliveryIds.suppressedReviewKeys.has(reviewKey)) {
     return;
   }
   deliveryIds.suppressedReviewKeys.add(reviewKey);
@@ -424,6 +465,7 @@ function createWebhookQueueStore(
   if (queuePath === undefined) {
     return {
       load: () => [],
+      loadInProgressEntries: () => [],
       loadSuppressedDeliveryIds: () => [],
       loadSuppressedReviewKeys: () => [],
       add: () => true,
@@ -459,6 +501,16 @@ function createWebhookQueueStore(
   };
 
   return {
+    loadInProgressEntries: () => {
+      try {
+        return readEntries()
+          .filter((entry) => entry.status === "in_progress")
+          .map(toWebhookReviewJob);
+      } catch (error) {
+        log.error("Ronda webhook queue load failed", error);
+        throw new WebhookQueuePersistenceError(`Failed to load webhook queue from ${queuePath}`);
+      }
+    },
     load: () => {
       try {
         const entries = readEntries();

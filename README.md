@@ -50,3 +50,14 @@ benchmark evidence requires `RONDA_MODEL_API_KEY` or the local operator config.
 Second-reviewer evidence requires a same-head review from the comparison
 platform and human adjudication before external-only findings count as Ronda
 misses.
+
+Roll up committed comparison and miss JSON into outcome buckets, filters, and
+improvement candidates:
+
+```bash
+npm run quality:report
+npm run quality:report -- --repository lhpaul/ronda --format both --out /tmp/ronda-quality-report.json
+```
+
+`quality:summary` remains a legacy comparison-only rollup; prefer
+`quality:report` for spec-complete reporting.

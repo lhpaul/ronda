@@ -16,6 +16,11 @@ import {
   readChangedFiles,
   readPullRequest,
 } from "../github/pull-request-reader.js";
+import { readRepositoryFileAtRef } from "../github/repo-content-reader.js";
+import {
+  DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+  DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+} from "../config/load-config.js";
 import { createOpenAiCompatibleClient } from "../inference/openai-compatible-client.js";
 import type { ModelClient } from "../inference/model-client.js";
 import { resolveTrigger } from "../cli/resolve-trigger.js";
@@ -179,6 +184,15 @@ export async function runWebhookReviewJob(
         n,
         combineAbortSignals(requestSignal, signal),
       ),
+    readFileAtRef: (o, r, path, ref, requestSignal) =>
+      readRepositoryFileAtRef(
+        installationClient.octokit,
+        o,
+        r,
+        path,
+        ref,
+        combineAbortSignals(requestSignal, signal),
+      ),
     findExistingCheckRun: async (o, r, sha, requestSignal) => {
       const combinedSignal = combineAbortSignals(requestSignal, signal);
       const publishingAppId = Number.isFinite(githubAppId) ? githubAppId : undefined;
@@ -209,6 +223,8 @@ export async function runWebhookReviewJob(
       model: { apiKey: "", baseUrl: "", modelName: "" },
       passTimeoutMs: 600_000,
       maxPatchChars: 400_000,
+      maxAuthoritativeDocCount: DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+      maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
       loadError: `Failed to load Ronda config file at ${path}`,
     };
   }

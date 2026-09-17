@@ -125,6 +125,19 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   the implementation plan's parser-risk addendum) since there is no local
   git history to fall back on.
 
+### Authoritative documentation in review passes
+
+- **Catalog** (`src/domain/authoritative-doc-catalog.ts`): fixed paths for the
+  constitution, `REVIEW.md`, software architecture, and review adoption docs.
+- **Selection** (`src/core/select-authoritative-docs.ts`): two-phase, pre-model
+  logic — path/surface relevance, then operator doc count/character budgets after
+  content is fetched at `headSha`.
+- **GitHub read** (`src/github/repo-content-reader.ts`): `repos.getContent` for
+  individual files; missing, directory, or truncated payloads are treated as
+  skips, not pass failures.
+- **Prompt** (`src/inference/review-prompt.ts`): optional binding/advisory doc
+  sections in the user message; diff-only passes omit doc headers entirely.
+
 ## Security
 
 - Ronda never pushes to, merges, or otherwise mutates the pull request
@@ -151,9 +164,9 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   times out, the local server stops instead of starting a second active review.
   Thrown job failures before a terminal review/check-run outcome also stop the
   local server and reset accepted jobs to `pending` for supervisor recovery.
-  Entries left `in_progress` by an unclean process death are not suppressed as
-  duplicates, so a GitHub or operator redelivery can retry them without
-  proactively replaying an ambiguous job that may already have published public
-  side effects. Terminal check-run writes that intentionally outlive an expired
+  On startup (before listening), persisted `in_progress` rows are reconciled
+  against GitHub pull-request reviews for the head SHA; safe rows resume or
+  advance local state without republishing a review, preserving the
+  one-review-per-head contract across restarts. Terminal check-run writes that intentionally outlive an expired
   pass deadline still receive a short publication timeout so stalled GitHub
   writes cannot keep the process alive indefinitely.

@@ -8,6 +8,10 @@ export interface RondaConfig {
   model: ModelConfig;
   passTimeoutMs: number;
   maxPatchChars: number;
+  /** Maximum authoritative docs attached to one review pass (after relevance selection). */
+  maxAuthoritativeDocCount: number;
+  /** Maximum combined characters of authoritative doc excerpts in the user prompt. */
+  maxAuthoritativeDocChars: number;
   /**
    * Set only by the CLI entrypoint when the operator config file existed but
    * could not be read or parsed. Carries a message naming the file path —

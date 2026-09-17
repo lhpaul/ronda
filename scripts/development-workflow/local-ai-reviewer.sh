@@ -91,6 +91,41 @@ print_result() {
   return 0
 }
 
+local_reviewer_product_command_id() {
+  if [ "${LOCAL_AI_REVIEWER_DISABLED:-0}" = "1" ]; then
+    printf 'disabled\n'
+    return 0
+  fi
+  if [ -n "${LOCAL_AI_REVIEWER_COMMAND:-}" ]; then
+    case "$LOCAL_AI_REVIEWER_COMMAND" in
+      *local-codex-review-command.sh*) printf 'bundled_codex_preset\n' ;;
+      *) printf 'operator_command\n' ;;
+    esac
+    return 0
+  fi
+  printf 'bundled_codex_preset\n'
+}
+
+emit_local_reviewer_infrastructure_diagnostics() {
+  local partial_output="${1:-0}"
+  local elapsed_seconds="${2:-}"
+  print_kv LOCAL_REVIEWER_COMMAND_ID "$(local_reviewer_product_command_id)"
+  print_kv LOCAL_REVIEWER_ATTEMPT_HEAD "$HEAD_SHA"
+  print_kv LOCAL_REVIEWER_PARTIAL_OUTPUT "$partial_output"
+  if [ -n "$elapsed_seconds" ]; then
+    print_kv LOCAL_REVIEWER_ELAPSED_SECONDS "$elapsed_seconds"
+  fi
+}
+
+local_reviewer_infrastructure_escalate() {
+  local reason="$1"
+  local partial_output="${2:-0}"
+  local elapsed_seconds="${3:-}"
+  emit_local_reviewer_infrastructure_diagnostics "$partial_output" "$elapsed_seconds"
+  print_result escalate 0 0 0 "$reason" "$reason"
+  exit 2
+}
+
 valid_slug_component() {
   case "$1" in
     ''|*[!A-Za-z0-9._-]*) return 1 ;;
@@ -335,7 +370,7 @@ parse_strict_checks_response() {
     def known($c): $c != null and ($admission_checks | index($c) != null);
     def text_value:
       [.body?, .message?, .description?, .title?, .summary?, .comment?, .text?]
-      | map(select(type == "string" and length > 0)) | .[0] // "";
+      | map(select(type == "string" and (gsub("\\s"; "") | length > 0))) | .[0] // "";
     def path_value:
       [.path?, .file?, .filename?, .filepath?, .location.path?]
       | map(select(type == "string" and length > 0)) | .[0] // "";
@@ -1180,8 +1215,35 @@ command_stderr="$(cat "$stderr_file" 2>/dev/null || true)"
 
 if [ "$command_exit" -eq 124 ]; then
   echo "WARN: local AI reviewer timed out after ${TIMEOUT}s" >&2
-  print_result escalate 0 0 0 timeout timeout
-  exit 2
+  _timeout_elapsed="$(( $(date +%s) - round_start_epoch ))"
+  _timeout_partial=0
+  if [ -n "$(printf '%s' "$command_stdout" | tr -d '[:space:]')" ]; then
+    _timeout_partial=1
+  fi
+  if [ "$_timeout_partial" -eq 1 ] && printf '%s\n' "$command_stdout" | jq -e . >/dev/null 2>&1; then
+    _timeout_probe="$(
+      printf '%s\n' "$command_stdout" | jq -r '
+        def findings:
+          if (.findings? | type) == "array" then .findings
+          elif (.comments? | type) == "array" then .comments
+          elif (.issues? | type) == "array" then .issues
+          else [] end;
+        def severity_text:
+          [.severity?, .level?, .priority?, .type?]
+          | map(select(type == "string")) | join(" ") | ascii_downcase;
+        def blocking:
+          (severity_text | test("critical|blocker|blocking|important|error|bug|security|high|major|must.fix|needs.fixes"));
+        (findings | map(select(blocking)) | length)
+      ' 2>/dev/null
+    )" || _timeout_probe=""
+    if [ "${_timeout_probe:-0}" -gt 0 ] 2>/dev/null; then
+      emit_local_reviewer_infrastructure_diagnostics 1 "$_timeout_elapsed"
+      print_result needs_fixes 1 "${_timeout_probe}" 0 timeout_partial_findings timeout_partial_findings
+      print_kv REVIEWED_HEAD "$HEAD_SHA"
+      exit 1
+    fi
+  fi
+  local_reviewer_infrastructure_escalate timeout "$_timeout_partial" "$_timeout_elapsed"
 fi
 
 combined_output="${command_stdout}
@@ -1194,17 +1256,14 @@ if ! printf '%s\n' "$command_stdout" | jq -e . >/dev/null 2>&1; then
   setup_probe_output="$combined_output"
 fi
 if [ -n "$setup_probe_output" ] && grep -Eiq 'missing[[:space:]_-]+model|model[[:space:]_-]+access|model.*unavailable' <<< "$setup_probe_output"; then
-  print_result escalate 0 0 0 missing_model_access missing_model_access
-  exit 2
+  local_reviewer_infrastructure_escalate missing_model_access 0 "$(( $(date +%s) - round_start_epoch ))"
 fi
 if [ -n "$setup_probe_output" ] && grep -Eiq 'missing[[:space:]_-]+credentials|credentials[[:space:]_-]+missing|unauthori[sz]ed|forbidden|(^|[^[:alnum:]_])(401|403)([^[:alnum:]_]|$)' <<< "$setup_probe_output"; then
-  print_result escalate 0 0 0 missing_credentials missing_credentials
-  exit 2
+  local_reviewer_infrastructure_escalate missing_credentials 0 "$(( $(date +%s) - round_start_epoch ))"
 fi
 if [ -z "$(printf '%s' "$command_stdout" | tr -d '[:space:]')" ]; then
   echo "WARN: local AI reviewer produced no machine output" >&2
-  print_result escalate 0 0 0 malformed_output malformed_output
-  exit 2
+  local_reviewer_infrastructure_escalate malformed_output 0 "$(( $(date +%s) - round_start_epoch ))"
 fi
 
 parse_result="$(
@@ -1216,7 +1275,7 @@ parse_result="$(
       else [] end;
     def text_value:
       [.body?, .message?, .description?, .title?, .summary?, .comment?, .text?]
-      | map(select(type == "string" and length > 0)) | .[0] // "";
+      | map(select(type == "string" and (gsub("\\s"; "") | length > 0))) | .[0] // "";
     def path_value:
       [.path?, .file?, .filename?, .filepath?, .location.path?]
       | map(select(type == "string" and length > 0)) | .[0] // "";
@@ -1259,6 +1318,7 @@ parse_result="$(
                 [
                   "BLOCKING_\(.key + 1)_PATH=\(.value | path_value)",
                   "BLOCKING_\(.key + 1)_LINE=\(.value | line_value)",
+                  "BLOCKING_\(.key + 1)_BODY_HAS_TEXT=\(.value | text_value | gsub("\\s"; "") | length > 0)",
                   "BLOCKING_\(.key + 1)_BODY=\(.value | text_value | gsub("\n"; "\\n"))"
                 ]
               )
@@ -1302,6 +1362,22 @@ comment_count="${comment_count:-0}"
 blocking_count="${blocking_count:-0}"
 suggestion_count="${suggestion_count:-0}"
 reason="${reason:-}"
+
+# A needs_fixes verdict must identify actionable text for every blocking
+# finding. Do not manufacture a blocker for an otherwise-valid JSON response:
+# doing so turns an un-actionable model verdict into a self-sustaining
+# reviewer-loop failure on an unchanged head.
+blocking_body_count="$(printf '%s\n' "$parse_result" | awk -F= '
+  $1 ~ /^BLOCKING_[0-9]+_BODY_HAS_TEXT$/ && $2 == "true" { count += 1 }
+  END { print count + 0 }
+')"
+if [ "$result" = "needs_fixes" ] \
+    && { [ "$blocking_count" -eq 0 ] || [ "$blocking_body_count" -ne "$blocking_count" ]; }; then
+  echo "WARN: local AI reviewer reported needs_fixes without actionable blocking findings" >&2
+  print_result escalate 0 0 0 malformed_output malformed_output
+  exit 2
+fi
+unset blocking_body_count
 
 # --- Strict registry passes (at most one dispatches; never merges into blocking) ---
 strict_run_all_registry_entries
@@ -1476,7 +1552,6 @@ case "$result" in
     exit 0
     ;;
   needs_fixes)
-    [ "$blocking_count" -eq 0 ] && blocking_count=1
     [ "$comment_count" -eq 0 ] && comment_count=1
     write_evidence_file needs_fixes local_ai_review_findings "$comment_count" "$blocking_count" "$suggestion_count"
     emit_ordinary_and_strict needs_fixes "$comment_count" "$blocking_count" "$suggestion_count" local_ai_review_findings

@@ -154,6 +154,13 @@ The script emits:
 - Platform-specific counts and blocking summaries for the platform that stopped the loop
 - Platform-specific `REASON=` / `DISPLAY_RESULT=` records for skipped or
   escalated reviewer availability states when the platform emits them
+- `LOCAL_BLOCKER_CONFIRMATION=0|1` and
+  `LOCAL_BLOCKER_CONFIRMATION_REASON=<reason>` whenever the local reviewer is in
+  scope, plus `LOCAL_BLOCKER_CONFIRMATION_RESULT=<result>` when confirmation ran.
+  When `local-ai-reviewer` returns `needs_fixes`, the loop dispatches one
+  same-head confirmation pass before allowing that local finding to block; clean
+  or unavailable confirmation escalates as an unconfirmed local-review state
+  instead of a fixable blocker.
 
 ---
 
