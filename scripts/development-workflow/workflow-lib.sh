@@ -30,11 +30,19 @@ workflow_script_dir() {
 }
 
 workflow_repo_root() {
-  CDPATH='' cd -- "$(workflow_script_dir)/../.." && pwd
+  local script_dir=""
+  if ! script_dir="$(workflow_script_dir)"; then
+    return 1
+  fi
+  CDPATH='' cd -- "$script_dir/../.." && pwd
 }
 
 workflow_config_file() {
-  printf '%s/.ai-dev-workflow.yaml\n' "$(workflow_repo_root)"
+  local repo_root=""
+  if ! repo_root="$(workflow_repo_root)"; then
+    return 1
+  fi
+  printf '%s/.ai-dev-workflow.yaml\n' "$repo_root"
 }
 
 # workflow_effective_config_file
@@ -176,7 +184,11 @@ workflow_config_exists() {
 }
 
 cd_workflow_repo_root() {
-  cd -- "$(workflow_repo_root)"
+  local repo_root=""
+  if ! repo_root="$(workflow_repo_root)"; then
+    return 1
+  fi
+  cd -- "$repo_root"
 }
 
 have_cmd() {
