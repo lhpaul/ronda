@@ -77,8 +77,13 @@ Deferrals are bounded by `PR_REVIEW_LOOP_MAX_EXPENSIVE_DEFERRALS` (default
   (`EXPENSIVE_GATE_DEFERRALS=-1`); an absent ledger is `0` and defers normally
 
 Override with `PR_REVIEW_LOOP_FORCE_EXPENSIVE_REVIEWERS=1` for a one-off run
-(justify in the PR). The gate still emits `EXPENSIVE_GATE_RESULT=forced` with
-the reason it would have deferred.
+and set non-empty `PR_REVIEW_LOOP_EXPENSIVE_OVERRIDE_JUSTIFICATION` (posted
+idempotently under `<!-- expensive-review-override -->` on the PR). Without
+justification the gate defers with `expensive_override_missing_justification`.
+When local infrastructure blocked dispatch, the would-have-deferred reason is
+`local_infrastructure_failure` or `local_infrastructure_repeated`, not
+`local_evidence_missing`. The gate still emits `EXPENSIVE_GATE_RESULT=forced`
+with the preserved would-have-deferred reason when override succeeds.
 
 See Protocol 93 § Expensive reviewer gate for the full normative contract.
 
