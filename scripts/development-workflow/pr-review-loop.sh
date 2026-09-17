@@ -875,6 +875,9 @@ Environment variables:
                                      Bypass the expensive-reviewer gate for manual escalation. The gate still
                                      evaluates and emits EXPENSIVE_GATE_* with RESULT=forced and the reason it
                                      would have deferred; justify use in the PR.
+  PR_REVIEW_LOOP_EXPENSIVE_OVERRIDE_JUSTIFICATION=<text>
+                                     Required non-empty justification when PR_REVIEW_LOOP_FORCE_EXPENSIVE_REVIEWERS=1.
+                                     Posted idempotently to the PR under <!-- expensive-review-override -->.
   PR_REVIEW_LOOP_SMALL_FINDINGS_STOP_ROUNDS=<n>
                                      Consecutive small-findings rounds required before RESULT=clean with
                                      REASON=small_findings_terminal (default: 2; valid range 1–999). A round
@@ -954,6 +957,13 @@ expensive_gate_last_platform=""
 expensive_gate_last_result=""
 expensive_gate_last_reason=""
 expensive_gate_last_head=""
+# Issue #57: local infrastructure vs missing-evidence gate classification.
+LOCAL_REVIEWER_INFRASTRUCTURE_REASONS="timeout missing_model_access missing_credentials malformed_output"
+expensive_gate_local_infrastructure_repeat_threshold=2
+reviewer_loop_local_outcome_class=""
+reviewer_loop_local_infrastructure_command_id=""
+reviewer_loop_local_infrastructure_partial_output=""
+reviewer_loop_local_infrastructure_elapsed_seconds=""
 # Strict-spec ledger globals (#1650); set by capture_strict_spec_globals_from_output
 # when local-ai-reviewer runs. Object absent from history when not recorded.
 strict_spec_recorded=0
@@ -1139,6 +1149,194 @@ expensive_gate_local_ai_head_current() {
 
   if [ "$found" -eq 0 ]; then
     printf '\n'
+  fi
+}
+
+local_reviewer_reason_is_infrastructure() {
+  local reason="${1:-}"
+  local token
+  for token in $LOCAL_REVIEWER_INFRASTRUCTURE_REASONS; do
+    [ "$reason" = "$token" ] && return 0
+  done
+  return 1
+}
+
+reviewer_loop_local_platform_record_for_head() {
+  local head_sha="${1:-}"
+  local record platform result reason reviewed_head classification state
+
+  if ! declare -p platform_result_records >/dev/null 2>&1; then
+    return 1
+  fi
+  for record in "${platform_result_records[@]}"; do
+    platform="$(printf '%s' "$record" | jq -r '.platform // ""' 2>/dev/null)" || platform=""
+    [ "$platform" = "local-ai-reviewer" ] || continue
+    result="$(printf '%s' "$record" | jq -r '.result // ""' 2>/dev/null)" || result=""
+    reason="$(printf '%s' "$record" | jq -r '.reason // ""' 2>/dev/null)" || reason=""
+    reviewed_head=""
+    if declare -p platform_reviewed_heads >/dev/null 2>&1; then
+      for entry in "${platform_reviewed_heads[@]}"; do
+        if [ "${entry%%:*}" = "local-ai-reviewer" ]; then
+          reviewed_head="${entry#*:}"
+          break
+        fi
+      done
+    fi
+    classification="$(reviewer_loop_head_evidence_classify "$reviewed_head" "$head_sha")"
+    state="${classification%%|*}"
+    case "$state" in
+      current|not-reported)
+        printf '%s|%s|%s\n' "$result" "$reason" "$reviewed_head"
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+reviewer_loop_local_outcome_class_for_head() {
+  local head_sha="${1:-}"
+  local triple result reason reviewed_head
+
+  if [ "$(expensive_gate_local_ai_configured)" != "1" ]; then
+    printf 'not_configured\n'
+    return 0
+  fi
+
+  if triple="$(reviewer_loop_local_platform_record_for_head "$head_sha")"; then
+    result="${triple%%|*}"
+    reason="${triple#*|}"
+    reason="${reason%%|*}"
+    reviewed_head="${triple##*|}"
+    case "$result" in
+      clean)
+        printf 'code_clean\n'
+        return 0
+        ;;
+      needs_fixes)
+        printf 'code_findings\n'
+        return 0
+        ;;
+      escalate)
+        if local_reviewer_reason_is_infrastructure "$reason"; then
+          printf 'infrastructure\n'
+          return 0
+        fi
+        ;;
+    esac
+  fi
+
+  printf 'not_attempted\n'
+}
+
+expensive_gate_infrastructure_deferral_count() {
+  local head_sha="${1:-}"
+  local pr_number_arg="${pr_number:-}"
+  local repo="" record="" body="" json="" count=""
+
+  if [ -z "$pr_number_arg" ]; then
+    if [ -n "${EXPENSIVE_GATE_MOCK_LEDGER_BODY+x}" ]; then
+      body="${EXPENSIVE_GATE_MOCK_LEDGER_BODY}"
+    else
+      printf '0\n'
+      return 0
+    fi
+  else
+    if [ -n "${EXPENSIVE_GATE_MOCK_LEDGER_BODY+x}" ]; then
+      body="${EXPENSIVE_GATE_MOCK_LEDGER_BODY}"
+    else
+      if ! repo="$(repo_slug 2>/dev/null)" || [ -z "$repo" ]; then
+        printf '%s\n' '-1'
+        return 0
+      fi
+      if ! record="$(
+          set -o pipefail
+          gh api "repos/$repo/issues/$pr_number_arg/comments" --paginate 2>/dev/null \
+            | reviewer_loop_history_select_latest_summary_record
+        )"; then
+        printf '%s\n' '-1'
+        return 0
+      fi
+      body="$(printf '%s\n' "$record" | jq -r '.body // ""' 2>/dev/null)" || body=""
+    fi
+  fi
+
+  if [ -z "$body" ]; then
+    printf '0\n'
+    return 0
+  fi
+
+  json="$(printf '%s\n' "$body" | reviewer_loop_history_extract_latest_json)"
+  if [ -z "$json" ]; then
+    printf '0\n'
+    return 0
+  fi
+
+  count="$(
+    printf '%s\n' "$json" | jq -r --arg head "$head_sha" '
+      [
+        .entries[]?
+        | select((.expensive_gate.result // "") == "deferred")
+        | select((.expensive_gate.head // "") == $head)
+        | select((.expensive_gate.reason // "") | test("^local_infrastructure"))
+      ] | length
+    ' 2>/dev/null
+  )" || count=""
+
+  if ! [[ "$count" =~ ^[0-9]+$ ]]; then
+    printf '0\n'
+    return 0
+  fi
+  printf '%s\n' "$count"
+}
+
+emit_local_ai_infrastructure_diagnostic_keys() {
+  local script_output="${1:-}"
+  local key value
+  for key in LOCAL_REVIEWER_COMMAND_ID LOCAL_REVIEWER_ATTEMPT_HEAD \
+    LOCAL_REVIEWER_PARTIAL_OUTPUT LOCAL_REVIEWER_ELAPSED_SECONDS; do
+    value="$(kv_value_default "$key" "$script_output" "")"
+    [ -n "$value" ] && print_kv "$key" "$value"
+  done
+}
+
+reviewer_loop_capture_local_infrastructure_telemetry() {
+  local platform_output="${1:-}"
+  reviewer_loop_local_outcome_class="$(reviewer_loop_local_outcome_class_for_head "${loop_head_sha:-}")"
+  reviewer_loop_local_infrastructure_command_id="$(kv_value_default LOCAL_REVIEWER_COMMAND_ID "$platform_output" "")"
+  reviewer_loop_local_infrastructure_partial_output="$(kv_value_default LOCAL_REVIEWER_PARTIAL_OUTPUT "$platform_output" "")"
+  reviewer_loop_local_infrastructure_elapsed_seconds="$(kv_value_default LOCAL_REVIEWER_ELAPSED_SECONDS "$platform_output" "")"
+}
+
+reviewer_loop_post_expensive_override_justification() {
+  local pr_number_arg="${1:-}"
+  local justification="${2:-}"
+  local repo="" marker='<!-- expensive-review-override -->'
+  local existing_id="" existing_body="" new_body=""
+
+  [ -n "$justification" ] || return 0
+  [ -n "$pr_number_arg" ] || return 0
+  repo="$(repo_slug 2>/dev/null)" || return 0
+
+  new_body="${marker}
+**Expensive review override justification**
+
+${justification}
+"
+
+  existing_id="$(
+    gh api "repos/$repo/issues/$pr_number_arg/comments" --paginate 2>/dev/null \
+      | jq -r --arg marker "$marker" '
+          [.[] | select((.body // "") | contains($marker))] | last | .id // empty
+        ' 2>/dev/null
+  )" || existing_id=""
+
+  if [ -n "$existing_id" ]; then
+    gh api -X PATCH "repos/$repo/issues/comments/$existing_id" \
+      -f body="$new_body" >/dev/null 2>&1 || true
+  else
+    gh api -X POST "repos/$repo/issues/$pr_number_arg/comments" \
+      -f body="$new_body" >/dev/null 2>&1 || true
   fi
 }
 
@@ -1583,6 +1781,7 @@ expensive_reviewer_gate() {
 
   configured="$(expensive_gate_local_ai_configured)"
   head_current="$(expensive_gate_local_ai_head_current "$head_sha")"
+  local local_outcome_class="" infra_deferrals=""
 
   if [ -z "$head_sha" ]; then
     reason="evidence_unavailable_head"
@@ -1590,10 +1789,46 @@ expensive_reviewer_gate() {
     reason="local_reviewer_not_configured"
   elif [ "$configured" != "1" ]; then
     reason="local_evidence_missing"
-  elif [ "$head_current" = "0" ]; then
-    reason="local_evidence_stale"
-  elif [ "$head_current" != "1" ]; then
-    reason="local_evidence_missing"
+  else
+    local_outcome_class="$(reviewer_loop_local_outcome_class_for_head "$head_sha")"
+    reviewer_loop_local_outcome_class="$local_outcome_class"
+    case "$local_outcome_class" in
+      infrastructure)
+        reason="local_infrastructure_failure"
+        infra_deferrals="$(expensive_gate_infrastructure_deferral_count "$head_sha")"
+        if [ "$infra_deferrals" -ge "$expensive_gate_local_infrastructure_repeat_threshold" ] 2>/dev/null; then
+          reason="local_infrastructure_repeated"
+        fi
+        ;;
+      code_findings)
+        reason="local_evidence_stale"
+        head_current="0"
+        ;;
+      code_clean)
+        if [ "$head_current" = "0" ]; then
+          reason="local_evidence_stale"
+        elif [ "$head_current" != "1" ]; then
+          reason="local_evidence_missing"
+        fi
+        ;;
+      not_attempted)
+        if [ "$head_current" = "0" ]; then
+          reason="local_evidence_stale"
+        elif [ "$head_current" != "1" ]; then
+          reason="local_evidence_missing"
+        fi
+        ;;
+      not_configured)
+        reason="local_reviewer_not_configured"
+        ;;
+      *)
+        if [ "$head_current" = "0" ]; then
+          reason="local_evidence_stale"
+        elif [ "$head_current" != "1" ]; then
+          reason="local_evidence_missing"
+        fi
+        ;;
+    esac
   fi
 
   if [ -z "$reason" ]; then
@@ -1636,6 +1871,11 @@ expensive_reviewer_gate() {
     expensive_gate_max_deferrals="$(expensive_gate_resolve_max_deferrals)"
   fi
 
+  if [ -n "$reason" ] && [ "${PR_REVIEW_LOOP_FORCE_EXPENSIVE_REVIEWERS:-0}" = "1" ] \
+      && [ -z "${PR_REVIEW_LOOP_EXPENSIVE_OVERRIDE_JUSTIFICATION:-}" ]; then
+    reason="expensive_override_missing_justification"
+  fi
+
   print_kv EXPENSIVE_GATE_PLATFORM "$platform"
   print_kv EXPENSIVE_GATE_HEAD "$head_sha"
   print_kv EXPENSIVE_GATE_REASON "$reason"
@@ -1643,11 +1883,14 @@ expensive_reviewer_gate() {
   print_kv EXPENSIVE_GATE_MAX_DEFERRALS "$expensive_gate_max_deferrals"
 
   if [ -n "$reason" ]; then
-    if [ "${PR_REVIEW_LOOP_FORCE_EXPENSIVE_REVIEWERS:-0}" = "1" ]; then
+    if [ "${PR_REVIEW_LOOP_FORCE_EXPENSIVE_REVIEWERS:-0}" = "1" ] \
+        && [ -n "${PR_REVIEW_LOOP_EXPENSIVE_OVERRIDE_JUSTIFICATION:-}" ]; then
       gate_result="forced"
       expensive_gate_last_result="$gate_result"
       expensive_gate_last_reason="$reason"
       print_kv EXPENSIVE_GATE_RESULT forced
+      reviewer_loop_post_expensive_override_justification "${pr_number:-}" \
+        "${PR_REVIEW_LOOP_EXPENSIVE_OVERRIDE_JUSTIFICATION}"
       return 0
     fi
     if [ "$deferrals" = "-1" ]; then
@@ -4122,7 +4365,8 @@ run_local_ai_reviewer_review() {
       print_kv COMMENT_COUNT "$comment_count"
       print_kv BLOCKING_COUNT "$blocking_count"
       print_kv SUGGESTION_COUNT "$suggestion_count"
-      print_kv REVIEWED_HEAD "$(kv_value_default REVIEWED_HEAD "$script_output" "")"
+      emit_local_ai_infrastructure_diagnostic_keys "$script_output"
+      print_kv REVIEWED_HEAD "$(kv_value_default REVIEWED_HEAD "$script_output" "$(kv_value_default LOCAL_REVIEWER_ATTEMPT_HEAD "$script_output" "")")"
       print_kv GRAPH_CONTEXT "$(kv_value_default GRAPH_CONTEXT "$script_output" "")"
       emit_local_ai_strict_spec_keys "$script_output"
       emit_local_ai_review_stage_keys "$script_output"
@@ -8975,6 +9219,12 @@ reviewer_loop_process_platform_output() {
   fi
   platform_result_tokens+=("${platform_name}:${_prt_disp}")
   _reviewed_head="$(kv_value_default REVIEWED_HEAD "$platform_output" "")"
+  if [ -z "$_reviewed_head" ] && [ "$platform_name" = "local-ai-reviewer" ]; then
+    _reviewed_head="$(kv_value_default LOCAL_REVIEWER_ATTEMPT_HEAD "$platform_output" "")"
+  fi
+  if [ "$platform_name" = "local-ai-reviewer" ]; then
+    reviewer_loop_capture_local_infrastructure_telemetry "$platform_output"
+  fi
   platform_reviewed_heads+=("${platform_name}:${_reviewed_head}")
   unset _reviewed_head
   platform_result_records+=("$(reviewer_loop_platform_result_record_json "$platform_name" "$platform_result" "$platform_reason")")
@@ -10231,6 +10481,9 @@ reviewer_loop_emit_local_ai_head_evidence_keys() {
   print_kv LOCAL_AI_CONFIGURED "$local_ai_configured"
   print_kv LOCAL_AI_REVIEWED_HEAD "$local_ai_reviewed_head"
   print_kv LOCAL_AI_HEAD_CURRENT "$local_ai_head_current"
+  if [ "$local_ai_configured" -eq 1 ] && [ -n "${loop_head_sha:-}" ]; then
+    print_kv LOCAL_OUTCOME_CLASS "$(reviewer_loop_local_outcome_class_for_head "$loop_head_sha")"
+  fi
 }
 
 reviewer_loop_history_current_head_sha() {
@@ -10371,6 +10624,11 @@ reviewer_loop_history_build_entry() {
     --argjson localSecondPass "${local_second_pass:-0}" \
     --arg localSecondPassReason "${local_second_pass_reason:-not_required}" \
     --arg localSecondPassFailedHead "${local_second_pass_failed_head_record:-}" \
+    --arg localOutcomeClass "${reviewer_loop_local_outcome_class:-}" \
+    --arg localInfraCommandId "${reviewer_loop_local_infrastructure_command_id:-}" \
+    --arg localInfraPartial "${reviewer_loop_local_infrastructure_partial_output:-}" \
+    --arg localInfraElapsed "${reviewer_loop_local_infrastructure_elapsed_seconds:-}" \
+    --arg localInfraGateReason "${expensive_gate_last_reason:-}" \
     '{
       iteration: $iteration,
       recorded_at: $recordedAt,
@@ -10461,6 +10719,23 @@ reviewer_loop_history_build_entry() {
       }
     | if ($localSecondPassFailedHead | length) > 0 then
         . + {local_second_pass_failed_head: $localSecondPassFailedHead}
+      else
+        .
+      end
+    | if ($localOutcomeClass | length) > 0 then
+        . + {local_outcome_class: $localOutcomeClass}
+      else
+        .
+      end
+    | if ($localOutcomeClass == "infrastructure") then
+        . + {
+          local_infrastructure: {
+            command_id: $localInfraCommandId,
+            partial_output: (if $localInfraPartial == "1" then true elif $localInfraPartial == "0" then false else null end),
+            elapsed_seconds: (if ($localInfraElapsed | length) > 0 then ($localInfraElapsed | tonumber?) else null end),
+            gate_reason: $localInfraGateReason
+          }
+        }
       else
         .
       end'
@@ -12616,6 +12891,22 @@ $(reviewer_loop_head_evidence_render "${loop_head_sha:-}" "${platform_reviewed_h
 **Second local pass:** second local pass: ${local_second_pass_reason:-unknown} → ${local_second_pass_result}"
   fi
 
+  local local_infrastructure_section=""
+  if [ -n "${reviewer_loop_local_outcome_class:-}" ] \
+      && [ "${reviewer_loop_local_outcome_class}" = "infrastructure" ]; then
+    local_infrastructure_section="
+
+**Local reviewer infrastructure:** outcome class \`${reviewer_loop_local_outcome_class}\`; gate reason when expensive dispatch withheld: \`${expensive_gate_last_reason:-local_infrastructure_failure}\`.
+- Command: \`${reviewer_loop_local_infrastructure_command_id:-unknown}\`
+- Partial output captured: \`${reviewer_loop_local_infrastructure_partial_output:-0}\`
+- Elapsed seconds: \`${reviewer_loop_local_infrastructure_elapsed_seconds:-unknown}\`"
+  elif [ -n "${reviewer_loop_local_outcome_class:-}" ] \
+      && [ "${reviewer_loop_local_outcome_class}" != "not_attempted" ]; then
+    local_infrastructure_section="
+
+**Local reviewer outcome:** \`${reviewer_loop_local_outcome_class}\` on head \`${loop_head_sha:-unknown}\`."
+  fi
+
   local local_blocker_confirmation_section=""
   if [ "${local_blocker_confirmation:-0}" -eq 1 ]; then
     local_blocker_confirmation_section="
@@ -12861,7 +13152,7 @@ ${_attr_line}"
 **Result:** ${result_line}
 **Platforms:** ${platform_list:-none}${policy_status_section}
 **Findings:** ${blocking} blocking, ${suggestions} suggestions
-${small_findings_section}${missed_findings_section}${attribution_section}${missed_finding_telemetry_section}${head_evidence_section}${expensive_gate_section}${second_local_pass_section}${local_blocker_confirmation_section}${phase_section}${compare_section}${advisory_section}${advisory_checks_section}${strict_spec_summary_section}${strict_plan_summary_section}${regression_label_section}
+${small_findings_section}${missed_findings_section}${attribution_section}${missed_finding_telemetry_section}${head_evidence_section}${expensive_gate_section}${local_infrastructure_section}${second_local_pass_section}${local_blocker_confirmation_section}${phase_section}${compare_section}${advisory_section}${advisory_checks_section}${strict_spec_summary_section}${strict_plan_summary_section}${regression_label_section}
 
 *Posted automatically by \`pr-review-loop.sh\`.*
 EOF
