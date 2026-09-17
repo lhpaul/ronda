@@ -37,6 +37,17 @@ workflow_repo_root() {
   CDPATH='' cd -- "$script_dir/../.." && pwd
 }
 
+# Shared redaction for workflow audit comments and reviewer-loop GitHub surfaces (#64).
+# Reads stdin, writes redacted text to stdout. Same rules as run-epic-audit-trail.sh.
+workflow_audit_redact_text() {
+  sed -E \
+    -e 's#gh[pousr]_[A-Za-z0-9_]+#[REDACTED_TOKEN]#g' \
+    -e 's#Bearer[[:space:]]+[A-Za-z0-9._=-]+#Bearer [REDACTED]#g' \
+    -e 's#Authorization:[[:space:]]*[^[:space:]]+#Authorization: [REDACTED]#g' \
+    -e 's#/Users/[^[:space:]|)]+#[REDACTED_LOCAL_PATH]#g' \
+    -e 's#/tmp/[^[:space:]|)]+#[REDACTED_LOCAL_PATH]#g'
+}
+
 workflow_config_file() {
   local repo_root=""
   if ! repo_root="$(workflow_repo_root)"; then
