@@ -66,7 +66,7 @@ fields; required input and head failures are explicit and leave records intact.
 
 ### Step 3: Verify safety refusals and bounds
 
-**Maps to**: AC9–AC11, AC13, AC18, AC23–AC24, AC28, AC32–AC42, AC49–AC50
+**Maps to**: AC9–AC11, AC13, AC18, AC23–AC24, AC28, AC32–AC36, AC38, AC49–AC50
 
 1. Use deterministic safe fixtures to submit a placeholder credential literal,
    then a non-placeholder credential-shaped value in each supported field.

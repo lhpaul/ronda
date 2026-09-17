@@ -421,14 +421,14 @@ Open questions from the spec:
    while preserving legacy counts.
 6. **P1/P2** — Add fixtures and unit tests for every gate stage, parser-risk
    boundary (including AC49–AC50), source/content identity, stale/unresolvable
-   summary behavior, audit transitions, **P2** guarded deletion (AC44–AC45),
-   AC37 push-order Ronda-result-head fallback, AC39 reviewer aliases,
-   AC40–AC42 identity/category cases, AC53 stored-result-head display, AC54
-   fresh capture-time merge-base scanning for manual older-head input, AC46
-   missing-category automatic refusal, AC47 default preservation, AC52
-   case-sensitive location identity, AC55 refreshed automatic evidence, and
-   AC56 automatic/manual record separation. Do not re-implement the
-   guarded-delete command surface here — it lands in step 3.
+   summary behavior, audit transitions, **P1** guarded deletion (AC44–AC45;
+   command surface lands in step 3), AC37 push-order Ronda-result-head
+   fallback, AC39 reviewer aliases, AC40–AC42 identity/category cases, AC53
+   stored-result-head display, AC54 fresh capture-time merge-base scanning for
+   manual older-head input, AC46 missing-category automatic refusal, AC47
+   default preservation, AC52 case-sensitive location identity, AC55 refreshed
+   automatic evidence, and AC56 automatic/manual record separation. Do not
+   re-implement the guarded-delete command surface here — it lands in step 3.
 7. **P1/P2** — Update the README, software architecture testing section,
    comparison collection guide (in place), and smoke runbook; sync help text
    and runbook to the same four-stage wording; document tooling-only
