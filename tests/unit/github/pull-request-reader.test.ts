@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import type { Octokit } from "@octokit/rest";
 import {
   findExistingCheckRun,
+  findExistingRondaReview,
   readChangedFiles,
   readPullRequest,
 } from "../../../src/github/pull-request-reader.js";
+import { RONDA_REVIEW_HEADING } from "../../../src/core/summary.js";
 import { CHECK_RUN_NAME } from "../../../src/domain/review-pass.types.js";
 import { GithubClientError } from "../../../src/github/github-client.js";
 
@@ -440,4 +442,32 @@ test("a non-abort failure (signal not aborted) propagates unchanged, never wrapp
       return true;
     },
   );
+});
+
+test("findExistingRondaReview matches a review on the head SHA with the Ronda summary marker", async () => {
+  const headSha = "f".repeat(40);
+  const octokit = createFakeOctokit({
+    paginate: async () => [
+      {
+        commit_id: headSha,
+        body: `${RONDA_REVIEW_HEADING}\n\nReviewed 1 changed file(s).`,
+      },
+    ],
+  });
+
+  const result = await findExistingRondaReview(octokit, "lhpaul", "ronda", 4, headSha);
+  assert.deepEqual(result, { headSha });
+});
+
+test("findExistingRondaReview ignores reviews on other commits or without the Ronda marker", async () => {
+  const headSha = "f".repeat(40);
+  const octokit = createFakeOctokit({
+    paginate: async () => [
+      { commit_id: "0".repeat(40), body: `${RONDA_REVIEW_HEADING}\n` },
+      { commit_id: headSha, body: "Human review without the marker" },
+    ],
+  });
+
+  const result = await findExistingRondaReview(octokit, "lhpaul", "ronda", 4, headSha);
+  assert.equal(result, null);
 });
