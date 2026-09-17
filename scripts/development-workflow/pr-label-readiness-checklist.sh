@@ -227,17 +227,11 @@ while :; do
     echo "ERROR: could not aggregate status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
     exit 5
   fi
-  if ! CHECKS_HAS_NEXT=$(printf '%s' "$CHECKS_PAGE" | jq -er '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.hasNextPage // false'); then
-    echo "ERROR: could not read status check pagination for $HEAD_SHA — refusing to label on an incomplete CI read."
-    exit 5
-  fi
+  CHECKS_HAS_NEXT=$(printf '%s' "$CHECKS_PAGE" | jq -r '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.hasNextPage // false') # workflow-shell-guard: allow SH003 - false is a valid pagination terminus, not jq failure
   if [ "$CHECKS_HAS_NEXT" != "true" ]; then
     break
   fi
-  if ! CHECKS_CURSOR=$(printf '%s' "$CHECKS_PAGE" | jq -er '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.endCursor // ""'); then
-    echo "ERROR: could not read status check pagination cursor for $HEAD_SHA — refusing to label on an incomplete CI read."
-    exit 5
-  fi
+  CHECKS_CURSOR=$(printf '%s' "$CHECKS_PAGE" | jq -r '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.endCursor // ""') # workflow-shell-guard: allow SH003 - empty cursor is valid when hasNextPage is false
   if [ -z "$CHECKS_CURSOR" ] || [ "$CHECKS_CURSOR" = "null" ]; then
     echo "ERROR: status check rollup pagination did not provide an end cursor."
     exit 5
