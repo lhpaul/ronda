@@ -83,7 +83,16 @@ Any PR that adds or materially modifies an automated check, guard, lint rule, or
 
 **Exemption**: Pure refactors of already-proven validation logic, with no behavior change, are exempt from re-proof; state the exemption rationale in the PR.
 
-See `REVIEW.md` → Code Review Checklist → Pass 2 → "PRs that add or modify an automated check, guard, lint rule, or CI job" for the reviewer-facing enforcement of this rule.
+### Isolating plants per new assertion
+
+When a PR adds or materially modifies **multiple** checks or assertions, each **new assertion** needs at least one **isolating** plant in the PR's cited proof set:
+
+- **Isolating plant**: the assertion **fails** with the plant applied and **passes** once the plant is removed (or with a plant that does not target that assertion), at a concrete file and line.
+- **Sibling-masked plant**: a combined edit or rollback flips several assertions together; an assertion that only fails because a sibling field or assertion changed in the same edit is **not** isolated proof for assertions that stayed green under that combined edit.
+
+One combined rollback is not sufficient for several new assertions unless each assertion that stayed green under the combined edit has its own isolating pairing documented. A plant masked by an **earlier rule in the pipeline** is still not proof — this subsection adds the sibling / multi-assertion case; it does not weaken that rule.
+
+See `REVIEW.md` → Workflow Policy Review Checklist item 4, Protocol 03 → [Test Harness Coverage Checklist](../workflow/development-workflow/protocols/03-implement-development-protocol.md#test-harness-coverage-checklist), and `REVIEW.md` → Code Review Checklist → Pass 2 → "PRs that add or modify an automated check, guard, lint rule, or CI job" for reviewer-facing enforcement (including plant-set sufficiency).
 
 For a worked instance of this rule — a regex-based key-extraction scanner, its full edge-case table, and a named dynamic-key concatenation gap (`t('x.' + k)`) that a naive first version missed and a fix closed with documented regression cases — see [`docs/best-practices/stack/i18n.md` § Key-extraction scanner and the dynamic-key pitfall](stack/i18n.md#key-extraction-scanner-and-the-dynamic-key-pitfall).
 
