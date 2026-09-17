@@ -1,6 +1,6 @@
 # Report Ronda Review Quality Against External Reviewers — Spec
 
-**Depends on**: improve-ronda-review-quality-benchmark-suite, capture-external-review-misses
+**Depends on**: 24-review-quality-benchmark-suite, 53-capture-external-review-misses
 
 ---
 
@@ -312,7 +312,7 @@ change Ronda's review behavior, merge authority, or pull request state.
 ## Open Questions
 
 - None blocking MVP: adjudication vocabulary and miss-record mapping align with
-  **capture-external-review-misses** and **improve-ronda-review-quality-benchmark-suite**.
+  **53-capture-external-review-misses** and **24-review-quality-benchmark-suite**.
 
 ---
 
