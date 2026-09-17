@@ -181,6 +181,20 @@ file is never committed — see `.gitignore`. Environment variables
 `RONDA_PASS_TIMEOUT_MS`, `RONDA_MAX_PATCH_CHARS`) take precedence over the
 config file, which takes precedence over Ronda's built-in defaults.
 
+## 7. Review quality reporting (operator checkout)
+
+After comparison JSON is committed under `docs/testing/ronda/comparisons/` (and
+miss JSON under `docs/testing/ronda/misses/` when capture is available), generate
+a structured rollup without calling GitHub:
+
+```bash
+npm run quality:report
+npm run quality:report -- --repository lhpaul/ronda --format both --out /tmp/ronda-quality-report.json
+```
+
+Commit the JSON or markdown snapshot when you want a trend baseline for
+retrospectives. `quality:summary` remains a legacy comparison-only rollup.
+
 ## Known limitations (v0)
 
 - **Fork pull requests on the reusable Action path** are not reviewed
