@@ -57,7 +57,6 @@ HEAD_SHA="aaaa1110000000000000000000000000000000a"
 GREEN_CHECKS_PAGE='{"data":{"repository":{"pullRequest":{"statusCheckRollup":{"contexts":{"nodes":[{"__typename":"CheckRun","name":"ShellCheck","checkSuite":{"workflowRun":{"workflow":{"name":"CI"}}},"status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-01-01T00:00:00Z"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}}'
 FAILING_CHECKS_PAGE='{"data":{"repository":{"pullRequest":{"statusCheckRollup":{"contexts":{"nodes":[{"__typename":"CheckRun","name":"ShellCheck","checkSuite":{"workflowRun":{"workflow":{"name":"CI"}}},"status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-01-01T00:00:00Z"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}}'
 EMPTY_CHECKS_PAGE='{"data":{"repository":{"pullRequest":{"statusCheckRollup":{"contexts":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}}'
-THREADS_PAGE='{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
 CLEAN_COMMENTS='{"comments":[{"body":"Automated Reviewer Loop Summary\nResult: clean","createdAt":"2026-01-01T00:00:00Z"}]}'
 
 make_gh() {
