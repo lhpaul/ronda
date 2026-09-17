@@ -57,8 +57,10 @@ no competing change.
 ### Database / Data Layer
 
 - [ ] Do not add a database or remote storage. Add a versioned JSON miss-record
-      format under `docs/testing/ronda/misses/` (or a single explicitly selected
-      equivalent directory) and stable read/write helpers in the CLI layer.
+      format under the literal directory `docs/testing/ronda/misses/` (the same
+      default already named by `DEFAULT_MISS_DIRECTORY` in
+      `src/quality/review-quality-report.ts`) and stable read/write helpers in
+      the CLI layer. Do not introduce a second miss-record directory.
 - [ ] Define one record with the spec-required evidence fields: PR repository
       and number, reviewed head, Ronda result head, reviewer, location, title,
       text, verdict, category, intended follow-up, capture source, source ID,
@@ -75,14 +77,23 @@ no competing change.
       the feature command and readers in a follow-up revert while preserving
       already committed records for auditability; a record captured in error is
       removed only through the guarded delete operation. No migration rollback
-      exists because no database or remote schema is introduced.
+      exists because no database or remote schema is introduced. If
+      `summarize-review-comparisons.ts` / `recall-benchmark.ts` contracts are
+      extended for miss classifications, a reversal must revert those type and
+      summary-output changes in the same follow-up while leaving already
+      committed miss JSON under `docs/testing/ronda/misses/` untouched (older
+      summary code may ignore unrecognized files or fields).
 
 ### GitHub Evidence Reader and Capture CLI
 
-- [ ] Add a dedicated CLI command, wired in `package.json`, for automatic
-      `codex-github` capture and a manual-entry path. Reuse the scoped `gh pr
-      view` metadata pattern from `record-review-comparison.ts`; no command may
-      post comments, reviews, labels, state changes, or mutations to a PR.
+- [ ] Add `src/cli/capture-external-review-misses.ts`, wired as
+      `quality:misses` in `package.json` (`tsx src/cli/capture-external-review-misses.ts`),
+      as a sibling of `src/cli/record-review-comparison.ts`. The command covers
+      automatic `codex-github` capture and a manual-entry path, plus read,
+      adjudicate, and guarded-delete subcommands or flags documented in help
+      text. Reuse the scoped `gh pr view` metadata pattern from
+      `record-review-comparison.ts`; no command may post comments, reviews,
+      labels, state changes, or mutations to a PR.
 - [ ] Read only the selected PR's current head, its historical heads/Ronda
       review result evidence, and the Codex GitHub review/comment evidence
       needed for automatic capture. Resolve the Ronda result head as same-head
@@ -108,17 +119,42 @@ no competing change.
 
 ### Sensitive-Content Guard
 
-- [ ] Add a narrow, testable validation module for credential-shaped content,
-      the literal placeholder allow-list, and source/diff-content rejection.
-      Scan every stored free-text input and an adjudication rationale before
+- [ ] Add a narrow, testable validation module and publish the two lists it
+      consumes as versioned source constants in
+      `src/quality/miss-sensitive-content-lists.ts` (imported by the CLI
+      validator; committed and reviewed with the workflow — no separate secret
+      store). The credential refusal list must recognise at least these six
+      forms (AC9): (1) code-hosting access token, (2) API key, (3) private key
+      block, (4) cloud access-key identifier, (5) authorization header bearer
+      value, and (6) an assignment whose name reads as a password, secret,
+      token, or API key and whose value is a literal. The placeholder list is
+      whole literal values only (AC18), compared case- and
+      surrounding-whitespace-insensitively, and must include at least
+      `REDACTED`, `example`, and `changeme`. Expanding either list is a
+      deliberate source change in that file, not a runtime config edit.
+- [ ] Scan every stored free-text input and an adjudication rationale before
       deriving/truncating/persisting any value.
+- [ ] Before the diff-marker and five-consecutive-line checks (AC38, AC49,
+      AC50), normalize each scanned field by (1) stripping a leading Markdown
+      block-quote marker (`>` plus an optional following space) from every
+      line, and (2) when every nonblank line of the field shares a common
+      leading indent of one tab or four spaces (indented code block), stripping
+      exactly that one shared indent level. Apply the marker and consecutive-
+      line checks only to the normalized text. Do not add further Markdown
+      transforms (nested quotes, HTML, or fence-fence stripping beyond the
+      shared indent rule above).
 - [ ] Refuse diff headers/hunks and more than five consecutive nonblank lines
       that match changed-file or diff content for the reviewed head. Permit only
       the spec's bounded short excerpts; never silently trim a refused payload.
-- [ ] For a manual capture on an older reviewed head, obtain the reviewed
-      source/diff comparison baseline from that head's capture-time PR base-tip
-      merge base. Persist the evidence needed to reproduce that check so later
-      base-branch movement cannot change the scan's result.
+- [ ] For every capture (including a manual capture on an older reviewed head),
+      resolve the source/diff comparison baseline as a **fresh** merge-base of
+      that reviewed head and the PR base branch's tip **at that capture**
+      (AC54). Do **not** reuse a prior capture's merge-base for a later
+      capture's scan — two captures of the same finding may legitimately differ
+      after the base moves. When a record is successfully written, optionally
+      store the merge-base SHA used for that capture as audit metadata only;
+      that stored SHA must never become the scan baseline for a subsequent
+      capture.
 - [ ] Bound stored finding text and rationale to 2,000 characters after scans;
       mark truncation. Keep refusal reports field-specific and never echo a
       rejected secret, patch, or full source content.
@@ -162,21 +198,27 @@ no competing change.
 ### Documentation
 
 - [ ] Update `README.md` with the capture, read, adjudicate, delete, and
-      quality-summary commands, explicitly stating that capture is read-only
-      toward GitHub and that records are committed evidence.
+      quality-summary commands (`npm run quality:misses` and related flags),
+      explicitly stating that capture is read-only toward GitHub and that
+      records are committed evidence under `docs/testing/ronda/misses/`.
 - [ ] Update `docs/project/3-software-architecture.md` Testing Strategy to
       describe external-review miss records and fresh resolvability checks.
-- [ ] Update `docs/testing/ronda/review-quality-comparison-collection.md` or
-      replace its narrow command guidance with the documented four-stage miss
-      capture workflow while retaining its comparison-collection intent.
+- [ ] Update `docs/testing/ronda/review-quality-comparison-collection.md` in
+      place (do not replace the file): keep its comparison-collection intent
+      and first-batch workflow, and add a short section that points operators
+      to `npm run quality:misses` and
+      `docs/testing/ronda/capture-external-review-misses.smoke-test.md` for
+      durable miss capture and adjudication.
 - [ ] Add `docs/testing/ronda/capture-external-review-misses.smoke-test.md` from
       this plan. Update adoption documentation only if the final operator
       command requires setup beyond existing GitHub/model credentials.
 
 ### Infrastructure / Configuration
 
-- [ ] Add package-script wiring only; do not add secrets, tokens, reviewer
-      account identifiers, hostnames, or a mutable service configuration.
+- [ ] Add `quality:misses` package-script wiring to
+      `src/cli/capture-external-review-misses.ts` only; do not add secrets,
+      tokens, reviewer account identifiers, hostnames, or a mutable service
+      configuration.
 
 ---
 
@@ -191,17 +233,22 @@ no competing change.
 2. Manual capture, defaults, title derivation, unresolved location, and valid
    reviewed-head selection behave as specified (AC3–AC4, AC19–AC21, AC25).
 3. Adjudication, rationale precedence, capture-time merge semantics, and guarded
-   deletion preserve durable audit evidence (AC5, AC26, AC28–AC29, AC43, AC51).
+   deletion preserve durable audit evidence (AC5, AC26, AC28–AC29, AC43–AC45,
+   AC51). Explicitly cover AC44 (delete unadjudicated/undecided removes the
+   record; later same-identity capture creates a new record) and AC45 (delete
+   of adjudicated or decided records is refused with a pointer to adjudication).
 4. Quality summary preserves existing outcome meanings while adding categories,
    stale, and unresolvable evidence (AC6–AC8 and AC48).
 5. Source/content identity, automatic silence, unsupported reviewers, missing
    inputs, enum/head rejection, and refusal precedence are deterministic
    (AC12–AC17, AC22–AC24, AC27, AC30–AC31).
 6. Credential placeholder handling, pre-truncation scanning, diff/source
-   rejection, and bounded stored content satisfy data minimization (AC9–AC11,
-   AC18, AC32–AC42).
+   rejection, Markdown quote/indent normalization, and bounded stored content
+   satisfy data minimization (AC9–AC11, AC18, AC32–AC42, AC49–AC50). Explicitly
+   cover AC49 (quoted/indented hunk markers refuse like plain markers) and
+   AC50 (quoted/indented six-line source excerpts refuse like plain excerpts).
 7. A stale capture displays the review result for its stored Ronda-result head,
-   and an older-head manual capture scans against its preserved capture-time
+   and an older-head manual capture scans against a fresh capture-time
    base-tip merge base despite later base movement (AC53–AC54).
 8. Automatic capture refuses a missing operator-supplied category; a re-capture
    does not reset adjudicated fields to their defaults; manual location remains
@@ -222,19 +269,23 @@ This plan is parser-risk: it introduces structured parsing/scanning of GitHub
 review prose and diff/source-content detection.
 
 - **Edge cases**: `diff --git`, `@@`, paired `---`/`+++` markers under Markdown
-      quoting/indentation; lookalike prose that lacks markers; multiple markers
-      on one input; six consecutive matching nonblank lines versus five; blank
-      lines breaking a sequence; changed-file versus diff matches; CRLF and
-      whitespace variants; title derivation after scanning; credentials in
-      every scanned field and beyond truncation boundaries.
+      quoting/indentation after the normalization rules above; lookalike prose
+      that lacks markers; multiple markers on one input; six consecutive
+      matching nonblank lines versus five; blank lines breaking a sequence;
+      changed-file versus diff matches; CRLF and whitespace variants; title
+      derivation after scanning; credentials in every scanned field and beyond
+      truncation boundaries.
 - **Unit-test mapping**: add tests in
-      `tests/unit/cli/capture-external-review-misses.test.ts` (or focused
-      validation sibling) with one named assertion per listed boundary case,
-      plus CLI fixtures for interpreted Codex review structures.
+      `tests/unit/cli/capture-external-review-misses.test.ts` (and a focused
+      validation sibling if needed) with one named assertion per listed
+      boundary case — including AC49/AC50 quote/indent variants and AC44/AC45
+      deletion paths — plus CLI fixtures for interpreted Codex review
+      structures.
 - **Additional historical-evidence cases**: include fixture tests that prove a
       stale display reads the stored Ronda-result head, not the reviewed head,
-      and that older-head manual capture retains the capture-time base-tip
-      merge-base scan after the PR base advances.
+      and that each older-head manual capture resolves a **fresh** capture-time
+      base-tip merge-base for its own scan (AC54) — a later capture after the
+      PR base advances must not reuse the earlier capture's merge-base.
 - **Suppression semantics**: Not applicable. The capture command accepts no
       inline suppression directives; it refuses unsafe content rather than
       skipping a validation rule.
@@ -258,16 +309,23 @@ mutable state across execution contexts.
 
 ## Documentation Updates
 
-- [ ] `README.md` — document the operator command surface and GitHub read-only
-      guarantee.
+- [ ] `README.md` — document `npm run quality:misses`
+      (`src/cli/capture-external-review-misses.ts`), the operator command
+      surface, GitHub read-only guarantee, and store path
+      `docs/testing/ronda/misses/`.
 - [ ] `docs/project/3-software-architecture.md` — document miss-record quality
       evidence and its test boundary.
-- [ ] `docs/testing/ronda/review-quality-comparison-collection.md` — connect
-      comparison collection to durable capture/adjudication evidence.
+- [ ] `docs/testing/ronda/review-quality-comparison-collection.md` — update in
+      place to connect comparison collection to durable capture/adjudication
+      evidence (do not replace the file).
 - [ ] `docs/testing/ronda/capture-external-review-misses.smoke-test.md` — add
-      the manual operating and validation runbook.
+      the manual operating and validation runbook; state that adjudication and
+      deletion rules are enforced by the workflow tooling only (committed JSON
+      under `docs/testing/ronda/misses/` can be edited outside the CLI).
 - [ ] `docs/adoption/ronda-review-adoption.md` — update only if implementation
       adds an operator prerequisite beyond current documented access.
+- [ ] `src/quality/miss-sensitive-content-lists.ts` — publish the credential
+      refusal forms and placeholder literals (versioned with the workflow).
 
 ## Risks & Mitigations
 
@@ -279,30 +337,69 @@ mutable state across execution contexts.
 | Existing quality counts drift | Medium | High | Extend rather than reinterpret comparison summary and regression-test clean agreement. |
 | Live GitHub smoke is unavailable | Medium | Medium | Keep deterministic fixture tests; record live limitation without fabricating evidence. |
 
+## Delivery Phasing Answers
+
+This plan delivers **Phase 1 and Phase 2 in a single implementation pass** (one
+feature PR). Spec Delivery Phasing remains the product ordering of capability;
+Implementation Order below tags each step `P1` / `P2` so Phase 1 surfaces are
+landed and testable before Phase 2 surfaces in the same branch, without a
+separate Phase 2 PR.
+
+Open questions from the spec:
+
+1. **Confirmed-miss counting**: Count **per-head occurrences** (each durable
+   miss record), not distinct cross-head defects. A defect re-flagged on several
+   heads becomes several records and contributes multiple confirmed-miss counts
+   once adjudicated as true positives.
+2. **Source/diff threat model**: The full consecutive-line source/diff scan
+   protects against committed miss JSON that reprints reviewed repository
+   source or PR patches — including evidence captured from other repositories
+   the operator can read. Diff-marker refusal plus the 2,000-character cap is
+   an incomplete interim control; because this plan ships Phase 2 in the same
+   pass, implementers must not ship capture-to-`docs/testing/ronda/misses/`
+   without the full scan. If a temporary branch checkpoint exposes Phase 1
+   only, that checkpoint must refuse source/diff content at least via markers
+   and the size cap and must not be treated as release-complete.
+3. **Tooling-only enforcement**: Adjudication and deletion rules are enforced
+   only by `npm run quality:misses` and related readers. Records are ordinary
+   committed files under `docs/testing/ronda/misses/`; anyone can edit them
+   outside the workflow. The smoke runbook must state this explicitly.
+
 ## Implementation Order
 
-1. Define the record schema, closed enums, canonical identity helpers, JSON
-   storage boundary, fixture format, and the safety-validation module that scans
-   credentials and source/diff content before any capture gate consumes input.
-2. Implement GitHub evidence readers and the Capture Decision Gate with
+1. **P1** — Define the record schema, closed enums, canonical identity helpers,
+   JSON storage under `docs/testing/ronda/misses/`, fixture format, and the
+   safety-validation module (credential lists in
+   `src/quality/miss-sensitive-content-lists.ts`, quote/indent normalization,
+   and Phase 1 diff-marker refusal) before any capture gate consumes input.
+2. **P1** — Implement GitHub evidence readers and the Capture Decision Gate with
    path-specific precedence and no GitHub write operation, using the validator
    created in step 1.
-3. Add automatic/manual capture, read, adjudicate, and guarded-delete command
-   operations; make help text mirror the four-stage runbook.
-4. Integrate the step-1 validator before all derivation, truncation,
-   persistence, or adjudication writes; execute the planted-violation fail/pass
-   proof.
-5. Extend comparison/quality types and the summary output with the new miss
-   classifications while preserving legacy counts.
-6. Add fixtures and unit tests for every gate stage, parser-risk boundary,
-   source/content identity, stale/unresolvable summary behavior, and audit
-   transitions, including AC53 stored-result-head display and AC54 preserved
-   capture-time merge-base scanning for manual older-head input, plus AC46
-   missing-category automatic refusal, AC47 default preservation, AC52
-   case-sensitive location identity, AC55 refreshed automatic evidence, and
-   AC56 automatic/manual record separation.
-7. Update the README, software architecture testing section, comparison
-   collection guide, and smoke runbook.
+3. **P1** — Add automatic/manual capture, read, and adjudicate operations in
+   `src/cli/capture-external-review-misses.ts` / `quality:misses`; make help
+   text mirror the four-stage Capture Decision Gate described in this plan
+   (the smoke runbook in step 7 must use the same wording — do not invent a
+   second gate narrative).
+4. **P1/P2** — Integrate the step-1 validator before all derivation, truncation,
+   persistence, or adjudication writes; complete the **P2** consecutive-line
+   source/diff scan and AC54 fresh merge-base resolution; execute the
+   planted-violation fail/pass proof.
+5. **P1/P2** — Extend comparison/quality types and the summary output with the
+   new miss classifications (including **P2** unresolvable-evidence reporting)
+   while preserving legacy counts.
+6. **P1/P2** — Add fixtures and unit tests for every gate stage, parser-risk
+   boundary (including AC49–AC50), source/content identity, stale/unresolvable
+   summary behavior, audit transitions, **P2** guarded deletion (AC44–AC45),
+   AC53 stored-result-head display, AC54 fresh capture-time merge-base
+   scanning for manual older-head input, AC46 missing-category automatic
+   refusal, AC47 default preservation, AC52 case-sensitive location identity,
+   AC55 refreshed automatic evidence, and AC56 automatic/manual record
+   separation. Implement the guarded-delete command surface in this step if
+   not already present from step 3.
+7. **P1/P2** — Update the README, software architecture testing section,
+   comparison collection guide (in place), and smoke runbook; sync help text
+   and runbook to the same four-stage wording; document tooling-only
+   enforcement of adjudication/deletion.
 8. Run `npm run typecheck`, `npm run lint`, `npm test`, the targeted capture
    test file, and the sensitive planted-violation proof. Run the smoke runbook
    on a real PR only with safe, authorized GitHub access.
