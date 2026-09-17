@@ -814,10 +814,12 @@ run the draft GitHub reviewer gate (`pr-review-loop.sh --draft-github-only`) for
 to completion for `review.on_ready.github`, then Step 7b (regression label,
 implementation PRs only), then Step 8. Dispatch fixers and re-run as specified
 in 91 until the PR is clean and ready for human review or escalated. After Step
-8 returns `green`, run Step 8a (label readiness checklist — this is a **hard
-gate** that verifies non-draft status, `ready-for-regression` label on
-implementation PRs, documentation-stage alignment on `spec/*` and
-`implementation-plan/*` PRs, and applies `ready-for-human-review`). Standalone
+8 returns `green`, run Step 8a via
+`scripts/development-workflow/pr-label-readiness-checklist.sh` (label readiness
+checklist — this is a **hard gate** that verifies non-draft status,
+`ready-for-regression` label on implementation PRs, documentation-stage alignment
+on `spec/*` and `implementation-plan/*` PRs, and applies
+`ready-for-human-review`). Standalone
 reviewer-loop users preparing spec or plan PRs must route through Protocol 91
 Step 8a and must not apply readiness directly after reviewer/CI success. Once
 Step 8a passes, run Step 8b to update tracker status, then run Step 8c
