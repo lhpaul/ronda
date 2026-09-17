@@ -221,7 +221,13 @@ Conditions are evaluated in order and stop at the first unmet one:
    `current` against `loop_head_sha`. Exact-match allow-list: both derived
    values must be the literal `1`. Missing, unexpected, or stale values defer
    (`local_reviewer_not_configured`, `local_evidence_missing`, or
-   `local_evidence_stale`). Derived from in-loop state — never from the
+   `local_evidence_stale`). When the latest local attempt on the current head
+   ended in a non-verdict infrastructure outcome (`timeout`, missing model
+   access, missing credentials, or malformed output with no parseable verdict),
+   the gate defers with `local_infrastructure_failure` (or
+   `local_infrastructure_repeated` after repeated infrastructure deferrals on
+   the same head) instead of mis-labeling the situation as
+   `local_evidence_missing`. Derived from in-loop state — never from the
    `LOCAL_AI_*` stdout keys as environment variables. On `spec/*` branches the
    local reviewer also runs a second, non-blocking strict-spec pass (see
    [`integrations/local-ai-reviewer.md`](../integrations/local-ai-reviewer.md)

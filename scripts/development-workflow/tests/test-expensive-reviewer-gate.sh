@@ -67,12 +67,14 @@ platform_peer_evidence=("local-ai-reviewer|clean|" "pr-agent|clean|")
 expensive_gate_max_deferrals=3
 EXPENSIVE_GATE_MOCK_LEDGER_BODY=""
 export PR_REVIEW_LOOP_FORCE_EXPENSIVE_REVIEWERS=1
+export PR_REVIEW_LOOP_EXPENSIVE_OVERRIDE_JUSTIFICATION="Harness override for stale local evidence (#1649 scenario 15)."
 _out="$(expensive_reviewer_gate 42 codex-github "$_head" 2>/dev/null)" || _rc=$?
 _rc="${_rc:-0}"
 run_test "1649_s15_forced" "forced" "$(_kv EXPENSIVE_GATE_RESULT "$_out")"
 run_test "1649_s15_reason_preserved" "local_evidence_stale" "$(_kv EXPENSIVE_GATE_REASON "$_out")"
 run_test "1649_s15_rc0" "0" "$_rc"
 unset PR_REVIEW_LOOP_FORCE_EXPENSIVE_REVIEWERS
+unset PR_REVIEW_LOOP_EXPENSIVE_OVERRIDE_JUSTIFICATION
 unset _rc
 
 # --- Scenario 22: in-loop derivation matches LOCAL_AI_* producer ---
@@ -356,6 +358,35 @@ _docs_has "1649_docs_p93_cap" "expensive_gate_deferral_cap" "$_p93"
 _docs_has "1649_docs_p93_unreadable" "expensive_gate_deferral_budget_unreadable" "$_p93"
 _docs_has "1649_docs_cg_cap" "expensive_gate_deferral_cap" "$_cg"
 _docs_has "1649_docs_cg_unreadable" "expensive_gate_deferral_budget_unreadable" "$_cg"
+
+# --- Issue #57: infrastructure failure vs missing evidence ---
+platforms=(local-ai-reviewer codex-github)
+platform_peer_evidence=("local-ai-reviewer|escalate|timeout")
+platform_reviewed_heads=("local-ai-reviewer:$_head")
+platform_result_records=('{"platform":"local-ai-reviewer","result":"escalate","reason":"timeout"}')
+loop_head_sha="$_head"
+expensive_gate_unresolved_threads_status() { printf 'ok 0 %s\n' "$_head"; }
+expensive_gate_baseline_checks_status() { printf 'green %s\n' "$_head"; }
+expensive_gate_max_deferrals=3
+EXPENSIVE_GATE_MOCK_LEDGER_BODY=""
+_out="$(expensive_reviewer_gate 57 codex-github "$_head" 2>/dev/null)" || true
+run_test "57_infrastructure_gate_reason" "local_infrastructure_failure" "$(_kv EXPENSIVE_GATE_REASON "$_out")"
+run_contains "57_not_missing_evidence" "local_infrastructure_failure" "$(_kv EXPENSIVE_GATE_REASON "$_out")"
+
+platform_result_records=('{"platform":"local-ai-reviewer","result":"needs_fixes","reason":"local_ai_review_findings"}')
+platform_peer_evidence=("local-ai-reviewer|needs_fixes|local_ai_review_findings")
+_out="$(expensive_reviewer_gate 57 codex-github "$_head" 2>/dev/null)" || true
+run_test "57_code_findings_stale" "local_evidence_stale" "$(_kv EXPENSIVE_GATE_REASON "$_out")"
+
+export PR_REVIEW_LOOP_FORCE_EXPENSIVE_REVIEWERS=1
+unset PR_REVIEW_LOOP_EXPENSIVE_OVERRIDE_JUSTIFICATION
+platform_result_records=('{"platform":"local-ai-reviewer","result":"escalate","reason":"timeout"}')
+platform_peer_evidence=("local-ai-reviewer|escalate|timeout")
+_out="$(expensive_reviewer_gate 57 codex-github "$_head" 2>/dev/null)" || _rc=$?
+_rc="${_rc:-0}"
+run_test "57_force_without_justification_defers" "deferred" "$(_kv EXPENSIVE_GATE_RESULT "$_out")"
+run_test "57_force_without_justification_reason" "expensive_override_missing_justification" "$(_kv EXPENSIVE_GATE_REASON "$_out")"
+unset PR_REVIEW_LOOP_FORCE_EXPENSIVE_REVIEWERS
 
 echo ""
 echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"

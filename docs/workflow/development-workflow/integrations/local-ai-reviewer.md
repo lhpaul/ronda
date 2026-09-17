@@ -330,8 +330,16 @@ The local reviewer fails closed:
 | Missing credentials or auth failure | `RESULT=escalate`, `REASON=missing_credentials` |
 | Checkout head mismatch | `RESULT=escalate`, `REASON=head_mismatch` |
 | Missing `REVIEW.md` | `RESULT=escalate`, `REASON=review_contract_missing` |
-| Timeout | `RESULT=escalate`, `REASON=timeout` |
+| Timeout | `RESULT=escalate`, `REASON=timeout` (or `RESULT=needs_fixes` when partial output parses as blocking findings before timeout) |
 | Malformed output | `RESULT=escalate`, `REASON=malformed_output` |
+
+Infrastructure escalate paths also emit `LOCAL_REVIEWER_COMMAND_ID`
+(`bundled_codex_preset`, `operator_command`, or `disabled`),
+`LOCAL_REVIEWER_ATTEMPT_HEAD`, `LOCAL_REVIEWER_PARTIAL_OUTPUT` (`0|1`), and
+`LOCAL_REVIEWER_ELAPSED_SECONDS` when measurable. The expensive-review gate
+maps these outcomes to `local_infrastructure_failure` instead of
+`local_evidence_missing` when local is configured and the attempt targeted
+the current head.
 | Explicit disabled config | `RESULT=skipped`, `REASON=disabled_by_config` |
 
 A skipped or escalated local result is availability evidence, not clean review
