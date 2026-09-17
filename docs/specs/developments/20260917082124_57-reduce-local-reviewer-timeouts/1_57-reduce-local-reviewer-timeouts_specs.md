@@ -184,6 +184,30 @@ Expensive gate **infrastructure reason** (must be distinguishable from missing/s
 
 ---
 
+## Decision Matrix
+
+Rows are evaluated in order for a single loop pass at the moment the expensive-review gate runs for the current head. The first match decides expensive dispatch on the **default** path (no operator override).
+
+| # | Latest local outcome on current head | Operator expensive override | Expensive dispatch (default) | Readiness aggregate | Required next action |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `code_clean` | — | Allowed when #1649 peer/thread/check conditions also pass | May proceed toward ready when other gates pass | Continue platform loop |
+| 2 | `code_findings` | — | Withheld | `needs_fixes` (or equivalent withhold) | Fix findings; re-run loop |
+| 3 | `infrastructure` | No | Withheld | Withheld — not clean | Surface infrastructure diagnostics; retry local or use audited override (row 4) |
+| 4 | `infrastructure` | Yes (audited) | Forced allowed (#1649 forced semantics) | May proceed when other gates pass | Record justification; continue — must not write synthetic local clean |
+| 5 | `not_configured` | — | Per #1649 (defer / cap / override) | Per #1649 | Per #1649 operator docs |
+| 6 | `not_attempted` | — | Withheld | Withheld | Run or retry local reviewer before expensive dispatch |
+
+**Mirror surfaces** (must agree on the row outcome):
+
+| Surface | Row 3 example (infrastructure, no override) |
+| --- | --- |
+| Expensive gate reason | Names infrastructure — not `local_evidence_missing` as if no attempt ran |
+| Reviewer-loop summary | Local outcome class `infrastructure` with diagnostics |
+| Reviewer-loop history | Same class and head; no clean verdict |
+| Operator logs | Timeout or unavailable reason with command identity and partial-output flag |
+
+---
+
 ## Operational Visibility
 
 - **Logs**: Each local infrastructure failure logs outcome class, head commit, budget or elapsed time, and whether partial output was captured (size or yes/no — not unbounded dumps in CI logs).
