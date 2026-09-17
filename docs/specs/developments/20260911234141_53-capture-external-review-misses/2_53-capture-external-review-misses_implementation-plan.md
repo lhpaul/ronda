@@ -41,6 +41,7 @@ return to plan/spec review rather than implementing this plan.
 | Architecture and persistence | `sed -n '1,240p' docs/project/2-repo-architecture.md` and `sed -n '1,200p' docs/project/4-database-model.md` | Ronda is a single TypeScript repository with no product database; committed quality evidence is the appropriate store. |
 | Same-surface open PR check | `gh pr list --state open --json number,title,headRefName,baseRefName` filtered for quality/comparison/external-review surfaces | No matching open PR was returned. |
 | Design assets | Issue #53 body, comments, linked files, and `docs/specs/developments/20260911234141_53-capture-external-review-misses/assets/` | No design assets; this is CLI/evidence work, so no fidelity step applies. |
+| Default miss directory constant | `sed -n '1,120p' src/quality/review-quality-report.ts` | `export const DEFAULT_MISS_DIRECTORY = "docs/testing/ronda/misses";` (line 11). Confirms the plan's store path matches the existing named default. Verified `2026-09-17T16:14:52Z` at `53bd76b06480b4e0497808db28cd92b699ae1997`. |
 
 ## Cross-Cutting Operational Assumption Check
 
@@ -64,7 +65,10 @@ no competing change.
 - [ ] Define one record with the spec-required evidence fields: PR repository
       and number, reviewed head, Ronda result head, reviewer, location, title,
       text, verdict, category, intended follow-up, capture source, source ID,
-      stale marker, truncation marker, optional rationale, and audit timestamps.
+      stale marker, truncation marker, and optional rationale. **Plan
+      addition (not a spec-required field):** optional `capturedAt` /
+      update timestamps for local forensics before commit; the durable
+      audit trail remains git history per the spec.
 - [ ] Implement automatic identity as PR + immutable source ID and manual
       identity as canonicalized PR/reviewer/reviewed-head/location/title/text.
       Preserve the source kind and source ID on updates; never merge identities
@@ -97,8 +101,10 @@ no competing change.
 - [ ] Read only the selected PR's current head, its historical heads/Ronda
       review result evidence, and the Codex GitHub review/comment evidence
       needed for automatic capture. Resolve the Ronda result head as same-head
-      first, otherwise the latest PR head with a result; record stale evidence
-      rather than rejecting that fallback.
+      first, otherwise the most recent PR head with a result where "most
+      recent" means **push-order only** on that pull request (the head pushed
+      last wins; AC37) — never commit timestamp and never Ronda publish time;
+      record stale evidence rather than rejecting that fallback.
 - [ ] When reporting a stale capture, present the Ronda result for the stored
       Ronda-result head alongside the reviewed head and its stale marker; do
       not present a result from the reviewed head as though it were the stored
@@ -111,8 +117,16 @@ no competing change.
       `record_written`, and `record_updated`.
 - [ ] Support manual reviewed-head defaulting to the current PR head and refuse
       malformed or non-PR-head values. Support automatic capture only for the
-      Codex GitHub reviewer; distinguish reviewer absent/unsupported/unparseable
-      from a reviewer that is present but silent on the current head.
+      Codex GitHub reviewer. Publish the closed reviewer-alias list (AC39) as
+      versioned source constants in `src/quality/miss-reviewer-aliases.ts`
+      (imported by identity matching and automatic-support checks; committed
+      and reviewed with the workflow). The complete list, compared case- and
+      leading/trailing-whitespace-insensitively, is exactly:
+      `chatgpt-codex-connector[bot]`, `chatgpt-codex-connector`,
+      `codex-github`, and `codex`. Expanding the list is a deliberate source
+      change in that file (and a matching spec change), not a runtime config
+      edit. Distinguish reviewer absent/unsupported/unparseable from a
+      reviewer that is present but silent on the current head.
 - [ ] Derive a missing title from the first nonblank finding-text line, truncate
       it to 120 characters, scan before truncating, and store location-unresolved
       as evidence rather than refusing a present but unmappable location.
@@ -151,10 +165,10 @@ no competing change.
       that reviewed head and the PR base branch's tip **at that capture**
       (AC54). Do **not** reuse a prior capture's merge-base for a later
       capture's scan — two captures of the same finding may legitimately differ
-      after the base moves. When a record is successfully written, optionally
-      store the merge-base SHA used for that capture as audit metadata only;
-      that stored SHA must never become the scan baseline for a subsequent
-      capture.
+      after the base moves. **Plan addition (not a spec-required field):** when
+      a record is successfully written, optionally store the merge-base SHA
+      used for that capture as audit metadata only; that stored SHA must never
+      become the scan baseline for a subsequent capture.
 - [ ] Bound stored finding text and rationale to 2,000 characters after scans;
       mark truncation. Keep refusal reports field-specific and never echo a
       rejected secret, patch, or full source content.
@@ -244,9 +258,18 @@ no competing change.
    (AC12–AC17, AC22–AC24, AC27, AC30–AC31).
 6. Credential placeholder handling, pre-truncation scanning, diff/source
    rejection, Markdown quote/indent normalization, and bounded stored content
-   satisfy data minimization (AC9–AC11, AC18, AC32–AC42, AC49–AC50). Explicitly
-   cover AC49 (quoted/indented hunk markers refuse like plain markers) and
-   AC50 (quoted/indented six-line source excerpts refuse like plain excerpts).
+   satisfy data minimization (AC9–AC11, AC18, AC32–AC36, AC38, AC49–AC50).
+   Explicitly cover AC49 (quoted/indented hunk markers refuse like plain
+   markers) and AC50 (quoted/indented six-line source excerpts refuse like
+   plain excerpts). Name separate per-criterion tests (not only this bundled
+   scenario) for:
+   - AC37: push-order-only Ronda-result-head fallback (never commit timestamp /
+     publish time)
+   - AC39: closed case/whitespace-insensitive reviewer alias list
+   - AC40: same commit on two PRs yields two records
+   - AC41: distinct automatic source IDs / distinct manual finding text yield
+     separate records; case/whitespace-only text is an update
+   - AC42: re-capture replaces affected category without rationale
 7. A stale capture displays the review result for its stored Ronda-result head,
    and an older-head manual capture scans against a fresh capture-time
    base-tip merge base despite later base movement (AC53–AC54).
@@ -278,9 +301,10 @@ review prose and diff/source-content detection.
 - **Unit-test mapping**: add tests in
       `tests/unit/cli/capture-external-review-misses.test.ts` (and a focused
       validation sibling if needed) with one named assertion per listed
-      boundary case — including AC49/AC50 quote/indent variants and AC44/AC45
-      deletion paths — plus CLI fixtures for interpreted Codex review
-      structures.
+      boundary case — including AC49/AC50 quote/indent variants, AC37
+      push-order fallback, AC39 alias matching, AC40–AC42 identity/category
+      cases, and AC44/AC45 deletion paths — plus CLI fixtures for interpreted
+      Codex review structures.
 - **Additional historical-evidence cases**: include fixture tests that prove a
       stale display reads the stored Ronda-result head, not the reviewed head,
       and that each older-head manual capture resolves a **fresh** capture-time
@@ -326,6 +350,9 @@ mutable state across execution contexts.
       adds an operator prerequisite beyond current documented access.
 - [ ] `src/quality/miss-sensitive-content-lists.ts` — publish the credential
       refusal forms and placeholder literals (versioned with the workflow).
+- [ ] `src/quality/miss-reviewer-aliases.ts` — publish the closed Codex GitHub
+      reviewer alias list used by identity matching and automatic support
+      (versioned with the workflow).
 
 ## Risks & Mitigations
 
@@ -367,35 +394,41 @@ Open questions from the spec:
 
 ## Implementation Order
 
-1. **P1** — Define the record schema, closed enums, canonical identity helpers,
-   JSON storage under `docs/testing/ronda/misses/`, fixture format, and the
-   safety-validation module (credential lists in
-   `src/quality/miss-sensitive-content-lists.ts`, quote/indent normalization,
-   and Phase 1 diff-marker refusal) before any capture gate consumes input.
+1. **P1** — Define the record schema, closed enums, canonical identity helpers
+   (including the AC39 reviewer-alias constants in
+   `src/quality/miss-reviewer-aliases.ts`), JSON storage under
+   `docs/testing/ronda/misses/`, fixture format, and the safety-validation
+   module (credential lists in `src/quality/miss-sensitive-content-lists.ts`,
+   quote/indent normalization, and Phase 1 diff-marker refusal) before any
+   capture gate consumes input.
 2. **P1** — Implement GitHub evidence readers and the Capture Decision Gate with
    path-specific precedence and no GitHub write operation, using the validator
-   created in step 1.
-3. **P1** — Add automatic/manual capture, read, and adjudicate operations in
-   `src/cli/capture-external-review-misses.ts` / `quality:misses`; make help
-   text mirror the four-stage Capture Decision Gate described in this plan
-   (the smoke runbook in step 7 must use the same wording — do not invent a
-   second gate narrative).
-4. **P1/P2** — Integrate the step-1 validator before all derivation, truncation,
-   persistence, or adjudication writes; complete the **P2** consecutive-line
-   source/diff scan and AC54 fresh merge-base resolution; execute the
-   planted-violation fail/pass proof.
+   created in step 1. Ronda-result-head fallback uses push-order only (AC37).
+3. **P1** — Add automatic/manual capture, read, adjudicate, and guarded-delete
+   operations in `src/cli/capture-external-review-misses.ts` /
+   `quality:misses`; make help text mirror the four-stage Capture Decision Gate
+   described in this plan (the smoke runbook in step 7 must use the same
+   wording — do not invent a second gate narrative). Wire every
+   capture/adjudicate write path through the step-1 validator **before** any
+   derivation, truncation, or persistence (Phase 1 marker refusal is live in
+   this step; do not land an unvalidated write path). Guarded-delete is part of
+   this step's command surface (AC44–AC45 behavior is unit-tested in step 6).
+4. **P1/P2** — Complete the **P2** consecutive-line source/diff scan and AC54
+   fresh merge-base resolution on top of the step-3 validated write paths;
+   execute the planted-violation fail/pass proof.
 5. **P1/P2** — Extend comparison/quality types and the summary output with the
    new miss classifications (including **P2** unresolvable-evidence reporting)
    while preserving legacy counts.
 6. **P1/P2** — Add fixtures and unit tests for every gate stage, parser-risk
    boundary (including AC49–AC50), source/content identity, stale/unresolvable
    summary behavior, audit transitions, **P2** guarded deletion (AC44–AC45),
-   AC53 stored-result-head display, AC54 fresh capture-time merge-base
-   scanning for manual older-head input, AC46 missing-category automatic
-   refusal, AC47 default preservation, AC52 case-sensitive location identity,
-   AC55 refreshed automatic evidence, and AC56 automatic/manual record
-   separation. Implement the guarded-delete command surface in this step if
-   not already present from step 3.
+   AC37 push-order Ronda-result-head fallback, AC39 reviewer aliases,
+   AC40–AC42 identity/category cases, AC53 stored-result-head display, AC54
+   fresh capture-time merge-base scanning for manual older-head input, AC46
+   missing-category automatic refusal, AC47 default preservation, AC52
+   case-sensitive location identity, AC55 refreshed automatic evidence, and
+   AC56 automatic/manual record separation. Do not re-implement the
+   guarded-delete command surface here — it lands in step 3.
 7. **P1/P2** — Update the README, software architecture testing section,
    comparison collection guide (in place), and smoke runbook; sync help text
    and runbook to the same four-stage wording; document tooling-only
