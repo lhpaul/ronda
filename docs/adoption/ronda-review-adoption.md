@@ -179,9 +179,18 @@ from your own machine instead of through the reusable workflow. That real
 file is never committed — see `.gitignore`. Environment variables
 (`RONDA_MODEL_API_KEY`, `RONDA_MODEL_BASE_URL`, `RONDA_MODEL_NAME`,
 `RONDA_PASS_TIMEOUT_MS`, `RONDA_MAX_PATCH_CHARS`,
-`RONDA_MAX_AUTHORITATIVE_DOC_COUNT`, `RONDA_MAX_AUTHORITATIVE_DOC_CHARS`) take
+`RONDA_MAX_AUTHORITATIVE_DOC_COUNT`, `RONDA_MAX_AUTHORITATIVE_DOC_CHARS`,
+`RONDA_DURABILITY_MODE`, `RONDA_DURABILITY_MODE_DEFAULT`) take
 precedence over the config file, which takes precedence over Ronda's built-in
 defaults.
+
+`RONDA_DURABILITY_MODE=on|off` forces the durability and idempotency review
+mode for a run (or set `durabilityMode` in the config file). 
+`RONDA_DURABILITY_MODE_DEFAULT=on` (or `durabilityModeDefault: true`) enables
+the mode for every implementation-stage review even when automatic path rules
+do not match. When unset, activation follows changed-path rules for webhook,
+publisher, queue/retry, and related surfaces. Mode state (`active` /
+`inactive` / `unavailable`) appears in the published review summary.
 
 When a pull request touches governed surfaces (webhook ingress, review
 publication, inference, operator config, or workflow review contract paths),

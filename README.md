@@ -35,6 +35,12 @@ Run the recall benchmark with deterministic fixtures:
 npm run benchmark:recall -- --response-file tests/fixtures/recall-benchmark/model-responses/passing.json
 ```
 
+Run the durability / idempotency regression fixtures (forces mode `active`):
+
+```bash
+npm run benchmark:durability
+```
+
 Run the broader quality benchmark, including precision and second-reviewer
 comparison fixtures:
 
