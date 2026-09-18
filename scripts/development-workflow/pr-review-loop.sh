@@ -985,6 +985,13 @@ strict_plan_applied=""
 strict_plan_unknown_count=""
 strict_plan_reason=""
 strict_plan_summary_section=""
+# Durability mode ledger globals (#54); set by capture_durability_mode_globals_from_output.
+durability_mode_recorded=0
+durability_mode_state=""
+durability_mode_activation_reason=""
+durability_mode_unavailable_reason=""
+durability_mode_families_in_scope=""
+durability_mode_families_na="[]"
 # Peer evidence collected during this invocation: "platform|result|reason".
 declare -a platform_peer_evidence=()
 
@@ -4250,6 +4257,25 @@ capture_strict_plan_globals_from_output() {
 - \`${check}\` ${path}:${line} — ${body}"
       idx=$((idx + 1))
     done
+  fi
+}
+
+# Capture REVIEW_DURABILITY_* into globals for reviewer_loop_history_build_entry (#54).
+capture_durability_mode_globals_from_output() {
+  local script_output="$1"
+  local state
+  state="$(kv_value_default REVIEW_DURABILITY_MODE_STATE "$script_output" "")"
+  if [ -z "$state" ]; then
+    return 0
+  fi
+  durability_mode_recorded=1
+  durability_mode_state="$state"
+  durability_mode_activation_reason="$(kv_value_default REVIEW_DURABILITY_ACTIVATION_REASON "$script_output" "")"
+  durability_mode_unavailable_reason="$(kv_value_default REVIEW_DURABILITY_UNAVAILABLE_REASON "$script_output" "")"
+  durability_mode_families_in_scope="$(kv_value_default REVIEW_DURABILITY_FAMILIES_IN_SCOPE "$script_output" "")"
+  durability_mode_families_na="$(kv_value_default REVIEW_DURABILITY_FAMILIES_NA "$script_output" "[]")"
+  if ! printf '%s' "$durability_mode_families_na" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    durability_mode_families_na='[]'
   fi
 }
 
@@ -9230,6 +9256,7 @@ reviewer_loop_emit_platform_output_contract() {
   if [ "$platform_name" = "local-ai-reviewer" ]; then
     capture_strict_spec_globals_from_output "$platform_output"
     capture_strict_plan_globals_from_output "$platform_output"
+    capture_durability_mode_globals_from_output "$platform_output"
   fi
 }
 
@@ -10717,6 +10744,12 @@ reviewer_loop_history_build_entry() {
     --arg strictPlanApplied "${strict_plan_applied:-}" \
     --arg strictPlanUnknown "${strict_plan_unknown_count:-}" \
     --arg strictPlanReason "${strict_plan_reason:-}" \
+    --argjson durabilityRecorded "${durability_mode_recorded:-0}" \
+    --arg durabilityState "${durability_mode_state:-}" \
+    --arg durabilityActivation "${durability_mode_activation_reason:-}" \
+    --arg durabilityUnavailable "${durability_mode_unavailable_reason:-}" \
+    --arg durabilityFamiliesInScope "${durability_mode_families_in_scope:-}" \
+    --argjson durabilityFamiliesNa "${durability_mode_families_na:-[]}" \
     --argjson localSecondPass "${local_second_pass:-0}" \
     --arg localSecondPassReason "${local_second_pass_reason:-not_required}" \
     --arg localSecondPassFailedHead "${local_second_pass_failed_head_record:-}" \
@@ -10802,6 +10835,26 @@ reviewer_loop_history_build_entry() {
                   end
               elif ($strictPlanState == "unavailable" or $strictPlanState == "not_applicable") then
                 . + { reason: $strictPlanReason }
+              else
+                .
+              end
+          )
+        }
+      else
+        .
+      end
+    | if $durabilityRecorded == 1 then
+        . + {
+          durability_mode: (
+            { state: $durabilityState }
+            | if $durabilityState == "active" then
+                . + {
+                  activation_reason: $durabilityActivation,
+                  families_in_scope: ($durabilityFamiliesInScope | if . == "" then [] else (split(",") | map(select(length > 0))) end),
+                  families_na: $durabilityFamiliesNa
+                }
+              elif $durabilityState == "unavailable" then
+                . + { unavailable_reason: $durabilityUnavailable }
               else
                 .
               end

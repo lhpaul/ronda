@@ -31,7 +31,12 @@ Environment:
                                     REVIEW_STAGE, REVIEW_STAGE_SOURCE,
                                     REVIEW_CHECKLISTS, REVIEW_DOCTRINE_STATE,
                                     REVIEW_DOCTRINE_PATTERN_COUNT,
-                                    REVIEW_DOCTRINE_VERSION, and
+                                    REVIEW_DOCTRINE_VERSION,
+                                    REVIEW_DURABILITY_MODE_STATE,
+                                    REVIEW_DURABILITY_ACTIVATION_REASON,
+                                    REVIEW_DURABILITY_UNAVAILABLE_REASON,
+                                    REVIEW_DURABILITY_FAMILIES_IN_SCOPE,
+                                    REVIEW_DURABILITY_FAMILIES_NA, and
                                     LOCAL_AI_REVIEWER_MODE (ordinary|strict) in env.
   LOCAL_AI_REVIEWER_BACKEND         codex (default) or http. Used only
                                     when LOCAL_AI_REVIEWER_COMMAND is unset.
@@ -690,6 +695,11 @@ strict_dispatch_pass() {
   REVIEW_DOCTRINE_STATE="$review_doctrine_state" \
 REVIEW_DOCTRINE_PATTERN_COUNT="$review_doctrine_pattern_count" \
 REVIEW_DOCTRINE_VERSION="$review_doctrine_version" \
+REVIEW_DURABILITY_MODE_STATE="$review_durability_mode_state" \
+REVIEW_DURABILITY_ACTIVATION_REASON="$review_durability_activation_reason" \
+REVIEW_DURABILITY_UNAVAILABLE_REASON="$review_durability_unavailable_reason" \
+REVIEW_DURABILITY_FAMILIES_IN_SCOPE="$review_durability_families_in_scope" \
+REVIEW_DURABILITY_FAMILIES_NA="$review_durability_families_na" \
 LOCAL_AI_REVIEWER_TIMEOUT="$remaining" \
     run_with_timeout "$remaining" "$strict_stdout_file_local" "$strict_stderr_file_local" \
       sh -c "$LOCAL_AI_REVIEWER_COMMAND"
@@ -991,6 +1001,118 @@ reviewer_doctrine_supply() {
   rm -f "$snapshot"
 }
 
+# ---------------------------------------------------------------------------
+# Durability / idempotency mode supply (#54)
+# ---------------------------------------------------------------------------
+
+reviewer_durability_mode_raw_supply() {
+  local path="docs/workflow/development-workflow/durability-idempotency-review-mode.md"
+  local snapshot bytes
+  local unreadable='{"state":"unreadable","text":""}'
+
+  [ -f "$path" ] || { printf '{"state":"absent","text":""}\n'; return 0; }
+
+  snapshot="$(mktemp)" || { printf '%s\n' "$unreadable"; return 0; }
+  cp "$path" "$snapshot" 2>/dev/null || { rm -f "$snapshot"; printf '%s\n' "$unreadable"; return 0; }
+
+  bytes="$(wc -c <"$snapshot" 2>/dev/null)" || { rm -f "$snapshot"; printf '%s\n' "$unreadable"; return 0; }
+  bytes="${bytes//[[:space:]]/}"
+  [ -n "$bytes" ] || { rm -f "$snapshot"; printf '%s\n' "$unreadable"; return 0; }
+
+  if [ "$bytes" -gt "$REVIEW_DURABILITY_MODE_MAX_BYTES" ]; then
+    rm -f "$snapshot"
+    printf '{"state":"oversized","text":""}\n'
+    return 0
+  fi
+
+  jq -n --rawfile t "$snapshot" '{state:"supplied", text:$t}' 2>/dev/null || {
+    rm -f "$snapshot"; printf '%s\n' "$unreadable"; return 0; }
+  rm -f "$snapshot"
+}
+
+# Resolve + supply for the ordinary pass. Args: stage changed_paths_json
+# Reads RONDA_DURABILITY_MODE and RONDA_DURABILITY_MODE_DEFAULT from the env.
+reviewer_durability_mode_supply() {
+  local stage="${1:-}"
+  local changed_paths_json="${2:-[]}"
+  local override_force=""
+  local override_default=""
+  local raw_json raw_state resolve_json
+  local state activation_reason unavailable_reason
+  local families_in_scope families_na text inactive_reason
+
+  case "${RONDA_DURABILITY_MODE:-}" in
+    on|ON|1|true|TRUE) override_force="on" ;;
+    off|OFF|0|false|FALSE) override_force="off" ;;
+    *) override_force="" ;;
+  esac
+  case "${RONDA_DURABILITY_MODE_DEFAULT:-}" in
+    on|ON|1|true|TRUE) override_default="on" ;;
+    *) override_default="" ;;
+  esac
+
+  # Pre-resolve without loading the document to honor "skip supply when inactive".
+  resolve_json="$(reviewer_durability_mode_resolve "$stage" "$override_default" "$override_force" "$changed_paths_json" "supplied")"
+  state="$(printf '%s\n' "$resolve_json" | jq -r '.state // "inactive"')"
+
+  if [ "$state" = "inactive" ]; then
+    inactive_reason="$(printf '%s\n' "$resolve_json" | jq -r '.inactive_reason // "automatic_rules_did_not_match"')"
+    jq -n \
+      --arg state "inactive" \
+      --arg activation_reason "" \
+      --arg unavailable_reason "" \
+      --arg inactive_reason "$inactive_reason" \
+      --argjson scenario_families_in_scope '[]' \
+      --argjson scenario_families_na '[]' \
+      --arg text "" \
+      '{
+        state: $state,
+        activation_reason: $activation_reason,
+        unavailable_reason: $unavailable_reason,
+        inactive_reason: $inactive_reason,
+        scenario_families_in_scope: $scenario_families_in_scope,
+        scenario_families_na: $scenario_families_na,
+        text: $text,
+        supply_state: "skipped"
+      }'
+    return 0
+  fi
+
+  # Activation matched or override requested — load instructions.
+  raw_json="$(reviewer_durability_mode_raw_supply)"
+  raw_state="$(printf '%s\n' "$raw_json" | jq -r '.state // "unreadable"')"
+  text="$(printf '%s\n' "$raw_json" | jq -r '.text // ""')"
+
+  resolve_json="$(reviewer_durability_mode_resolve "$stage" "$override_default" "$override_force" "$changed_paths_json" "$raw_state")"
+  state="$(printf '%s\n' "$resolve_json" | jq -r '.state // "unavailable"')"
+  activation_reason="$(printf '%s\n' "$resolve_json" | jq -r '.activation_reason // ""')"
+  unavailable_reason="$(printf '%s\n' "$resolve_json" | jq -r '.unavailable_reason // ""')"
+  families_in_scope="$(printf '%s\n' "$resolve_json" | jq -c '.scenario_families_in_scope // []')"
+  families_na="$(printf '%s\n' "$resolve_json" | jq -c '.scenario_families_na // []')"
+
+  if [ "$state" != "active" ]; then
+    text=""
+  fi
+
+  jq -n \
+    --arg state "$state" \
+    --arg activation_reason "$activation_reason" \
+    --arg unavailable_reason "$unavailable_reason" \
+    --argjson scenario_families_in_scope "$families_in_scope" \
+    --argjson scenario_families_na "$families_na" \
+    --arg text "$text" \
+    --arg supply_state "$raw_state" \
+    '{
+      state: $state,
+      activation_reason: $activation_reason,
+      unavailable_reason: $unavailable_reason,
+      scenario_families_in_scope: $scenario_families_in_scope,
+      scenario_families_na: $scenario_families_na,
+      text: $text,
+      supply_state: $supply_state
+    }'
+}
+
 # Effective harness mode: only when HARNESS_MODE=1 AND the script is sourced.
 _HARNESS_MODE_EFFECTIVE=0
 if [ "${HARNESS_MODE:-0}" -eq 1 ] && [ "${BASH_SOURCE[0]}" != "$0" ]; then
@@ -1184,6 +1306,14 @@ review_doctrine_state="$(printf '%s\n' "$doctrine_supply_json" | jq -r '.state /
 review_doctrine_pattern_count="$(printf '%s\n' "$doctrine_supply_json" | jq -r '.pattern_count // 0')"
 review_doctrine_version="$(printf '%s\n' "$doctrine_supply_json" | jq -r '.version // ""')"
 
+durability_supply_json="$(reviewer_durability_mode_supply "$review_stage" "$changed_files_json")"
+review_durability_mode_state="$(printf '%s\n' "$durability_supply_json" | jq -r '.state // "inactive"')"
+review_durability_activation_reason="$(printf '%s\n' "$durability_supply_json" | jq -r '.activation_reason // ""')"
+review_durability_unavailable_reason="$(printf '%s\n' "$durability_supply_json" | jq -r '.unavailable_reason // ""')"
+review_durability_inactive_reason="$(printf '%s\n' "$durability_supply_json" | jq -r '.inactive_reason // ""')"
+review_durability_families_in_scope="$(printf '%s\n' "$durability_supply_json" | jq -r '.scenario_families_in_scope // [] | join(",")')"
+review_durability_families_na="$(printf '%s\n' "$durability_supply_json" | jq -c '.scenario_families_na // []')"
+
 graph_strategy="${LOCAL_AI_REVIEWER_GRAPH_STRATEGY:-none}"
 graph_context="none"
 case "$graph_strategy" in
@@ -1229,6 +1359,7 @@ jq -n \
   --arg review_stage "$review_stage" \
   --arg review_stage_source "$review_stage_source" \
   --argjson doctrine_supply "$doctrine_supply_json" \
+  --argjson durability_supply "$durability_supply_json" \
   --argjson changed_files "$changed_files_json" \
   --argjson review_checklists "$review_checklists_json" \
   '{
@@ -1251,7 +1382,13 @@ jq -n \
     review_doctrine: $doctrine_supply.text,
     review_doctrine_state: $doctrine_supply.state,
     review_doctrine_pattern_count: $doctrine_supply.pattern_count,
-    review_doctrine_version: $doctrine_supply.version
+    review_doctrine_version: $doctrine_supply.version,
+    durability_mode_state: $durability_supply.state,
+    durability_mode_activation_reason: $durability_supply.activation_reason,
+    durability_mode_unavailable_reason: $durability_supply.unavailable_reason,
+    durability_mode_text: $durability_supply.text,
+    durability_mode_families_in_scope: $durability_supply.scenario_families_in_scope,
+    durability_mode_families_na: $durability_supply.scenario_families_na
   }' >"$context_file"
 
 print_kv BASE_BRANCH "$BASE_BRANCH"
@@ -1264,6 +1401,12 @@ print_kv REVIEW_STAGE_SOURCE "$review_stage_source"
 print_kv REVIEW_DOCTRINE_STATE "$review_doctrine_state"
 print_kv REVIEW_DOCTRINE_PATTERN_COUNT "$review_doctrine_pattern_count"
 print_kv REVIEW_DOCTRINE_VERSION "$review_doctrine_version"
+print_kv REVIEW_DURABILITY_MODE_STATE "$review_durability_mode_state"
+print_kv REVIEW_DURABILITY_ACTIVATION_REASON "$review_durability_activation_reason"
+print_kv REVIEW_DURABILITY_UNAVAILABLE_REASON "$review_durability_unavailable_reason"
+[ -n "$review_durability_inactive_reason" ] && print_kv REVIEW_DURABILITY_INACTIVE_REASON "$review_durability_inactive_reason"
+print_kv REVIEW_DURABILITY_FAMILIES_IN_SCOPE "$review_durability_families_in_scope"
+print_kv REVIEW_DURABILITY_FAMILIES_NA "$review_durability_families_na"
 
 # Strict registry state (always emitted after a completed ordinary parse).
 strict_spec_state=""
@@ -1308,6 +1451,11 @@ REVIEW_CHECKLISTS="$review_checklists_csv" \
 REVIEW_DOCTRINE_STATE="$review_doctrine_state" \
 REVIEW_DOCTRINE_PATTERN_COUNT="$review_doctrine_pattern_count" \
 REVIEW_DOCTRINE_VERSION="$review_doctrine_version" \
+REVIEW_DURABILITY_MODE_STATE="$review_durability_mode_state" \
+REVIEW_DURABILITY_ACTIVATION_REASON="$review_durability_activation_reason" \
+REVIEW_DURABILITY_UNAVAILABLE_REASON="$review_durability_unavailable_reason" \
+REVIEW_DURABILITY_FAMILIES_IN_SCOPE="$review_durability_families_in_scope" \
+REVIEW_DURABILITY_FAMILIES_NA="$review_durability_families_na" \
 LOCAL_AI_REVIEWER_TIMEOUT="$TIMEOUT" \
   run_with_timeout "$TIMEOUT" "$stdout_file" "$stderr_file" sh -c "$LOCAL_AI_REVIEWER_COMMAND"
 command_exit=$?
@@ -1601,6 +1749,11 @@ write_evidence_file() {
     --arg review_doctrine_state "$review_doctrine_state" \
     --argjson review_doctrine_pattern_count "$review_doctrine_pattern_count" \
     --arg review_doctrine_version "$review_doctrine_version" \
+    --arg review_durability_mode_state "$review_durability_mode_state" \
+    --arg review_durability_activation_reason "$review_durability_activation_reason" \
+    --arg review_durability_unavailable_reason "$review_durability_unavailable_reason" \
+    --arg review_durability_families_in_scope "$review_durability_families_in_scope" \
+    --argjson review_durability_families_na "$review_durability_families_na" \
     --argjson changed_files "$changed_files_json" \
     --argjson comment_count "$final_comment_count" \
     --argjson blocking_count "$final_blocking_count" \
@@ -1638,6 +1791,13 @@ write_evidence_file() {
         state: $review_doctrine_state,
         pattern_count: $review_doctrine_pattern_count,
         version: $review_doctrine_version
+      },
+      durability_mode: {
+        state: $review_durability_mode_state,
+        activation_reason: $review_durability_activation_reason,
+        unavailable_reason: $review_durability_unavailable_reason,
+        families_in_scope: ($review_durability_families_in_scope | if . == "" then [] else (split(",") | map(select(length > 0))) end),
+        families_na: $review_durability_families_na
       },
       strict_spec: $strict_spec,
       strict_plan: $strict_plan
