@@ -73,6 +73,8 @@ export interface PullRequestMetadata {
   body: string;
   draft: boolean;
   headSha: string;
+  /** Head branch name (for stage resolution). Empty when unavailable. */
+  headBranch: string;
 }
 
 export interface ReviewPassInput {

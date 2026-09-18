@@ -4,6 +4,8 @@ export interface ModelConfig {
   modelName: string;
 }
 
+export type DurabilityModeSetting = "on" | "off" | "default";
+
 export interface RondaConfig {
   model: ModelConfig;
   passTimeoutMs: number;
@@ -12,6 +14,14 @@ export interface RondaConfig {
   maxAuthoritativeDocCount: number;
   /** Maximum combined characters of authoritative doc excerpts in the user prompt. */
   maxAuthoritativeDocChars: number;
+  /**
+   * Operator force for durability/idempotency mode (#54).
+   * `on` / `off` override automatic rules; `default` leaves activation to paths
+   * and {@link durabilityModeDefault}.
+   */
+  durabilityMode: DurabilityModeSetting;
+  /** When true, activate durability mode on every implementation review without automatic match. */
+  durabilityModeDefault: boolean;
   /**
    * Set only by the CLI entrypoint when the operator config file existed but
    * could not be read or parsed. Carries a message naming the file path —

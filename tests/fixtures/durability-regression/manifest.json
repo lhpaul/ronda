@@ -1,0 +1,71 @@
+{
+  "benchmarkId": "issue-54-durability-regression",
+  "shapes": [
+    {
+      "id": "dual_ingress_arbitration",
+      "expectedKeywords": [
+        "dual",
+        "ingress",
+        "arbitration",
+        "duplicate"
+      ],
+      "severity": "blocking",
+      "fixture": "dual_ingress_arbitration.patch.json"
+    },
+    {
+      "id": "fatal_queue_drain",
+      "expectedKeywords": [
+        "fatal",
+        "queue",
+        "drain",
+        "discard"
+      ],
+      "severity": "blocking",
+      "fixture": "fatal_queue_drain.patch.json"
+    },
+    {
+      "id": "delivery_replay_manual",
+      "expectedKeywords": [
+        "replay",
+        "delivery",
+        "dedup",
+        "manual"
+      ],
+      "severity": "blocking",
+      "fixture": "delivery_replay_manual.patch.json"
+    },
+    {
+      "id": "outer_job_timeout",
+      "expectedKeywords": [
+        "timeout",
+        "watchdog",
+        "outer",
+        "budget"
+      ],
+      "severity": "important",
+      "fixture": "outer_job_timeout.patch.json"
+    },
+    {
+      "id": "partial_publish_recovery",
+      "expectedKeywords": [
+        "partial",
+        "publish",
+        "recovery",
+        "duplicate"
+      ],
+      "severity": "blocking",
+      "fixture": "partial_publish_recovery.patch.json"
+    },
+    {
+      "id": "transient_token_retry",
+      "expectedKeywords": [
+        "transient",
+        "token",
+        "retry",
+        "auth"
+      ],
+      "severity": "important",
+      "fixture": "transient_token_retry.patch.json"
+    }
+  ]
+}

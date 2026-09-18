@@ -56,6 +56,7 @@ function createPullRequest(overrides: Partial<PullRequestMetadata> = {}): PullRe
     body: "Description",
     draft: false,
     headSha: HEAD_SHA,
+    headBranch: "feature/test",
     ...overrides,
   };
 }
@@ -255,6 +256,8 @@ function createConfig(overrides: Partial<RondaConfig> = {}): RondaConfig {
     maxPatchChars: 400_000,
     maxAuthoritativeDocCount: DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
     maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+    durabilityMode: "default",
+    durabilityModeDefault: false,
     ...overrides,
   };
 }

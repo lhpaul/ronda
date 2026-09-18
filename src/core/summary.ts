@@ -5,6 +5,7 @@ import {
   type Finding,
   type TriggerMode,
 } from "../domain/review-pass.types.js";
+import type { DurabilityModeResolution } from "../review/durability-mode.js";
 
 export interface SeverityCounts {
   blocking: number;
@@ -25,6 +26,7 @@ export interface ReviewSummaryInput {
   malformedCount: number;
   coercedSeverityCount: number;
   duplicateCount: number;
+  durabilityMode?: DurabilityModeResolution;
 }
 
 export function countBySeverity(findings: Finding[]): SeverityCounts {
@@ -57,6 +59,11 @@ export function buildReviewSummary(input: ReviewSummaryInput): string {
     }`,
   );
   lines.push("");
+
+  if (input.durabilityMode) {
+    lines.push(...renderDurabilityModeSection(input.durabilityMode));
+    lines.push("");
+  }
 
   if (input.findings.length === 0) {
     lines.push("No findings.");
@@ -104,6 +111,28 @@ export function buildReviewSummary(input: ReviewSummaryInput): string {
   }
 
   return lines.join("\n");
+}
+
+function renderDurabilityModeSection(mode: DurabilityModeResolution): string[] {
+  const lines: string[] = ["### Durability mode", ""];
+  lines.push(`State: \`${mode.state}\``);
+  if (mode.state === "active") {
+    lines.push(`Activation reason: \`${mode.activationReason}\``);
+    const families = mode.scenarioFamiliesInScope.join(", ") || "(none)";
+    lines.push(`Scenario families in scope: ${families}`);
+    if (mode.scenarioFamiliesNa.length > 0) {
+      for (const entry of mode.scenarioFamiliesNa) {
+        lines.push(`- N/A \`${entry.family}\`: ${entry.reason}`);
+      }
+    }
+  } else if (mode.state === "unavailable") {
+    lines.push(`Unavailable reason: \`${mode.unavailableReason}\``);
+  } else if (mode.inactiveReason === "automatic_rules_did_not_match") {
+    lines.push("Automatic activation rules did not match changed surfaces.");
+  } else if (mode.inactiveReason === "operator_override") {
+    lines.push("Operator override disabled the mode for this run.");
+  }
+  return lines;
 }
 
 export interface CheckRunOutputInput {

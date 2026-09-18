@@ -29,6 +29,11 @@ import type {
 } from "../domain/review-pass.types.js";
 import { buildCheckRunOutput, buildReviewSummary, countBySeverity } from "./summary.js";
 import { createPassDeadline } from "./pass-deadline.js";
+import {
+  DURABILITY_MODE_DOCUMENT_PATH,
+  resolveDurabilityMode,
+  type DurabilityModeResolution,
+} from "../review/durability-mode.js";
 
 export class ReviewPublishedCheckRunError extends Error {
   constructor(
@@ -171,6 +176,57 @@ export async function runReviewPass(
     );
 
     const changedPaths = collectChangedPaths(changedFiles);
+    const preResolve = resolveDurabilityMode({
+      headBranch: pr.headBranch,
+      changedPaths,
+      durabilityMode: deps.config.durabilityMode,
+      durabilityModeDefault: deps.config.durabilityModeDefault,
+      modeDocumentText: "placeholder",
+    });
+
+    let durabilityMode: DurabilityModeResolution;
+    if (preResolve.state === "inactive") {
+      durabilityMode = {
+        ...preResolve,
+        modeText: "",
+      };
+    } else {
+      let modeDocumentText: string | null = null;
+      let modeDocumentUnreadable = false;
+      try {
+        const loaded = await deps.github.readFileAtRef(
+          input.owner,
+          input.repo,
+          DURABILITY_MODE_DOCUMENT_PATH,
+          pr.headSha,
+          deadline.signal,
+        );
+        modeDocumentText = loaded ?? null;
+      } catch (error) {
+        const message = String(error);
+        if (/404|Not Found|does not exist/i.test(message)) {
+          modeDocumentText = null;
+        } else {
+          modeDocumentUnreadable = true;
+          deps.logger.event("durability_mode_document_unreadable", { message });
+        }
+      }
+      durabilityMode = resolveDurabilityMode({
+        headBranch: pr.headBranch,
+        changedPaths,
+        durabilityMode: deps.config.durabilityMode,
+        durabilityModeDefault: deps.config.durabilityModeDefault,
+        modeDocumentText,
+        modeDocumentUnreadable,
+      });
+    }
+    deps.logger.event("durability_mode_resolved", {
+      state: durabilityMode.state,
+      activationReason: durabilityMode.activationReason,
+      unavailableReason: durabilityMode.unavailableReason,
+      familiesInScope: durabilityMode.scenarioFamiliesInScope,
+    });
+
     const phase1 = selectAuthoritativeDocCandidates(changedPaths);
     const candidatesWithText = [];
     for (const candidate of phase1.candidates) {
@@ -217,6 +273,7 @@ export async function runReviewPass(
       authoritativeDocs: phase2.selected,
       maxAuthoritativeDocCount: deps.config.maxAuthoritativeDocCount,
       maxAuthoritativeDocChars: deps.config.maxAuthoritativeDocChars,
+      durabilityMode,
     });
 
     const raw = await deps.model.complete(prompt, deadline.signal);
@@ -268,6 +325,7 @@ export async function runReviewPass(
       malformedCount: parsed.malformedCount,
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
+      durabilityMode,
     });
     const fallbackSummaryBody = buildReviewSummary({
       changedFileCount: changedFiles.length,
@@ -281,6 +339,7 @@ export async function runReviewPass(
       malformedCount: parsed.malformedCount,
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
+      durabilityMode,
     });
 
     deadline.markPublishing();
