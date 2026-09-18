@@ -473,25 +473,29 @@ filter_strict_spec_parsed_response() {
 
   printf '%s\n' "$parsed" | jq -c --argjson documents "$documents_json" '
     ($documents | map(.path)) as $spec_docs
-    | .findings as $all
-    | ($all | map(
-        . as $f
-        | if ($f.check != "unknown")
-            and (($f.path | type) != "string" or ($f.path | length) == 0
-                 or ($spec_docs | index($f.path)) == null) then
-            $f + {check: "unknown", remapped: true}
-          else
-            $f
-          end
-      )) as $processed
-    | ($processed | map(select(.remapped == true)) | length) as $remapped
-    | ($processed | map(del(.remapped))) as $kept
-    | . + {
-        count: ($kept | map(select(.check != "unknown")) | length),
-        checks: ($kept | map(select(.check != "unknown") | .check) | unique | join(",")),
-        unknown_count: ((.unknown_count // 0) + $remapped),
-        findings: $kept
-      }
+    | if ($spec_docs | length) == 0 then
+        .
+      else
+        .findings as $all
+        | ($all | map(
+            . as $f
+            | if ($f.check != "unknown")
+                and (($f.path | type) != "string" or ($f.path | length) == 0
+                     or ($spec_docs | index($f.path)) == null) then
+                $f + {check: "unknown", remapped: true}
+              else
+                $f
+              end
+          )) as $processed
+        | ($processed | map(select(.remapped == true)) | length) as $remapped
+        | ($processed | map(del(.remapped))) as $kept
+        | . + {
+            count: ($kept | map(select(.check != "unknown")) | length),
+            checks: ($kept | map(select(.check != "unknown") | .check) | unique | join(",")),
+            unknown_count: ((.unknown_count // 0) + $remapped),
+            findings: $kept
+          }
+      end
   ' 2>/dev/null
 }
 
@@ -1558,9 +1562,10 @@ parse_result="$(
       elif (.comments? | type) == "array" then .comments
       elif (.issues? | type) == "array" then .issues
       else [] end;
+    def strip_text: gsub("^\\s+|\\s+$"; "");
     def text_value:
       [.body?, .message?, .description?, .title?, .summary?, .comment?, .text?]
-      | map(select(type == "string" and length > 0)) | .[0] // "";
+      | map(select(type == "string") | strip_text | select(length > 0)) | .[0] // "";
     def path_value:
       [.path?, .file?, .filename?, .filepath?, .location.path?]
       | map(select(type == "string" and length > 0)) | .[0] // "";
@@ -1583,8 +1588,10 @@ parse_result="$(
       or (scope_text | test("advisory|scope.expanding|decision.bound|optional|polish"));
     def blocking:
       (out_of_scope | not)
+      and (text_value | length > 0)
       and (
-        (severity_text | test("critical|blocker|blocking|important|error|bug|security|vulnerability|high|major|must.fix|needs.fixes|changes.requested"))
+        (.clear_in_scope? == true)
+        or (severity_text | test("critical|blocker|blocking|important|error|bug|security|vulnerability|high|major|must.fix|needs.fixes|changes.requested"))
         or (scope_text | test("must.fix|needs.fixes"))
       );
     def advisory:
@@ -1655,6 +1662,42 @@ comment_count="${comment_count:-0}"
 blocking_count="${blocking_count:-0}"
 suggestion_count="${suggestion_count:-0}"
 reason="${reason:-}"
+
+if [ "$result" = "needs_fixes" ] && [ "$comment_count" -eq 0 ]; then
+  print_result escalate 0 0 0 malformed_output malformed_output
+  exit 2
+fi
+
+if printf '%s\n' "$command_stdout" | jq -e '
+  def strip_text: gsub("^\\s+|\\s+$"; "");
+  def text_value:
+    [.body?, .message?, .description?, .title?, .summary?, .comment?, .text?]
+    | map(select(type == "string") | strip_text | select(length > 0)) | .[0] // "";
+  def severity_text:
+    [.severity?, .level?, .priority?, .type?, .classification?, .kind?, .result?]
+    | map(select(type == "string")) | join(" ") | ascii_downcase;
+  def scope_text:
+    [.scope?, .disposition?, .policy?, .category?]
+    | map(select(type == "string")) | join(" ") | ascii_downcase;
+  def out_of_scope:
+    (.clear_in_scope? == false)
+    or (.in_scope? == false)
+    or (scope_text | test("out.of.scope|out.of-scope|not.in.scope|not in scope"));
+  def severity_would_block:
+    (out_of_scope | not)
+    and (
+      (severity_text | test("critical|blocker|blocking|important|error|bug|security|vulnerability|high|major|must.fix|needs.fixes|changes.requested"))
+      or (scope_text | test("must.fix|needs.fixes"))
+    );
+  (if (.findings? | type) == "array" then .findings
+   elif (.comments? | type) == "array" then .comments
+   elif (.issues? | type) == "array" then .issues
+   else [] end)
+  | any(severity_would_block and (text_value | length == 0))
+' >/dev/null 2>&1; then
+  print_result escalate 0 0 0 malformed_output malformed_output
+  exit 2
+fi
 
 # --- Strict registry passes (at most one dispatches; never merges into blocking) ---
 strict_run_all_registry_entries

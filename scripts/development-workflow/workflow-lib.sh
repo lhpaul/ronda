@@ -3529,7 +3529,7 @@ reviewer_durability_path_is_sensitive() {
 
   # Nested webhook modules (**/webhook-*.ts, **/webhook/*.ts)
   case "$path" in
-    */webhook/*.ts|*/webhook/*/*.ts)
+    */webhook/*.ts)
       return 0
       ;;
     */webhook-*.ts|webhook-*.ts)
