@@ -21,6 +21,25 @@ else
   readonly REVIEW_DOCTRINE_MAX_BYTES=12000
 fi
 
+# Durability/idempotency mode instruction size bound (#54).
+# One source of truth for the mode document linter and reviewer supply.
+if declare -p REVIEW_DURABILITY_MODE_MAX_BYTES >/dev/null 2>&1; then
+  case "$(declare -p REVIEW_DURABILITY_MODE_MAX_BYTES 2>/dev/null || true)" in
+    *"-r"*)
+      if [ "${REVIEW_DURABILITY_MODE_MAX_BYTES}" != "16000" ]; then
+        echo "ERROR: REVIEW_DURABILITY_MODE_MAX_BYTES is readonly at ${REVIEW_DURABILITY_MODE_MAX_BYTES}; #54 requires 16000." >&2
+        return 1
+      fi
+      ;;
+    *)
+      unset REVIEW_DURABILITY_MODE_MAX_BYTES
+      readonly REVIEW_DURABILITY_MODE_MAX_BYTES=16000
+      ;;
+  esac
+else
+  readonly REVIEW_DURABILITY_MODE_MAX_BYTES=16000
+fi
+
 workflow_script_dir() {
   if [[ -z "${BASH_SOURCE[0]:-}" ]]; then
     printf 'ERROR: BASH_SOURCE[0] is unset — source workflow-lib.sh from a Bash script or via:\n  bash -c "source scripts/development-workflow/workflow-lib.sh"\n' >&2
