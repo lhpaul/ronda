@@ -18608,6 +18608,24 @@ unset pr_number branch_name MOCK_GH_HEAD_SHA MOCK_GH_UPDATED_AT
 
 echo "=== Area 64 complete ==="
 
+
+# #54 durability_mode ledger object
+_54_platform_output="RESULT=clean
+COMMENT_COUNT=0
+BLOCKING_COUNT=0
+SUGGESTION_COUNT=0
+REVIEW_DURABILITY_MODE_STATE=active
+REVIEW_DURABILITY_ACTIVATION_REASON=automatic_match
+REVIEW_DURABILITY_UNAVAILABLE_REASON=
+REVIEW_DURABILITY_FAMILIES_IN_SCOPE=restart_recovery,retry_semantics
+REVIEW_DURABILITY_FAMILIES_NA=[]
+"
+capture_durability_mode_globals_from_output "$_54_platform_output"
+_54_entry="$(reviewer_loop_history_build_entry 1 clean "" "local-ai-reviewer" 0 0 0 "" 0 0 "")"
+run_test "durability_mode_ledger_state" "active" "$(printf '%s' "$_54_entry" | jq -r '.durability_mode.state // empty')"
+run_test "durability_mode_ledger_reason" "automatic_match" "$(printf '%s' "$_54_entry" | jq -r '.durability_mode.activation_reason // empty')"
+
+
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------

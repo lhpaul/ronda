@@ -1,0 +1,19 @@
+{
+  "shape": "outer_job_timeout",
+  "expectedKeywords": [
+    "timeout",
+    "watchdog",
+    "outer",
+    "budget"
+  ],
+  "severity": "important",
+  "changedFiles": [
+    {
+      "path": "src/fixtures/outer_job_timeout.ts",
+      "status": "added",
+      "additions": 5,
+      "deletions": 0,
+      "patch": "@@ -0,0 +1 @@\n+export async function processDelivery(job) {\n+  // no outer AbortSignal / timeout around the long review pass\n+  await runReviewPass(job);\n+}\n+"
+    }
+  ]
+}

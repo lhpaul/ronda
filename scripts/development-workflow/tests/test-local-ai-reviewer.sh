@@ -1915,6 +1915,51 @@ run_reviewer "$MOCK_BIN:$PATH" --repo-root "$VALID_REPO_ROOT"
 run_test "1655_s16_evidence_has_plan" "true" "$(jq -r 'has("strict_plan")' "$EVIDENCE_FILE")"
 run_test "1655_s16_evidence_plan_state" "not_applicable" "$(jq -r '.strict_plan.state' "$EVIDENCE_FILE")"
 
+
+# ---------------------------------------------------------------------------
+# #54 durability mode resolve / supply
+# ---------------------------------------------------------------------------
+# shellcheck disable=SC1091
+HARNESS_MODE=1 source "$REPO_ROOT/scripts/development-workflow/local-ai-reviewer.sh"
+
+_54_row1="$(reviewer_durability_mode_resolve "spec" "" "" '["src/webhook/a.ts"]' "supplied")"
+run_test "durability_mode_row1_spec_inactive" "inactive" "$(printf '%s' "$_54_row1" | jq -r '.state')"
+
+_54_row6="$(reviewer_durability_mode_resolve "implementation" "" "" '["src/webhook/a.ts"]' "supplied")"
+run_test "durability_mode_row6_auto_active" "active" "$(printf '%s' "$_54_row6" | jq -r '.state')"
+run_test "durability_mode_row6_reason" "automatic_match" "$(printf '%s' "$_54_row6" | jq -r '.activation_reason')"
+
+_54_row7="$(reviewer_durability_mode_resolve "implementation" "" "" '["docs/project/a.md"]' "supplied")"
+run_test "durability_mode_row7_inactive" "inactive" "$(printf '%s' "$_54_row7" | jq -r '.state')"
+
+_54_row2="$(reviewer_durability_mode_resolve "implementation" "" "on" '["docs/a.md"]' "absent")"
+run_test "durability_mode_row2_unavailable" "unavailable" "$(printf '%s' "$_54_row2" | jq -r '.state')"
+
+_54_row3="$(reviewer_durability_mode_resolve "implementation" "" "on" '["docs/a.md"]' "supplied")"
+run_test "durability_mode_row3_override" "operator_override" "$(printf '%s' "$_54_row3" | jq -r '.activation_reason')"
+
+_54_row5="$(reviewer_durability_mode_resolve "implementation" "" "" '["src/webhook/a.ts"]' "absent")"
+run_test "durability_mode_row5_unavailable" "unavailable" "$(printf '%s' "$_54_row5" | jq -r '.state')"
+
+_54_row8="$(reviewer_durability_mode_resolve "implementation" "on" "" '["docs/a.md"]' "supplied")"
+run_test "durability_mode_row8_default" "operator_default" "$(printf '%s' "$_54_row8" | jq -r '.activation_reason')"
+
+_54_supply_active="$(reviewer_durability_mode_supply "implementation" '["src/webhook/a.ts"]')"
+run_test "durability_supply_active" "active" "$(printf '%s' "$_54_supply_active" | jq -r '.state')"
+_54_text_len="$(printf '%s' "$_54_supply_active" | jq -r '.text | length')"
+if [ "$_54_text_len" -gt 100 ]; then
+  run_test "durability_supply_text_present" "1" "1"
+else
+  run_test "durability_supply_text_present" "1" "0"
+fi
+
+_54_supply_inactive="$(reviewer_durability_mode_supply "implementation" '["docs/project/a.md"]')"
+run_test "durability_supply_inactive_skipped" "skipped" "$(printf '%s' "$_54_supply_inactive" | jq -r '.supply_state')"
+
+_54_families_na="$(reviewer_durability_mode_supply "implementation" '["src/github/review-publisher.ts"]')"
+_54_na_family="$(printf '%s' "$_54_families_na" | jq -r '.scenario_families_na[0].family // empty')"
+run_test "durability_families_na_without_webhook" "duplicate_delivery" "$_54_na_family"
+
 if [ "$FAIL_COUNT" -ne 0 ]; then
   echo "FAIL: $FAIL_COUNT test(s) failed"
   exit 1

@@ -1,4 +1,5 @@
 import type { ChangedFile } from "../domain/review-pass.types.js";
+import type { DurabilityModeResolution } from "../review/durability-mode.js";
 
 export interface AuthoritativeDocExcerpt {
   id: string;
@@ -15,6 +16,8 @@ export interface BuildReviewPromptInput {
   authoritativeDocs?: AuthoritativeDocExcerpt[];
   maxAuthoritativeDocCount?: number;
   maxAuthoritativeDocChars?: number;
+  /** When present and active, append durability mode instructions to the system prompt. */
+  durabilityMode?: DurabilityModeResolution;
 }
 
 export interface ReviewPrompt {
@@ -91,6 +94,26 @@ function renderAuthoritativeDocSections(docs: AuthoritativeDocExcerpt[]): string
   return sections;
 }
 
+function appendDurabilityModeInstructions(
+  systemPrompt: string,
+  durabilityMode: DurabilityModeResolution | undefined,
+): string {
+  if (!durabilityMode || durabilityMode.state !== "active" || !durabilityMode.modeText.trim()) {
+    return systemPrompt;
+  }
+  const families = durabilityMode.scenarioFamiliesInScope.join(", ");
+  return [
+    systemPrompt,
+    "",
+    "## Durability and idempotency mode",
+    `Activation reason: ${durabilityMode.activationReason}.`,
+    `Scenario families in scope: ${families || "(none)"}.`,
+    "Apply the following mode document. Keep findings concise and actionable — do not paste a family checklist into comments.",
+    "",
+    durabilityMode.modeText.trim(),
+  ].join("\n");
+}
+
 /**
  * Composes the system instruction and the user message (title, body, and
  * every changed file's path, status, and patch). Fails fast with
@@ -127,5 +150,8 @@ export function buildReviewPrompt(input: BuildReviewPromptInput): ReviewPrompt {
     ...docSections,
   ].join("\n");
 
-  return { systemPrompt: SYSTEM_PROMPT, userPrompt };
+  return {
+    systemPrompt: appendDurabilityModeInstructions(SYSTEM_PROMPT, input.durabilityMode),
+    userPrompt,
+  };
 }

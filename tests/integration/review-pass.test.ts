@@ -36,7 +36,7 @@ test("integration: a ready pull request with one finding produces exact review a
 
     const github: GithubOperations = {
       async readPullRequest() {
-        return { number: 4, title: "Fix bug", body: "See changes", draft: false, headSha };
+        return { number: 4, title: "Fix bug", body: "See changes", draft: false, headSha, headBranch: "feature/test" };
       },
       async readChangedFiles() {
         return [
@@ -80,6 +80,8 @@ test("integration: a ready pull request with one finding produces exact review a
           maxPatchChars: 400_000,
           maxAuthoritativeDocCount: DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
           maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+          durabilityMode: "default",
+          durabilityModeDefault: false,
         },
         // A fixed clock makes durationMs deterministic (always 0) so the
         // rendered summary/check-run text is reproducible for exact assertions.
@@ -113,6 +115,11 @@ test("integration: a ready pull request with one finding produces exact review a
         "Model: mock-model",
         "Duration: 0s",
         "Trigger: Automatic",
+        "",
+        "### Durability mode",
+        "",
+        "State: `inactive`",
+        "Automatic activation rules did not match changed surfaces.",
         "",
         "### Findings by severity",
         "",
@@ -169,7 +176,7 @@ test("integration: multiple findings in the same changed file remain distinct in
     const publishedCheckRuns: PublishCheckRunInput[] = [];
     const github: GithubOperations = {
       async readPullRequest() {
-        return { number: 5, title: "Add median", body: "See changes", draft: false, headSha };
+        return { number: 5, title: "Add median", body: "See changes", draft: false, headSha, headBranch: "feature/test" };
       },
       async readChangedFiles() {
         return [
@@ -212,6 +219,8 @@ test("integration: multiple findings in the same changed file remain distinct in
           maxPatchChars: 400_000,
           maxAuthoritativeDocCount: DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
           maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+          durabilityMode: "default",
+          durabilityModeDefault: false,
         },
         clock: { now: () => 0, isoNow: () => "2026-01-01T00:00:00.000Z" },
         logger: { event: () => undefined },
@@ -246,7 +255,7 @@ test("integration: webhook file changes attach fetched authoritative docs to the
     let capturedUserPrompt = "";
     const github: GithubOperations = {
       async readPullRequest() {
-        return { number: 6, title: "Webhook tweak", body: "", draft: false, headSha };
+        return { number: 6, title: "Webhook tweak", body: "", draft: false, headSha, headBranch: "feature/test" };
       },
       async readChangedFiles() {
         return [
@@ -291,6 +300,8 @@ test("integration: webhook file changes attach fetched authoritative docs to the
           maxPatchChars: 400_000,
           maxAuthoritativeDocCount: DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
           maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+          durabilityMode: "default",
+          durabilityModeDefault: false,
         },
         clock: { now: () => 0, isoNow: () => "2026-01-01T00:00:00.000Z" },
         logger: { event: () => undefined },

@@ -94,3 +94,45 @@ test("review prompt still fails instead of truncating over-budget patch text", (
     ChangesTooLargeError,
   );
 });
+
+test("review prompt appends durability mode instructions when active", () => {
+  const prompt = buildReviewPrompt({
+    title: "Webhook change",
+    body: "",
+    changedFiles: [],
+    maxPatchChars: 400_000,
+    durabilityMode: {
+      state: "active",
+      activationReason: "automatic_match",
+      unavailableReason: "",
+      scenarioFamiliesInScope: ["restart_recovery", "duplicate_delivery"],
+      scenarioFamiliesNa: [],
+      modeText: "### Restart and recovery\nCheck crash paths.",
+    },
+  });
+
+  assert.match(prompt.systemPrompt, /Durability and idempotency mode/);
+  assert.match(prompt.systemPrompt, /automatic_match/);
+  assert.match(prompt.systemPrompt, /restart_recovery/);
+  assert.match(prompt.systemPrompt, /Check crash paths/);
+});
+
+test("review prompt omits durability instructions when inactive", () => {
+  const prompt = buildReviewPrompt({
+    title: "Docs only",
+    body: "",
+    changedFiles: [],
+    maxPatchChars: 400_000,
+    durabilityMode: {
+      state: "inactive",
+      activationReason: "",
+      unavailableReason: "",
+      inactiveReason: "automatic_rules_did_not_match",
+      scenarioFamiliesInScope: [],
+      scenarioFamiliesNa: [],
+      modeText: "",
+    },
+  });
+
+  assert.doesNotMatch(prompt.systemPrompt, /Durability and idempotency mode/);
+});
