@@ -440,6 +440,86 @@ test("AC12 / AC41 automatic source identity updates; distinct source ids separat
   assert.notEqual(second.findings[0]?.record?.id, written.id);
 });
 
+test("automatic multi-finding capture requires per-finding categories", () => {
+  const refused = runCaptureDecisionGate({
+    path: "automatic",
+    evidence: evidence(),
+    namedReviewer: "codex",
+    automatic: {
+      supported: true,
+      presentOnPullRequest: true,
+      unparseableOnCurrentHead: false,
+      findingsOnCurrentHead: [
+        {
+          sourceId: "c:0",
+          externalReviewer: "codex",
+          reviewedHeadSha: HEAD_A,
+          location: "a.ts:1",
+          locationUnresolved: false,
+          title: "One",
+          text: "Body one",
+        },
+        {
+          sourceId: "c:1",
+          externalReviewer: "codex",
+          reviewedHeadSha: HEAD_A,
+          location: "b.ts:2",
+          locationUnresolved: false,
+          title: "Two",
+          text: "Body two",
+        },
+      ],
+    },
+    automaticDefaults: { affectedCategory: "correctness" },
+    existingRecords: [],
+    corpusForHead: () => emptyCorpus(),
+    mergeBaseForHead: () => "ee",
+  });
+  assert.equal(refused.wholeCapture?.outcome, "capture_refused");
+  assert.match(refused.wholeCapture?.reason ?? "", /--categories/);
+
+  const withCategories = runCaptureDecisionGate({
+    path: "automatic",
+    evidence: evidence(),
+    namedReviewer: "codex",
+    automatic: {
+      supported: true,
+      presentOnPullRequest: true,
+      unparseableOnCurrentHead: false,
+      findingsOnCurrentHead: [
+        {
+          sourceId: "c:0",
+          externalReviewer: "codex",
+          reviewedHeadSha: HEAD_A,
+          location: "a.ts:1",
+          locationUnresolved: false,
+          title: "One",
+          text: "Body one",
+        },
+        {
+          sourceId: "c:1",
+          externalReviewer: "codex",
+          reviewedHeadSha: HEAD_A,
+          location: "b.ts:2",
+          locationUnresolved: false,
+          title: "Two",
+          text: "Body two",
+        },
+      ],
+    },
+    automaticPerFinding: [
+      { affectedCategory: "correctness" },
+      { affectedCategory: "security" },
+    ],
+    existingRecords: [],
+    corpusForHead: () => emptyCorpus(),
+    mergeBaseForHead: () => "ee",
+  });
+  assert.equal(withCategories.findings.length, 2);
+  assert.equal(withCategories.findings[0]?.record?.affectedCategory, "correctness");
+  assert.equal(withCategories.findings[1]?.record?.affectedCategory, "security");
+});
+
 test("AC30 / AC52 manual identity: case/whitespace update; location case-sensitive", () => {
   const first = runCaptureDecisionGate(baseManual());
   const written = first.findings[0]!.record!;

@@ -69,13 +69,22 @@ export interface CaptureGateInput {
   manualFinding?: CaptureFindingInput;
   /**
    * Automatic path: operator-supplied category (and optional judgements)
-   * applied to every finding. Category is required (AC46).
+   * for a single extracted finding. Category is required (AC46).
    */
   automaticDefaults?: {
     affectedCategory?: string;
     verdict?: string;
     intendedFollowUp?: string;
   };
+  /**
+   * Automatic path: one entry per extracted finding when multiple findings
+   * are present (Use Case 1 step 3). Length must match finding count.
+   */
+  automaticPerFinding?: Array<{
+    affectedCategory?: string;
+    verdict?: string;
+    intendedFollowUp?: string;
+  }>;
   existingRecords: ExternalReviewMissRecord[];
   corpusForHead: (reviewedHeadSha: string) => SourceScanCorpus;
   mergeBaseForHead: (reviewedHeadSha: string) => string;
@@ -580,6 +589,39 @@ function processOneFinding(input: {
   return { outcome: "record_updated", record };
 }
 
+type AutomaticFindingJudgement = {
+  affectedCategory?: string;
+  verdict?: string;
+  intendedFollowUp?: string;
+};
+
+function resolveAutomaticFindingJudgements(input: {
+  count: number;
+  defaults?: AutomaticFindingJudgement;
+  perFinding?: AutomaticFindingJudgement[];
+}): AutomaticFindingJudgement[] | { refuse: string } {
+  if (input.count === 0) {
+    return [];
+  }
+  if (input.count === 1) {
+    const single = input.perFinding?.[0] ?? input.defaults ?? {};
+    return [single];
+  }
+  if (!input.perFinding || input.perFinding.length !== input.count) {
+    return {
+      refuse: `Capture refused: automatic capture found ${input.count} findings; supply --categories with ${input.count} comma-separated values (one affected category per finding). Optional --verdicts and --follow-ups must match the same count when provided.`,
+    };
+  }
+  for (let index = 0; index < input.perFinding.length; index += 1) {
+    if (!input.perFinding[index]?.affectedCategory?.trim()) {
+      return {
+        refuse: `Capture refused: finding ${index + 1} of ${input.count} is missing an affected category.`,
+      };
+    }
+  }
+  return input.perFinding;
+}
+
 /**
  * Four-stage Capture Decision Gate. Stage 1 is whole-capture; Stages 2–4 are
  * per finding.
@@ -596,25 +638,32 @@ export function runCaptureDecisionGate(
   }
 
   if (input.path === "automatic") {
-    const defaults = input.automaticDefaults ?? {};
-    const findings = (input.automatic?.findingsOnCurrentHead ?? []).map(
-      (candidate) =>
-        processOneFinding({
-          gate: input,
-          captureSource: "automatic",
-          finding: {
-            externalReviewer: candidate.externalReviewer || input.namedReviewer,
-            location: candidate.location,
-            locationUnresolved: candidate.locationUnresolved,
-            title: candidate.title,
-            text: candidate.text,
-            affectedCategory: defaults.affectedCategory,
-            verdict: defaults.verdict,
-            intendedFollowUp: defaults.intendedFollowUp,
-            reviewedHeadSha: candidate.reviewedHeadSha || input.evidence.currentHeadSha,
-            sourceId: candidate.sourceId,
-          },
-        }),
+    const candidates = input.automatic?.findingsOnCurrentHead ?? [];
+    const judgements = resolveAutomaticFindingJudgements({
+      count: candidates.length,
+      defaults: input.automaticDefaults,
+      perFinding: input.automaticPerFinding,
+    });
+    if ("refuse" in judgements) {
+      return { wholeCapture: refuse(judgements.refuse), findings: [] };
+    }
+    const findings = candidates.map((candidate, index) =>
+      processOneFinding({
+        gate: input,
+        captureSource: "automatic",
+        finding: {
+          externalReviewer: candidate.externalReviewer || input.namedReviewer,
+          location: candidate.location,
+          locationUnresolved: candidate.locationUnresolved,
+          title: candidate.title,
+          text: candidate.text,
+          affectedCategory: judgements[index]?.affectedCategory,
+          verdict: judgements[index]?.verdict,
+          intendedFollowUp: judgements[index]?.intendedFollowUp,
+          reviewedHeadSha: candidate.reviewedHeadSha || input.evidence.currentHeadSha,
+          sourceId: candidate.sourceId,
+        },
+      }),
     );
     return { findings };
   }

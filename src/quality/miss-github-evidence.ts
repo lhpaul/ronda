@@ -652,6 +652,12 @@ export function readSourceScanCorpus(input: {
     files?: Array<{ filename?: string; patch?: string; status?: string }>;
   };
 
+  if ((compare.files?.length ?? 0) >= 300) {
+    throw new Error(
+      "Incomplete diff evidence: compare response reached GitHub's 300-file limit; capture refused.",
+    );
+  }
+
   const diffParts: string[] = [];
   const changedFileContents: string[] = [];
 

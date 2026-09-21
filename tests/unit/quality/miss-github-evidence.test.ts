@@ -89,6 +89,33 @@ test("compare entries without patch refuse capture (incomplete diff evidence)", 
   );
 });
 
+test("compare responses at the 300-file cap refuse capture", () => {
+  const files = Array.from({ length: 300 }, (_, index) => ({
+    filename: `src/file-${index}.ts`,
+    patch: "+line",
+    status: "modified",
+  }));
+  const runGh = (args: string[]): string => {
+    const joined = args.join(" ");
+    if (joined.includes("/compare/") && !joined.includes("--jq")) {
+      return JSON.stringify({ files });
+    }
+    throw new Error(`Unexpected gh args: ${joined}`);
+  };
+
+  assert.throws(
+    () =>
+      readSourceScanCorpus({
+        repository: "lhpaul/ronda",
+        pullNumber: 53,
+        reviewedHeadSha: HEAD_A,
+        mergeBaseSha: BASE,
+        runGh,
+      }),
+    /300-file limit/,
+  );
+});
+
 test("parseGhPaginatedJsonArray slurps concatenated page arrays", async () => {
   const { parseGhPaginatedJsonArray } = await import(
     "../../../src/quality/miss-github-evidence.js"

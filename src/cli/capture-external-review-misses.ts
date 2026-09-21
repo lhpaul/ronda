@@ -45,8 +45,11 @@ interface CommonOptions {
 interface AutomaticOptions extends CommonOptions {
   command: "capture-automatic";
   category?: string;
+  categories?: string[];
   verdict?: string;
+  verdicts?: string[];
   followUp?: string;
+  followUps?: string[];
 }
 
 interface ManualOptions extends CommonOptions {
@@ -97,6 +100,7 @@ export const CAPTURE_HELP = `Capture external-review misses as Ronda eval record
 
 Usage:
   npm run quality:misses -- capture --pr <n> --reviewer <name> --category <cat> [options]
+  npm run quality:misses -- capture ... --categories <cat1,cat2,...> [--verdicts v1,v2] [--follow-ups f1,f2]
   npm run quality:misses -- capture-manual --pr <n> --reviewer <name> --location <loc> --text <text> --category <cat> [options]
   npm run quality:misses -- read [--id <id>] [--dir <path>]
   npm run quality:misses -- adjudicate --id <id> --rationale <text> [--verdict <v>] [--follow-up <f>]
@@ -151,7 +155,7 @@ function parseArgs(argv: string[]): CliOptions {
     throw new Error(`Unknown command: ${commandToken}`);
   }
 
-  const options: Record<string, string | boolean | undefined> = {
+  const options: Record<string, string | string[] | boolean | undefined> = {
     dir: DEFAULT_MISS_DIRECTORY,
   };
 
@@ -170,11 +174,20 @@ function parseArgs(argv: string[]): CliOptions {
     } else if (arg === "--category" && next) {
       options.category = next;
       index += 1;
+    } else if (arg === "--categories" && next) {
+      options.categories = next.split(",").map((value) => value.trim());
+      index += 1;
     } else if (arg === "--verdict" && next) {
       options.verdict = next;
       index += 1;
+    } else if (arg === "--verdicts" && next) {
+      options.verdicts = next.split(",").map((value) => value.trim());
+      index += 1;
     } else if ((arg === "--follow-up" || arg === "--intended-follow-up") && next) {
       options.followUp = next;
+      index += 1;
+    } else if (arg === "--follow-ups" && next) {
+      options.followUps = next.split(",").map((value) => value.trim());
       index += 1;
     } else if (arg === "--location" && next) {
       options.location = next;
@@ -215,8 +228,11 @@ function parseArgs(argv: string[]): CliOptions {
       repository: options.repository as string | undefined,
       reviewer: options.reviewer as string | undefined,
       category: options.category as string | undefined,
+      categories: options.categories as string[] | undefined,
       verdict: options.verdict as string | undefined,
+      verdicts: options.verdicts as string[] | undefined,
       followUp: options.followUp as string | undefined,
+      followUps: options.followUps as string[] | undefined,
       dir,
       runGh,
     };
@@ -280,6 +296,31 @@ function requirePr(pr: number | undefined): number {
     throw new Error("--pr is required and must be a positive integer");
   }
   return pr;
+}
+
+function buildAutomaticPerFinding(options: AutomaticOptions): Array<{
+  affectedCategory?: string;
+  verdict?: string;
+  intendedFollowUp?: string;
+}> | undefined {
+  if (options.categories && options.categories.length > 0) {
+    const count = options.categories.length;
+    if (options.verdicts && options.verdicts.length !== count) {
+      throw new Error("--verdicts must list the same number of values as --categories");
+    }
+    if (options.followUps && options.followUps.length !== count) {
+      throw new Error("--follow-ups must list the same number of values as --categories");
+    }
+    return options.categories.map((category, index) => ({
+      affectedCategory: category,
+      verdict: options.verdicts?.[index],
+      intendedFollowUp: options.followUps?.[index],
+    }));
+  }
+  if (options.category) {
+    return [{ affectedCategory: options.category, verdict: options.verdict, intendedFollowUp: options.followUp }];
+  }
+  return undefined;
 }
 
 function corpusCache(
@@ -584,16 +625,22 @@ export async function main(
       namedReviewer: reviewer,
       runGh: options.runGh,
     });
+    const perFinding = buildAutomaticPerFinding(options);
     const result = runCaptureDecisionGate({
       path: "automatic",
       evidence,
       namedReviewer: reviewer,
       automatic: codex,
-      automaticDefaults: {
-        affectedCategory: options.category,
-        verdict: options.verdict,
-        intendedFollowUp: options.followUp,
-      },
+      automaticDefaults:
+        perFinding?.length === 1
+          ? {
+              affectedCategory: perFinding[0]?.affectedCategory,
+              verdict: perFinding[0]?.verdict,
+              intendedFollowUp: perFinding[0]?.intendedFollowUp,
+            }
+          : undefined,
+      automaticPerFinding:
+        perFinding && perFinding.length > 1 ? perFinding : undefined,
       existingRecords,
       corpusForHead,
       mergeBaseForHead,
