@@ -1011,7 +1011,7 @@ reviewer_doctrine_supply() {
 
 reviewer_durability_mode_raw_supply() {
   local path="docs/workflow/development-workflow/durability-idempotency-review-mode.md"
-  local snapshot bytes
+  local snapshot bytes text
   local unreadable='{"state":"unreadable","text":""}'
 
   [ -f "$path" ] || { printf '{"state":"absent","text":""}\n'; return 0; }
@@ -1026,6 +1026,13 @@ reviewer_durability_mode_raw_supply() {
   if [ "$bytes" -gt "$REVIEW_DURABILITY_MODE_MAX_BYTES" ]; then
     rm -f "$snapshot"
     printf '{"state":"oversized","text":""}\n'
+    return 0
+  fi
+
+  text="$(cat "$snapshot" 2>/dev/null)" || { rm -f "$snapshot"; printf '%s\n' "$unreadable"; return 0; }
+  if ! reviewer_durability_mode_document_is_complete "$text"; then
+    rm -f "$snapshot"
+    printf '{"state":"incomplete","text":""}\n'
     return 0
   fi
 
@@ -1231,6 +1238,19 @@ if command -v gh >/dev/null 2>&1; then
   fi
   if [ -n "$diff_output" ]; then
     changed_files_json="$(printf '%s\n' "$diff_output" | jq -R -s -c 'split("\n") | map(select(length > 0))')"
+  fi
+  # Include previous filenames for renames so durability activation matches the
+  # TypeScript collectChangedPaths contract (destination-only is a false negative).
+  if files_json="$(gh pr view "$PR_NUMBER" --repo "$OWNER/$REPO" --json files 2>/dev/null)"; then
+    rename_paths_json="$(printf '%s\n' "$files_json" | jq -c '
+      [.files[]? | .previous_filename // empty | select(length > 0)]
+      | unique
+    ' 2>/dev/null || printf '[]\n')"
+    if [ -n "$rename_paths_json" ] && [ "$rename_paths_json" != "[]" ]; then
+      changed_files_json="$(jq -nc --argjson current "$changed_files_json" --argjson previous "$rename_paths_json" '
+        ($current + $previous) | unique | sort
+      ')"
+    fi
   fi
 fi
 if [ -z "$BASE_BRANCH" ]; then

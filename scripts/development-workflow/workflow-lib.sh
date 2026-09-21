@@ -3505,6 +3505,28 @@ reviewer_loop_history_select_latest_summary_record() {
 # All six scenario family codes from the #54 spec.
 REVIEW_DURABILITY_SCENARIO_FAMILIES='["restart_recovery","retry_semantics","timeout_watchdog","duplicate_delivery","partial_success","persistence_integrity"]'
 
+# Returns 0 when the mode document text includes every required family heading.
+reviewer_durability_mode_document_is_complete() {
+  local text="${1:-}"
+  local heading
+  local required_headings=(
+    "### Restart and recovery"
+    "### Retry semantics"
+    "### Timeout and watchdog"
+    "### Duplicate delivery"
+    "### Partial success"
+    "### Persistence integrity"
+  )
+
+  for heading in "${required_headings[@]}"; do
+    case "$text" in
+      *"$heading"*) ;;
+      *) return 1 ;;
+    esac
+  done
+  return 0
+}
+
 # Returns 0 when the path matches documented sensitive surfaces (AC-1).
 reviewer_durability_path_is_sensitive() {
   local path="${1:-}"
@@ -3605,7 +3627,7 @@ reviewer_durability_families_na_for_paths() {
 # Args: stage override_default override_force changed_paths_json supply_state
 #   override_force: "on" | "off" | ""
 #   override_default: "on" | ""  (repository default-on when no automatic match)
-#   supply_state: "supplied" | "absent" | "unreadable" | "oversized" | "skipped"
+#   supply_state: "supplied" | "absent" | "unreadable" | "oversized" | "incomplete" | "skipped"
 reviewer_durability_mode_resolve() {
   local stage="${1:-}"
   local override_default="${2:-}"
@@ -3623,6 +3645,7 @@ reviewer_durability_mode_resolve() {
     absent) unavailable_reason="missing" ;;
     unreadable) unavailable_reason="unreadable" ;;
     oversized) unavailable_reason="oversized" ;;
+    incomplete) unavailable_reason="incomplete" ;;
     skipped) unavailable_reason="" ;;
     *) unavailable_reason="unreadable" ;;
   esac

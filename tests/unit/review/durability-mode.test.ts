@@ -6,7 +6,22 @@ import {
   resolveDurabilityMode,
 } from "../../../src/review/durability-mode.js";
 
-const MODE_TEXT = "# Durability\n\n### Restart and recovery\nok\n";
+const MODE_TEXT = [
+  "# Durability",
+  "",
+  "### Restart and recovery",
+  "ok",
+  "### Retry semantics",
+  "ok",
+  "### Timeout and watchdog",
+  "ok",
+  "### Duplicate delivery",
+  "ok",
+  "### Partial success",
+  "ok",
+  "### Persistence integrity",
+  "ok",
+].join("\n");
 
 test("reviewStageForBranch maps workflow prefixes", () => {
   assert.equal(reviewStageForBranch("spec/54-foo"), "spec");
@@ -111,6 +126,14 @@ test("resolveDurabilityMode follows decision matrix rows", () => {
   });
   assert.equal(unavailable.state, "unavailable");
   assert.equal(unavailable.unavailableReason, "missing");
+
+  const incomplete = resolveDurabilityMode({
+    headBranch: "feature/54-x",
+    changedPaths: ["src/webhook/a.ts"],
+    modeDocumentText: "# Durability\n\n### Restart and recovery\nok\n",
+  });
+  assert.equal(incomplete.state, "unavailable");
+  assert.equal(incomplete.unavailableReason, "incomplete");
 
   const defaultOn = resolveDurabilityMode({
     headBranch: "feature/54-x",

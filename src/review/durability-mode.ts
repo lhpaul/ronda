@@ -22,9 +22,30 @@ export type DurabilityActivationReason =
   | "operator_override"
   | "";
 
-export type DurabilityUnavailableReason = "missing" | "unreadable" | "oversized" | "";
+export type DurabilityUnavailableReason =
+  | "missing"
+  | "unreadable"
+  | "oversized"
+  | "incomplete"
+  | "";
 
 export type DurabilityForceMode = "on" | "off" | "default";
+
+/** Required scenario-family headings from the mode document contract (AC-3). */
+export const DURABILITY_REQUIRED_MODE_HEADINGS = [
+  "### Restart and recovery",
+  "### Retry semantics",
+  "### Timeout and watchdog",
+  "### Duplicate delivery",
+  "### Partial success",
+  "### Persistence integrity",
+] as const;
+
+export function durabilityModeDocumentIsComplete(modeDocumentText: string): boolean {
+  return DURABILITY_REQUIRED_MODE_HEADINGS.every((heading) =>
+    modeDocumentText.includes(heading),
+  );
+}
 
 export interface DurabilityFamilyNa {
   family: DurabilityScenarioFamily;
@@ -145,7 +166,7 @@ function familiesInScope(na: DurabilityFamilyNa[]): DurabilityScenarioFamily[] {
 function supplyStateFromDocument(
   modeDocumentText: string | null | undefined,
   modeDocumentUnreadable: boolean | undefined,
-): "supplied" | "absent" | "unreadable" | "oversized" {
+): "supplied" | "absent" | "unreadable" | "oversized" | "incomplete" {
   if (modeDocumentUnreadable) {
     return "unreadable";
   }
@@ -155,11 +176,14 @@ function supplyStateFromDocument(
   if (Buffer.byteLength(modeDocumentText, "utf8") > REVIEW_DURABILITY_MODE_MAX_BYTES) {
     return "oversized";
   }
+  if (!durabilityModeDocumentIsComplete(modeDocumentText)) {
+    return "incomplete";
+  }
   return "supplied";
 }
 
 function unavailableReasonFromSupply(
-  supply: "absent" | "unreadable" | "oversized",
+  supply: "absent" | "unreadable" | "oversized" | "incomplete",
 ): DurabilityUnavailableReason {
   if (supply === "absent") {
     return "missing";
