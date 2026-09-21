@@ -1224,6 +1224,7 @@ changed_files_json="[]"
 diff_name_status=""
 diff_stat=""
 diff_fetch_failed=0
+rename_metadata_ok=0
 if command -v gh >/dev/null 2>&1; then
   pr_json=""
   if pr_json="$(gh pr view "$PR_NUMBER" --repo "$OWNER/$REPO" --json baseRefName,headRefName,headRefOid,body 2>/dev/null)"; then
@@ -1243,7 +1244,11 @@ if command -v gh >/dev/null 2>&1; then
   # TypeScript collectChangedPaths contract. Prefer the REST pull-files endpoint:
   # `gh pr view --json files` (GraphQL) does not expose previous_filename.
   # `gh api --paginate` emits one JSON array per page — slurp pages into one array.
-  if files_json="$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/files" --paginate 2>/dev/null | jq -s 'add // []')"; then
+  # Fail closed if rename metadata cannot be read: a rename away from a sensitive
+  # path would otherwise activate as inactive.
+  files_raw=""
+  if files_raw="$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/files" --paginate 2>/dev/null)"; then
+    files_json="$(printf '%s\n' "$files_raw" | jq -s 'add // []')"
     rename_paths_json="$(printf '%s\n' "$files_json" | jq -c '
       [.[].previous_filename // empty | select(length > 0)]
       | unique
@@ -1253,6 +1258,7 @@ if command -v gh >/dev/null 2>&1; then
         ($current + $previous) | unique | sort
       ')"
     fi
+    rename_metadata_ok=1
   fi
 fi
 if [ -z "$BASE_BRANCH" ]; then
@@ -1305,10 +1311,27 @@ fi
 if git rev-parse --verify "origin/$BASE_BRANCH" >/dev/null 2>&1; then
   if diff_name_status_full="$(git diff --name-status --find-renames --find-copies "origin/$BASE_BRANCH...HEAD" 2>/dev/null)"; then
     diff_name_status="${diff_name_status_full:0:12000}"
+    if [ "${rename_metadata_ok:-0}" -eq 0 ]; then
+      rename_paths_json="$(printf '%s\n' "$diff_name_status_full" | awk -F '\t' '
+        $1 ~ /^R/ && NF >= 2 { print $2 }
+      ' | jq -R -s -c 'split("\n") | map(select(length > 0)) | unique')"
+      if [ -n "$rename_paths_json" ] && [ "$rename_paths_json" != "[]" ]; then
+        changed_files_json="$(jq -nc --argjson current "$changed_files_json" --argjson previous "$rename_paths_json" '
+          ($current + $previous) | unique | sort
+        ')"
+      fi
+      rename_metadata_ok=1
+    fi
   fi
   if diff_stat_full="$(git diff --stat --find-renames --find-copies "origin/$BASE_BRANCH...HEAD" 2>/dev/null)"; then
     diff_stat="${diff_stat_full:0:12000}"
   fi
+fi
+
+if [ "${rename_metadata_ok:-0}" -eq 0 ]; then
+  echo "ERROR: could not read rename metadata for #$PR_NUMBER" >&2
+  print_result escalate 0 0 0 rename_metadata_unavailable rename_metadata_unavailable
+  exit 2
 fi
 
 if [ ! -f REVIEW.md ]; then

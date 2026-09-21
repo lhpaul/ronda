@@ -81,14 +81,19 @@ export function classifyDurabilityFindings(input: {
   shapeId: string;
   expectedKeywords: string[];
   expectedSeverity?: string;
+  targetPaths?: string[];
   findings: Finding[];
 }): DurabilityShapeResult {
   const expected = input.expectedKeywords.map((keyword) => keyword.toLowerCase());
   const expectedSeverity = input.expectedSeverity?.toLowerCase();
+  const targetPaths = new Set(input.targetPaths ?? []);
   let matchedKeywords: string[] = [];
   let found = 0;
 
   for (const finding of input.findings) {
+    if (targetPaths.size > 0 && !targetPaths.has(finding.path)) {
+      continue;
+    }
     const text = `${finding.title} ${finding.body}`.toLowerCase();
     const matched = expected.filter((keyword) => text.includes(keyword));
     const severityMatches =
@@ -123,6 +128,8 @@ export async function runDurabilityRegression(options: {
   modeText?: string;
   fakeResponses?: Record<string, string>;
   root?: string;
+  passTimeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<DurabilityRegressionSummary> {
   const root = options.root ?? fixtureRoot();
   const manifest = loadDurabilityManifest(root);
@@ -146,7 +153,25 @@ export async function runDurabilityRegression(options: {
     if (options.fakeResponses?.[entry.id]) {
       raw = options.fakeResponses[entry.id];
     } else if (options.model) {
-      raw = await options.model.complete(prompt, new AbortController().signal);
+      let signal = options.signal;
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      let ownedController: AbortController | undefined;
+      if (!signal) {
+        ownedController = new AbortController();
+        signal = ownedController.signal;
+        const timeoutMs = options.passTimeoutMs;
+        if (timeoutMs !== undefined && timeoutMs > 0) {
+          timeout = setTimeout(() => ownedController!.abort(), timeoutMs);
+          timeout.unref?.();
+        }
+      }
+      try {
+        raw = await options.model.complete(prompt, signal);
+      } finally {
+        if (timeout !== undefined) {
+          clearTimeout(timeout);
+        }
+      }
     } else {
       throw new Error("runDurabilityRegression requires model or fakeResponses");
     }
@@ -157,6 +182,7 @@ export async function runDurabilityRegression(options: {
         shapeId: entry.id,
         expectedKeywords: entry.expectedKeywords,
         expectedSeverity: entry.severity,
+        targetPaths: changedPaths,
         findings: parsed.findings,
       }),
     );
@@ -176,10 +202,20 @@ async function main(): Promise<void> {
     baseUrl: config.model.baseUrl,
     modelName: config.model.modelName,
   });
-  const summary = await runDurabilityRegression({ model });
-  console.log(JSON.stringify(summary, null, 2));
-  if (!summary.allFound) {
-    process.exitCode = 1;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config.passTimeoutMs);
+  timeout.unref?.();
+  try {
+    const summary = await runDurabilityRegression({
+      model,
+      signal: controller.signal,
+    });
+    console.log(JSON.stringify(summary, null, 2));
+    if (!summary.allFound) {
+      process.exitCode = 1;
+    }
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

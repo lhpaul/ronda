@@ -109,6 +109,24 @@ test("classifyDurabilityFindings requires every expected keyword", () => {
   });
   assert.equal(splitAcrossFindings.found, 0);
   assert.equal(splitAcrossFindings.missed, 1);
+
+  const wrongPath = classifyDurabilityFindings({
+    shapeId: "fatal_queue_drain",
+    expectedKeywords: ["fatal", "queue", "drain", "discard"],
+    expectedSeverity: "blocking",
+    targetPaths: ["src/fixtures/fatal_queue_drain.ts"],
+    findings: [
+      {
+        path: "README.md",
+        line: 1,
+        severity: "blocking",
+        title: "Fatal error still drains queue",
+        body: "After a fatal failure the worker continues draining queued jobs instead of discarding them.",
+      },
+    ],
+  });
+  assert.equal(wrongPath.found, 0);
+  assert.equal(wrongPath.missed, 1);
 });
 
 test("runDurabilityRegression reports found for each shape with fake model output", async () => {
