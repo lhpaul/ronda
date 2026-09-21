@@ -112,7 +112,7 @@ local_ai_reviewer_context.v1` and includes:
 - `durability_mode_activation_reason` — `automatic_match`, `operator_default`,
   `operator_override`, or empty
 - `durability_mode_unavailable_reason` — `missing`, `unreadable`, `oversized`,
-  or empty
+  `incomplete`, or empty
 - `durability_mode_text` — full mode document when active, otherwise empty
 - `durability_mode_families_in_scope` / `durability_mode_families_na` —
   scenario-family coverage for the activation

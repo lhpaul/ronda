@@ -160,6 +160,7 @@ export interface GithubOperations {
     path: string,
     ref: string,
     signal?: AbortSignal,
+    options?: { failOnUnusable?: boolean },
   ): Promise<string | undefined>;
   findExistingCheckRun(
     owner: string,

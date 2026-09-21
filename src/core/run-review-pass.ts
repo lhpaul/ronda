@@ -36,6 +36,7 @@ import {
   resolveDurabilityMode,
   type DurabilityModeResolution,
 } from "../review/durability-mode.js";
+import { RepositoryFileUnusableError } from "../github/repo-content-reader.js";
 
 function readLocalDurabilityModeDocument(
   cwd: string = process.cwd(),
@@ -228,12 +229,14 @@ export async function runReviewPass(
           DURABILITY_MODE_DOCUMENT_PATH,
           pr.headSha,
           deadline.signal,
+          { failOnUnusable: true },
         );
         // Prefer the reviewed-head copy when present (self-review of mode-doc
         // edits). When a consumer PR head has no copy — the common reusable-
         // Action case — fall back to the deployed Ronda checkout document.
         // Do not fall back when reviewing Ronda itself: a missing/broken head
-        // copy must surface as unavailable.
+        // copy must surface as unavailable. Unusable head content (truncated,
+        // empty) is unavailable — never substituted with local guidance.
         modeDocumentText =
           loaded ??
           (() => {
@@ -253,24 +256,32 @@ export async function runReviewPass(
             return local.text;
           })();
       } catch (error) {
-        const message = String(error);
-        if (/404|Not Found|does not exist/i.test(message)) {
-          if (
-            shouldFallBackToLocalDurabilityModeDocument(input.owner, input.repo)
-          ) {
-            const local = readLocalDurabilityModeDocument();
-            if (local.unreadable) {
-              modeDocumentUnreadable = true;
-              modeDocumentText = null;
+        if (error instanceof RepositoryFileUnusableError) {
+          modeDocumentUnreadable = true;
+          deps.logger.event("durability_mode_document_unreadable", {
+            message: error.message,
+            reason: error.reason,
+          });
+        } else {
+          const message = String(error);
+          if (/404|Not Found|does not exist/i.test(message)) {
+            if (
+              shouldFallBackToLocalDurabilityModeDocument(input.owner, input.repo)
+            ) {
+              const local = readLocalDurabilityModeDocument();
+              if (local.unreadable) {
+                modeDocumentUnreadable = true;
+                modeDocumentText = null;
+              } else {
+                modeDocumentText = local.text;
+              }
             } else {
-              modeDocumentText = local.text;
+              modeDocumentText = null;
             }
           } else {
-            modeDocumentText = null;
+            modeDocumentUnreadable = true;
+            deps.logger.event("durability_mode_document_unreadable", { message });
           }
-        } else {
-          modeDocumentUnreadable = true;
-          deps.logger.event("durability_mode_document_unreadable", { message });
         }
       }
       durabilityMode = resolveDurabilityMode({
