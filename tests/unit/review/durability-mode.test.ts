@@ -47,6 +47,8 @@ test("durabilityPathIsSensitive matches documented surfaces", () => {
   assert.equal(durabilityPathIsSensitive("src/core/run-review-pass.ts"), true);
   assert.equal(durabilityPathIsSensitive("scripts/development-workflow/pr-review-loop.sh"), true);
   assert.equal(durabilityPathIsSensitive("src/foo/retry-helper.ts"), true);
+  assert.equal(durabilityPathIsSensitive("src/RetryWorker.ts"), true);
+  assert.equal(durabilityPathIsSensitive("scripts/JobQueue.sh"), true);
 });
 
 test("root-level webhook paths activate automatic match and keep duplicate_delivery in scope", () => {
@@ -168,6 +170,21 @@ test("resolveDurabilityMode follows decision matrix rows", () => {
     ),
     true,
   );
+
+  const fencedOnlyDoc = [
+    "# Durability",
+    "",
+    "```md",
+    "### Restart and recovery",
+    "### Retry semantics",
+    "### Timeout and watchdog",
+    "### Duplicate delivery",
+    "### Partial success",
+    "### Persistence integrity",
+    "```",
+    "",
+  ].join("\n");
+  assert.equal(durabilityModeDocumentIsComplete(fencedOnlyDoc), false);
 
   const defaultOn = resolveDurabilityMode({
     headBranch: "feature/54-x",

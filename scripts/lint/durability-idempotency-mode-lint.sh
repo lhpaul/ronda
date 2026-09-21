@@ -44,25 +44,13 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Check 2: Required scenario family headings
+# Check 2: Required scenario family headings (outside fenced code)
 # ---------------------------------------------------------------------------
-required_headings=(
-  "### Restart and recovery"
-  "### Retry semantics"
-  "### Timeout and watchdog"
-  "### Duplicate delivery"
-  "### Partial success"
-  "### Persistence integrity"
-)
-
-for heading in "${required_headings[@]}"; do
-  # Require an actual heading line (up to 3 leading spaces), not a prose substring.
-  if ! sed -E 's/^[[:space:]]{0,3}//; s/[[:space:]]+$//' "$FILE" | grep -Fxq "$heading"; then
-    report_fail "durability-mode section check FAILED: missing heading \"$heading\""
-  fi
-done
-if [ "$failures" -eq 0 ]; then
-  echo "durability-mode section check passed: ${#required_headings[@]} scenario family headings present"
+mode_text="$(cat -- "$FILE")"
+if ! reviewer_durability_mode_document_is_complete "$mode_text"; then
+  report_fail "durability-mode section check FAILED: required scenario family headings missing as Markdown heading lines outside fenced code"
+else
+  echo "durability-mode section check passed: 6 scenario family headings present"
 fi
 
 # ---------------------------------------------------------------------------

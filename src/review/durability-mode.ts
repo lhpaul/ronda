@@ -43,11 +43,43 @@ export const DURABILITY_REQUIRED_MODE_HEADINGS = [
 
 export function durabilityModeDocumentIsComplete(modeDocumentText: string): boolean {
   const lines = modeDocumentText.split(/\r?\n/);
+  const headingLines: string[] = [];
+  let inFence = false;
+  let fenceChar = "";
+  let fenceLen = 0;
+
+  for (const line of lines) {
+    const fenceMatch = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fenceMatch) {
+      const marker = fenceMatch[2];
+      const markerChar = marker[0] ?? "";
+      const markerLen = marker.length;
+      const info = fenceMatch[3] ?? "";
+      if (!inFence) {
+        inFence = true;
+        fenceChar = markerChar;
+        fenceLen = markerLen;
+        continue;
+      }
+      if (
+        markerChar === fenceChar &&
+        markerLen >= fenceLen &&
+        info.trim() === ""
+      ) {
+        inFence = false;
+        fenceChar = "";
+        fenceLen = 0;
+      }
+      continue;
+    }
+    if (inFence) {
+      continue;
+    }
+    headingLines.push(line.replace(/^\s{0,3}/, "").replace(/\s+$/, ""));
+  }
+
   return DURABILITY_REQUIRED_MODE_HEADINGS.every((heading) =>
-    lines.some((line) => {
-      const normalized = line.replace(/^\s{0,3}/, "").replace(/\s+$/, "");
-      return normalized === heading;
-    }),
+    headingLines.includes(heading),
   );
 }
 

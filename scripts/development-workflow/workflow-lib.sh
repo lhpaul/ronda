@@ -3507,10 +3507,16 @@ REVIEW_DURABILITY_SCENARIO_FAMILIES='["restart_recovery","retry_semantics","time
 
 # Returns 0 when the mode document text includes every required family heading
 # as an actual Markdown heading line (not merely as a prose/code substring).
+# Fenced code blocks (``` / ~~~) are excluded before the heading scan.
 reviewer_durability_mode_document_is_complete() {
   local text="${1:-}"
   local heading
-  local normalized
+  local line
+  local normalized=""
+  local in_fence=0
+  local fence_char=""
+  local fence_len=0
+  local marker info marker_char marker_len
   local required_headings=(
     "### Restart and recovery"
     "### Retry semantics"
@@ -3520,8 +3526,36 @@ reviewer_durability_mode_document_is_complete() {
     "### Persistence integrity"
   )
 
-  # Normalize ATX heading lines: strip up to 3 leading spaces and trailing whitespace.
-  normalized="$(printf '%s\n' "$text" | sed -E 's/^[[:space:]]{0,3}//; s/[[:space:]]+$//')"
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [[ "$line" =~ ^( {0,3})(\`{3,}|~{3,})(.*)$ ]]; then
+      marker="${BASH_REMATCH[2]}"
+      info="${BASH_REMATCH[3]}"
+      marker_char="${marker:0:1}"
+      marker_len="${#marker}"
+      if [ "$in_fence" -eq 0 ]; then
+        in_fence=1
+        fence_char="$marker_char"
+        fence_len="$marker_len"
+        continue
+      fi
+      if [ "$marker_char" = "$fence_char" ] && [ "$marker_len" -ge "$fence_len" ]; then
+        info="${info#"${info%%[![:space:]]*}"}"
+        info="${info%"${info##*[![:space:]]}"}"
+        if [ -z "$info" ]; then
+          in_fence=0
+          fence_char=""
+          fence_len=0
+          continue
+        fi
+      fi
+      continue
+    fi
+    if [ "$in_fence" -ne 0 ]; then
+      continue
+    fi
+    line="$(printf '%s' "$line" | sed -E 's/^[[:space:]]{0,3}//; s/[[:space:]]+$//')"
+    normalized="${normalized}${line}"$'\n'
+  done <<< "$text"
 
   for heading in "${required_headings[@]}"; do
     if ! grep -Fxq "$heading" <<< "$normalized"; then
@@ -3564,16 +3598,12 @@ reviewer_durability_path_is_sensitive() {
       ;;
   esac
 
-  # Keyword surfaces under src/ or scripts/ only (*queue*, *retry*, *idempot*)
+  # Keyword surfaces under src/ or scripts/ only (*queue*, *retry*, *idempot*).
+  # Match case-insensitively to mirror TypeScript /queue|retry|idempot/i.
   case "$path" in
     src/*|scripts/*)
-      base="${path##*/}"
-      case "$path" in
-        *queue*|*retry*|*idempot*)
-          return 0
-          ;;
-      esac
-      case "$base" in
+      lower_path="$(printf '%s' "$path" | sed 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/')"
+      case "$lower_path" in
         *queue*|*retry*|*idempot*)
           return 0
           ;;
