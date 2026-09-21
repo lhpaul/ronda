@@ -257,11 +257,17 @@ export async function runReviewPass(
           })();
       } catch (error) {
         if (error instanceof RepositoryFileUnusableError) {
-          modeDocumentUnreadable = true;
-          deps.logger.event("durability_mode_document_unreadable", {
-            message: error.message,
-            reason: error.reason,
-          });
+          // Empty files are present but incomplete (match shell supply). Truncated
+          // or non-file content remains unreadable.
+          if (error.reason === "empty") {
+            modeDocumentText = "";
+          } else {
+            modeDocumentUnreadable = true;
+            deps.logger.event("durability_mode_document_unreadable", {
+              message: error.message,
+              reason: error.reason,
+            });
+          }
         } else {
           const message = String(error);
           if (/404|Not Found|does not exist/i.test(message)) {
