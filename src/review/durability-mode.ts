@@ -83,8 +83,8 @@ export function durabilityPathIsSensitive(path: string): boolean {
     return true;
   }
 
-  // **/webhook/*.ts and **/webhook-*.ts
-  if (/\/webhook\/.+\.ts$/.test(path) || /(^|\/)webhook-[^/]+\.ts$/.test(path)) {
+  // **/webhook/*.ts and **/webhook-*.ts (** may match zero directories)
+  if (/(^|\/)webhook\/.+\.ts$/.test(path) || /(^|\/)webhook-[^/]+\.ts$/.test(path)) {
     return true;
   }
 
@@ -105,8 +105,9 @@ export function durabilityPathsMatch(changedPaths: string[]): boolean {
 
 function pathTouchesWebhook(path: string): boolean {
   return (
+    path === "src/webhook" ||
     path.startsWith("src/webhook/") ||
-    /\/webhook\/.+\.ts$/.test(path) ||
+    /(^|\/)webhook\/.+\.ts$/.test(path) ||
     /(^|\/)webhook-[^/]+\.ts$/.test(path)
   );
 }

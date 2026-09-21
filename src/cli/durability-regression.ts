@@ -88,7 +88,13 @@ export function classifyDurabilityFindings(input: {
   const matchedKeywords = input.expectedKeywords.filter((keyword) =>
     haystack.includes(keyword.toLowerCase()),
   );
-  const found = matchedKeywords.length > 0 ? 1 : 0;
+  // Require every expected keyword so a generic term like "queue" or "retry"
+  // alone cannot mark a seeded shape as found (AC-15 shape-specific evidence).
+  const found =
+    input.expectedKeywords.length > 0 &&
+    matchedKeywords.length === input.expectedKeywords.length
+      ? 1
+      : 0;
   return {
     id: input.shapeId,
     found,

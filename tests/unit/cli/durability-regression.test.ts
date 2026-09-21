@@ -18,22 +18,40 @@ test("forcedActiveDurabilityMode activates with operator override", () => {
   assert.equal(mode.activationReason, "operator_override");
 });
 
-test("classifyDurabilityFindings marks found when keywords match", () => {
-  const result = classifyDurabilityFindings({
+test("classifyDurabilityFindings requires every expected keyword", () => {
+  const found = classifyDurabilityFindings({
     shapeId: "fatal_queue_drain",
-    expectedKeywords: ["fatal", "queue", "drain"],
+    expectedKeywords: ["fatal", "queue", "drain", "discard"],
     findings: [
       {
         path: "src/fixtures/fatal_queue_drain.ts",
         line: 1,
         severity: "blocking",
         title: "Fatal error still drains queue",
-        body: "After a fatal failure the worker continues draining queued jobs.",
+        body: "After a fatal failure the worker continues draining queued jobs instead of discarding them.",
       },
     ],
   });
-  assert.equal(result.found, 1);
-  assert.equal(result.missed, 0);
+  assert.equal(found.found, 1);
+  assert.equal(found.missed, 0);
+  assert.deepEqual(found.matchedKeywords, ["fatal", "queue", "drain", "discard"]);
+
+  const genericOnly = classifyDurabilityFindings({
+    shapeId: "fatal_queue_drain",
+    expectedKeywords: ["fatal", "queue", "drain", "discard"],
+    findings: [
+      {
+        path: "src/fixtures/fatal_queue_drain.ts",
+        line: 1,
+        severity: "blocking",
+        title: "Consider a queue",
+        body: "A queue might help throughput.",
+      },
+    ],
+  });
+  assert.equal(genericOnly.found, 0);
+  assert.equal(genericOnly.missed, 1);
+  assert.deepEqual(genericOnly.matchedKeywords, ["queue"]);
 });
 
 test("runDurabilityRegression reports found for each shape with fake model output", async () => {
@@ -89,7 +107,7 @@ test("runDurabilityRegression reports found for each shape with fake model outpu
           line: 1,
           severity: "blocking",
           title: "Partial publish on recovery",
-          body: "Recovery republishes after a partial publish success.",
+          body: "Recovery republishes after a partial publish success and can create duplicate reviews.",
         },
       ],
     }),

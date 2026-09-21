@@ -3527,9 +3527,10 @@ reviewer_durability_path_is_sensitive() {
       ;;
   esac
 
-  # Nested webhook modules (**/webhook-*.ts, **/webhook/*.ts)
+  # Nested webhook modules (**/webhook-*.ts, **/webhook/*.ts).
+  # `**` may match zero path segments, so root-level webhook/*.ts counts.
   case "$path" in
-    */webhook/*.ts)
+    webhook/*.ts|*/webhook/*.ts)
       return 0
       ;;
     */webhook-*.ts|webhook-*.ts)
@@ -3585,11 +3586,11 @@ reviewer_durability_families_na_for_paths() {
   while IFS= read -r path; do
     [ -n "$path" ] || continue
     case "$path" in
-      src/webhook/*|*/webhook/*.ts|*/webhook-*.ts|webhook-*.ts)
+      src/webhook|src/webhook/*|webhook/*.ts|*/webhook/*.ts|*/webhook-*.ts|webhook-*.ts)
         has_webhook=1
         break
         ;;
-    esac
+      esac
   done < <(printf '%s' "$changed_paths_json" | jq -r '.[]? // empty' 2>/dev/null || true)
 
   if [ "$has_webhook" -eq 0 ]; then

@@ -1960,6 +1960,17 @@ _54_families_na="$(reviewer_durability_mode_supply "implementation" '["src/githu
 _54_na_family="$(printf '%s' "$_54_families_na" | jq -r '.scenario_families_na[0].family // empty')"
 run_test "durability_families_na_without_webhook" "duplicate_delivery" "$_54_na_family"
 
+if reviewer_durability_path_is_sensitive "webhook/handler.ts"; then
+  run_test "durability_path_root_webhook_dir" "1" "1"
+else
+  run_test "durability_path_root_webhook_dir" "1" "0"
+fi
+
+_54_root_webhook="$(reviewer_durability_mode_resolve "implementation" "" "" '["webhook/handler.ts"]' "supplied")"
+run_test "durability_mode_root_webhook_active" "active" "$(printf '%s' "$_54_root_webhook" | jq -r '.state')"
+_54_root_na_count="$(printf '%s' "$_54_root_webhook" | jq -r '.scenario_families_na | length')"
+run_test "durability_mode_root_webhook_no_families_na" "0" "$_54_root_na_count"
+
 if [ "$FAIL_COUNT" -ne 0 ]; then
   echo "FAIL: $FAIL_COUNT test(s) failed"
   exit 1

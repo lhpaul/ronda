@@ -21,6 +21,8 @@ test("reviewStageForBranch maps workflow prefixes", () => {
 
 test("durabilityPathIsSensitive matches documented surfaces", () => {
   assert.equal(durabilityPathIsSensitive("src/webhook/webhook-job.ts"), true);
+  assert.equal(durabilityPathIsSensitive("webhook/handler.ts"), true);
+  assert.equal(durabilityPathIsSensitive("apps/bot/webhook/handler.ts"), true);
   assert.equal(durabilityPathIsSensitive("vendor/foo/webhook-job.ts"), true);
   assert.equal(durabilityPathIsSensitive("docs/specs/foo/1_spec.md"), false);
   assert.equal(durabilityPathIsSensitive("src/webhook-job-backup.ts"), true);
@@ -29,6 +31,20 @@ test("durabilityPathIsSensitive matches documented surfaces", () => {
   assert.equal(durabilityPathIsSensitive("src/core/run-review-pass.ts"), true);
   assert.equal(durabilityPathIsSensitive("scripts/development-workflow/pr-review-loop.sh"), true);
   assert.equal(durabilityPathIsSensitive("src/foo/retry-helper.ts"), true);
+});
+
+test("root-level webhook paths activate automatic match and keep duplicate_delivery in scope", () => {
+  const mode = resolveDurabilityMode({
+    headBranch: "feature/54-x",
+    changedPaths: ["webhook/handler.ts"],
+    modeDocumentText: MODE_TEXT,
+  });
+  assert.equal(mode.state, "active");
+  assert.equal(mode.activationReason, "automatic_match");
+  assert.equal(
+    mode.scenarioFamiliesNa.some((entry) => entry.family === "duplicate_delivery"),
+    false,
+  );
 });
 
 test("resolveDurabilityMode follows decision matrix rows", () => {
