@@ -8,7 +8,16 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { canonicalizeReviewerForIdentity } from "./miss-reviewer-aliases.js";
 import { DEFAULT_MISS_DIRECTORY } from "./review-quality-report.js";
+
+/** GitHub still uses SHA-1 object ids (40 hex chars) for commit heads. */
+export const FULL_COMMIT_SHA_LENGTH = 40;
+/**
+ * Minimum abbreviation length accepted for reviewed-head identity / matching.
+ * Shorter hex prefixes (e.g. a single character) are malformed (AC31).
+ */
+export const MIN_ABBREVIATED_COMMIT_SHA_LENGTH = 7;
 
 export const MISS_VERDICTS = [
   "unadjudicated",
@@ -118,16 +127,63 @@ export function canonicalizeLocation(value: string): string {
 }
 
 /**
+ * True when value is a well-formed commit SHA or abbreviation: hex only,
+ * length in [{@link MIN_ABBREVIATED_COMMIT_SHA_LENGTH}, {@link FULL_COMMIT_SHA_LENGTH}].
+ */
+export function isWellFormedCommitSha(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized.length < MIN_ABBREVIATED_COMMIT_SHA_LENGTH ||
+    normalized.length > FULL_COMMIT_SHA_LENGTH
+  ) {
+    return false;
+  }
+  return /^[0-9a-f]+$/.test(normalized);
+}
+
+/**
  * Normalize a commit SHA for identity comparison. Abbreviated forms match a
- * longer form when one is a prefix of the other (case-insensitive).
+ * longer form when both are well-formed and one is a prefix of the other
+ * (case-insensitive). Malformed values never match (AC31).
  */
 export function headsMatch(left: string, right: string): boolean {
   const a = left.trim().toLowerCase();
   const b = right.trim().toLowerCase();
-  if (a.length === 0 || b.length === 0) {
+  if (!isWellFormedCommitSha(a) || !isWellFormedCommitSha(b)) {
     return false;
   }
   return a === b || a.startsWith(b) || b.startsWith(a);
+}
+
+/**
+ * Resolve a reviewed-head spelling to the longest matching known PR head so
+ * full and abbreviated forms share one identity digest (AC30).
+ */
+export function resolveCanonicalHeadSha(
+  candidate: string,
+  knownHeadShas: readonly string[],
+): string | null {
+  const trimmed = candidate.trim().toLowerCase();
+  if (!isWellFormedCommitSha(trimmed)) {
+    return null;
+  }
+  let best: string | null = null;
+  for (const known of knownHeadShas) {
+    const normalized = known.trim().toLowerCase();
+    if (!isWellFormedCommitSha(normalized)) {
+      continue;
+    }
+    if (
+      normalized === trimmed ||
+      normalized.startsWith(trimmed) ||
+      trimmed.startsWith(normalized)
+    ) {
+      if (best === null || normalized.length > best.length) {
+        best = normalized;
+      }
+    }
+  }
+  return best;
 }
 
 /**
@@ -177,12 +233,18 @@ export function manualIdentityKey(input: {
   location: string;
   title: string;
   text: string;
+  /** When provided, abbreviated heads resolve to the longest matching known SHA (AC30). */
+  knownHeadShas?: readonly string[];
 }): string {
+  const headForIdentity =
+    (input.knownHeadShas
+      ? resolveCanonicalHeadSha(input.reviewedHeadSha, input.knownHeadShas)
+      : null) ?? input.reviewedHeadSha.trim().toLowerCase();
   const payload = [
     input.repository.toLowerCase(),
     String(input.pullNumber),
-    canonicalizeCaseInsensitive(input.externalReviewer),
-    input.reviewedHeadSha.trim().toLowerCase(),
+    canonicalizeReviewerForIdentity(input.externalReviewer),
+    headForIdentity,
     canonicalizeLocation(input.location),
     canonicalizeCaseInsensitive(input.title),
     canonicalizeCaseInsensitive(input.text),

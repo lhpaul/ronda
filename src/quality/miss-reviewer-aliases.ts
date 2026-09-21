@@ -23,3 +23,20 @@ export function isCodexGithubReviewer(reviewer: string): boolean {
     (alias) => normalizeReviewerName(alias) === normalized,
   );
 }
+
+/**
+ * Canonical reviewer spelling for content-based identity (AC39).
+ * Codex GitHub aliases collapse to the primary login; all other names are
+ * compared case- and whitespace-insensitively via {@link normalizeReviewerName}.
+ */
+export function canonicalizeReviewerForIdentity(reviewer: string): string {
+  const normalized = normalizeReviewerName(reviewer);
+  if (
+    CODEX_GITHUB_REVIEWER_ALIASES.some(
+      (alias) => normalizeReviewerName(alias) === normalized,
+    )
+  ) {
+    return normalizeReviewerName(CODEX_GITHUB_REVIEWER_ALIASES[0]);
+  }
+  return normalized;
+}

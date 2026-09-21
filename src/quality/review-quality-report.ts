@@ -96,11 +96,13 @@ export interface SkippedFile {
   reason: string;
 }
 
-/** Prefix-aware SHA match (abbreviated vs full) without importing miss-record. */
+/** Prefix-aware SHA match (abbreviated vs full); malformed prefixes never match. */
 function missHeadsMatch(left: string, right: string): boolean {
   const a = left.trim().toLowerCase();
   const b = right.trim().toLowerCase();
-  if (a.length === 0 || b.length === 0) {
+  const wellFormed = (value: string): boolean =>
+    value.length >= 7 && value.length <= 40 && /^[0-9a-f]+$/.test(value);
+  if (!wellFormed(a) || !wellFormed(b)) {
     return false;
   }
   return a === b || a.startsWith(b) || b.startsWith(a);

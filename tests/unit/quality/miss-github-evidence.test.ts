@@ -64,6 +64,98 @@ test("blob lookup failures fail closed for sensitive-content corpus", () => {
   );
 });
 
+test("compare entries without patch refuse capture (incomplete diff evidence)", () => {
+  const runGh = (args: string[]): string => {
+    const joined = args.join(" ");
+    if (joined.includes("/compare/") && !joined.includes("--jq")) {
+      return JSON.stringify({
+        files: [{ filename: "src/gone.ts", status: "removed" }],
+      });
+    }
+    throw new Error(`Unexpected gh args: ${joined}`);
+  };
+
+  assert.throws(
+    () =>
+      readSourceScanCorpus({
+        repository: "lhpaul/ronda",
+        pullNumber: 53,
+        reviewedHeadSha: HEAD_A,
+        mergeBaseSha: BASE,
+        runGh,
+      }),
+    /Incomplete diff evidence/,
+  );
+});
+
+test("parseGhPaginatedJsonArray slurps concatenated page arrays", async () => {
+  const { parseGhPaginatedJsonArray } = await import(
+    "../../../src/quality/miss-github-evidence.js"
+  );
+  const page1 = JSON.stringify([{ sha: HEAD_A }, { sha: HEAD_B }]);
+  const page2 = JSON.stringify([{ sha: HEAD_C }]);
+  const flattened = parseGhPaginatedJsonArray<{ sha: string }>(
+    `${page1}${page2}`,
+  );
+  assert.deepEqual(
+    flattened.map((row) => row.sha),
+    [HEAD_A, HEAD_B, HEAD_C],
+  );
+  assert.deepEqual(parseGhPaginatedJsonArray("[]"), []);
+  assert.deepEqual(
+    parseGhPaginatedJsonArray(JSON.stringify([{ sha: HEAD_A }])),
+    [{ sha: HEAD_A }],
+  );
+});
+
+test("readPullRequestEvidence flattens paginated commits/reviews pages", () => {
+  const runGh = (args: string[]): string => {
+    const joined = args.join(" ");
+    if (joined.includes("repo view")) {
+      return "lhpaul/ronda";
+    }
+    if (args[0] === "pr" && args[1] === "view") {
+      return JSON.stringify({
+        headRefOid: HEAD_C,
+        baseRefName: "develop",
+        baseRefOid: BASE,
+      });
+    }
+    if (joined.includes("/commits")) {
+      return `${JSON.stringify([{ sha: HEAD_A }])}${JSON.stringify([{ sha: HEAD_C }])}`;
+    }
+    if (joined.includes("/timeline")) {
+      return "[]";
+    }
+    if (joined.includes("/reviews")) {
+      return `${JSON.stringify([
+        {
+          id: 1,
+          body: `${RONDA_REVIEW_HEADING}\nA`,
+          commit_id: HEAD_A,
+        },
+      ])}${JSON.stringify([
+        {
+          id: 2,
+          body: `${RONDA_REVIEW_HEADING}\nC`,
+          commit_id: HEAD_C,
+        },
+      ])}`;
+    }
+    throw new Error(`Unexpected: ${joined}`);
+  };
+
+  const evidence = readPullRequestEvidence({
+    pullNumber: 53,
+    repository: "lhpaul/ronda",
+    runGh,
+  });
+  assert.ok(evidence.pushOrderedHeadShas.includes(HEAD_A));
+  assert.ok(evidence.pushOrderedHeadShas.includes(HEAD_C));
+  assert.ok(evidence.rondaResultHeadShas.some((sha) => sha === HEAD_A));
+  assert.ok(evidence.rondaResultHeadShas.some((sha) => sha === HEAD_C));
+});
+
 test("review-comment source id is stable (not findings.length position)", () => {
   const comments = [
     {

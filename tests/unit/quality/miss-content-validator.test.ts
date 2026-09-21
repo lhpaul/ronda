@@ -128,28 +128,75 @@ test("AC38 / AC50 six consecutive source lines refuse; five do not", () => {
   );
 });
 
-test("planted-violation proof: credential refuses then clean write path passes scan", () => {
-  const planted = validateCaptureFields({
-    fields: {
-      externalReviewer: "codex",
-      location: "src/x.ts:1",
-      title: "Leak",
-      text: 'password = "s3cret-value"',
-    },
-    scanSourceExcerpts: false,
-  });
-  assert.equal(planted?.kind, "credential");
+test("validator planted-violation fail-then-pass isolates credential, diff, source", () => {
+  const sourceLines = [
+    "alpha-line-one",
+    "bravo-line-two",
+    "charlie-line-three",
+    "delta-line-four",
+    "echo-line-five",
+    "foxtrot-line-six",
+  ];
+  const corpus = {
+    changedFileContents: [sourceLines.join("\n")],
+    diffText: sourceLines.map((line) => `+${line}`).join("\n"),
+  };
+  const baseFields = {
+    externalReviewer: "codex",
+    location: "src/x.ts:1",
+    title: "Safe title",
+  };
 
-  const clean = validateCaptureFields({
-    fields: {
-      externalReviewer: "codex",
-      location: "src/x.ts:1",
-      title: "Safe finding",
-      text: "Missing retry on webhook delivery.",
-    },
-    corpus: { changedFileContents: [], diffText: "" },
-  });
-  assert.equal(clean, null);
+  // Credential: plant fails, clean passes.
+  assert.equal(
+    validateCaptureFields({
+      fields: { ...baseFields, text: 'password = "s3cret-value"' },
+      corpus,
+    })?.kind,
+    "credential",
+  );
+  assert.equal(
+    validateCaptureFields({
+      fields: { ...baseFields, text: "Missing retry on webhook delivery." },
+      corpus,
+    }),
+    null,
+  );
+
+  // Diff marker: plant fails, clean passes.
+  assert.equal(
+    validateCaptureFields({
+      fields: {
+        ...baseFields,
+        text: "See hunk\n@@ -1,3 +1,4 @@\ncontext",
+      },
+      corpus,
+    })?.kind,
+    "diff_marker",
+  );
+  assert.equal(
+    validateCaptureFields({
+      fields: { ...baseFields, text: "Missing retry on webhook delivery." },
+      corpus,
+    }),
+    null,
+  );
+
+  // Source excerpt: six lines fail, five pass.
+  assert.equal(
+    validateCaptureFields({
+      fields: { ...baseFields, text: sourceLines.join("\n") },
+      corpus,
+    })?.kind,
+    "source_excerpt",
+  );
+  assert.equal(
+    validateCaptureFields({
+      fields: { ...baseFields, text: sourceLines.slice(0, 5).join("\n") },
+      corpus,
+    }),
+    null,
+  );
 });
 
 test("lookalike prose without markers is not refused", () => {

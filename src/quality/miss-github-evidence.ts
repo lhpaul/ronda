@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { RONDA_REVIEW_HEADING } from "../core/summary.js";
 import { isCodexGithubReviewer } from "./miss-reviewer-aliases.js";
-import { headsMatch } from "./miss-record.js";
+import { headsMatch, isWellFormedCommitSha } from "./miss-record.js";
 
 export interface PullRequestEvidence {
   repository: string;
@@ -37,6 +37,37 @@ export type GhRunner = (args: string[]) => string;
 
 export function defaultGhRunner(args: string[]): string {
   return execFileSync("gh", args, { encoding: "utf8" }).trim();
+}
+
+/**
+ * Parse `gh api --paginate` output. Paginate emits one JSON array document per
+ * page concatenated together; a single `JSON.parse` only works for one page.
+ */
+export function parseGhPaginatedJsonArray<T>(raw: string): T[] {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed as T[];
+    }
+    return [parsed as T];
+  } catch {
+    // Concatenated page arrays: `[{...}][{...}]` → one flat array.
+    const merged = `[${trimmed
+      .replace(/^\s*\[/, "")
+      .replace(/\]\s*$/, "")
+      .replace(/\]\s*\[/g, ",")}]`;
+    const parsed = JSON.parse(merged) as unknown;
+    if (!Array.isArray(parsed)) {
+      throw new Error(
+        "Expected gh api --paginate output to be one or more JSON arrays",
+      );
+    }
+    return parsed as T[];
+  }
 }
 
 export function splitOwnerRepo(repository: string): {
@@ -168,7 +199,7 @@ export function readPullRequestEvidence(input: {
     `repos/${owner}/${repo}/pulls/${input.pullNumber}/commits`,
     "--paginate",
   ]);
-  const commits = JSON.parse(commitsRaw || "[]") as GhCommit[];
+  const commits = parseGhPaginatedJsonArray<GhCommit>(commitsRaw || "[]");
 
   let timelineEvents: GhTimelineEvent[] = [];
   try {
@@ -177,7 +208,9 @@ export function readPullRequestEvidence(input: {
       `repos/${owner}/${repo}/issues/${input.pullNumber}/timeline`,
       "--paginate",
     ]);
-    timelineEvents = JSON.parse(timelineRaw || "[]") as GhTimelineEvent[];
+    timelineEvents = parseGhPaginatedJsonArray<GhTimelineEvent>(
+      timelineRaw || "[]",
+    );
   } catch {
     // Timeline enrichment is best-effort; commits + fail-closed resolve remain.
   }
@@ -193,7 +226,7 @@ export function readPullRequestEvidence(input: {
     `repos/${owner}/${repo}/pulls/${input.pullNumber}/reviews`,
     "--paginate",
   ]);
-  const reviews = JSON.parse(reviewsRaw || "[]") as GhReview[];
+  const reviews = parseGhPaginatedJsonArray<GhReview>(reviewsRaw || "[]");
   const rondaResultHeadShas: string[] = [];
   for (const review of reviews) {
     const body = review.body ?? "";
@@ -326,6 +359,10 @@ export function isKnownPullRequestHead(input: {
   pushOrderedHeadShas: string[];
   currentHeadSha: string;
 }): boolean {
+  // Malformed abbreviations (too short / non-hex) never count as known (AC31).
+  if (!isWellFormedCommitSha(input.headSha)) {
+    return false;
+  }
   if (headsMatch(input.headSha, input.currentHeadSha)) {
     return true;
   }
@@ -405,8 +442,10 @@ export function readCodexGithubFindings(input: {
     `repos/${owner}/${repo}/pulls/${input.pullNumber}/comments`,
     "--paginate",
   ]);
-  const reviews = JSON.parse(reviewsRaw || "[]") as GhReview[];
-  const comments = JSON.parse(commentsRaw || "[]") as GhReviewComment[];
+  const reviews = parseGhPaginatedJsonArray<GhReview>(reviewsRaw || "[]");
+  const comments = parseGhPaginatedJsonArray<GhReviewComment>(
+    commentsRaw || "[]",
+  );
 
   const codexReviews = reviews.filter((review) =>
     isCodexGithubReviewer(review.user?.login ?? ""),
@@ -577,10 +616,17 @@ export function readSourceScanCorpus(input: {
 
   for (const file of compare.files ?? []) {
     const filename = file.filename ?? "";
-    if (file.patch) {
-      diffParts.push(`diff --git a/${filename} b/${filename}`);
-      diffParts.push(file.patch);
+    // Fail closed for AC10/AC38: a missing patch leaves diff-marker / copied-
+    // hunk scanning incomplete (removed files have no head-blob fallback).
+    if (!file.patch) {
+      throw new Error(
+        `Incomplete diff evidence: compare entry for '${
+          filename || "(unnamed)"
+        }' has no patch; capture refused.`,
+      );
     }
+    diffParts.push(`diff --git a/${filename} b/${filename}`);
+    diffParts.push(file.patch);
     if (!filename || file.status === "removed") {
       continue;
     }

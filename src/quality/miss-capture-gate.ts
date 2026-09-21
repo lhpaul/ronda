@@ -505,6 +505,12 @@ function processOneFinding(input: {
   }
 
   // Manual identity always uses full pre-truncation title/text (AC41).
+  // Pass known heads so abbreviated vs full SHA share one digest (AC30) and
+  // Codex aliases collapse via canonicalizeReviewerForIdentity (AC39).
+  const knownHeadShas = [
+    ...input.gate.evidence.pushOrderedHeadShas,
+    input.gate.evidence.currentHeadSha,
+  ];
   const identityKey = manualIdentityKey({
     repository: input.gate.evidence.repository,
     pullNumber: input.gate.evidence.pullNumber,
@@ -513,6 +519,7 @@ function processOneFinding(input: {
     location: input.finding.location,
     title: titleCandidate,
     text: input.finding.text,
+    knownHeadShas,
   });
 
   const existing = findMissByIdentity(input.gate.existingRecords, identityKey);

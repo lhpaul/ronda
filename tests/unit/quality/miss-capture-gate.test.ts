@@ -279,6 +279,51 @@ test("AC31 refuses malformed / unknown reviewed head", () => {
   );
   assert.equal(result.findings[0]?.outcome, "capture_refused");
   assert.match(result.findings[0]?.reason ?? "", /never a head/);
+
+  // Single matching hex character is malformed — must not prefix-match (AC31).
+  const singleHex = runCaptureDecisionGate(
+    baseManual({ reviewedHeadSha: "a" }),
+  );
+  assert.equal(singleHex.findings[0]?.outcome, "capture_refused");
+  assert.match(singleHex.findings[0]?.reason ?? "", /malformed|never a head/);
+});
+
+test("AC39 manual identity collapses Codex reviewer aliases", () => {
+  const first = runCaptureDecisionGate(
+    baseManual({ externalReviewer: "chatgpt-codex-connector[bot]" }),
+  );
+  assert.equal(first.findings[0]?.outcome, "record_written");
+  const written = first.findings[0]!.record!;
+
+  const alias = runCaptureDecisionGate({
+    ...baseManual({ externalReviewer: "Codex" }),
+    existingRecords: [written],
+  });
+  assert.equal(alias.findings[0]?.outcome, "record_updated");
+  assert.equal(alias.findings[0]?.record?.id, written.id);
+  assert.equal(alias.findings[0]?.record?.externalReviewer, "Codex");
+
+  const nonAlias = runCaptureDecisionGate({
+    ...baseManual({ externalReviewer: "Codex Bot" }),
+    existingRecords: [written],
+  });
+  assert.equal(nonAlias.findings[0]?.outcome, "record_written");
+  assert.notEqual(nonAlias.findings[0]?.record?.id, written.id);
+});
+
+test("AC30 manual identity unifies abbreviated and full reviewed head", () => {
+  const full = runCaptureDecisionGate(
+    baseManual({ reviewedHeadSha: HEAD_A }),
+  );
+  assert.equal(full.findings[0]?.outcome, "record_written");
+  const written = full.findings[0]!.record!;
+
+  const abbreviated = runCaptureDecisionGate({
+    ...baseManual({ reviewedHeadSha: HEAD_A.slice(0, 12) }),
+    existingRecords: [written],
+  });
+  assert.equal(abbreviated.findings[0]?.outcome, "record_updated");
+  assert.equal(abbreviated.findings[0]?.record?.id, written.id);
 });
 
 test("AC13 / AC46 refuse missing or invalid category", () => {

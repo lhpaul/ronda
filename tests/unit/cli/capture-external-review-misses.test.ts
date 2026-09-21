@@ -406,6 +406,154 @@ test("planted credential in fixture refuses capture", async () => {
   }
 });
 
+/**
+ * REVIEW.md planted-violation proof (fail-then-pass) for each sensitive-content
+ * guard at the CLI capture boundary:
+ * - credential form (`password = "..."`)
+ * - diff hunk marker (`@@ `)
+ * - six consecutive source lines from the compare corpus
+ *
+ * Each assertion is isolating: plant → refuse (no write); remove plant → write.
+ */
+test("CLI planted-violation fail-then-pass: credential, diff-marker, source-excerpt", async () => {
+  const sourceLines = [
+    "alpha-line-one",
+    "bravo-line-two",
+    "charlie-line-three",
+    "delta-line-four",
+    "echo-line-five",
+    "foxtrot-line-six",
+  ];
+  const corpusGh = createGhFixture({
+    compareFiles: [
+      {
+        filename: "src/changed.ts",
+        patch: sourceLines.map((line) => `+${line}`).join("\n"),
+        status: "modified",
+      },
+    ],
+    fileContents: {
+      "src/changed.ts": sourceLines.join("\n"),
+    },
+  });
+
+  async function runCapture(
+    text: string,
+    dir: string,
+  ): Promise<{ code: number; logs: string[]; files: string[] }> {
+    const logs: string[] = [];
+    const original = console.log;
+    console.log = (...args: unknown[]) => {
+      logs.push(args.map(String).join(" "));
+    };
+    try {
+      const code = await main(
+        [
+          "capture-manual",
+          "--pr",
+          "53",
+          "--repository",
+          "lhpaul/ronda",
+          "--reviewer",
+          "human-reviewer",
+          "--location",
+          "src/changed.ts:1",
+          "--text",
+          text,
+          "--category",
+          "correctness",
+          "--dir",
+          dir,
+        ],
+        { runGh: corpusGh },
+      );
+      const files = (await import("node:fs")).readdirSync(dir);
+      return { code, logs, files };
+    } finally {
+      console.log = original;
+    }
+  }
+
+  // --- Credential guard (isolating plant) ---
+  {
+    const dir = mkdtempSync(join(tmpdir(), "ronda-miss-cred-"));
+    try {
+      const planted = await runCapture('password = "s3cret-value"', dir);
+      assert.equal(planted.code, 1, "credential plant must fail capture");
+      assert.ok(
+        planted.logs.some((line) => /credential form/.test(line)),
+        "credential plant must name the credential form",
+      );
+      assert.equal(planted.files.length, 0, "credential plant must write nothing");
+
+      const cleaned = await runCapture(
+        "Missing retry backoff on webhook delivery.",
+        dir,
+      );
+      assert.equal(cleaned.code, 0, "clean credential-free text must pass");
+      assert.equal(cleaned.files.length, 1, "clean path must write one record");
+      assert.ok(
+        cleaned.logs.some((line) => /record_written/.test(line)),
+        "clean path must report record_written",
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  // --- Diff-marker guard (isolating plant) ---
+  {
+    const dir = mkdtempSync(join(tmpdir(), "ronda-miss-diff-"));
+    try {
+      const planted = await runCapture(
+        "See hunk\n@@ -1,3 +1,4 @@\ncontext around the change",
+        dir,
+      );
+      assert.equal(planted.code, 1, "diff-marker plant must fail capture");
+      assert.ok(
+        planted.logs.some((line) => /source or diff content|diff/i.test(line)),
+        "diff-marker plant must name source/diff refusal",
+      );
+      assert.equal(planted.files.length, 0, "diff-marker plant must write nothing");
+
+      const cleaned = await runCapture(
+        "Missing retry backoff on webhook delivery.",
+        dir,
+      );
+      assert.equal(cleaned.code, 0, "clean text without hunk markers must pass");
+      assert.equal(cleaned.files.length, 1);
+      assert.ok(cleaned.logs.some((line) => /record_written/.test(line)));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  // --- Source-excerpt guard (isolating plant: six consecutive corpus lines) ---
+  {
+    const dir = mkdtempSync(join(tmpdir(), "ronda-miss-src-"));
+    try {
+      const planted = await runCapture(sourceLines.join("\n"), dir);
+      assert.equal(planted.code, 1, "six-line source plant must fail capture");
+      assert.ok(
+        planted.logs.some((line) => /source or diff content|source/i.test(line)),
+        "source-excerpt plant must name source/diff refusal",
+      );
+      assert.equal(planted.files.length, 0, "source plant must write nothing");
+
+      const cleaned = await runCapture(sourceLines.slice(0, 5).join("\n"), dir);
+      assert.equal(
+        cleaned.code,
+        0,
+        "five consecutive source lines must pass (AC38)",
+      );
+      assert.equal(cleaned.files.length, 1);
+      assert.ok(cleaned.logs.some((line) => /record_written/.test(line)));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
 test("fixture JSON sample loads as a miss record shape", () => {
   const fixture = join(
     process.cwd(),
