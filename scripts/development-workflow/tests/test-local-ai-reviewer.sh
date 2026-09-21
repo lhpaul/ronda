@@ -72,6 +72,11 @@ case "$*" in
     printf 'scripts/example.sh\nREVIEW.md\n'
     exit 0
     ;;
+  *"api"*"pulls/"*"/files"*)
+    # Empty rename metadata — enough for fail-closed rename lookup to succeed.
+    printf '[]\n'
+    exit 0
+    ;;
   *)
     exit 1
     ;;
@@ -128,6 +133,8 @@ init_repo_root_fixture() {
   git -C "$VALID_REPO_ROOT" add REVIEW.md
   git -C "$VALID_REPO_ROOT" commit -q -m "fixture"
   git -C "$VALID_REPO_ROOT" remote add origin "git@github.com:owner/repo.git"
+  # Provide origin/develop so rename-metadata git fallback can succeed when REST is unavailable.
+  git -C "$VALID_REPO_ROOT" update-ref refs/remotes/origin/develop HEAD
 }
 
 run_reviewer() {
@@ -551,6 +558,10 @@ case "$*" in
     ;;
   *"pr diff 123"*"--name-only"*)
     printf 'scripts/example.sh\n'
+    exit 0
+    ;;
+  *"api"*"pulls/"*"/files"*)
+    printf '[]\n'
     exit 0
     ;;
   *) exit 1 ;;
@@ -1361,6 +1372,10 @@ case "\$*" in
     printf '%s\nREVIEW.md\n' "$changed_path"
     exit 0
     ;;
+  *"api"*"pulls/"*"/files"*)
+    printf '[]\n'
+    exit 0
+    ;;
   *) exit 1 ;;
 esac
 MOCK_GH
@@ -1452,6 +1467,10 @@ case "\$*" in
     ;;
   *"pr diff 123"*"--name-only"*)
     printf '%s\n%s\nREVIEW.md\n' "$PLAN_DOC_A" "$PLAN_DOC_B"
+    exit 0
+    ;;
+  *"api"*"pulls/"*"/files"*)
+    printf '[]\n'
     exit 0
     ;;
   *) exit 1 ;;
@@ -1583,6 +1602,10 @@ case "\$*" in
     printf 'M\t%s\n' "$PLAN_DOC"
     exit 0
     ;;
+  *"api"*"pulls/"*"/files"*)
+    printf '[]\n'
+    exit 0
+    ;;
   *) exit 1 ;;
 esac
 MOCK_GH
@@ -1644,6 +1667,10 @@ case "\$*" in
     ;;
   *"pr diff 123"*"--name-only"*)
     printf '%s\n%s\nREVIEW.md\n' "$PLAN_DOC_A" "$PLAN_DOC_B"
+    exit 0
+    ;;
+  *"api"*"pulls/"*"/files"*)
+    printf '[]\n'
     exit 0
     ;;
   *) exit 1 ;;
@@ -1856,6 +1883,10 @@ case "\$*" in
     ;;
   *"pr diff 123"*"--name-only"*)
     printf '%s\nREVIEW.md\n' "$plan_file"
+    exit 0
+    ;;
+  *"api"*"pulls/"*"/files"*)
+    printf '[]\n'
     exit 0
     ;;
   *) exit 1 ;;

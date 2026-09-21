@@ -39,15 +39,15 @@ import {
 
 function readLocalDurabilityModeDocument(
   cwd: string = process.cwd(),
-): string | null {
+): { text: string | null; unreadable: boolean } {
   const localPath = join(cwd, DURABILITY_MODE_DOCUMENT_PATH);
   if (!existsSync(localPath)) {
-    return null;
+    return { text: null, unreadable: false };
   }
   try {
-    return readFileSync(localPath, "utf8");
+    return { text: readFileSync(localPath, "utf8"), unreadable: false };
   } catch {
-    return null;
+    return { text: null, unreadable: true };
   }
 }
 
@@ -236,18 +236,38 @@ export async function runReviewPass(
         // copy must surface as unavailable.
         modeDocumentText =
           loaded ??
-          (shouldFallBackToLocalDurabilityModeDocument(input.owner, input.repo)
-            ? readLocalDurabilityModeDocument()
-            : null);
+          (() => {
+            if (
+              !shouldFallBackToLocalDurabilityModeDocument(
+                input.owner,
+                input.repo,
+              )
+            ) {
+              return null;
+            }
+            const local = readLocalDurabilityModeDocument();
+            if (local.unreadable) {
+              modeDocumentUnreadable = true;
+              return null;
+            }
+            return local.text;
+          })();
       } catch (error) {
         const message = String(error);
         if (/404|Not Found|does not exist/i.test(message)) {
-          modeDocumentText = shouldFallBackToLocalDurabilityModeDocument(
-            input.owner,
-            input.repo,
-          )
-            ? readLocalDurabilityModeDocument()
-            : null;
+          if (
+            shouldFallBackToLocalDurabilityModeDocument(input.owner, input.repo)
+          ) {
+            const local = readLocalDurabilityModeDocument();
+            if (local.unreadable) {
+              modeDocumentUnreadable = true;
+              modeDocumentText = null;
+            } else {
+              modeDocumentText = local.text;
+            }
+          } else {
+            modeDocumentText = null;
+          }
         } else {
           modeDocumentUnreadable = true;
           deps.logger.event("durability_mode_document_unreadable", { message });
