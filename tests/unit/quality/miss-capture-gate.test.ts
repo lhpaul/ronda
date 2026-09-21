@@ -188,7 +188,50 @@ test("AC8 stale marker when reviewed head differs from Ronda result head", () =>
   assert.equal(result.findings[0]?.outcome, "record_written");
   assert.equal(result.findings[0]?.record?.staleEvidence, true);
   assert.equal(result.findings[0]?.record?.reviewedHeadSha, HEAD_B);
+  // AC53: stored Ronda result head is the fallback head, not the reviewed head
   assert.equal(result.findings[0]?.record?.rondaResultHeadSha, HEAD_A);
+  assert.notEqual(
+    result.findings[0]?.record?.reviewedHeadSha,
+    result.findings[0]?.record?.rondaResultHeadSha,
+  );
+});
+
+test("same-head abbreviated SHA does not mark stale evidence", () => {
+  const abbreviated = HEAD_A.slice(0, 12);
+  const result = runCaptureDecisionGate(
+    baseManual({ reviewedHeadSha: abbreviated }),
+  );
+  assert.equal(result.findings[0]?.outcome, "record_written");
+  assert.equal(result.findings[0]?.record?.staleEvidence, false);
+  assert.equal(result.findings[0]?.record?.rondaResultHeadSha, HEAD_A);
+});
+
+test("AC9 / AC11 scan-before-truncate refused for title and long text", () => {
+  const secretTail = 'password = "s3cret-beyond-title"';
+  const longTitleLine = `${"x".repeat(130)} ${secretTail}`;
+  const titleOnly = runCaptureDecisionGate(
+    baseManual({
+      title: longTitleLine,
+      text: "Safe finding body without credentials.",
+    }),
+  );
+  assert.equal(titleOnly.findings[0]?.outcome, "capture_refused");
+  assert.match(titleOnly.findings[0]?.reason ?? "", /field 'title'/);
+
+  const beyondBound = `${"safe line\n".repeat(250)}${secretTail}`;
+  const textOnly = runCaptureDecisionGate(baseManual({ text: beyondBound }));
+  assert.equal(textOnly.findings[0]?.outcome, "capture_refused");
+  assert.match(textOnly.findings[0]?.reason ?? "", /credential/);
+});
+
+test("AC20 derived title truncates to 120 after a clean scan", () => {
+  const longSafe = `Safe derived title ${"word ".repeat(40)}end`;
+  const result = runCaptureDecisionGate(
+    baseManual({ title: undefined, text: `${longSafe}\nsecond line` }),
+  );
+  assert.equal(result.findings[0]?.outcome, "record_written");
+  assert.equal(result.findings[0]?.record?.title.length, 120);
+  assert.equal(result.findings[0]?.record?.title, longSafe.slice(0, 120));
 });
 
 test("AC31 refuses malformed / unknown reviewed head", () => {

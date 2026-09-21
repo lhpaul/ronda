@@ -246,12 +246,9 @@ function parseFindingFromComment(input: {
   }
 
   const firstLine = text.split(/\r?\n/).find((lineText) => lineText.trim())?.trim();
-  const title =
-    firstLine && firstLine.length <= 120
-      ? firstLine
-      : firstLine
-        ? firstLine.slice(0, 120)
-        : null;
+  // Pass the full first-line title candidate; the capture gate scans before
+  // truncating to 120 characters for storage.
+  const title = firstLine ?? null;
 
   return {
     sourceId: `${input.reviewOrCommentId}:${input.findingIndex}`,
@@ -362,7 +359,8 @@ export function readCodexGithubFindings(input: {
       reviewedHeadSha: head,
       location: "unresolved",
       locationUnresolved: true,
-      title: body.split(/\r?\n/).find((line) => line.trim())?.trim().slice(0, 120) ?? null,
+      title:
+        body.split(/\r?\n/).find((line) => line.trim())?.trim() ?? null,
       text: body,
     });
   }

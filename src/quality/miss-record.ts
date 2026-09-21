@@ -125,13 +125,15 @@ export function headsMatch(left: string, right: string): boolean {
   return a === b || a.startsWith(b) || b.startsWith(a);
 }
 
+/**
+ * First nonblank finding-text line, trimmed. Caller must scan the full
+ * candidate before truncating to {@link MAX_TITLE_CHARS} for storage.
+ */
 export function deriveFindingTitle(text: string): string | null {
   for (const line of text.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (trimmed.length > 0) {
-      return trimmed.length <= MAX_TITLE_CHARS
-        ? trimmed
-        : trimmed.slice(0, MAX_TITLE_CHARS);
+      return trimmed;
     }
   }
   return null;

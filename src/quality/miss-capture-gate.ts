@@ -13,12 +13,14 @@ import {
   buildMissRecordId,
   deriveFindingTitle,
   findMissByIdentity,
+  headsMatch,
   isAffectedCategory,
   isIntendedFollowUp,
   isMissVerdict,
   manualIdentityKey,
   MAX_FINDING_TEXT_CHARS,
   MAX_RATIONALE_CHARS,
+  MAX_TITLE_CHARS,
   truncateBounded,
   type AffectedCategory,
   type CaptureSource,
@@ -351,11 +353,12 @@ function processOneFinding(input: {
     }
   }
 
-  const derivedTitle =
+  // Full title candidate before any 120-char truncation (scan-before-truncate).
+  const titleCandidate =
     input.finding.title && input.finding.title.trim()
       ? input.finding.title.trim()
       : deriveFindingTitle(input.finding.text);
-  if (!derivedTitle) {
+  if (!titleCandidate) {
     return refuse("Capture refused: required input 'text' is missing.");
   }
 
@@ -372,7 +375,7 @@ function processOneFinding(input: {
     );
   }
 
-  // Stage 3 — credential / diff / source scan before truncation (full text)
+  // Stage 3 — credential / diff / source scan before truncation (full title + text)
   const contentRefusal = validateCaptureFields({
     fields: {
       externalReviewer: input.finding.externalReviewer,
@@ -380,7 +383,7 @@ function processOneFinding(input: {
         ? input.finding.reviewedHeadSha
         : undefined,
       location: input.finding.location,
-      title: derivedTitle,
+      title: titleCandidate,
       text: input.finding.text,
     },
     corpus,
@@ -390,12 +393,12 @@ function processOneFinding(input: {
     return refuse(formatContentReason(contentRefusal));
   }
 
-  // Also scan the pre-truncation title derivation source (finding text already
-  // scanned). Truncate only after scans pass.
+  // Truncate only after scans pass.
   const truncatedText = truncateBounded(
     input.finding.text,
     MAX_FINDING_TEXT_CHARS,
   );
+  const truncatedTitle = truncateBounded(titleCandidate, MAX_TITLE_CHARS);
 
   const rondaResultHeadSha = resolveRondaResultHead({
     reviewedHeadSha,
@@ -408,7 +411,7 @@ function processOneFinding(input: {
     );
   }
 
-  const staleEvidence = !headsEqual(reviewedHeadSha, rondaResultHeadSha);
+  const staleEvidence = !headsMatch(reviewedHeadSha, rondaResultHeadSha);
   const category = input.finding.affectedCategory!.trim() as AffectedCategory;
   const verdictParse = parseOptionalVerdict(input.finding.verdict);
   const followUpParse = parseOptionalFollowUp(input.finding.intendedFollowUp);
@@ -454,7 +457,7 @@ function processOneFinding(input: {
         externalReviewer: input.finding.externalReviewer,
         location: input.finding.location,
         locationUnresolved,
-        title: derivedTitle,
+        title: truncatedTitle.value,
         text: truncatedText.value,
         textTruncated: truncatedText.truncated,
         verdict: verdictParse.value ?? "unadjudicated",
@@ -482,7 +485,7 @@ function processOneFinding(input: {
       externalReviewer: input.finding.externalReviewer,
       location: input.finding.location,
       locationUnresolved,
-      title: derivedTitle,
+      title: truncatedTitle.value,
       text: truncatedText.value,
       textTruncated: truncatedText.truncated,
       affectedCategory: category,
@@ -508,7 +511,7 @@ function processOneFinding(input: {
     externalReviewer: input.finding.externalReviewer,
     reviewedHeadSha,
     location: input.finding.location,
-    title: derivedTitle,
+    title: truncatedTitle.value,
     text: truncatedText.value,
   });
   // Identity uses full (pre-storage-canonical) text for matching against
@@ -520,7 +523,7 @@ function processOneFinding(input: {
     externalReviewer: input.finding.externalReviewer,
     reviewedHeadSha,
     location: input.finding.location,
-    title: derivedTitle,
+    title: titleCandidate,
     text: input.finding.text,
   });
 
@@ -545,7 +548,7 @@ function processOneFinding(input: {
       externalReviewer: input.finding.externalReviewer,
       location: input.finding.location,
       locationUnresolved,
-      title: derivedTitle,
+      title: truncatedTitle.value,
       text: truncatedText.value,
       textTruncated: truncatedText.truncated,
       verdict: verdictParse.value ?? "unadjudicated",
@@ -573,7 +576,7 @@ function processOneFinding(input: {
     externalReviewer: input.finding.externalReviewer,
     location: input.finding.location,
     locationUnresolved,
-    title: derivedTitle,
+    title: truncatedTitle.value,
     text: truncatedText.value,
     textTruncated: truncatedText.truncated,
     affectedCategory: category,
@@ -589,10 +592,6 @@ function processOneFinding(input: {
     capturedAt: existing.capturedAt ?? now,
   };
   return { outcome: "record_updated", record };
-}
-
-function headsEqual(left: string, right: string): boolean {
-  return left.trim().toLowerCase() === right.trim().toLowerCase();
 }
 
 /**

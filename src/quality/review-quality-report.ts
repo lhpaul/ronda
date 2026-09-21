@@ -94,6 +94,16 @@ export interface SkippedFile {
   reason: string;
 }
 
+/** Prefix-aware SHA match (abbreviated vs full) without importing miss-record. */
+function missHeadsMatch(left: string, right: string): boolean {
+  const a = left.trim().toLowerCase();
+  const b = right.trim().toLowerCase();
+  if (a.length === 0 || b.length === 0) {
+    return false;
+  }
+  return a === b || a.startsWith(b) || b.startsWith(a);
+}
+
 export interface QualityComparisonRollup {
   totalComparisons: number;
   sameHeadComparisons: number;
@@ -417,14 +427,14 @@ function comparisonRows(record: ComparisonRecordWithMeta): ClassifiedEvidenceRow
 }
 
 function missRows(record: CapturedMissRecord): ClassifiedEvidenceRow[] {
-  const stale =
-    record.staleEvidence === true ||
-    record.reviewedHeadSha !== record.rondaResultHeadSha;
+  const sameHead = missHeadsMatch(
+    record.reviewedHeadSha,
+    record.rondaResultHeadSha,
+  );
+  const stale = record.staleEvidence === true || !sameHead;
   const category = record.affectedCategory?.trim() || UNCategorized_CATEGORY;
   const falseCleanCandidate =
-    !stale &&
-    record.verdict === "unadjudicated" &&
-    record.reviewedHeadSha === record.rondaResultHeadSha;
+    !stale && record.verdict === "unadjudicated" && sameHead;
 
   const primaryOutcome = stale
     ? "stale_head"

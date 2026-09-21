@@ -12,7 +12,11 @@ import {
   isResolvableRondaHead,
   type PullRequestEvidence,
 } from "../quality/miss-github-evidence.js";
-import type { AffectedCategory, MissVerdict } from "../quality/miss-record.js";
+import {
+  headsMatch,
+  type AffectedCategory,
+  type MissVerdict,
+} from "../quality/miss-record.js";
 
 interface CliOptions {
   files: string[];
@@ -75,7 +79,7 @@ export function summarizeMissRecords(
   for (const record of records) {
     const stale =
       record.staleEvidence === true ||
-      record.reviewedHeadSha !== record.rondaResultHeadSha;
+      !headsMatch(record.reviewedHeadSha, record.rondaResultHeadSha);
     const resolvable = options.isResolvable
       ? options.isResolvable(record)
       : true;

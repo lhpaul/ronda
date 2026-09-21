@@ -70,6 +70,20 @@ test("miss rollup maps verdicts and preserves independent stale/unresolvable cou
   assert.equal(rollup.categoryBreakdown.timeouts, 1);
 });
 
+test("abbreviated vs full SHA same-head miss is not counted stale", () => {
+  const rollup = summarizeMissRecords([
+    miss({
+      id: "abbrev",
+      verdict: "true_positive",
+      reviewedHeadSha: HEAD_A.slice(0, 12),
+      rondaResultHeadSha: HEAD_A,
+      staleEvidence: false,
+    }),
+  ]);
+  assert.equal(rollup.staleEvidence, 0);
+  assert.equal(rollup.confirmedMisses, 1);
+});
+
 test("clean agreement comparison counts are unchanged by miss records (AC7)", () => {
   const comparisons: ReviewComparisonRecord[] = [
     {
