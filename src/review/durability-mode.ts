@@ -42,8 +42,12 @@ export const DURABILITY_REQUIRED_MODE_HEADINGS = [
 ] as const;
 
 export function durabilityModeDocumentIsComplete(modeDocumentText: string): boolean {
+  const lines = modeDocumentText.split(/\r?\n/);
   return DURABILITY_REQUIRED_MODE_HEADINGS.every((heading) =>
-    modeDocumentText.includes(heading),
+    lines.some((line) => {
+      const normalized = line.replace(/^\s{0,3}/, "").replace(/\s+$/, "");
+      return normalized === heading;
+    }),
   );
 }
 

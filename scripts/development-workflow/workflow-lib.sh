@@ -3505,10 +3505,12 @@ reviewer_loop_history_select_latest_summary_record() {
 # All six scenario family codes from the #54 spec.
 REVIEW_DURABILITY_SCENARIO_FAMILIES='["restart_recovery","retry_semantics","timeout_watchdog","duplicate_delivery","partial_success","persistence_integrity"]'
 
-# Returns 0 when the mode document text includes every required family heading.
+# Returns 0 when the mode document text includes every required family heading
+# as an actual Markdown heading line (not merely as a prose/code substring).
 reviewer_durability_mode_document_is_complete() {
   local text="${1:-}"
   local heading
+  local normalized
   local required_headings=(
     "### Restart and recovery"
     "### Retry semantics"
@@ -3518,11 +3520,13 @@ reviewer_durability_mode_document_is_complete() {
     "### Persistence integrity"
   )
 
+  # Normalize ATX heading lines: strip up to 3 leading spaces and trailing whitespace.
+  normalized="$(printf '%s\n' "$text" | sed -E 's/^[[:space:]]{0,3}//; s/[[:space:]]+$//')"
+
   for heading in "${required_headings[@]}"; do
-    case "$text" in
-      *"$heading"*) ;;
-      *) return 1 ;;
-    esac
+    if ! grep -Fxq "$heading" <<< "$normalized"; then
+      return 1
+    fi
   done
   return 0
 }

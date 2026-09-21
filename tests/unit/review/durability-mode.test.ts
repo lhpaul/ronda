@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { reviewStageForBranch } from "../../../src/review/stage-resolution.js";
 import {
+  durabilityModeDocumentIsComplete,
   durabilityPathIsSensitive,
   resolveDurabilityMode,
 } from "../../../src/review/durability-mode.js";
@@ -134,6 +135,39 @@ test("resolveDurabilityMode follows decision matrix rows", () => {
   });
   assert.equal(incomplete.state, "unavailable");
   assert.equal(incomplete.unavailableReason, "incomplete");
+
+  const proseOnlyDoc = [
+    "# Durability",
+    "",
+    "Missing section: ### Restart and recovery",
+    "Missing section: ### Retry semantics",
+    "Missing section: ### Timeout and watchdog",
+    "Missing section: ### Duplicate delivery",
+    "Missing section: ### Partial success",
+    "Missing section: ### Persistence integrity",
+    "",
+  ].join("\n");
+  assert.equal(durabilityModeDocumentIsComplete(proseOnlyDoc), false);
+  const proseOnlyHeadings = resolveDurabilityMode({
+    headBranch: "feature/54-x",
+    changedPaths: ["src/webhook/a.ts"],
+    modeDocumentText: proseOnlyDoc,
+  });
+  assert.equal(proseOnlyHeadings.state, "unavailable");
+  assert.equal(proseOnlyHeadings.unavailableReason, "incomplete");
+  assert.equal(
+    durabilityModeDocumentIsComplete(
+      [
+        "### Restart and recovery",
+        "### Retry semantics",
+        "### Timeout and watchdog",
+        "### Duplicate delivery",
+        "### Partial success",
+        "### Persistence integrity",
+      ].join("\n"),
+    ),
+    true,
+  );
 
   const defaultOn = resolveDurabilityMode({
     headBranch: "feature/54-x",

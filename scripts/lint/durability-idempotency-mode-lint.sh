@@ -56,7 +56,8 @@ required_headings=(
 )
 
 for heading in "${required_headings[@]}"; do
-  if ! grep -Fq "$heading" "$FILE"; then
+  # Require an actual heading line (up to 3 leading spaces), not a prose substring.
+  if ! sed -E 's/^[[:space:]]{0,3}//; s/[[:space:]]+$//' "$FILE" | grep -Fxq "$heading"; then
     report_fail "durability-mode section check FAILED: missing heading \"$heading\""
   fi
 done
