@@ -51,6 +51,18 @@ function readLocalDurabilityModeDocument(
   }
 }
 
+/**
+ * The reusable Action checks out lhpaul/ronda and reviews consumer PRs that
+ * are not expected to vendor the mode document. Self-review of Ronda must not
+ * fall back to the checkout copy when the reviewed head deleted or broke it.
+ */
+function shouldFallBackToLocalDurabilityModeDocument(
+  owner: string,
+  repo: string,
+): boolean {
+  return `${owner}/${repo}`.toLowerCase() !== "lhpaul/ronda";
+}
+
 export class ReviewPublishedCheckRunError extends Error {
   constructor(
     message: string,
@@ -218,13 +230,24 @@ export async function runReviewPass(
           deadline.signal,
         );
         // Prefer the reviewed-head copy when present (self-review of mode-doc
-        // edits). When the consumer PR head has no copy — the common reusable-
+        // edits). When a consumer PR head has no copy — the common reusable-
         // Action case — fall back to the deployed Ronda checkout document.
-        modeDocumentText = loaded ?? readLocalDurabilityModeDocument();
+        // Do not fall back when reviewing Ronda itself: a missing/broken head
+        // copy must surface as unavailable.
+        modeDocumentText =
+          loaded ??
+          (shouldFallBackToLocalDurabilityModeDocument(input.owner, input.repo)
+            ? readLocalDurabilityModeDocument()
+            : null);
       } catch (error) {
         const message = String(error);
         if (/404|Not Found|does not exist/i.test(message)) {
-          modeDocumentText = readLocalDurabilityModeDocument();
+          modeDocumentText = shouldFallBackToLocalDurabilityModeDocument(
+            input.owner,
+            input.repo,
+          )
+            ? readLocalDurabilityModeDocument()
+            : null;
         } else {
           modeDocumentUnreadable = true;
           deps.logger.event("durability_mode_document_unreadable", { message });
