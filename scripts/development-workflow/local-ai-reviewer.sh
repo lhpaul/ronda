@@ -473,25 +473,29 @@ filter_strict_spec_parsed_response() {
 
   printf '%s\n' "$parsed" | jq -c --argjson documents "$documents_json" '
     ($documents | map(.path)) as $spec_docs
-    | .findings as $all
-    | ($all | map(
-        . as $f
-        | if ($f.check != "unknown")
-            and (($f.path | type) != "string" or ($f.path | length) == 0
-                 or ($spec_docs | index($f.path)) == null) then
-            $f + {check: "unknown", remapped: true}
-          else
-            $f
-          end
-      )) as $processed
-    | ($processed | map(select(.remapped == true)) | length) as $remapped
-    | ($processed | map(del(.remapped))) as $kept
-    | . + {
-        count: ($kept | map(select(.check != "unknown")) | length),
-        checks: ($kept | map(select(.check != "unknown") | .check) | unique | join(",")),
-        unknown_count: ((.unknown_count // 0) + $remapped),
-        findings: $kept
-      }
+    | if ($spec_docs | length) == 0 then
+        .
+      else
+        .findings as $all
+        | ($all | map(
+            . as $f
+            | if ($f.check != "unknown")
+                and (($f.path | type) != "string" or ($f.path | length) == 0
+                     or ($spec_docs | index($f.path)) == null) then
+                $f + {check: "unknown", remapped: true}
+              else
+                $f
+              end
+          )) as $processed
+        | ($processed | map(select(.remapped == true)) | length) as $remapped
+        | ($processed | map(del(.remapped))) as $kept
+        | . + {
+            count: ($kept | map(select(.check != "unknown")) | length),
+            checks: ($kept | map(select(.check != "unknown") | .check) | unique | join(",")),
+            unknown_count: ((.unknown_count // 0) + $remapped),
+            findings: $kept
+          }
+      end
   ' 2>/dev/null
 }
 

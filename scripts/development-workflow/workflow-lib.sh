@@ -3568,7 +3568,6 @@ reviewer_durability_mode_document_is_complete() {
 # Returns 0 when the path matches documented sensitive surfaces (AC-1).
 reviewer_durability_path_is_sensitive() {
   local path="${1:-}"
-  local base
 
   [ -n "$path" ] || return 1
 
