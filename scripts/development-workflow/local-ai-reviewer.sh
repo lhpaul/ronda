@@ -1242,7 +1242,8 @@ if command -v gh >/dev/null 2>&1; then
   # Include previous filenames for renames so durability activation matches the
   # TypeScript collectChangedPaths contract. Prefer the REST pull-files endpoint:
   # `gh pr view --json files` (GraphQL) does not expose previous_filename.
-  if files_json="$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/files" --paginate 2>/dev/null)"; then
+  # `gh api --paginate` emits one JSON array per page — slurp pages into one array.
+  if files_json="$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/files" --paginate 2>/dev/null | jq -s 'add // []')"; then
     rename_paths_json="$(printf '%s\n' "$files_json" | jq -c '
       [.[].previous_filename // empty | select(length > 0)]
       | unique

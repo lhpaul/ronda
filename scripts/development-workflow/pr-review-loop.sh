@@ -4189,6 +4189,26 @@ emit_local_ai_review_doctrine_keys() {
   print_kv REVIEW_DOCTRINE_VERSION "$version"
 }
 
+emit_local_ai_durability_mode_keys() {
+  local script_output="$1"
+  local state activation unavailable families_in_scope families_na inactive
+  if ! grep -q '^REVIEW_DURABILITY_MODE_STATE=' <<< "$script_output"; then
+    return 0
+  fi
+  state="$(kv_value_default REVIEW_DURABILITY_MODE_STATE "$script_output" "")"
+  activation="$(kv_value_default REVIEW_DURABILITY_ACTIVATION_REASON "$script_output" "")"
+  unavailable="$(kv_value_default REVIEW_DURABILITY_UNAVAILABLE_REASON "$script_output" "")"
+  families_in_scope="$(kv_value_default REVIEW_DURABILITY_FAMILIES_IN_SCOPE "$script_output" "")"
+  families_na="$(kv_value_default REVIEW_DURABILITY_FAMILIES_NA "$script_output" "[]")"
+  inactive="$(kv_value_default REVIEW_DURABILITY_INACTIVE_REASON "$script_output" "")"
+  print_kv REVIEW_DURABILITY_MODE_STATE "$state"
+  print_kv REVIEW_DURABILITY_ACTIVATION_REASON "$activation"
+  print_kv REVIEW_DURABILITY_UNAVAILABLE_REASON "$unavailable"
+  print_kv REVIEW_DURABILITY_FAMILIES_IN_SCOPE "$families_in_scope"
+  print_kv REVIEW_DURABILITY_FAMILIES_NA "$families_na"
+  [ -n "$inactive" ] && print_kv REVIEW_DURABILITY_INACTIVE_REASON "$inactive"
+}
+
 # Capture STRICT_SPEC_* into globals for reviewer_loop_history_build_entry.
 # Present object vs absent object is gated by strict_spec_recorded.
 capture_strict_spec_globals_from_output() {
@@ -4344,6 +4364,7 @@ run_local_ai_reviewer_review() {
       emit_local_ai_strict_spec_keys "$script_output"
       emit_local_ai_review_stage_keys "$script_output"
       emit_local_ai_review_doctrine_keys "$script_output"
+      emit_local_ai_durability_mode_keys "$script_output"
       return 0
       ;;
     1)
@@ -4375,6 +4396,7 @@ run_local_ai_reviewer_review() {
       emit_local_ai_strict_spec_keys "$script_output"
       emit_local_ai_review_stage_keys "$script_output"
       emit_local_ai_review_doctrine_keys "$script_output"
+      emit_local_ai_durability_mode_keys "$script_output"
       return 1
       ;;
     2)
@@ -4398,6 +4420,7 @@ run_local_ai_reviewer_review() {
       emit_local_ai_strict_spec_keys "$script_output"
       emit_local_ai_review_stage_keys "$script_output"
       emit_local_ai_review_doctrine_keys "$script_output"
+      emit_local_ai_durability_mode_keys "$script_output"
       return 2
       ;;
     *)
@@ -4420,6 +4443,7 @@ run_local_ai_reviewer_review() {
       emit_local_ai_strict_spec_keys "$script_output"
       emit_local_ai_review_stage_keys "$script_output"
       emit_local_ai_review_doctrine_keys "$script_output"
+      emit_local_ai_durability_mode_keys "$script_output"
       return 0
       ;;
   esac
