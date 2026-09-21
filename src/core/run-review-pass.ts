@@ -33,6 +33,7 @@ import { buildCheckRunOutput, buildReviewSummary, countBySeverity } from "./summ
 import { createPassDeadline } from "./pass-deadline.js";
 import {
   DURABILITY_MODE_DOCUMENT_PATH,
+  REVIEW_DURABILITY_MODE_MAX_BYTES,
   resolveDurabilityMode,
   type DurabilityModeResolution,
 } from "../review/durability-mode.js";
@@ -229,7 +230,7 @@ export async function runReviewPass(
           DURABILITY_MODE_DOCUMENT_PATH,
           pr.headSha,
           deadline.signal,
-          { failOnUnusable: true },
+          { failOnUnusable: true, oversizedMaxBytes: REVIEW_DURABILITY_MODE_MAX_BYTES },
         );
         // Prefer the reviewed-head copy when present (self-review of mode-doc
         // edits). When a consumer PR head has no copy — the common reusable-
@@ -257,10 +258,13 @@ export async function runReviewPass(
           })();
       } catch (error) {
         if (error instanceof RepositoryFileUnusableError) {
-          // Empty files are present but incomplete (match shell supply). Truncated
+          // Empty files are present but incomplete (match shell supply). Files
+          // whose reported size exceeds the mode bound are oversized. Truncated
           // or non-file content remains unreadable.
           if (error.reason === "empty") {
             modeDocumentText = "";
+          } else if (error.reason === "oversized") {
+            modeDocumentText = "x".repeat(REVIEW_DURABILITY_MODE_MAX_BYTES + 1);
           } else {
             modeDocumentUnreadable = true;
             deps.logger.event("durability_mode_document_unreadable", {

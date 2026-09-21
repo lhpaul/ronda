@@ -2007,6 +2007,19 @@ run_test "durability_mode_root_webhook_active" "active" "$(printf '%s' "$_54_roo
 _54_root_na_count="$(printf '%s' "$_54_root_webhook" | jq -r '.scenario_families_na | length')"
 run_test "durability_mode_root_webhook_no_families_na" "0" "$_54_root_na_count"
 
+# Mixed-case OWNER/REPO must still count as self-review of lhpaul/ronda, so a
+# missing reviewed-head copy stays absent (no tool-checkout fallback).
+_54_self_review_root="$(mktemp -d)"
+_54_case_fold="$(
+  REPO_ROOT="$_54_self_review_root" \
+  HEAD_SHA="notarealsha" \
+  OWNER="LhPaul" \
+  REPO="Ronda" \
+  reviewer_durability_mode_raw_supply
+)"
+run_test "durability_self_review_case_fold_absent" "absent" "$(printf '%s' "$_54_case_fold" | jq -r '.state')"
+rm -rf "$_54_self_review_root"
+
 if [ "$FAIL_COUNT" -ne 0 ]; then
   echo "FAIL: $FAIL_COUNT test(s) failed"
   exit 1

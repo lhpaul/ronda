@@ -27,6 +27,12 @@ export interface ReadRepositoryFileAtRefOptions {
    * Missing files (HTTP 404) still return `undefined`.
    */
   failOnUnusable?: boolean;
+  /**
+   * When set with `failOnUnusable`, truncated or empty content whose reported
+   * file size exceeds this bound is classified as `oversized` rather than
+   * `truncated` / `empty`.
+   */
+  oversizedMaxBytes?: number;
 }
 
 /**
@@ -46,11 +52,26 @@ export async function readRepositoryFileAtRef(
   options?: ReadRepositoryFileAtRefOptions,
 ): Promise<string | undefined> {
   const failOnUnusable = options?.failOnUnusable === true;
+  const oversizedMaxBytes = options?.oversizedMaxBytes;
   const unusable = (reason: string): undefined => {
     if (failOnUnusable) {
       throw new RepositoryFileUnusableError(path, reason);
     }
     return undefined;
+  };
+  const classifyUnusable = (
+    reason: "truncated" | "empty" | "directory" | `type:${string}`,
+    size: number | undefined,
+  ): undefined => {
+    if (
+      typeof oversizedMaxBytes === "number" &&
+      oversizedMaxBytes > 0 &&
+      typeof size === "number" &&
+      size > oversizedMaxBytes
+    ) {
+      return unusable("oversized");
+    }
+    return unusable(reason);
   };
 
   try {
@@ -78,11 +99,12 @@ export async function readRepositoryFileAtRef(
     if (data.type !== "file") {
       return unusable(`type:${data.type}`);
     }
+    const size = typeof data.size === "number" ? data.size : undefined;
     if ("truncated" in data && data.truncated === true) {
-      return unusable("truncated");
+      return classifyUnusable("truncated", size);
     }
     if (typeof data.content !== "string" || data.content.length === 0) {
-      return unusable("empty");
+      return classifyUnusable("empty", size);
     }
     return decodeFileContent(data.content.replace(/\n/g, ""));
   } catch (error) {

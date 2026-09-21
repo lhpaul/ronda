@@ -1035,7 +1035,7 @@ reviewer_durability_mode_raw_supply() {
   # script — but never when reviewing lhpaul/ronda itself (with or without
   # --repo-root), so a missing reviewed-head copy stays unavailable.
   if [ "$loaded_from_head" -eq 0 ]; then
-    if [ "${OWNER}/${REPO}" != "lhpaul/ronda" ] \
+    if [ "$(printf '%s/%s' "${OWNER}" "${REPO}" | sed 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/')" != "lhpaul/ronda" ] \
       && [ -n "$tool_root" ] \
       && [ -f "$tool_root/$path" ]; then
       cp "$tool_root/$path" "$snapshot" 2>/dev/null || {
