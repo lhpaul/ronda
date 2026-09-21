@@ -1,0 +1,28 @@
+{
+  "reviews": [
+    {
+      "id": 10,
+      "user": { "login": "chatgpt-codex-connector[bot]" },
+      "body": "",
+      "commit_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "comments": [
+    {
+      "id": 99,
+      "user": { "login": "chatgpt-codex-connector[bot]" },
+      "body": "Unhandled timeout on webhook drain.",
+      "path": "src/webhook.ts",
+      "line": 42,
+      "commit_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "rondaReviews": [
+    {
+      "id": 1,
+      "user": { "login": "ronda-bot" },
+      "body": "## Ronda review\n\nNo findings.",
+      "commit_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}

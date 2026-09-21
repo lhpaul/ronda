@@ -1,0 +1,439 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+import { CAPTURE_HELP, main } from "../../../src/cli/capture-external-review-misses.js";
+import { RONDA_REVIEW_HEADING } from "../../../src/core/summary.js";
+
+const HEAD_A = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const HEAD_B = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const BASE = "dddddddddddddddddddddddddddddddddddddddd";
+
+function createGhFixture(input: {
+  repository?: string;
+  head?: string;
+  baseRef?: string;
+  commits?: string[];
+  reviews?: unknown[];
+  comments?: unknown[];
+  mergeBase?: string;
+  compareFiles?: Array<{ filename: string; patch?: string; status?: string }>;
+  fileContents?: Record<string, string>;
+}): (args: string[]) => string {
+  const repository = input.repository ?? "lhpaul/ronda";
+  const head = input.head ?? HEAD_A;
+  const baseRef = input.baseRef ?? "develop";
+  const commits = input.commits ?? [HEAD_B, HEAD_A];
+  const reviews = input.reviews ?? [
+    {
+      id: 1,
+      user: { login: "ronda-bot" },
+      body: `${RONDA_REVIEW_HEADING}\n\nNo findings.`,
+      commit_id: HEAD_A,
+    },
+  ];
+  const comments = input.comments ?? [];
+  const mergeBase = input.mergeBase ?? BASE;
+  const compareFiles = input.compareFiles ?? [];
+  const fileContents = input.fileContents ?? {};
+
+  return (args: string[]) => {
+    const joined = args.join(" ");
+    if (joined.includes("repo view") && joined.includes("nameWithOwner")) {
+      return repository;
+    }
+    if (args[0] === "pr" && args[1] === "view") {
+      return JSON.stringify({
+        headRefOid: head,
+        baseRefName: baseRef,
+        baseRefOid: BASE,
+        url: `https://github.com/${repository}/pull/53`,
+      });
+    }
+    if (joined.includes("/commits")) {
+      return JSON.stringify(commits.map((sha) => ({ sha })));
+    }
+    if (joined.includes("/reviews")) {
+      return JSON.stringify(reviews);
+    }
+    if (joined.includes("/comments")) {
+      return JSON.stringify(comments);
+    }
+    if (joined.includes("/git/ref/heads/")) {
+      return BASE;
+    }
+    if (joined.includes("/compare/") && joined.includes("--jq")) {
+      return mergeBase;
+    }
+    if (joined.includes("/compare/")) {
+      return JSON.stringify({
+        merge_base_commit: { sha: mergeBase },
+        files: compareFiles,
+      });
+    }
+    if (joined.includes("/contents/")) {
+      const match = /contents\/([^?]+)/.exec(joined);
+      const path = decodeURIComponent((match?.[1] ?? "").replace(/\//g, "/"));
+      // args path uses encoded segments joined by /
+      const key = args
+        .find((arg) => arg.includes("/contents/"))
+        ?.split("/contents/")[1]
+        ?.split("?")[0]
+        ?.split("/")
+        .map((part) => decodeURIComponent(part))
+        .join("/");
+      const content = fileContents[key ?? path] ?? "";
+      return JSON.stringify({
+        encoding: "base64",
+        content: Buffer.from(content).toString("base64"),
+      });
+    }
+    throw new Error(`Unexpected gh args: ${joined}`);
+  };
+}
+
+test("help text names the four Capture Decision Gate stages and outcomes", () => {
+  assert.match(CAPTURE_HELP, /Stage 1/);
+  assert.match(CAPTURE_HELP, /Stage 2/);
+  assert.match(CAPTURE_HELP, /Stage 3/);
+  assert.match(CAPTURE_HELP, /Stage 4/);
+  assert.match(CAPTURE_HELP, /capture_refused/);
+  assert.match(CAPTURE_HELP, /nothing_to_capture/);
+  assert.match(CAPTURE_HELP, /record_written/);
+  assert.match(CAPTURE_HELP, /record_updated/);
+  assert.match(CAPTURE_HELP, /read-only/);
+});
+
+test("manual capture writes a record via injectable gh seam (AC1–AC3 shape)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ronda-misses-"));
+  try {
+    const code = await main(
+      [
+        "capture-manual",
+        "--pr",
+        "53",
+        "--repository",
+        "lhpaul/ronda",
+        "--reviewer",
+        "human-reviewer",
+        "--location",
+        "src/example.ts:10",
+        "--text",
+        "Missing idempotency key on retry.",
+        "--category",
+        "idempotency",
+        "--dir",
+        dir,
+      ],
+      { runGh: createGhFixture({}) },
+    );
+    assert.equal(code, 0);
+    const files = (await import("node:fs")).readdirSync(dir).filter((n) =>
+      n.endsWith(".json"),
+    );
+    assert.equal(files.length, 1);
+    const record = JSON.parse(readFileSync(join(dir, files[0]!), "utf8"));
+    assert.equal(record.captureSource, "manual");
+    assert.equal(record.verdict, "unadjudicated");
+    assert.equal(record.pullNumber, 53);
+    assert.equal(record.reviewedHeadSha, HEAD_A);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("automatic capture of Codex comments writes source-based record", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ronda-misses-"));
+  try {
+    const runGh = createGhFixture({
+      comments: [
+        {
+          id: 99,
+          user: { login: "chatgpt-codex-connector[bot]" },
+          body: "Unhandled timeout on webhook drain.",
+          path: "src/webhook.ts",
+          line: 42,
+          commit_id: HEAD_A,
+        },
+      ],
+      reviews: [
+        {
+          id: 1,
+          user: { login: "ronda-bot" },
+          body: `${RONDA_REVIEW_HEADING}\n\nNo findings.`,
+          commit_id: HEAD_A,
+        },
+        {
+          id: 2,
+          user: { login: "chatgpt-codex-connector[bot]" },
+          body: "",
+          commit_id: HEAD_A,
+        },
+      ],
+    });
+    const code = await main(
+      [
+        "capture",
+        "--pr",
+        "53",
+        "--repository",
+        "lhpaul/ronda",
+        "--reviewer",
+        "codex",
+        "--category",
+        "timeouts",
+        "--dir",
+        dir,
+      ],
+      { runGh },
+    );
+    assert.equal(code, 0);
+    const files = (await import("node:fs")).readdirSync(dir);
+    assert.equal(files.length, 1);
+    const record = JSON.parse(readFileSync(join(dir, files[0]!), "utf8"));
+    assert.equal(record.captureSource, "automatic");
+    assert.equal(record.sourceId, "99:0");
+    assert.equal(record.affectedCategory, "timeouts");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("automatic silence on current head reports nothing_to_capture (AC16)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ronda-misses-"));
+  try {
+    const runGh = createGhFixture({
+      comments: [
+        {
+          id: 50,
+          user: { login: "chatgpt-codex-connector[bot]" },
+          body: "Old finding",
+          path: "src/old.ts",
+          line: 1,
+          commit_id: HEAD_B,
+        },
+      ],
+      reviews: [
+        {
+          id: 1,
+          user: { login: "ronda-bot" },
+          body: `${RONDA_REVIEW_HEADING}\n`,
+          commit_id: HEAD_A,
+        },
+        {
+          id: 2,
+          user: { login: "chatgpt-codex-connector[bot]" },
+          body: "prior",
+          commit_id: HEAD_B,
+        },
+      ],
+    });
+    const logs: string[] = [];
+    const original = console.log;
+    console.log = (...args: unknown[]) => {
+      logs.push(args.map(String).join(" "));
+    };
+    try {
+      const code = await main(
+        [
+          "capture",
+          "--pr",
+          "53",
+          "--repository",
+          "lhpaul/ronda",
+          "--reviewer",
+          "codex",
+          "--category",
+          "other",
+          "--dir",
+          dir,
+        ],
+        { runGh },
+      );
+      assert.equal(code, 0);
+      assert.ok(logs.some((line) => line.includes("nothing_to_capture")));
+      assert.equal((await import("node:fs")).readdirSync(dir).length, 0);
+    } finally {
+      console.log = original;
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("gh fixture never issues write verbs (AC2 read-only)", () => {
+  const calls: string[] = [];
+  const runGh = createGhFixture({});
+  const wrapped = (args: string[]) => {
+    calls.push(args.join(" "));
+    // Refuse any mutating gh subcommands if they appear
+    const joined = args.join(" ");
+    assert.equal(/pr (comment|edit|close|ready|merge)/.test(joined), false);
+    assert.equal(/api .* -X (POST|PUT|PATCH|DELETE)/.test(joined), false);
+    return runGh(args);
+  };
+  wrapped(["pr", "view", "53", "--repo", "lhpaul/ronda", "--json", "headRefOid,baseRefName,baseRefOid,url"]);
+  wrapped(["api", "repos/lhpaul/ronda/pulls/53/reviews", "--paginate"]);
+  assert.ok(calls.length >= 2);
+});
+
+test("adjudicate and guarded delete lifecycle (AC44–AC45)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ronda-misses-"));
+  try {
+    const runGh = createGhFixture({});
+    await main(
+      [
+        "capture-manual",
+        "--pr",
+        "53",
+        "--repository",
+        "lhpaul/ronda",
+        "--reviewer",
+        "human",
+        "--location",
+        "src/x.ts:1",
+        "--text",
+        "A durable finding",
+        "--category",
+        "other",
+        "--dir",
+        dir,
+      ],
+      { runGh },
+    );
+    const files = (await import("node:fs")).readdirSync(dir);
+    const record = JSON.parse(readFileSync(join(dir, files[0]!), "utf8"));
+
+    // Delete while unadjudicated succeeds
+    const deleteOk = await main(["delete", "--id", record.id, "--dir", dir], {
+      runGh,
+    });
+    assert.equal(deleteOk, 0);
+    assert.equal((await import("node:fs")).readdirSync(dir).length, 0);
+
+    // Recreate and adjudicate, then delete must refuse
+    await main(
+      [
+        "capture-manual",
+        "--pr",
+        "53",
+        "--repository",
+        "lhpaul/ronda",
+        "--reviewer",
+        "human",
+        "--location",
+        "src/x.ts:1",
+        "--text",
+        "A durable finding",
+        "--category",
+        "other",
+        "--dir",
+        dir,
+      ],
+      { runGh },
+    );
+    const files2 = (await import("node:fs")).readdirSync(dir);
+    const record2 = JSON.parse(readFileSync(join(dir, files2[0]!), "utf8"));
+    const adj = await main(
+      [
+        "adjudicate",
+        "--id",
+        record2.id,
+        "--verdict",
+        "true_positive",
+        "--follow-up",
+        "eval_record",
+        "--rationale",
+        "Confirmed miss",
+        "--dir",
+        dir,
+      ],
+      { runGh },
+    );
+    assert.equal(adj, 0);
+    const deleteRefused = await main(
+      ["delete", "--id", record2.id, "--dir", dir],
+      { runGh },
+    );
+    assert.equal(deleteRefused, 1);
+    assert.equal((await import("node:fs")).readdirSync(dir).length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("planted credential in fixture refuses capture", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ronda-misses-"));
+  try {
+    const logs: string[] = [];
+    const original = console.log;
+    console.log = (...args: unknown[]) => {
+      logs.push(args.map(String).join(" "));
+    };
+    try {
+      const code = await main(
+        [
+          "capture-manual",
+          "--pr",
+          "53",
+          "--repository",
+          "lhpaul/ronda",
+          "--reviewer",
+          "human",
+          "--location",
+          "src/x.ts:1",
+          "--text",
+          'password = "s3cret-value"',
+          "--category",
+          "security",
+          "--dir",
+          dir,
+        ],
+        { runGh: createGhFixture({}) },
+      );
+      assert.equal(code, 1);
+      assert.ok(logs.some((line) => /credential form/.test(line)));
+      assert.equal((await import("node:fs")).readdirSync(dir).length, 0);
+    } finally {
+      console.log = original;
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("fixture JSON sample loads as a miss record shape", () => {
+  const fixture = join(
+    process.cwd(),
+    "tests/fixtures/external-review-misses/sample-manual-miss.json",
+  );
+  writeFileSync(
+    fixture,
+    `${JSON.stringify(
+      {
+        id: "lhpaul-ronda-pr-53-manual-sample",
+        repository: "lhpaul/ronda",
+        pullNumber: 53,
+        reviewedHeadSha: HEAD_A,
+        rondaResultHeadSha: HEAD_A,
+        staleEvidence: false,
+        externalReviewer: "human-reviewer",
+        location: "src/example.ts:10",
+        locationUnresolved: false,
+        title: "Missing idempotency key on retry.",
+        text: "Missing idempotency key on retry.",
+        textTruncated: false,
+        verdict: "unadjudicated",
+        affectedCategory: "idempotency",
+        intendedFollowUp: "undecided",
+        captureSource: "manual",
+        sourceId: null,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  const parsed = JSON.parse(readFileSync(fixture, "utf8"));
+  assert.equal(parsed.captureSource, "manual");
+});
