@@ -94,6 +94,8 @@ installation token instead.
 | `model_base_url` | Ronda's built-in DashScope endpoint | Point at a different OpenAI-compatible vendor |
 | `model_name` | `qwen-plus` | Model name to request |
 | `pass_timeout_minutes` | `10` | In-process pass budget; the job's own `timeout-minutes` is this value plus two |
+| `durability_mode` | _(empty)_ | Force durability mode `on` or `off` for the run; leave empty for automatic path rules |
+| `durability_mode_default` | _(empty)_ | Set to `on` to activate durability mode for every implementation-stage review |
 | `ronda_ref` | `main` | Ref of `lhpaul/ronda` to check out and run |
 
 ## 2. Add the required secret

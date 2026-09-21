@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { buildCommentableLinesByFile } from "../github/diff-lines.js";
 import { GithubClientError } from "../github/github-client.js";
 import { ModelClientError } from "../inference/model-client.js";
@@ -34,6 +36,20 @@ import {
   resolveDurabilityMode,
   type DurabilityModeResolution,
 } from "../review/durability-mode.js";
+
+function readLocalDurabilityModeDocument(
+  cwd: string = process.cwd(),
+): string | null {
+  const localPath = join(cwd, DURABILITY_MODE_DOCUMENT_PATH);
+  if (!existsSync(localPath)) {
+    return null;
+  }
+  try {
+    return readFileSync(localPath, "utf8");
+  } catch {
+    return null;
+  }
+}
 
 export class ReviewPublishedCheckRunError extends Error {
   constructor(
@@ -201,11 +217,14 @@ export async function runReviewPass(
           pr.headSha,
           deadline.signal,
         );
-        modeDocumentText = loaded ?? null;
+        // Prefer the reviewed-head copy when present (self-review of mode-doc
+        // edits). When the consumer PR head has no copy — the common reusable-
+        // Action case — fall back to the deployed Ronda checkout document.
+        modeDocumentText = loaded ?? readLocalDurabilityModeDocument();
       } catch (error) {
         const message = String(error);
         if (/404|Not Found|does not exist/i.test(message)) {
-          modeDocumentText = null;
+          modeDocumentText = readLocalDurabilityModeDocument();
         } else {
           modeDocumentUnreadable = true;
           deps.logger.event("durability_mode_document_unreadable", { message });
