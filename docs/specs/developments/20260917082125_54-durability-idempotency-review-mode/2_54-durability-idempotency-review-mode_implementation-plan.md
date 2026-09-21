@@ -166,7 +166,7 @@ Not applicable — no HTTP service in this item.
         | `**/webhook-*.ts`, `**/webhook/*.ts` | Nested webhook modules in consumers |
         | `scripts/development-workflow/pr-review-loop.sh` | Queue/history/reviewer loop |
         | `scripts/development-workflow/local-ai-reviewer.sh` | Review dispatch |
-        | Any path matching `*queue*`, `*retry*`, `*idempot*` under `src/` or `scripts/` | Retry / queue / idempotency keywords |
+        | Any path matching `*queue*`, `*retry*`, `*idempot*`, `*durable*`, or `*persist*` under `src/` or `scripts/` | Retry / queue / idempotency / durable-store keywords |
 
         **False negatives on the rows above are defects** (AC-1). Unrelated
         docs-only paths must not activate (AC-2).

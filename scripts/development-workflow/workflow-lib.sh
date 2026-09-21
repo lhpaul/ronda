@@ -3598,13 +3598,14 @@ reviewer_durability_path_is_sensitive() {
       ;;
   esac
 
-  # Keyword surfaces under src/ or scripts/ only (*queue*, *retry*, *idempot*).
-  # Match case-insensitively to mirror TypeScript /queue|retry|idempot/i.
+  # Keyword surfaces under src/ or scripts/ only
+  # (*queue*, *retry*, *idempot*, *durable*, *persist*).
+  # Match case-insensitively to mirror TypeScript keyword regex.
   case "$path" in
     src/*|scripts/*)
       lower_path="$(printf '%s' "$path" | sed 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/')"
       case "$lower_path" in
-        *queue*|*retry*|*idempot*)
+        *queue*|*retry*|*idempot*|*durable*|*persist*)
           return 0
           ;;
       esac

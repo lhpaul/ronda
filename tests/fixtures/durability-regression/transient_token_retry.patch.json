@@ -9,7 +9,7 @@
   "severity": "important",
   "changedFiles": [
     {
-      "path": "src/fixtures/transient_token_retry.ts",
+      "path": "src/retry/transient_token_retry.ts",
       "status": "added",
       "additions": 8,
       "deletions": 0,

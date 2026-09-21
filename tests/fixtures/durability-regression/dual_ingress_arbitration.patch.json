@@ -9,7 +9,7 @@
   "severity": "blocking",
   "changedFiles": [
     {
-      "path": "src/fixtures/dual_ingress_arbitration.ts",
+      "path": "src/webhook/dual_ingress_arbitration.ts",
       "status": "added",
       "additions": 4,
       "deletions": 0,

@@ -9,7 +9,7 @@
   "severity": "important",
   "changedFiles": [
     {
-      "path": "src/fixtures/outer_job_timeout.ts",
+      "path": "src/core/run-review-pass.ts",
       "status": "added",
       "additions": 5,
       "deletions": 0,

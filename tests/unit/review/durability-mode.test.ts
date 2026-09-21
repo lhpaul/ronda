@@ -49,6 +49,8 @@ test("durabilityPathIsSensitive matches documented surfaces", () => {
   assert.equal(durabilityPathIsSensitive("src/foo/retry-helper.ts"), true);
   assert.equal(durabilityPathIsSensitive("src/RetryWorker.ts"), true);
   assert.equal(durabilityPathIsSensitive("scripts/JobQueue.sh"), true);
+  assert.equal(durabilityPathIsSensitive("src/storage/durable-store.ts"), true);
+  assert.equal(durabilityPathIsSensitive("src/persistence/repository.ts"), true);
 });
 
 test("root-level webhook paths activate automatic match and keep duplicate_delivery in scope", () => {

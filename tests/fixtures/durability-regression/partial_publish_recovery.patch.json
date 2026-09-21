@@ -9,7 +9,7 @@
   "severity": "blocking",
   "changedFiles": [
     {
-      "path": "src/fixtures/partial_publish_recovery.ts",
+      "path": "src/github/review-publisher.ts",
       "status": "added",
       "additions": 5,
       "deletions": 0,

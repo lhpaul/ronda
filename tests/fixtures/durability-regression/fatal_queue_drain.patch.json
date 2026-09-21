@@ -9,7 +9,7 @@
   "severity": "blocking",
   "changedFiles": [
     {
-      "path": "src/fixtures/fatal_queue_drain.ts",
+      "path": "src/queue/fatal_queue_drain.ts",
       "status": "added",
       "additions": 7,
       "deletions": 0,

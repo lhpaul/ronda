@@ -151,7 +151,7 @@ export function durabilityPathIsSensitive(path: string): boolean {
   // Keyword surfaces under src/ or scripts/
   if (
     (path.startsWith("src/") || path.startsWith("scripts/")) &&
-    /queue|retry|idempot/i.test(path)
+    /queue|retry|idempot|durable|persist/i.test(path)
   ) {
     return true;
   }

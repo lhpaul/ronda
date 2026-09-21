@@ -25,7 +25,7 @@ test("classifyDurabilityFindings requires every expected keyword", () => {
     expectedSeverity: "blocking",
     findings: [
       {
-        path: "src/fixtures/fatal_queue_drain.ts",
+        path: "src/queue/fatal_queue_drain.ts",
         line: 1,
         severity: "blocking",
         title: "Fatal error still drains queue",
@@ -43,7 +43,7 @@ test("classifyDurabilityFindings requires every expected keyword", () => {
     expectedSeverity: "blocking",
     findings: [
       {
-        path: "src/fixtures/fatal_queue_drain.ts",
+        path: "src/queue/fatal_queue_drain.ts",
         line: 1,
         severity: "blocking",
         title: "Consider a queue",
@@ -61,7 +61,7 @@ test("classifyDurabilityFindings requires every expected keyword", () => {
     expectedSeverity: "blocking",
     findings: [
       {
-        path: "src/fixtures/fatal_queue_drain.ts",
+        path: "src/queue/fatal_queue_drain.ts",
         line: 1,
         severity: "nit",
         title: "Fatal error still drains queue",
@@ -78,28 +78,28 @@ test("classifyDurabilityFindings requires every expected keyword", () => {
     expectedSeverity: "blocking",
     findings: [
       {
-        path: "src/fixtures/fatal_queue_drain.ts",
+        path: "src/queue/fatal_queue_drain.ts",
         line: 1,
         severity: "blocking",
         title: "Fatal error",
         body: "Something went wrong.",
       },
       {
-        path: "src/fixtures/fatal_queue_drain.ts",
+        path: "src/queue/fatal_queue_drain.ts",
         line: 2,
         severity: "blocking",
         title: "Queue note",
         body: "Mentions a queue only.",
       },
       {
-        path: "src/fixtures/fatal_queue_drain.ts",
+        path: "src/queue/fatal_queue_drain.ts",
         line: 3,
         severity: "blocking",
         title: "Drain note",
         body: "Mentions drain only.",
       },
       {
-        path: "src/fixtures/fatal_queue_drain.ts",
+        path: "src/queue/fatal_queue_drain.ts",
         line: 4,
         severity: "blocking",
         title: "Discard note",
@@ -114,7 +114,7 @@ test("classifyDurabilityFindings requires every expected keyword", () => {
     shapeId: "fatal_queue_drain",
     expectedKeywords: ["fatal", "queue", "drain", "discard"],
     expectedSeverity: "blocking",
-    targetPaths: ["src/fixtures/fatal_queue_drain.ts"],
+    targetPaths: ["src/queue/fatal_queue_drain.ts"],
     findings: [
       {
         path: "README.md",
@@ -134,7 +134,7 @@ test("runDurabilityRegression reports found for each shape with fake model outpu
     dual_ingress_arbitration: JSON.stringify({
       findings: [
         {
-          path: "src/fixtures/dual_ingress_arbitration.ts",
+          path: "src/webhook/dual_ingress_arbitration.ts",
           line: 1,
           severity: "blocking",
           title: "Dual ingress without arbitration",
@@ -145,7 +145,7 @@ test("runDurabilityRegression reports found for each shape with fake model outpu
     fatal_queue_drain: JSON.stringify({
       findings: [
         {
-          path: "src/fixtures/fatal_queue_drain.ts",
+          path: "src/queue/fatal_queue_drain.ts",
           line: 1,
           severity: "blocking",
           title: "Fatal queue drain",
@@ -156,7 +156,7 @@ test("runDurabilityRegression reports found for each shape with fake model outpu
     delivery_replay_manual: JSON.stringify({
       findings: [
         {
-          path: "src/fixtures/delivery_replay_manual.ts",
+          path: "src/webhook/delivery_replay_manual.ts",
           line: 1,
           severity: "blocking",
           title: "Delivery replay on manual path",
@@ -167,7 +167,7 @@ test("runDurabilityRegression reports found for each shape with fake model outpu
     outer_job_timeout: JSON.stringify({
       findings: [
         {
-          path: "src/fixtures/outer_job_timeout.ts",
+          path: "src/core/run-review-pass.ts",
           line: 1,
           severity: "important",
           title: "Outer job timeout missing",
@@ -178,7 +178,7 @@ test("runDurabilityRegression reports found for each shape with fake model outpu
     partial_publish_recovery: JSON.stringify({
       findings: [
         {
-          path: "src/fixtures/partial_publish_recovery.ts",
+          path: "src/github/review-publisher.ts",
           line: 1,
           severity: "blocking",
           title: "Partial publish on recovery",
@@ -189,7 +189,7 @@ test("runDurabilityRegression reports found for each shape with fake model outpu
     transient_token_retry: JSON.stringify({
       findings: [
         {
-          path: "src/fixtures/transient_token_retry.ts",
+          path: "src/retry/transient_token_retry.ts",
           line: 1,
           severity: "important",
           title: "Transient auth not retried",

@@ -9,7 +9,7 @@
   "severity": "blocking",
   "changedFiles": [
     {
-      "path": "src/fixtures/delivery_replay_manual.ts",
+      "path": "src/webhook/delivery_replay_manual.ts",
       "status": "added",
       "additions": 5,
       "deletions": 0,

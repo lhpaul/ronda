@@ -141,6 +141,14 @@ export async function runDurabilityRegression(options: {
     const fixture = loadDurabilityFixture(entry.fixture, root);
     const changedPaths = fixture.changedFiles.map((file) => file.path);
     const durabilityMode = forcedActiveDurabilityMode(modeText, changedPaths);
+    if (durabilityMode.state !== "active") {
+      throw new Error(
+        `durability regression requires active mode for ${entry.id}; got ${durabilityMode.state}` +
+          (durabilityMode.unavailableReason
+            ? ` (${durabilityMode.unavailableReason})`
+            : ""),
+      );
+    }
     const prompt = buildReviewPrompt({
       title: `Durability regression: ${entry.id}`,
       body: "Forced-active durability mode regression fixture.",
