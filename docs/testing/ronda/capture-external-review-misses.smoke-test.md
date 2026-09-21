@@ -45,7 +45,24 @@
 
 **Expected result**: A valid finding writes/updates a record without any GitHub
 mutation. A reviewer that is present but silent on the head reports successful
-`nothing to capture`; unsupported/unreadable evidence is refused with a reason.
+`nothing_to_capture`; unsupported/unreadable evidence is refused with a reason.
+
+Capture Decision Gate (same wording as `npm run quality:misses -- help`):
+
+1. **Stage 1 — Input resolution** (whole capture): PR/head resolve; reviewer
+   named; Ronda result exists. Automatic only: Codex GitHub supported/present;
+   current-head silence → `nothing_to_capture`; unparseable → refused.
+2. **Stage 2 — Input validation** (per finding): required inputs; closed
+   category set; documented verdict/follow-up values.
+3. **Stage 3 — Credential refusal and reviewed-head validation** (per finding):
+   credential forms (unless published placeholders); diff markers or >5
+   consecutive matching source/diff lines after quote/indent normalization;
+   supplied reviewed head must be a real PR head; fresh capture-time merge-base.
+4. **Stage 4 — Record decision** (per finding): `record_written` or
+   `record_updated`.
+
+Observable outcomes: `capture_refused`, `nothing_to_capture`, `record_written`,
+`record_updated`. Stale evidence is a record attribute, not an outcome.
 
 ### Step 2: Capture a manual finding and verify identity behavior
 
