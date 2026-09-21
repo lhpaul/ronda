@@ -36,6 +36,10 @@ export interface ComparisonRecordWithMeta extends ReviewComparisonRecord {
   capturedAt?: string;
 }
 
+/**
+ * Miss evidence row used by the quality report. Compatible with the fuller
+ * `ExternalReviewMissRecord` schema written by `quality:misses`.
+ */
 export interface CapturedMissRecord {
   id: string;
   repository: string;
@@ -44,10 +48,20 @@ export interface CapturedMissRecord {
   rondaResultHeadSha: string;
   staleEvidence?: boolean;
   externalReviewer: string;
+  location?: string;
+  locationUnresolved?: boolean;
+  title?: string;
+  text?: string;
+  textTruncated?: boolean;
   affectedCategory?: string;
   verdict: MissVerdict;
   intendedFollowUp?: IntendedFollowUp;
+  captureSource?: "automatic" | "manual";
+  sourceId?: string | null;
+  rationale?: string;
   capturedAt?: string;
+  updatedAt?: string;
+  mergeBaseSha?: string;
 }
 
 export interface EvidenceReference {
