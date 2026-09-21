@@ -369,13 +369,50 @@ export function isKnownPullRequestHead(input: {
   return input.pushOrderedHeadShas.some((sha) => headsMatch(sha, input.headSha));
 }
 
+/**
+ * Split one review comment body into distinct finding texts when the reviewer
+ * published multiple bullet/numbered items in a single comment.
+ */
+export function splitCommentFindingTexts(body: string): string[] {
+  const trimmed = body.trim();
+  if (!trimmed) {
+    return [];
+  }
+  const lines = trimmed.split(/\r?\n/);
+  const segments: string[] = [];
+  let current: string[] = [];
+  const isItemStart = (line: string): boolean =>
+    /^(\*\s+|-\s+|\d+\.\s+)/.test(line.trim());
+
+  for (const line of lines) {
+    if (isItemStart(line) && current.length > 0) {
+      segments.push(current.join("\n").trim());
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length > 0) {
+    segments.push(current.join("\n").trim());
+  }
+
+  const nonEmpty = segments.filter((segment) => segment.length > 0);
+  if (nonEmpty.length <= 1) {
+    return [trimmed];
+  }
+  return nonEmpty.map((segment) =>
+    segment.replace(/^(\*\s+|-\s+|\d+\.\s+)/, "").trim(),
+  );
+}
+
 function parseFindingFromComment(input: {
   comment: GhReviewComment;
   reviewOrCommentId: string;
   findingIndex: number;
   reviewerLogin: string;
+  textOverride?: string;
 }): ExternalFindingCandidate {
-  const text = (input.comment.body ?? "").trim();
+  const text = (input.textOverride ?? input.comment.body ?? "").trim();
   const path = input.comment.path?.trim() ?? "";
   const line = input.comment.line ?? input.comment.original_line;
   let location: string;
@@ -471,17 +508,21 @@ export function readCodexGithubFindings(input: {
     if (!body) {
       continue;
     }
-    // One review comment = one finding at stable position 0. Do not use
-    // findings.length — removing/reordering sibling comments must not change
-    // this comment's immutable source id (AC41).
-    findings.push(
-      parseFindingFromComment({
-        comment,
-        reviewOrCommentId: String(comment.id ?? comment.pull_request_review_id ?? "comment"),
-        findingIndex: 0,
-        reviewerLogin: comment.user?.login ?? input.namedReviewer,
-      }),
+    const commentId = String(
+      comment.id ?? comment.pull_request_review_id ?? "comment",
     );
+    const findingTexts = splitCommentFindingTexts(body);
+    findingTexts.forEach((findingText, findingIndex) => {
+      findings.push(
+        parseFindingFromComment({
+          comment,
+          reviewOrCommentId: commentId,
+          findingIndex,
+          reviewerLogin: comment.user?.login ?? input.namedReviewer,
+          textOverride: findingText,
+        }),
+      );
+    });
   }
 
   // Review-level bodies without inline comments: treat as a single finding when

@@ -338,15 +338,6 @@ function processOneFinding(input: {
         currentHeadSha: input.gate.evidence.currentHeadSha,
       })
     ) {
-      // Credential check still wins if the supplied head is credential-shaped.
-      const headCredential = validateMissField({
-        field: "reviewedHeadSha",
-        value: input.finding.reviewedHeadSha,
-        scanSourceExcerpts: false,
-      });
-      if (headCredential) {
-        return refuse(formatContentReason(headCredential));
-      }
       return refuse(
         "Capture refused: supplied reviewed head is malformed or was never a head of this pull request.",
       );

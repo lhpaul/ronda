@@ -152,29 +152,48 @@ function sequenceContainsRun(
  * True when normalized text contains more than five consecutive nonblank
  * lines that appear consecutively in changed-file or diff content (AC38, AC50).
  */
+function nonblankLineRuns(lines: string[]): string[][] {
+  const runs: string[][] = [];
+  let current: string[] = [];
+  for (const line of lines) {
+    if (line.length === 0) {
+      if (current.length > 0) {
+        runs.push(current);
+        current = [];
+      }
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length > 0) {
+    runs.push(current);
+  }
+  return runs;
+}
+
 export function hasExcessiveSourceExcerpt(
   normalizedText: string,
   corpus: SourceScanCorpus,
 ): boolean {
   const fieldLines = normalizedText
     .split(/\r?\n/)
-    .map((line) => normalizeComparableLine(line, false))
-    .filter((line) => line.length > 0);
-
-  if (fieldLines.length <= 5) {
-    return false;
-  }
+    .map((line) => normalizeComparableLine(line, false));
 
   const corpusSequences = collectCorpusLineSequences(corpus);
   if (corpusSequences.length === 0) {
     return false;
   }
 
-  for (let start = 0; start <= fieldLines.length - 6; start += 1) {
-    const run = fieldLines.slice(start, start + 6);
-    for (const sequence of corpusSequences) {
-      if (sequenceContainsRun(sequence, run)) {
-        return true;
+  for (const run of nonblankLineRuns(fieldLines)) {
+    if (run.length <= 5) {
+      continue;
+    }
+    for (let start = 0; start <= run.length - 6; start += 1) {
+      const slice = run.slice(start, start + 6);
+      for (const sequence of corpusSequences) {
+        if (sequenceContainsRun(sequence, slice)) {
+          return true;
+        }
       }
     }
   }

@@ -8,6 +8,7 @@ import {
   readPullRequestEvidence,
   readSourceScanCorpus,
   resolveRondaResultHead,
+  splitCommentFindingTexts,
 } from "../../../src/quality/miss-github-evidence.js";
 
 const HEAD_A = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -154,6 +155,50 @@ test("readPullRequestEvidence flattens paginated commits/reviews pages", () => {
   assert.ok(evidence.pushOrderedHeadShas.includes(HEAD_C));
   assert.ok(evidence.rondaResultHeadShas.some((sha) => sha === HEAD_A));
   assert.ok(evidence.rondaResultHeadShas.some((sha) => sha === HEAD_C));
+});
+
+test("splitCommentFindingTexts separates bullet items in one comment", () => {
+  assert.deepEqual(
+    splitCommentFindingTexts("- First issue\n- Second issue"),
+    ["First issue", "Second issue"],
+  );
+});
+
+test("one comment with multiple findings yields distinct stable source positions", () => {
+  const comments = [
+    {
+      id: 300,
+      user: { login: "chatgpt-codex-connector[bot]" },
+      body: "- Alpha finding\n- Beta finding",
+      path: "src/a.ts",
+      line: 1,
+      commit_id: HEAD_A,
+    },
+  ];
+
+  const runGh = (args: string[]): string => {
+    const joined = args.join(" ");
+    if (joined.includes("/reviews")) {
+      return JSON.stringify([]);
+    }
+    if (joined.includes("/comments")) {
+      return JSON.stringify(comments);
+    }
+    throw new Error(`Unexpected: ${joined}`);
+  };
+
+  const result = readCodexGithubFindings({
+    repository: "lhpaul/ronda",
+    pullNumber: 53,
+    currentHeadSha: HEAD_A,
+    namedReviewer: "codex",
+    runGh,
+  });
+  assert.equal(result.findingsOnCurrentHead.length, 2);
+  assert.equal(result.findingsOnCurrentHead[0]?.sourceId, "300:0");
+  assert.equal(result.findingsOnCurrentHead[1]?.sourceId, "300:1");
+  assert.match(result.findingsOnCurrentHead[0]?.text ?? "", /Alpha/);
+  assert.match(result.findingsOnCurrentHead[1]?.text ?? "", /Beta/);
 });
 
 test("review-comment source id is stable (not findings.length position)", () => {

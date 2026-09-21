@@ -96,6 +96,20 @@ test("AC38 / AC49 diff markers refuse after normalization", () => {
   );
 });
 
+test("blank lines break consecutive source-excerpt runs", () => {
+  const lines = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"];
+  const corpus = {
+    changedFileContents: [lines.join("\n")],
+    diffText: "",
+  };
+  const separated = [
+    lines.slice(0, 3).join("\n"),
+    "",
+    lines.slice(3).join("\n"),
+  ].join("\n");
+  assert.equal(hasExcessiveSourceExcerpt(separated, corpus), false);
+});
+
 test("AC38 / AC50 six consecutive source lines refuse; five do not", () => {
   const lines = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"];
   const corpus = {

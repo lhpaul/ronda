@@ -288,6 +288,18 @@ test("AC31 refuses malformed / unknown reviewed head", () => {
   assert.match(singleHex.findings[0]?.reason ?? "", /malformed|never a head/);
 });
 
+test("malformed reviewed head is refused before credential scan on same value", () => {
+  const tokenHead = runCaptureDecisionGate(
+    baseManual({ reviewedHeadSha: "ghp_notarealheadbutlookslikeatoken" }),
+  );
+  assert.equal(tokenHead.findings[0]?.outcome, "capture_refused");
+  assert.match(
+    tokenHead.findings[0]?.reason ?? "",
+    /malformed|never a head/,
+  );
+  assert.doesNotMatch(tokenHead.findings[0]?.reason ?? "", /credential/i);
+});
+
 test("AC39 manual identity collapses Codex reviewer aliases", () => {
   const first = runCaptureDecisionGate(
     baseManual({ externalReviewer: "chatgpt-codex-connector[bot]" }),
