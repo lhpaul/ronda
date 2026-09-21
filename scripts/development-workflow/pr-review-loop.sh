@@ -990,6 +990,7 @@ durability_mode_recorded=0
 durability_mode_state=""
 durability_mode_activation_reason=""
 durability_mode_unavailable_reason=""
+durability_mode_inactive_reason=""
 durability_mode_families_in_scope=""
 durability_mode_families_na="[]"
 # Peer evidence collected during this invocation: "platform|result|reason".
@@ -4292,6 +4293,7 @@ capture_durability_mode_globals_from_output() {
   durability_mode_state="$state"
   durability_mode_activation_reason="$(kv_value_default REVIEW_DURABILITY_ACTIVATION_REASON "$script_output" "")"
   durability_mode_unavailable_reason="$(kv_value_default REVIEW_DURABILITY_UNAVAILABLE_REASON "$script_output" "")"
+  durability_mode_inactive_reason="$(kv_value_default REVIEW_DURABILITY_INACTIVE_REASON "$script_output" "")"
   durability_mode_families_in_scope="$(kv_value_default REVIEW_DURABILITY_FAMILIES_IN_SCOPE "$script_output" "")"
   durability_mode_families_na="$(kv_value_default REVIEW_DURABILITY_FAMILIES_NA "$script_output" "[]")"
   if ! printf '%s' "$durability_mode_families_na" | jq -e 'type == "array"' >/dev/null 2>&1; then
@@ -10772,6 +10774,7 @@ reviewer_loop_history_build_entry() {
     --arg durabilityState "${durability_mode_state:-}" \
     --arg durabilityActivation "${durability_mode_activation_reason:-}" \
     --arg durabilityUnavailable "${durability_mode_unavailable_reason:-}" \
+    --arg durabilityInactive "${durability_mode_inactive_reason:-}" \
     --arg durabilityFamiliesInScope "${durability_mode_families_in_scope:-}" \
     --argjson durabilityFamiliesNa "${durability_mode_families_na:-[]}" \
     --argjson localSecondPass "${local_second_pass:-0}" \
@@ -10879,6 +10882,8 @@ reviewer_loop_history_build_entry() {
                 }
               elif $durabilityState == "unavailable" then
                 . + { unavailable_reason: $durabilityUnavailable }
+              elif $durabilityState == "inactive" and ($durabilityInactive | length) > 0 then
+                . + { inactive_reason: $durabilityInactive }
               else
                 .
               end

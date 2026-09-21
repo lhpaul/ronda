@@ -202,20 +202,13 @@ async function main(): Promise<void> {
     baseUrl: config.model.baseUrl,
     modelName: config.model.modelName,
   });
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.passTimeoutMs);
-  timeout.unref?.();
-  try {
-    const summary = await runDurabilityRegression({
-      model,
-      signal: controller.signal,
-    });
-    console.log(JSON.stringify(summary, null, 2));
-    if (!summary.allFound) {
-      process.exitCode = 1;
-    }
-  } finally {
-    clearTimeout(timeout);
+  const summary = await runDurabilityRegression({
+    model,
+    passTimeoutMs: config.passTimeoutMs,
+  });
+  console.log(JSON.stringify(summary, null, 2));
+  if (!summary.allFound) {
+    process.exitCode = 1;
   }
 }
 
