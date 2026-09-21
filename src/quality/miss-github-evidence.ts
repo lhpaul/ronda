@@ -1,0 +1,504 @@
+import { execFileSync } from "node:child_process";
+import { RONDA_REVIEW_HEADING } from "../core/summary.js";
+import { isCodexGithubReviewer } from "./miss-reviewer-aliases.js";
+import { headsMatch } from "./miss-record.js";
+
+export interface PullRequestEvidence {
+  repository: string;
+  pullNumber: number;
+  currentHeadSha: string;
+  baseRef: string;
+  baseSha: string;
+  /** Push-order head SHAs for this PR (oldest first; last is most recently pushed). */
+  pushOrderedHeadShas: string[];
+  /** Head SHAs for which a Ronda review result is resolvable. */
+  rondaResultHeadShas: string[];
+}
+
+export interface ExternalFindingCandidate {
+  sourceId: string;
+  externalReviewer: string;
+  reviewedHeadSha: string;
+  location: string;
+  locationUnresolved: boolean;
+  title: string | null;
+  text: string;
+}
+
+export interface CodexPresence {
+  supported: boolean;
+  presentOnPullRequest: boolean;
+  findingsOnCurrentHead: ExternalFindingCandidate[];
+  /** True when reviewer output on the current head exists but could not be parsed. */
+  unparseableOnCurrentHead: boolean;
+}
+
+export type GhRunner = (args: string[]) => string;
+
+export function defaultGhRunner(args: string[]): string {
+  return execFileSync("gh", args, { encoding: "utf8" }).trim();
+}
+
+export function splitOwnerRepo(repository: string): {
+  owner: string;
+  repo: string;
+} {
+  const [owner, repo] = repository.split("/");
+  if (!owner || !repo) {
+    throw new Error(`Invalid repository '${repository}'; expected owner/repo`);
+  }
+  return { owner, repo };
+}
+
+interface GhPullView {
+  headRefOid?: string;
+  baseRefName?: string;
+  baseRefOid?: string;
+  url?: string;
+}
+
+interface GhReview {
+  id?: number | string;
+  node_id?: string;
+  user?: { login?: string } | null;
+  body?: string | null;
+  commit_id?: string | null;
+  submitted_at?: string | null;
+  state?: string | null;
+}
+
+interface GhReviewComment {
+  id?: number | string;
+  user?: { login?: string } | null;
+  body?: string | null;
+  path?: string | null;
+  line?: number | null;
+  original_line?: number | null;
+  commit_id?: string | null;
+  original_commit_id?: string | null;
+  pull_request_review_id?: number | null;
+}
+
+interface GhCommit {
+  sha?: string;
+}
+
+/**
+ * Read pull-request metadata and Ronda/Codex evidence via `gh` (read-only).
+ * Injectable runner keeps unit tests off the network.
+ */
+export function readPullRequestEvidence(input: {
+  pullNumber: number;
+  repository?: string;
+  runGh?: GhRunner;
+}): PullRequestEvidence {
+  const runGh = input.runGh ?? defaultGhRunner;
+  const repository =
+    input.repository ??
+    runGh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
+  if (!repository) {
+    throw new Error("Could not resolve repository; pass --repository");
+  }
+
+  const viewRaw = runGh([
+    "pr",
+    "view",
+    String(input.pullNumber),
+    "--repo",
+    repository,
+    "--json",
+    "headRefOid,baseRefName,baseRefOid,url",
+  ]);
+  const view = JSON.parse(viewRaw) as GhPullView;
+  const currentHeadSha = view.headRefOid?.trim() ?? "";
+  if (!currentHeadSha) {
+    throw new Error("Could not resolve PR head SHA");
+  }
+
+  const { owner, repo } = splitOwnerRepo(repository);
+  const commitsRaw = runGh([
+    "api",
+    `repos/${owner}/${repo}/pulls/${input.pullNumber}/commits`,
+    "--paginate",
+  ]);
+  const commits = JSON.parse(commitsRaw || "[]") as GhCommit[];
+  const pushOrderedHeadShas = commits
+    .map((commit) => commit.sha?.trim() ?? "")
+    .filter((sha) => sha.length > 0);
+
+  // Ensure the current head is present as the latest push tip.
+  if (
+    pushOrderedHeadShas.length === 0 ||
+    pushOrderedHeadShas[pushOrderedHeadShas.length - 1] !== currentHeadSha
+  ) {
+    const withoutCurrent = pushOrderedHeadShas.filter(
+      (sha) => !headsMatch(sha, currentHeadSha),
+    );
+    pushOrderedHeadShas.length = 0;
+    pushOrderedHeadShas.push(...withoutCurrent, currentHeadSha);
+  }
+
+  const reviewsRaw = runGh([
+    "api",
+    `repos/${owner}/${repo}/pulls/${input.pullNumber}/reviews`,
+    "--paginate",
+  ]);
+  const reviews = JSON.parse(reviewsRaw || "[]") as GhReview[];
+  const rondaResultHeadShas: string[] = [];
+  for (const review of reviews) {
+    const body = review.body ?? "";
+    const commitId = review.commit_id?.trim() ?? "";
+    if (!commitId || !body.includes(RONDA_REVIEW_HEADING)) {
+      continue;
+    }
+    if (!rondaResultHeadShas.some((sha) => headsMatch(sha, commitId))) {
+      rondaResultHeadShas.push(commitId);
+    }
+  }
+
+  return {
+    repository,
+    pullNumber: input.pullNumber,
+    currentHeadSha,
+    baseRef: view.baseRefName ?? "",
+    baseSha: view.baseRefOid ?? "",
+    pushOrderedHeadShas,
+    rondaResultHeadShas,
+  };
+}
+
+/**
+ * Resolve the Ronda result head for a reviewed head using push-order only
+ * (AC37): same-head first, otherwise the most recently pushed PR head that
+ * has a Ronda result.
+ */
+export function resolveRondaResultHead(input: {
+  reviewedHeadSha: string;
+  pushOrderedHeadShas: string[];
+  rondaResultHeadShas: string[];
+}): string | null {
+  if (input.rondaResultHeadShas.length === 0) {
+    return null;
+  }
+
+  const sameHead = input.rondaResultHeadShas.find((sha) =>
+    headsMatch(sha, input.reviewedHeadSha),
+  );
+  if (sameHead) {
+    return sameHead;
+  }
+
+  // Walk push order from newest to oldest; first Ronda-bearing head wins.
+  for (let index = input.pushOrderedHeadShas.length - 1; index >= 0; index -= 1) {
+    const head = input.pushOrderedHeadShas[index] ?? "";
+    const match = input.rondaResultHeadShas.find((sha) => headsMatch(sha, head));
+    if (match) {
+      return match;
+    }
+  }
+
+  // Fallback: if push-order list did not include a Ronda head (e.g. force-push
+  // dropped it), pick the last entry in the Ronda list as best-effort — but
+  // still prefer membership in push order when available.
+  return input.rondaResultHeadShas[input.rondaResultHeadShas.length - 1] ?? null;
+}
+
+export function isResolvableRondaHead(input: {
+  rondaResultHeadSha: string;
+  rondaResultHeadShas: string[];
+}): boolean {
+  return input.rondaResultHeadShas.some((sha) =>
+    headsMatch(sha, input.rondaResultHeadSha),
+  );
+}
+
+export function isKnownPullRequestHead(input: {
+  headSha: string;
+  pushOrderedHeadShas: string[];
+  currentHeadSha: string;
+}): boolean {
+  if (headsMatch(input.headSha, input.currentHeadSha)) {
+    return true;
+  }
+  return input.pushOrderedHeadShas.some((sha) => headsMatch(sha, input.headSha));
+}
+
+function parseFindingFromComment(input: {
+  comment: GhReviewComment;
+  reviewOrCommentId: string;
+  findingIndex: number;
+  reviewerLogin: string;
+}): ExternalFindingCandidate {
+  const text = (input.comment.body ?? "").trim();
+  const path = input.comment.path?.trim() ?? "";
+  const line = input.comment.line ?? input.comment.original_line;
+  let location: string;
+  let locationUnresolved: boolean;
+  if (path && typeof line === "number" && line > 0) {
+    location = `${path}:${line}`;
+    locationUnresolved = false;
+  } else if (path) {
+    location = path;
+    locationUnresolved = true;
+  } else {
+    location = "unresolved";
+    locationUnresolved = true;
+  }
+
+  const firstLine = text.split(/\r?\n/).find((lineText) => lineText.trim())?.trim();
+  const title =
+    firstLine && firstLine.length <= 120
+      ? firstLine
+      : firstLine
+        ? firstLine.slice(0, 120)
+        : null;
+
+  return {
+    sourceId: `${input.reviewOrCommentId}:${input.findingIndex}`,
+    externalReviewer: input.reviewerLogin,
+    reviewedHeadSha:
+      input.comment.commit_id?.trim() ||
+      input.comment.original_commit_id?.trim() ||
+      "",
+    location,
+    locationUnresolved,
+    title,
+    text,
+  };
+}
+
+/**
+ * Read Codex GitHub reviewer presence and current-head findings.
+ */
+export function readCodexGithubFindings(input: {
+  repository: string;
+  pullNumber: number;
+  currentHeadSha: string;
+  namedReviewer: string;
+  runGh?: GhRunner;
+}): CodexPresence {
+  const runGh = input.runGh ?? defaultGhRunner;
+
+  if (!isCodexGithubReviewer(input.namedReviewer)) {
+    return {
+      supported: false,
+      presentOnPullRequest: false,
+      findingsOnCurrentHead: [],
+      unparseableOnCurrentHead: false,
+    };
+  }
+
+  const { owner, repo } = splitOwnerRepo(input.repository);
+  const reviewsRaw = runGh([
+    "api",
+    `repos/${owner}/${repo}/pulls/${input.pullNumber}/reviews`,
+    "--paginate",
+  ]);
+  const commentsRaw = runGh([
+    "api",
+    `repos/${owner}/${repo}/pulls/${input.pullNumber}/comments`,
+    "--paginate",
+  ]);
+  const reviews = JSON.parse(reviewsRaw || "[]") as GhReview[];
+  const comments = JSON.parse(commentsRaw || "[]") as GhReviewComment[];
+
+  const codexReviews = reviews.filter((review) =>
+    isCodexGithubReviewer(review.user?.login ?? ""),
+  );
+  const codexComments = comments.filter((comment) =>
+    isCodexGithubReviewer(comment.user?.login ?? ""),
+  );
+
+  const presentOnPullRequest =
+    codexReviews.length > 0 || codexComments.length > 0;
+
+  const findings: ExternalFindingCandidate[] = [];
+  let sawCurrentHeadBody = false;
+
+  for (const comment of codexComments) {
+    const head =
+      comment.commit_id?.trim() || comment.original_commit_id?.trim() || "";
+    if (!headsMatch(head, input.currentHeadSha)) {
+      continue;
+    }
+    sawCurrentHeadBody = true;
+    const body = (comment.body ?? "").trim();
+    if (!body) {
+      continue;
+    }
+    findings.push(
+      parseFindingFromComment({
+        comment,
+        reviewOrCommentId: String(comment.id ?? comment.pull_request_review_id ?? "comment"),
+        findingIndex: findings.length,
+        reviewerLogin: comment.user?.login ?? input.namedReviewer,
+      }),
+    );
+  }
+
+  // Review-level bodies without inline comments: treat as a single finding when
+  // on the current head and body is non-empty.
+  for (const review of codexReviews) {
+    const head = review.commit_id?.trim() ?? "";
+    if (!headsMatch(head, input.currentHeadSha)) {
+      continue;
+    }
+    const body = (review.body ?? "").trim();
+    if (!body) {
+      continue;
+    }
+    sawCurrentHeadBody = true;
+    // Skip if inline comments already captured this review's substance.
+    const alreadyFromComments = findings.some(
+      (finding) => finding.sourceId.startsWith(`${review.id}:`) ||
+        finding.text === body,
+    );
+    if (alreadyFromComments) {
+      continue;
+    }
+    findings.push({
+      sourceId: `${review.id ?? review.node_id ?? "review"}:0`,
+      externalReviewer: review.user?.login ?? input.namedReviewer,
+      reviewedHeadSha: head,
+      location: "unresolved",
+      locationUnresolved: true,
+      title: body.split(/\r?\n/).find((line) => line.trim())?.trim().slice(0, 120) ?? null,
+      text: body,
+    });
+  }
+
+  const unparseableOnCurrentHead =
+    sawCurrentHeadBody === false &&
+    presentOnPullRequest &&
+    codexReviews.some((review) =>
+      headsMatch(review.commit_id?.trim() ?? "", input.currentHeadSha),
+    ) &&
+    findings.length === 0;
+
+  // Stronger unparseable signal: body present on current head but empty of
+  // extractable finding text after we already saw a current-head review with
+  // only whitespace — treat as unparseable when presence is current-head-only
+  // and findings stayed empty while a non-empty marker was expected.
+  const currentHeadReviews = codexReviews.filter((review) =>
+    headsMatch(review.commit_id?.trim() ?? "", input.currentHeadSha),
+  );
+  const currentHeadComments = codexComments.filter((comment) =>
+    headsMatch(
+      comment.commit_id?.trim() || comment.original_commit_id?.trim() || "",
+      input.currentHeadSha,
+    ),
+  );
+  const hasCurrentHeadPresence =
+    currentHeadReviews.length > 0 || currentHeadComments.length > 0;
+
+  return {
+    supported: true,
+    presentOnPullRequest,
+    findingsOnCurrentHead: findings,
+    unparseableOnCurrentHead:
+      unparseableOnCurrentHead ||
+      (hasCurrentHeadPresence &&
+        findings.length === 0 &&
+        currentHeadComments.some((comment) => (comment.body ?? "").length > 0) === false &&
+        currentHeadReviews.some(
+          (review) => (review.body ?? "").trim().length > 0 && !(review.body ?? "").includes("\n"),
+        )),
+  };
+}
+
+/**
+ * Resolve a fresh merge-base of reviewed head and base-branch tip at capture
+ * time (AC54). Never reuse a prior capture's merge-base.
+ */
+export function resolveFreshMergeBase(input: {
+  repository: string;
+  reviewedHeadSha: string;
+  baseRef: string;
+  runGh?: GhRunner;
+}): string {
+  const runGh = input.runGh ?? defaultGhRunner;
+  const { owner, repo } = splitOwnerRepo(input.repository);
+
+  // Resolve base branch tip at capture time.
+  const baseTip = runGh([
+    "api",
+    `repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(input.baseRef)}`,
+    "--jq",
+    ".object.sha",
+  ]).trim();
+  if (!baseTip) {
+    throw new Error(`Could not resolve base branch tip for ${input.baseRef}`);
+  }
+
+  const mergeBase = runGh([
+    "api",
+    `repos/${owner}/${repo}/compare/${baseTip}...${input.reviewedHeadSha}`,
+    "--jq",
+    ".merge_base_commit.sha",
+  ]).trim();
+  if (!mergeBase) {
+    throw new Error(
+      `Could not resolve merge-base for ${input.reviewedHeadSha} and ${input.baseRef}`,
+    );
+  }
+  return mergeBase;
+}
+
+export function readSourceScanCorpus(input: {
+  repository: string;
+  pullNumber: number;
+  reviewedHeadSha: string;
+  mergeBaseSha: string;
+  runGh?: GhRunner;
+}): { changedFileContents: string[]; diffText: string } {
+  const runGh = input.runGh ?? defaultGhRunner;
+  const { owner, repo } = splitOwnerRepo(input.repository);
+
+  const compareRaw = runGh([
+    "api",
+    `repos/${owner}/${repo}/compare/${input.mergeBaseSha}...${input.reviewedHeadSha}`,
+  ]);
+  const compare = JSON.parse(compareRaw || "{}") as {
+    files?: Array<{ filename?: string; patch?: string; status?: string }>;
+  };
+
+  const diffParts: string[] = [];
+  const changedFileContents: string[] = [];
+
+  for (const file of compare.files ?? []) {
+    const filename = file.filename ?? "";
+    if (file.patch) {
+      diffParts.push(`diff --git a/${filename} b/${filename}`);
+      diffParts.push(file.patch);
+    }
+    if (!filename || file.status === "removed") {
+      continue;
+    }
+    try {
+      const encoded = filename
+        .split("/")
+        .map((part) => encodeURIComponent(part))
+        .join("/");
+      const contentRaw = runGh([
+        "api",
+        `repos/${owner}/${repo}/contents/${encoded}?ref=${input.reviewedHeadSha}`,
+      ]);
+      const content = JSON.parse(contentRaw || "{}") as {
+        content?: string;
+        encoding?: string;
+      };
+      if (content.encoding === "base64" && content.content) {
+        changedFileContents.push(
+          Buffer.from(content.content.replace(/\n/g, ""), "base64").toString("utf8"),
+        );
+      }
+    } catch {
+      // Missing/binary/unreadable blobs are skipped; marker checks still apply.
+    }
+  }
+
+  return {
+    changedFileContents,
+    diffText: diffParts.join("\n"),
+  };
+}
