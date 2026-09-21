@@ -1240,10 +1240,11 @@ if command -v gh >/dev/null 2>&1; then
     changed_files_json="$(printf '%s\n' "$diff_output" | jq -R -s -c 'split("\n") | map(select(length > 0))')"
   fi
   # Include previous filenames for renames so durability activation matches the
-  # TypeScript collectChangedPaths contract (destination-only is a false negative).
-  if files_json="$(gh pr view "$PR_NUMBER" --repo "$OWNER/$REPO" --json files 2>/dev/null)"; then
+  # TypeScript collectChangedPaths contract. Prefer the REST pull-files endpoint:
+  # `gh pr view --json files` (GraphQL) does not expose previous_filename.
+  if files_json="$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/files" --paginate 2>/dev/null)"; then
     rename_paths_json="$(printf '%s\n' "$files_json" | jq -c '
-      [.files[]? | .previous_filename // empty | select(length > 0)]
+      [.[].previous_filename // empty | select(length > 0)]
       | unique
     ' 2>/dev/null || printf '[]\n')"
     if [ -n "$rename_paths_json" ] && [ "$rename_paths_json" != "[]" ]; then

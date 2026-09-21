@@ -80,16 +80,24 @@ export function forcedActiveDurabilityMode(
 export function classifyDurabilityFindings(input: {
   shapeId: string;
   expectedKeywords: string[];
+  expectedSeverity?: string;
   findings: Finding[];
 }): DurabilityShapeResult {
   const expected = input.expectedKeywords.map((keyword) => keyword.toLowerCase());
+  const expectedSeverity = input.expectedSeverity?.toLowerCase();
   let matchedKeywords: string[] = [];
   let found = 0;
 
   for (const finding of input.findings) {
     const text = `${finding.title} ${finding.body}`.toLowerCase();
     const matched = expected.filter((keyword) => text.includes(keyword));
-    if (expected.length > 0 && matched.length === expected.length) {
+    const severityMatches =
+      !expectedSeverity || finding.severity.toLowerCase() === expectedSeverity;
+    if (
+      expected.length > 0 &&
+      matched.length === expected.length &&
+      severityMatches
+    ) {
       found = 1;
       matchedKeywords = input.expectedKeywords.slice();
       break;
@@ -148,6 +156,7 @@ export async function runDurabilityRegression(options: {
       classifyDurabilityFindings({
         shapeId: entry.id,
         expectedKeywords: entry.expectedKeywords,
+        expectedSeverity: entry.severity,
         findings: parsed.findings,
       }),
     );

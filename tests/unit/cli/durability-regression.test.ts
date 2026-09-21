@@ -22,6 +22,7 @@ test("classifyDurabilityFindings requires every expected keyword", () => {
   const found = classifyDurabilityFindings({
     shapeId: "fatal_queue_drain",
     expectedKeywords: ["fatal", "queue", "drain", "discard"],
+    expectedSeverity: "blocking",
     findings: [
       {
         path: "src/fixtures/fatal_queue_drain.ts",
@@ -39,6 +40,7 @@ test("classifyDurabilityFindings requires every expected keyword", () => {
   const genericOnly = classifyDurabilityFindings({
     shapeId: "fatal_queue_drain",
     expectedKeywords: ["fatal", "queue", "drain", "discard"],
+    expectedSeverity: "blocking",
     findings: [
       {
         path: "src/fixtures/fatal_queue_drain.ts",
@@ -53,9 +55,27 @@ test("classifyDurabilityFindings requires every expected keyword", () => {
   assert.equal(genericOnly.missed, 1);
   assert.deepEqual(genericOnly.matchedKeywords, ["queue"]);
 
+  const wrongSeverity = classifyDurabilityFindings({
+    shapeId: "fatal_queue_drain",
+    expectedKeywords: ["fatal", "queue", "drain", "discard"],
+    expectedSeverity: "blocking",
+    findings: [
+      {
+        path: "src/fixtures/fatal_queue_drain.ts",
+        line: 1,
+        severity: "nit",
+        title: "Fatal error still drains queue",
+        body: "After a fatal failure the worker continues draining queued jobs instead of discarding them.",
+      },
+    ],
+  });
+  assert.equal(wrongSeverity.found, 0);
+  assert.equal(wrongSeverity.missed, 1);
+
   const splitAcrossFindings = classifyDurabilityFindings({
     shapeId: "fatal_queue_drain",
     expectedKeywords: ["fatal", "queue", "drain", "discard"],
+    expectedSeverity: "blocking",
     findings: [
       {
         path: "src/fixtures/fatal_queue_drain.ts",
