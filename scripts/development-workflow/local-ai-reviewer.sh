@@ -31,7 +31,12 @@ Environment:
                                     REVIEW_STAGE, REVIEW_STAGE_SOURCE,
                                     REVIEW_CHECKLISTS, REVIEW_DOCTRINE_STATE,
                                     REVIEW_DOCTRINE_PATTERN_COUNT,
-                                    REVIEW_DOCTRINE_VERSION, and
+                                    REVIEW_DOCTRINE_VERSION,
+                                    REVIEW_DURABILITY_MODE_STATE,
+                                    REVIEW_DURABILITY_ACTIVATION_REASON,
+                                    REVIEW_DURABILITY_UNAVAILABLE_REASON,
+                                    REVIEW_DURABILITY_FAMILIES_IN_SCOPE,
+                                    REVIEW_DURABILITY_FAMILIES_NA, and
                                     LOCAL_AI_REVIEWER_MODE (ordinary|strict) in env.
   LOCAL_AI_REVIEWER_BACKEND         codex (default) or http. Used only
                                     when LOCAL_AI_REVIEWER_COMMAND is unset.
@@ -468,25 +473,29 @@ filter_strict_spec_parsed_response() {
 
   printf '%s\n' "$parsed" | jq -c --argjson documents "$documents_json" '
     ($documents | map(.path)) as $spec_docs
-    | .findings as $all
-    | ($all | map(
-        . as $f
-        | if ($f.check != "unknown")
-            and (($f.path | type) != "string" or ($f.path | length) == 0
-                 or ($spec_docs | index($f.path)) == null) then
-            $f + {check: "unknown", remapped: true}
-          else
-            $f
-          end
-      )) as $processed
-    | ($processed | map(select(.remapped == true)) | length) as $remapped
-    | ($processed | map(del(.remapped))) as $kept
-    | . + {
-        count: ($kept | map(select(.check != "unknown")) | length),
-        checks: ($kept | map(select(.check != "unknown") | .check) | unique | join(",")),
-        unknown_count: ((.unknown_count // 0) + $remapped),
-        findings: $kept
-      }
+    | if ($spec_docs | length) == 0 then
+        .
+      else
+        .findings as $all
+        | ($all | map(
+            . as $f
+            | if ($f.check != "unknown")
+                and (($f.path | type) != "string" or ($f.path | length) == 0
+                     or ($spec_docs | index($f.path)) == null) then
+                $f + {check: "unknown", remapped: true}
+              else
+                $f
+              end
+          )) as $processed
+        | ($processed | map(select(.remapped == true)) | length) as $remapped
+        | ($processed | map(del(.remapped))) as $kept
+        | . + {
+            count: ($kept | map(select(.check != "unknown")) | length),
+            checks: ($kept | map(select(.check != "unknown") | .check) | unique | join(",")),
+            unknown_count: ((.unknown_count // 0) + $remapped),
+            findings: $kept
+          }
+      end
   ' 2>/dev/null
 }
 
@@ -690,6 +699,11 @@ strict_dispatch_pass() {
   REVIEW_DOCTRINE_STATE="$review_doctrine_state" \
 REVIEW_DOCTRINE_PATTERN_COUNT="$review_doctrine_pattern_count" \
 REVIEW_DOCTRINE_VERSION="$review_doctrine_version" \
+REVIEW_DURABILITY_MODE_STATE="$review_durability_mode_state" \
+REVIEW_DURABILITY_ACTIVATION_REASON="$review_durability_activation_reason" \
+REVIEW_DURABILITY_UNAVAILABLE_REASON="$review_durability_unavailable_reason" \
+REVIEW_DURABILITY_FAMILIES_IN_SCOPE="$review_durability_families_in_scope" \
+REVIEW_DURABILITY_FAMILIES_NA="$review_durability_families_na" \
 LOCAL_AI_REVIEWER_TIMEOUT="$remaining" \
     run_with_timeout "$remaining" "$strict_stdout_file_local" "$strict_stderr_file_local" \
       sh -c "$LOCAL_AI_REVIEWER_COMMAND"
@@ -991,6 +1005,166 @@ reviewer_doctrine_supply() {
   rm -f "$snapshot"
 }
 
+# ---------------------------------------------------------------------------
+# Durability / idempotency mode supply (#54)
+# ---------------------------------------------------------------------------
+
+reviewer_durability_mode_raw_supply() {
+  local path="docs/workflow/development-workflow/durability-idempotency-review-mode.md"
+  local snapshot bytes text
+  local unreadable='{"state":"unreadable","text":""}'
+  local git_dir="${REPO_ROOT:-.}"
+  local tool_root=""
+  local loaded_from_head=0
+
+  snapshot="$(mktemp)" || { printf '%s\n' "$unreadable"; return 0; }
+  tool_root="$(CDPATH='' cd -- "$SCRIPT_DIR/../.." && pwd -P)" || tool_root=""
+
+  # Prefer the reviewed commit so uncommitted working-tree edits cannot diverge
+  # from REVIEWED_HEAD provenance (same contract as strict_git_show_at_head).
+  if [ -n "${HEAD_SHA:-}" ]; then
+    if git -C "$git_dir" cat-file -e "${HEAD_SHA}:${path}" 2>/dev/null; then
+      if git -C "$git_dir" show "${HEAD_SHA}:${path}" >"$snapshot" 2>/dev/null; then
+        loaded_from_head=1
+      else
+        rm -f "$snapshot"
+        printf '%s\n' "$unreadable"
+        return 0
+      fi
+    fi
+  fi
+
+  # Product repositories in workflow-hub mode do not receive hub_only docs under
+  # docs/workflow/**. Fall back to the workflow-tool checkout that owns this
+  # script — but never when reviewing lhpaul/ronda itself (with or without
+  # --repo-root), so a missing reviewed-head copy stays unavailable.
+  if [ "$loaded_from_head" -eq 0 ]; then
+    if [ "$(printf '%s/%s' "${OWNER}" "${REPO}" | sed 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/')" != "lhpaul/ronda" ] \
+      && [ -n "$tool_root" ] \
+      && [ -f "$tool_root/$path" ]; then
+      cp "$tool_root/$path" "$snapshot" 2>/dev/null || {
+        rm -f "$snapshot"
+        printf '%s\n' "$unreadable"
+        return 0
+      }
+    elif [ -z "${HEAD_SHA:-}" ] && [ -f "$path" ]; then
+      cp "$path" "$snapshot" 2>/dev/null || {
+        rm -f "$snapshot"
+        printf '%s\n' "$unreadable"
+        return 0
+      }
+    else
+      rm -f "$snapshot"
+      printf '{"state":"absent","text":""}\n'
+      return 0
+    fi
+  fi
+
+  bytes="$(wc -c <"$snapshot" 2>/dev/null)" || { rm -f "$snapshot"; printf '%s\n' "$unreadable"; return 0; }
+  bytes="${bytes//[[:space:]]/}"
+  [ -n "$bytes" ] || { rm -f "$snapshot"; printf '%s\n' "$unreadable"; return 0; }
+
+  if [ "$bytes" -gt "$REVIEW_DURABILITY_MODE_MAX_BYTES" ]; then
+    rm -f "$snapshot"
+    printf '{"state":"oversized","text":""}\n'
+    return 0
+  fi
+
+  text="$(cat "$snapshot" 2>/dev/null)" || { rm -f "$snapshot"; printf '%s\n' "$unreadable"; return 0; }
+  if ! reviewer_durability_mode_document_is_complete "$text"; then
+    rm -f "$snapshot"
+    printf '{"state":"incomplete","text":""}\n'
+    return 0
+  fi
+
+  jq -n --rawfile t "$snapshot" '{state:"supplied", text:$t}' 2>/dev/null || {
+    rm -f "$snapshot"; printf '%s\n' "$unreadable"; return 0; }
+  rm -f "$snapshot"
+}
+
+# Resolve + supply for the ordinary pass. Args: stage changed_paths_json
+# Reads RONDA_DURABILITY_MODE and RONDA_DURABILITY_MODE_DEFAULT from the env.
+reviewer_durability_mode_supply() {
+  local stage="${1:-}"
+  local changed_paths_json="${2:-[]}"
+  local override_force=""
+  local override_default=""
+  local raw_json raw_state resolve_json
+  local state activation_reason unavailable_reason
+  local families_in_scope families_na text inactive_reason
+
+  case "${RONDA_DURABILITY_MODE:-}" in
+    on|ON|1|true|TRUE) override_force="on" ;;
+    off|OFF|0|false|FALSE) override_force="off" ;;
+    *) override_force="" ;;
+  esac
+  case "${RONDA_DURABILITY_MODE_DEFAULT:-}" in
+    on|ON|1|true|TRUE) override_default="on" ;;
+    *) override_default="" ;;
+  esac
+
+  # Pre-resolve without loading the document to honor "skip supply when inactive".
+  resolve_json="$(reviewer_durability_mode_resolve "$stage" "$override_default" "$override_force" "$changed_paths_json" "supplied")"
+  state="$(printf '%s\n' "$resolve_json" | jq -r '.state // "inactive"')"
+
+  if [ "$state" = "inactive" ]; then
+    inactive_reason="$(printf '%s\n' "$resolve_json" | jq -r '.inactive_reason // "automatic_rules_did_not_match"')"
+    jq -n \
+      --arg state "inactive" \
+      --arg activation_reason "" \
+      --arg unavailable_reason "" \
+      --arg inactive_reason "$inactive_reason" \
+      --argjson scenario_families_in_scope '[]' \
+      --argjson scenario_families_na '[]' \
+      --arg text "" \
+      '{
+        state: $state,
+        activation_reason: $activation_reason,
+        unavailable_reason: $unavailable_reason,
+        inactive_reason: $inactive_reason,
+        scenario_families_in_scope: $scenario_families_in_scope,
+        scenario_families_na: $scenario_families_na,
+        text: $text,
+        supply_state: "skipped"
+      }'
+    return 0
+  fi
+
+  # Activation matched or override requested — load instructions.
+  raw_json="$(reviewer_durability_mode_raw_supply)"
+  raw_state="$(printf '%s\n' "$raw_json" | jq -r '.state // "unreadable"')"
+  text="$(printf '%s\n' "$raw_json" | jq -r '.text // ""')"
+
+  resolve_json="$(reviewer_durability_mode_resolve "$stage" "$override_default" "$override_force" "$changed_paths_json" "$raw_state")"
+  state="$(printf '%s\n' "$resolve_json" | jq -r '.state // "unavailable"')"
+  activation_reason="$(printf '%s\n' "$resolve_json" | jq -r '.activation_reason // ""')"
+  unavailable_reason="$(printf '%s\n' "$resolve_json" | jq -r '.unavailable_reason // ""')"
+  families_in_scope="$(printf '%s\n' "$resolve_json" | jq -c '.scenario_families_in_scope // []')"
+  families_na="$(printf '%s\n' "$resolve_json" | jq -c '.scenario_families_na // []')"
+
+  if [ "$state" != "active" ]; then
+    text=""
+  fi
+
+  jq -n \
+    --arg state "$state" \
+    --arg activation_reason "$activation_reason" \
+    --arg unavailable_reason "$unavailable_reason" \
+    --argjson scenario_families_in_scope "$families_in_scope" \
+    --argjson scenario_families_na "$families_na" \
+    --arg text "$text" \
+    --arg supply_state "$raw_state" \
+    '{
+      state: $state,
+      activation_reason: $activation_reason,
+      unavailable_reason: $unavailable_reason,
+      scenario_families_in_scope: $scenario_families_in_scope,
+      scenario_families_na: $scenario_families_na,
+      text: $text,
+      supply_state: $supply_state
+    }'
+}
+
 # Effective harness mode: only when HARNESS_MODE=1 AND the script is sourced.
 _HARNESS_MODE_EFFECTIVE=0
 if [ "${HARNESS_MODE:-0}" -eq 1 ] && [ "${BASH_SOURCE[0]}" != "$0" ]; then
@@ -1091,6 +1265,7 @@ changed_files_json="[]"
 diff_name_status=""
 diff_stat=""
 diff_fetch_failed=0
+rename_metadata_ok=0
 if command -v gh >/dev/null 2>&1; then
   pr_json=""
   if pr_json="$(gh pr view "$PR_NUMBER" --repo "$OWNER/$REPO" --json baseRefName,headRefName,headRefOid,body 2>/dev/null)"; then
@@ -1105,6 +1280,26 @@ if command -v gh >/dev/null 2>&1; then
   fi
   if [ -n "$diff_output" ]; then
     changed_files_json="$(printf '%s\n' "$diff_output" | jq -R -s -c 'split("\n") | map(select(length > 0))')"
+  fi
+  # Include previous filenames for renames so durability activation matches the
+  # TypeScript collectChangedPaths contract. Prefer the REST pull-files endpoint:
+  # `gh pr view --json files` (GraphQL) does not expose previous_filename.
+  # `gh api --paginate` emits one JSON array per page — slurp pages into one array.
+  # Fail closed if rename metadata cannot be read: a rename away from a sensitive
+  # path would otherwise activate as inactive.
+  files_raw=""
+  if files_raw="$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/files" --paginate 2>/dev/null)"; then
+    files_json="$(printf '%s\n' "$files_raw" | jq -s 'add // []')"
+    rename_paths_json="$(printf '%s\n' "$files_json" | jq -c '
+      [.[].previous_filename // empty | select(length > 0)]
+      | unique
+    ' 2>/dev/null || printf '[]\n')"
+    if [ -n "$rename_paths_json" ] && [ "$rename_paths_json" != "[]" ]; then
+      changed_files_json="$(jq -nc --argjson current "$changed_files_json" --argjson previous "$rename_paths_json" '
+        ($current + $previous) | unique | sort
+      ')"
+    fi
+    rename_metadata_ok=1
   fi
 fi
 if [ -z "$BASE_BRANCH" ]; then
@@ -1157,10 +1352,27 @@ fi
 if git rev-parse --verify "origin/$BASE_BRANCH" >/dev/null 2>&1; then
   if diff_name_status_full="$(git diff --name-status --find-renames --find-copies "origin/$BASE_BRANCH...HEAD" 2>/dev/null)"; then
     diff_name_status="${diff_name_status_full:0:12000}"
+    if [ "${rename_metadata_ok:-0}" -eq 0 ]; then
+      rename_paths_json="$(printf '%s\n' "$diff_name_status_full" | awk -F '\t' '
+        $1 ~ /^R/ && NF >= 2 { print $2 }
+      ' | jq -R -s -c 'split("\n") | map(select(length > 0)) | unique')"
+      if [ -n "$rename_paths_json" ] && [ "$rename_paths_json" != "[]" ]; then
+        changed_files_json="$(jq -nc --argjson current "$changed_files_json" --argjson previous "$rename_paths_json" '
+          ($current + $previous) | unique | sort
+        ')"
+      fi
+      rename_metadata_ok=1
+    fi
   fi
   if diff_stat_full="$(git diff --stat --find-renames --find-copies "origin/$BASE_BRANCH...HEAD" 2>/dev/null)"; then
     diff_stat="${diff_stat_full:0:12000}"
   fi
+fi
+
+if [ "${rename_metadata_ok:-0}" -eq 0 ]; then
+  echo "ERROR: could not read rename metadata for #$PR_NUMBER" >&2
+  print_result escalate 0 0 0 rename_metadata_unavailable rename_metadata_unavailable
+  exit 2
 fi
 
 if [ ! -f REVIEW.md ]; then
@@ -1183,6 +1395,14 @@ doctrine_supply_json="$(reviewer_doctrine_supply)"
 review_doctrine_state="$(printf '%s\n' "$doctrine_supply_json" | jq -r '.state // "unreadable"')"
 review_doctrine_pattern_count="$(printf '%s\n' "$doctrine_supply_json" | jq -r '.pattern_count // 0')"
 review_doctrine_version="$(printf '%s\n' "$doctrine_supply_json" | jq -r '.version // ""')"
+
+durability_supply_json="$(reviewer_durability_mode_supply "$review_stage" "$changed_files_json")"
+review_durability_mode_state="$(printf '%s\n' "$durability_supply_json" | jq -r '.state // "inactive"')"
+review_durability_activation_reason="$(printf '%s\n' "$durability_supply_json" | jq -r '.activation_reason // ""')"
+review_durability_unavailable_reason="$(printf '%s\n' "$durability_supply_json" | jq -r '.unavailable_reason // ""')"
+review_durability_inactive_reason="$(printf '%s\n' "$durability_supply_json" | jq -r '.inactive_reason // ""')"
+review_durability_families_in_scope="$(printf '%s\n' "$durability_supply_json" | jq -r '.scenario_families_in_scope // [] | join(",")')"
+review_durability_families_na="$(printf '%s\n' "$durability_supply_json" | jq -c '.scenario_families_na // []')"
 
 graph_strategy="${LOCAL_AI_REVIEWER_GRAPH_STRATEGY:-none}"
 graph_context="none"
@@ -1229,6 +1449,7 @@ jq -n \
   --arg review_stage "$review_stage" \
   --arg review_stage_source "$review_stage_source" \
   --argjson doctrine_supply "$doctrine_supply_json" \
+  --argjson durability_supply "$durability_supply_json" \
   --argjson changed_files "$changed_files_json" \
   --argjson review_checklists "$review_checklists_json" \
   '{
@@ -1251,7 +1472,13 @@ jq -n \
     review_doctrine: $doctrine_supply.text,
     review_doctrine_state: $doctrine_supply.state,
     review_doctrine_pattern_count: $doctrine_supply.pattern_count,
-    review_doctrine_version: $doctrine_supply.version
+    review_doctrine_version: $doctrine_supply.version,
+    durability_mode_state: $durability_supply.state,
+    durability_mode_activation_reason: $durability_supply.activation_reason,
+    durability_mode_unavailable_reason: $durability_supply.unavailable_reason,
+    durability_mode_text: $durability_supply.text,
+    durability_mode_families_in_scope: $durability_supply.scenario_families_in_scope,
+    durability_mode_families_na: $durability_supply.scenario_families_na
   }' >"$context_file"
 
 print_kv BASE_BRANCH "$BASE_BRANCH"
@@ -1264,6 +1491,12 @@ print_kv REVIEW_STAGE_SOURCE "$review_stage_source"
 print_kv REVIEW_DOCTRINE_STATE "$review_doctrine_state"
 print_kv REVIEW_DOCTRINE_PATTERN_COUNT "$review_doctrine_pattern_count"
 print_kv REVIEW_DOCTRINE_VERSION "$review_doctrine_version"
+print_kv REVIEW_DURABILITY_MODE_STATE "$review_durability_mode_state"
+print_kv REVIEW_DURABILITY_ACTIVATION_REASON "$review_durability_activation_reason"
+print_kv REVIEW_DURABILITY_UNAVAILABLE_REASON "$review_durability_unavailable_reason"
+[ -n "$review_durability_inactive_reason" ] && print_kv REVIEW_DURABILITY_INACTIVE_REASON "$review_durability_inactive_reason"
+print_kv REVIEW_DURABILITY_FAMILIES_IN_SCOPE "$review_durability_families_in_scope"
+print_kv REVIEW_DURABILITY_FAMILIES_NA "$review_durability_families_na"
 
 # Strict registry state (always emitted after a completed ordinary parse).
 strict_spec_state=""
@@ -1308,6 +1541,11 @@ REVIEW_CHECKLISTS="$review_checklists_csv" \
 REVIEW_DOCTRINE_STATE="$review_doctrine_state" \
 REVIEW_DOCTRINE_PATTERN_COUNT="$review_doctrine_pattern_count" \
 REVIEW_DOCTRINE_VERSION="$review_doctrine_version" \
+REVIEW_DURABILITY_MODE_STATE="$review_durability_mode_state" \
+REVIEW_DURABILITY_ACTIVATION_REASON="$review_durability_activation_reason" \
+REVIEW_DURABILITY_UNAVAILABLE_REASON="$review_durability_unavailable_reason" \
+REVIEW_DURABILITY_FAMILIES_IN_SCOPE="$review_durability_families_in_scope" \
+REVIEW_DURABILITY_FAMILIES_NA="$review_durability_families_na" \
 LOCAL_AI_REVIEWER_TIMEOUT="$TIMEOUT" \
   run_with_timeout "$TIMEOUT" "$stdout_file" "$stderr_file" sh -c "$LOCAL_AI_REVIEWER_COMMAND"
 command_exit=$?
@@ -1410,9 +1648,10 @@ parse_result="$(
       elif (.comments? | type) == "array" then .comments
       elif (.issues? | type) == "array" then .issues
       else [] end;
+    def strip_text: gsub("^\\s+|\\s+$"; "");
     def text_value:
       [.body?, .message?, .description?, .title?, .summary?, .comment?, .text?]
-      | map(select(type == "string" and length > 0)) | .[0] // "";
+      | map(select(type == "string") | strip_text | select(length > 0)) | .[0] // "";
     def path_value:
       [.path?, .file?, .filename?, .filepath?, .location.path?]
       | map(select(type == "string" and length > 0)) | .[0] // "";
@@ -1435,8 +1674,10 @@ parse_result="$(
       or (scope_text | test("advisory|scope.expanding|decision.bound|optional|polish"));
     def blocking:
       (out_of_scope | not)
+      and (text_value | length > 0)
       and (
-        (severity_text | test("critical|blocker|blocking|important|error|bug|security|vulnerability|high|major|must.fix|needs.fixes|changes.requested"))
+        (.clear_in_scope? == true)
+        or (severity_text | test("critical|blocker|blocking|important|error|bug|security|vulnerability|high|major|must.fix|needs.fixes|changes.requested"))
         or (scope_text | test("must.fix|needs.fixes"))
       );
     def advisory:
@@ -1507,6 +1748,42 @@ comment_count="${comment_count:-0}"
 blocking_count="${blocking_count:-0}"
 suggestion_count="${suggestion_count:-0}"
 reason="${reason:-}"
+
+if [ "$result" = "needs_fixes" ] && [ "$comment_count" -eq 0 ]; then
+  print_result escalate 0 0 0 malformed_output malformed_output
+  exit 2
+fi
+
+if printf '%s\n' "$command_stdout" | jq -e '
+  def strip_text: gsub("^\\s+|\\s+$"; "");
+  def text_value:
+    [.body?, .message?, .description?, .title?, .summary?, .comment?, .text?]
+    | map(select(type == "string") | strip_text | select(length > 0)) | .[0] // "";
+  def severity_text:
+    [.severity?, .level?, .priority?, .type?, .classification?, .kind?, .result?]
+    | map(select(type == "string")) | join(" ") | ascii_downcase;
+  def scope_text:
+    [.scope?, .disposition?, .policy?, .category?]
+    | map(select(type == "string")) | join(" ") | ascii_downcase;
+  def out_of_scope:
+    (.clear_in_scope? == false)
+    or (.in_scope? == false)
+    or (scope_text | test("out.of.scope|out.of-scope|not.in.scope|not in scope"));
+  def severity_would_block:
+    (out_of_scope | not)
+    and (
+      (severity_text | test("critical|blocker|blocking|important|error|bug|security|vulnerability|high|major|must.fix|needs.fixes|changes.requested"))
+      or (scope_text | test("must.fix|needs.fixes"))
+    );
+  (if (.findings? | type) == "array" then .findings
+   elif (.comments? | type) == "array" then .comments
+   elif (.issues? | type) == "array" then .issues
+   else [] end)
+  | any(severity_would_block and (text_value | length == 0))
+' >/dev/null 2>&1; then
+  print_result escalate 0 0 0 malformed_output malformed_output
+  exit 2
+fi
 
 # --- Strict registry passes (at most one dispatches; never merges into blocking) ---
 strict_run_all_registry_entries
@@ -1601,6 +1878,11 @@ write_evidence_file() {
     --arg review_doctrine_state "$review_doctrine_state" \
     --argjson review_doctrine_pattern_count "$review_doctrine_pattern_count" \
     --arg review_doctrine_version "$review_doctrine_version" \
+    --arg review_durability_mode_state "$review_durability_mode_state" \
+    --arg review_durability_activation_reason "$review_durability_activation_reason" \
+    --arg review_durability_unavailable_reason "$review_durability_unavailable_reason" \
+    --arg review_durability_families_in_scope "$review_durability_families_in_scope" \
+    --argjson review_durability_families_na "$review_durability_families_na" \
     --argjson changed_files "$changed_files_json" \
     --argjson comment_count "$final_comment_count" \
     --argjson blocking_count "$final_blocking_count" \
@@ -1638,6 +1920,13 @@ write_evidence_file() {
         state: $review_doctrine_state,
         pattern_count: $review_doctrine_pattern_count,
         version: $review_doctrine_version
+      },
+      durability_mode: {
+        state: $review_durability_mode_state,
+        activation_reason: $review_durability_activation_reason,
+        unavailable_reason: $review_durability_unavailable_reason,
+        families_in_scope: ($review_durability_families_in_scope | if . == "" then [] else (split(",") | map(select(length > 0))) end),
+        families_na: $review_durability_families_na
       },
       strict_spec: $strict_spec,
       strict_plan: $strict_plan

@@ -137,6 +137,11 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   skips, not pass failures.
 - **Prompt** (`src/inference/review-prompt.ts`): optional binding/advisory doc
   sections in the user message; diff-only passes omit doc headers entirely.
+- **Durability / idempotency mode** (`src/review/durability-mode.ts`): on
+  implementation-stage reviews, may layer lifecycle instructions onto the same
+  single model call when changed paths match sensitive surfaces or the operator
+  forces the mode on. Activation metadata is recorded in the review summary;
+  findings stay on the ordinary severity channel (no second model call).
 
 ## Security
 

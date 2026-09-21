@@ -30,6 +30,8 @@ test("no environment and no config file: apiKey is blank and defaults apply", ()
   assert.equal(config.maxPatchChars, DEFAULT_MAX_PATCH_CHARS);
   assert.equal(config.maxAuthoritativeDocCount, DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT);
   assert.equal(config.maxAuthoritativeDocChars, DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS);
+  assert.equal(config.durabilityMode, "default");
+  assert.equal(config.durabilityModeDefault, false);
 });
 
 test("missing config file is not an error", () => {

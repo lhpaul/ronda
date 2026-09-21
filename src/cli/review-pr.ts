@@ -65,8 +65,8 @@ export async function main(): Promise<number> {
   const github: GithubOperations = {
     readPullRequest: (o, r, n, signal) => readPullRequest(octokit, o, r, n, signal),
     readChangedFiles: (o, r, n, signal) => readChangedFiles(octokit, o, r, n, signal),
-    readFileAtRef: (o, r, path, ref, signal) =>
-      readRepositoryFileAtRef(octokit, o, r, path, ref, signal),
+    readFileAtRef: (o, r, path, ref, signal, options) =>
+      readRepositoryFileAtRef(octokit, o, r, path, ref, signal, options),
     findExistingCheckRun: (o, r, sha, signal) => findExistingCheckRun(octokit, o, r, sha, signal),
     publishReview: (reviewInput, signal) => publishReview(octokit, reviewInput, signal),
     publishCheckRun: (checkRunInput, signal) => publishCheckRun(octokit, checkRunInput, signal),
@@ -83,6 +83,8 @@ export async function main(): Promise<number> {
       maxPatchChars: 400_000,
       maxAuthoritativeDocCount: DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
       maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+      durabilityMode: "default",
+      durabilityModeDefault: false,
       loadError: `Failed to load Ronda config file at ${path}`,
     };
   }

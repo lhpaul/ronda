@@ -79,6 +79,7 @@ function pullRequestMetadata(headSha = "a".repeat(40)): PullRequestMetadata {
     body: "",
     draft: false,
     headSha,
+    headBranch: "feature/test",
   };
 }
 

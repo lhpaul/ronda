@@ -1,0 +1,19 @@
+{
+  "shape": "delivery_replay_manual",
+  "expectedKeywords": [
+    "replay",
+    "delivery",
+    "dedup",
+    "manual"
+  ],
+  "severity": "blocking",
+  "changedFiles": [
+    {
+      "path": "src/webhook/delivery_replay_manual.ts",
+      "status": "added",
+      "additions": 5,
+      "deletions": 0,
+      "patch": "@@ -0,0 +1 @@\n+export function enqueueManual(deliveryId) {\n+  // bypasses deliveryId dedup used by the automatic path\n+  queue.push({ deliveryId, source: \"manual\" });\n+}\n+"
+    }
+  ]
+}

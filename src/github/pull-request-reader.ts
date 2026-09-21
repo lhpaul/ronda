@@ -31,6 +31,7 @@ export async function readPullRequest(
     body: data.body ?? "",
     draft: Boolean(data.draft),
     headSha: data.head.sha,
+    headBranch: data.head.ref ?? "",
   };
 }
 

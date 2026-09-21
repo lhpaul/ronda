@@ -18608,6 +18608,48 @@ unset pr_number branch_name MOCK_GH_HEAD_SHA MOCK_GH_UPDATED_AT
 
 echo "=== Area 64 complete ==="
 
+
+# #54 durability_mode ledger object
+_54_platform_output="RESULT=clean
+COMMENT_COUNT=0
+BLOCKING_COUNT=0
+SUGGESTION_COUNT=0
+REVIEW_DURABILITY_MODE_STATE=active
+REVIEW_DURABILITY_ACTIVATION_REASON=automatic_match
+REVIEW_DURABILITY_UNAVAILABLE_REASON=
+REVIEW_DURABILITY_FAMILIES_IN_SCOPE=restart_recovery,retry_semantics
+REVIEW_DURABILITY_FAMILIES_NA=[]
+"
+capture_durability_mode_globals_from_output "$_54_platform_output"
+_54_entry="$(reviewer_loop_history_build_entry 1 clean "" "local-ai-reviewer" 0 0 0 "" 0 0 "")"
+run_test "durability_mode_ledger_state" "active" "$(printf '%s' "$_54_entry" | jq -r '.durability_mode.state // empty')"
+run_test "durability_mode_ledger_reason" "automatic_match" "$(printf '%s' "$_54_entry" | jq -r '.durability_mode.activation_reason // empty')"
+
+_54_inactive_output="RESULT=clean
+COMMENT_COUNT=0
+BLOCKING_COUNT=0
+SUGGESTION_COUNT=0
+REVIEW_DURABILITY_MODE_STATE=inactive
+REVIEW_DURABILITY_ACTIVATION_REASON=
+REVIEW_DURABILITY_UNAVAILABLE_REASON=
+REVIEW_DURABILITY_INACTIVE_REASON=operator_override
+REVIEW_DURABILITY_FAMILIES_IN_SCOPE=
+REVIEW_DURABILITY_FAMILIES_NA=[]
+"
+capture_durability_mode_globals_from_output "$_54_inactive_output"
+_54_inactive_entry="$(reviewer_loop_history_build_entry 1 clean "" "local-ai-reviewer" 0 0 0 "" 0 0 "")"
+run_test "durability_mode_ledger_inactive_state" "inactive" "$(printf '%s' "$_54_inactive_entry" | jq -r '.durability_mode.state // empty')"
+run_test "durability_mode_ledger_inactive_reason" "operator_override" "$(printf '%s' "$_54_inactive_entry" | jq -r '.durability_mode.inactive_reason // empty')"
+
+capture_durability_mode_globals_from_output "RESULT=escalate
+COMMENT_COUNT=0
+BLOCKING_COUNT=0
+SUGGESTION_COUNT=0
+"
+_54_cleared_entry="$(reviewer_loop_history_build_entry 1 escalate "head_mismatch" "local-ai-reviewer" 0 0 0 "" 0 0 "")"
+run_test "durability_mode_ledger_cleared_on_missing_state" "null" "$(printf '%s' "$_54_cleared_entry" | jq -c '.durability_mode // null')"
+
+
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------

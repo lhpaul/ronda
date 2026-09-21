@@ -82,6 +82,9 @@ The command runs under `sh -c` with these environment variables:
 - `REVIEWED_HEAD`
 - `REVIEW_STAGE`, `REVIEW_STAGE_SOURCE`, `REVIEW_CHECKLISTS`
 - `REVIEW_DOCTRINE_STATE`, `REVIEW_DOCTRINE_PATTERN_COUNT`, `REVIEW_DOCTRINE_VERSION`
+- `REVIEW_DURABILITY_MODE_STATE`, `REVIEW_DURABILITY_ACTIVATION_REASON`,
+  `REVIEW_DURABILITY_UNAVAILABLE_REASON`, `REVIEW_DURABILITY_FAMILIES_IN_SCOPE`,
+  `REVIEW_DURABILITY_FAMILIES_NA`
 - `LOCAL_AI_REVIEWER_MODE` — `ordinary` (default) or `strict`
 
 The context bundle JSON uses `schema_version:
@@ -105,6 +108,19 @@ local_ai_reviewer_context.v1` and includes:
   `supplied`)
 - `review_doctrine_version` — first twelve hex characters of the catalogue
   SHA-256 (empty when no bytes were read)
+- `durability_mode_state` — `active`, `inactive`, or `unavailable`
+- `durability_mode_activation_reason` — `automatic_match`, `operator_default`,
+  `operator_override`, or empty
+- `durability_mode_unavailable_reason` — `missing`, `unreadable`, `oversized`,
+  `incomplete`, or empty
+- `durability_mode_text` — full mode document when active, otherwise empty
+- `durability_mode_families_in_scope` / `durability_mode_families_na` —
+  scenario-family coverage for the activation
+
+Durability mode shares the ordinary review pass (no second unbounded model
+call). Operator overrides: `RONDA_DURABILITY_MODE=on|off` and
+`RONDA_DURABILITY_MODE_DEFAULT=on`. When active, the Codex ordinary prompt
+appends mode guidance from the bundle; doctrine and strict passes are unchanged.
 
 Selection is **additive and monotone**: `REVIEW.md` as a whole and its Core
 Rules always apply. The branch tier names one stage checklist; changed files

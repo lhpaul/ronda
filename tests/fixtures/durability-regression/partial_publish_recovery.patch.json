@@ -1,0 +1,19 @@
+{
+  "shape": "partial_publish_recovery",
+  "expectedKeywords": [
+    "partial",
+    "publish",
+    "recovery",
+    "duplicate"
+  ],
+  "severity": "blocking",
+  "changedFiles": [
+    {
+      "path": "src/github/review-publisher.ts",
+      "status": "added",
+      "additions": 5,
+      "deletions": 0,
+      "patch": "@@ -0,0 +1 @@\n+export async function recover(job) {\n+  await publishReview(job); // may already have succeeded\n+  await publishCheckRun(job);\n+}\n+"
+    }
+  ]
+}

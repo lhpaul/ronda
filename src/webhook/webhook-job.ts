@@ -184,7 +184,7 @@ export async function runWebhookReviewJob(
         n,
         combineAbortSignals(requestSignal, signal),
       ),
-    readFileAtRef: (o, r, path, ref, requestSignal) =>
+    readFileAtRef: (o, r, path, ref, requestSignal, options) =>
       readRepositoryFileAtRef(
         installationClient.octokit,
         o,
@@ -192,6 +192,7 @@ export async function runWebhookReviewJob(
         path,
         ref,
         combineAbortSignals(requestSignal, signal),
+        options,
       ),
     findExistingCheckRun: async (o, r, sha, requestSignal) => {
       const combinedSignal = combineAbortSignals(requestSignal, signal);
@@ -225,6 +226,8 @@ export async function runWebhookReviewJob(
       maxPatchChars: 400_000,
       maxAuthoritativeDocCount: DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
       maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+      durabilityMode: "default",
+      durabilityModeDefault: false,
       loadError: `Failed to load Ronda config file at ${path}`,
     };
   }

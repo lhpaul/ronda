@@ -985,6 +985,14 @@ strict_plan_applied=""
 strict_plan_unknown_count=""
 strict_plan_reason=""
 strict_plan_summary_section=""
+# Durability mode ledger globals (#54); set by capture_durability_mode_globals_from_output.
+durability_mode_recorded=0
+durability_mode_state=""
+durability_mode_activation_reason=""
+durability_mode_unavailable_reason=""
+durability_mode_inactive_reason=""
+durability_mode_families_in_scope=""
+durability_mode_families_na="[]"
 # Peer evidence collected during this invocation: "platform|result|reason".
 declare -a platform_peer_evidence=()
 
@@ -4182,6 +4190,26 @@ emit_local_ai_review_doctrine_keys() {
   print_kv REVIEW_DOCTRINE_VERSION "$version"
 }
 
+emit_local_ai_durability_mode_keys() {
+  local script_output="$1"
+  local state activation unavailable families_in_scope families_na inactive
+  if ! grep -q '^REVIEW_DURABILITY_MODE_STATE=' <<< "$script_output"; then
+    return 0
+  fi
+  state="$(kv_value_default REVIEW_DURABILITY_MODE_STATE "$script_output" "")"
+  activation="$(kv_value_default REVIEW_DURABILITY_ACTIVATION_REASON "$script_output" "")"
+  unavailable="$(kv_value_default REVIEW_DURABILITY_UNAVAILABLE_REASON "$script_output" "")"
+  families_in_scope="$(kv_value_default REVIEW_DURABILITY_FAMILIES_IN_SCOPE "$script_output" "")"
+  families_na="$(kv_value_default REVIEW_DURABILITY_FAMILIES_NA "$script_output" "[]")"
+  inactive="$(kv_value_default REVIEW_DURABILITY_INACTIVE_REASON "$script_output" "")"
+  print_kv REVIEW_DURABILITY_MODE_STATE "$state"
+  print_kv REVIEW_DURABILITY_ACTIVATION_REASON "$activation"
+  print_kv REVIEW_DURABILITY_UNAVAILABLE_REASON "$unavailable"
+  print_kv REVIEW_DURABILITY_FAMILIES_IN_SCOPE "$families_in_scope"
+  print_kv REVIEW_DURABILITY_FAMILIES_NA "$families_na"
+  [ -n "$inactive" ] && print_kv REVIEW_DURABILITY_INACTIVE_REASON "$inactive"
+}
+
 # Capture STRICT_SPEC_* into globals for reviewer_loop_history_build_entry.
 # Present object vs absent object is gated by strict_spec_recorded.
 capture_strict_spec_globals_from_output() {
@@ -4253,6 +4281,35 @@ capture_strict_plan_globals_from_output() {
   fi
 }
 
+# Capture REVIEW_DURABILITY_* into globals for reviewer_loop_history_build_entry (#54).
+capture_durability_mode_globals_from_output() {
+  local script_output="$1"
+  local state
+  state="$(kv_value_default REVIEW_DURABILITY_MODE_STATE "$script_output" "")"
+  if [ -z "$state" ]; then
+    # Clear prior-round metadata so a failed/early-exit local reviewer pass does
+    # not leave a stale durability_mode object on the next history entry.
+    durability_mode_recorded=0
+    durability_mode_state=""
+    durability_mode_activation_reason=""
+    durability_mode_unavailable_reason=""
+    durability_mode_inactive_reason=""
+    durability_mode_families_in_scope=""
+    durability_mode_families_na="[]"
+    return 0
+  fi
+  durability_mode_recorded=1
+  durability_mode_state="$state"
+  durability_mode_activation_reason="$(kv_value_default REVIEW_DURABILITY_ACTIVATION_REASON "$script_output" "")"
+  durability_mode_unavailable_reason="$(kv_value_default REVIEW_DURABILITY_UNAVAILABLE_REASON "$script_output" "")"
+  durability_mode_inactive_reason="$(kv_value_default REVIEW_DURABILITY_INACTIVE_REASON "$script_output" "")"
+  durability_mode_families_in_scope="$(kv_value_default REVIEW_DURABILITY_FAMILIES_IN_SCOPE "$script_output" "")"
+  durability_mode_families_na="$(kv_value_default REVIEW_DURABILITY_FAMILIES_NA "$script_output" "[]")"
+  if ! printf '%s' "$durability_mode_families_na" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    durability_mode_families_na='[]'
+  fi
+}
+
 run_local_ai_reviewer_review() {
   # Runs local-ai-reviewer.sh and maps its exit codes to the standard
   # pr-review-loop key=value output contract.
@@ -4318,6 +4375,7 @@ run_local_ai_reviewer_review() {
       emit_local_ai_strict_spec_keys "$script_output"
       emit_local_ai_review_stage_keys "$script_output"
       emit_local_ai_review_doctrine_keys "$script_output"
+      emit_local_ai_durability_mode_keys "$script_output"
       return 0
       ;;
     1)
@@ -4349,6 +4407,7 @@ run_local_ai_reviewer_review() {
       emit_local_ai_strict_spec_keys "$script_output"
       emit_local_ai_review_stage_keys "$script_output"
       emit_local_ai_review_doctrine_keys "$script_output"
+      emit_local_ai_durability_mode_keys "$script_output"
       return 1
       ;;
     2)
@@ -4372,6 +4431,7 @@ run_local_ai_reviewer_review() {
       emit_local_ai_strict_spec_keys "$script_output"
       emit_local_ai_review_stage_keys "$script_output"
       emit_local_ai_review_doctrine_keys "$script_output"
+      emit_local_ai_durability_mode_keys "$script_output"
       return 2
       ;;
     *)
@@ -4394,6 +4454,7 @@ run_local_ai_reviewer_review() {
       emit_local_ai_strict_spec_keys "$script_output"
       emit_local_ai_review_stage_keys "$script_output"
       emit_local_ai_review_doctrine_keys "$script_output"
+      emit_local_ai_durability_mode_keys "$script_output"
       return 0
       ;;
   esac
@@ -9230,6 +9291,7 @@ reviewer_loop_emit_platform_output_contract() {
   if [ "$platform_name" = "local-ai-reviewer" ]; then
     capture_strict_spec_globals_from_output "$platform_output"
     capture_strict_plan_globals_from_output "$platform_output"
+    capture_durability_mode_globals_from_output "$platform_output"
   fi
 }
 
@@ -10717,6 +10779,13 @@ reviewer_loop_history_build_entry() {
     --arg strictPlanApplied "${strict_plan_applied:-}" \
     --arg strictPlanUnknown "${strict_plan_unknown_count:-}" \
     --arg strictPlanReason "${strict_plan_reason:-}" \
+    --argjson durabilityRecorded "${durability_mode_recorded:-0}" \
+    --arg durabilityState "${durability_mode_state:-}" \
+    --arg durabilityActivation "${durability_mode_activation_reason:-}" \
+    --arg durabilityUnavailable "${durability_mode_unavailable_reason:-}" \
+    --arg durabilityInactive "${durability_mode_inactive_reason:-}" \
+    --arg durabilityFamiliesInScope "${durability_mode_families_in_scope:-}" \
+    --argjson durabilityFamiliesNa "${durability_mode_families_na:-[]}" \
     --argjson localSecondPass "${local_second_pass:-0}" \
     --arg localSecondPassReason "${local_second_pass_reason:-not_required}" \
     --arg localSecondPassFailedHead "${local_second_pass_failed_head_record:-}" \
@@ -10802,6 +10871,28 @@ reviewer_loop_history_build_entry() {
                   end
               elif ($strictPlanState == "unavailable" or $strictPlanState == "not_applicable") then
                 . + { reason: $strictPlanReason }
+              else
+                .
+              end
+          )
+        }
+      else
+        .
+      end
+    | if $durabilityRecorded == 1 then
+        . + {
+          durability_mode: (
+            { state: $durabilityState }
+            | if $durabilityState == "active" then
+                . + {
+                  activation_reason: $durabilityActivation,
+                  families_in_scope: ($durabilityFamiliesInScope | if . == "" then [] else (split(",") | map(select(length > 0))) end),
+                  families_na: $durabilityFamiliesNa
+                }
+              elif $durabilityState == "unavailable" then
+                . + { unavailable_reason: $durabilityUnavailable }
+              elif $durabilityState == "inactive" and ($durabilityInactive | length) > 0 then
+                . + { inactive_reason: $durabilityInactive }
               else
                 .
               end

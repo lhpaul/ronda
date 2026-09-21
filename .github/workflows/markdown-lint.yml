@@ -24,6 +24,8 @@ on:
       - 'scripts/lint/check-changelog-duplicate-headers.sh'
       - 'docs/workflow/development-workflow/review-doctrine.md'
       - 'scripts/lint/review-doctrine-lint.sh'
+      - 'docs/workflow/development-workflow/durability-idempotency-review-mode.md'
+      - 'scripts/lint/durability-idempotency-mode-lint.sh'
 
 jobs:
   markdown-lint:
@@ -91,3 +93,6 @@ jobs:
 
       - name: Lint review doctrine catalogue
         run: bash scripts/lint/review-doctrine-lint.sh
+
+      - name: Lint durability/idempotency mode document
+        run: bash scripts/lint/durability-idempotency-mode-lint.sh
