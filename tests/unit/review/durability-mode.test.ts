@@ -47,6 +47,20 @@ test("root-level webhook paths activate automatic match and keep duplicate_deliv
   );
 });
 
+test("publisher paths keep duplicate_delivery in scope", () => {
+  const mode = resolveDurabilityMode({
+    headBranch: "feature/54-x",
+    changedPaths: ["src/github/review-publisher.ts"],
+    modeDocumentText: MODE_TEXT,
+  });
+  assert.equal(mode.state, "active");
+  assert.equal(
+    mode.scenarioFamiliesNa.some((entry) => entry.family === "duplicate_delivery"),
+    false,
+  );
+  assert.equal(mode.scenarioFamiliesInScope.includes("duplicate_delivery"), true);
+});
+
 test("resolveDurabilityMode follows decision matrix rows", () => {
   const inactiveSpec = resolveDurabilityMode({
     headBranch: "spec/54-x",
@@ -54,6 +68,7 @@ test("resolveDurabilityMode follows decision matrix rows", () => {
     modeDocumentText: MODE_TEXT,
   });
   assert.equal(inactiveSpec.state, "inactive");
+  assert.equal(inactiveSpec.inactiveReason, "non_implementation_stage");
 
   const auto = resolveDurabilityMode({
     headBranch: "feature/54-x",
@@ -105,15 +120,19 @@ test("resolveDurabilityMode follows decision matrix rows", () => {
   });
   assert.equal(defaultOn.state, "active");
   assert.equal(defaultOn.activationReason, "operator_default");
+  assert.deepEqual(
+    defaultOn.scenarioFamiliesNa.map((entry) => entry.family),
+    ["duplicate_delivery"],
+  );
 
-  const publisher = resolveDurabilityMode({
+  const retryOnly = resolveDurabilityMode({
     headBranch: "feature/54-x",
-    changedPaths: ["src/github/review-publisher.ts"],
+    changedPaths: ["src/foo/retry-helper.ts"],
     modeDocumentText: MODE_TEXT,
   });
-  assert.equal(publisher.state, "active");
+  assert.equal(retryOnly.state, "active");
   assert.deepEqual(
-    publisher.scenarioFamiliesNa.map((entry) => entry.family),
+    retryOnly.scenarioFamiliesNa.map((entry) => entry.family),
     ["duplicate_delivery"],
   );
 });

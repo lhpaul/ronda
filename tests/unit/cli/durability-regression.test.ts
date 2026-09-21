@@ -52,6 +52,43 @@ test("classifyDurabilityFindings requires every expected keyword", () => {
   assert.equal(genericOnly.found, 0);
   assert.equal(genericOnly.missed, 1);
   assert.deepEqual(genericOnly.matchedKeywords, ["queue"]);
+
+  const splitAcrossFindings = classifyDurabilityFindings({
+    shapeId: "fatal_queue_drain",
+    expectedKeywords: ["fatal", "queue", "drain", "discard"],
+    findings: [
+      {
+        path: "src/fixtures/fatal_queue_drain.ts",
+        line: 1,
+        severity: "blocking",
+        title: "Fatal error",
+        body: "Something went wrong.",
+      },
+      {
+        path: "src/fixtures/fatal_queue_drain.ts",
+        line: 2,
+        severity: "blocking",
+        title: "Queue note",
+        body: "Mentions a queue only.",
+      },
+      {
+        path: "src/fixtures/fatal_queue_drain.ts",
+        line: 3,
+        severity: "blocking",
+        title: "Drain note",
+        body: "Mentions drain only.",
+      },
+      {
+        path: "src/fixtures/fatal_queue_drain.ts",
+        line: 4,
+        severity: "blocking",
+        title: "Discard note",
+        body: "Mentions discard only.",
+      },
+    ],
+  });
+  assert.equal(splitAcrossFindings.found, 0);
+  assert.equal(splitAcrossFindings.missed, 1);
 });
 
 test("runDurabilityRegression reports found for each shape with fake model output", async () => {

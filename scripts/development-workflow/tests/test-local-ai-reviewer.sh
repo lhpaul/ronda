@@ -1924,6 +1924,7 @@ HARNESS_MODE=1 source "$REPO_ROOT/scripts/development-workflow/local-ai-reviewer
 
 _54_row1="$(reviewer_durability_mode_resolve "spec" "" "" '["src/webhook/a.ts"]' "supplied")"
 run_test "durability_mode_row1_spec_inactive" "inactive" "$(printf '%s' "$_54_row1" | jq -r '.state')"
+run_test "durability_mode_row1_inactive_reason" "non_implementation_stage" "$(printf '%s' "$_54_row1" | jq -r '.inactive_reason')"
 
 _54_row6="$(reviewer_durability_mode_resolve "implementation" "" "" '["src/webhook/a.ts"]' "supplied")"
 run_test "durability_mode_row6_auto_active" "active" "$(printf '%s' "$_54_row6" | jq -r '.state')"
@@ -1956,9 +1957,13 @@ fi
 _54_supply_inactive="$(reviewer_durability_mode_supply "implementation" '["docs/project/a.md"]')"
 run_test "durability_supply_inactive_skipped" "skipped" "$(printf '%s' "$_54_supply_inactive" | jq -r '.supply_state')"
 
-_54_families_na="$(reviewer_durability_mode_supply "implementation" '["src/github/review-publisher.ts"]')"
+_54_families_na="$(reviewer_durability_mode_supply "implementation" '["src/foo/retry-helper.ts"]')"
 _54_na_family="$(printf '%s' "$_54_families_na" | jq -r '.scenario_families_na[0].family // empty')"
-run_test "durability_families_na_without_webhook" "duplicate_delivery" "$_54_na_family"
+run_test "durability_families_na_without_delivery_surface" "duplicate_delivery" "$_54_na_family"
+
+_54_publisher="$(reviewer_durability_mode_resolve "implementation" "" "" '["src/github/review-publisher.ts"]' "supplied")"
+_54_publisher_na_count="$(printf '%s' "$_54_publisher" | jq -r '.scenario_families_na | length')"
+run_test "durability_publisher_keeps_duplicate_delivery" "0" "$_54_publisher_na_count"
 
 if reviewer_durability_path_is_sensitive "webhook/handler.ts"; then
   run_test "durability_path_root_webhook_dir" "1" "1"

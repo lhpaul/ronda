@@ -35,7 +35,10 @@ export interface DurabilityModeResolution {
   state: DurabilityModeState;
   activationReason: DurabilityActivationReason;
   unavailableReason: DurabilityUnavailableReason;
-  inactiveReason?: "automatic_rules_did_not_match" | "operator_override";
+  inactiveReason?:
+    | "automatic_rules_did_not_match"
+    | "operator_override"
+    | "non_implementation_stage";
   scenarioFamiliesInScope: DurabilityScenarioFamily[];
   scenarioFamiliesNa: DurabilityFamilyNa[];
   modeText: string;
@@ -112,14 +115,24 @@ function pathTouchesWebhook(path: string): boolean {
   );
 }
 
+/** Surfaces where duplicate delivery / dual-publish remains in scope. */
+function pathKeepsDuplicateDeliveryInScope(path: string): boolean {
+  return (
+    pathTouchesWebhook(path) ||
+    path === "src/github/check-run-publisher.ts" ||
+    path === "src/github/review-publisher.ts" ||
+    path === "src/core/run-review-pass.ts"
+  );
+}
+
 export function durabilityFamiliesNaForPaths(changedPaths: string[]): DurabilityFamilyNa[] {
-  if (changedPaths.some(pathTouchesWebhook)) {
+  if (changedPaths.some(pathKeepsDuplicateDeliveryInScope)) {
     return [];
   }
   return [
     {
       family: "duplicate_delivery",
-      reason: "no webhook or dual-ingress surface in changed files",
+      reason: "no webhook, dual-ingress, or publication surface in changed files",
     },
   ];
 }
@@ -171,7 +184,10 @@ function activeResult(
 }
 
 function inactiveResult(
-  inactiveReason: "automatic_rules_did_not_match" | "operator_override",
+  inactiveReason:
+    | "automatic_rules_did_not_match"
+    | "operator_override"
+    | "non_implementation_stage",
 ): DurabilityModeResolution {
   return {
     state: "inactive",
@@ -209,7 +225,7 @@ export function resolveDurabilityMode(input: ResolveDurabilityModeInput): Durabi
 
   // Row 1
   if (stage !== "implementation") {
-    return inactiveResult("automatic_rules_did_not_match");
+    return inactiveResult("non_implementation_stage");
   }
 
   // Row 4

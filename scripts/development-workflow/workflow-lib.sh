@@ -3577,24 +3577,25 @@ reviewer_durability_paths_match() {
   return 1
 }
 
-# Build families_na JSON when webhook surfaces are absent from the change set.
+# Build families_na JSON when no webhook/publication surface is in the change set.
 reviewer_durability_families_na_for_paths() {
   local changed_paths_json="${1:-[]}"
-  local has_webhook=0
+  local has_delivery_surface=0
   local path
 
   while IFS= read -r path; do
     [ -n "$path" ] || continue
     case "$path" in
-      src/webhook|src/webhook/*|webhook/*.ts|*/webhook/*.ts|*/webhook-*.ts|webhook-*.ts)
-        has_webhook=1
+      src/webhook|src/webhook/*|webhook/*.ts|*/webhook/*.ts|*/webhook-*.ts|webhook-*.ts|\
+      src/github/check-run-publisher.ts|src/github/review-publisher.ts|src/core/run-review-pass.ts)
+        has_delivery_surface=1
         break
         ;;
       esac
   done < <(printf '%s' "$changed_paths_json" | jq -r '.[]? // empty' 2>/dev/null || true)
 
-  if [ "$has_webhook" -eq 0 ]; then
-    jq -n '[{"family":"duplicate_delivery","reason":"no webhook or dual-ingress surface in changed files"}]'
+  if [ "$has_delivery_surface" -eq 0 ]; then
+    jq -n '[{"family":"duplicate_delivery","reason":"no webhook, dual-ingress, or publication surface in changed files"}]'
   else
     printf '[]\n'
   fi
@@ -3638,7 +3639,8 @@ reviewer_durability_mode_resolve() {
         activation_reason: $activation_reason,
         unavailable_reason: $unavailable_reason,
         scenario_families_in_scope: $scenario_families_in_scope,
-        scenario_families_na: $scenario_families_na
+        scenario_families_na: $scenario_families_na,
+        inactive_reason: "non_implementation_stage"
       }'
     return 0
   fi

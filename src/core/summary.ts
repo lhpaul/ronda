@@ -127,6 +127,8 @@ function renderDurabilityModeSection(mode: DurabilityModeResolution): string[] {
     }
   } else if (mode.state === "unavailable") {
     lines.push(`Unavailable reason: \`${mode.unavailableReason}\``);
+  } else if (mode.inactiveReason === "non_implementation_stage") {
+    lines.push("Inactive because the pull request is not at the implementation review stage.");
   } else if (mode.inactiveReason === "automatic_rules_did_not_match") {
     lines.push("Automatic activation rules did not match changed surfaces.");
   } else if (mode.inactiveReason === "operator_override") {
