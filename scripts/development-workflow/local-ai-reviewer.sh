@@ -473,29 +473,25 @@ filter_strict_spec_parsed_response() {
 
   printf '%s\n' "$parsed" | jq -c --argjson documents "$documents_json" '
     ($documents | map(.path)) as $spec_docs
-    | if ($spec_docs | length) == 0 then
-        .
-      else
-        .findings as $all
-        | ($all | map(
-            . as $f
-            | if ($f.check != "unknown")
-                and (($f.path | type) != "string" or ($f.path | length) == 0
-                     or ($spec_docs | index($f.path)) == null) then
-                $f + {check: "unknown", remapped: true}
-              else
-                $f
-              end
-          )) as $processed
-        | ($processed | map(select(.remapped == true)) | length) as $remapped
-        | ($processed | map(del(.remapped))) as $kept
-        | . + {
-            count: ($kept | map(select(.check != "unknown")) | length),
-            checks: ($kept | map(select(.check != "unknown") | .check) | unique | join(",")),
-            unknown_count: ((.unknown_count // 0) + $remapped),
-            findings: $kept
-          }
-      end
+    | .findings as $all
+    | ($all | map(
+        . as $f
+        | if ($f.check != "unknown")
+            and (($f.path | type) != "string" or ($f.path | length) == 0
+                 or ($spec_docs | index($f.path)) == null) then
+            $f + {check: "unknown", remapped: true}
+          else
+            $f
+          end
+      )) as $processed
+    | ($processed | map(select(.remapped == true)) | length) as $remapped
+    | ($processed | map(del(.remapped))) as $kept
+    | . + {
+        count: ($kept | map(select(.check != "unknown")) | length),
+        checks: ($kept | map(select(.check != "unknown") | .check) | unique | join(",")),
+        unknown_count: ((.unknown_count // 0) + $remapped),
+        findings: $kept
+      }
   ' 2>/dev/null
 }
 
@@ -1015,14 +1011,10 @@ reviewer_durability_mode_raw_supply() {
   local unreadable='{"state":"unreadable","text":""}'
   local git_dir="${REPO_ROOT:-.}"
   local tool_root=""
-  local repo_cmp=""
   local loaded_from_head=0
 
   snapshot="$(mktemp)" || { printf '%s\n' "$unreadable"; return 0; }
   tool_root="$(CDPATH='' cd -- "$SCRIPT_DIR/../.." && pwd -P)" || tool_root=""
-  if [ -n "${REPO_ROOT:-}" ]; then
-    repo_cmp="$(CDPATH='' cd -- "$REPO_ROOT" && pwd -P)" || repo_cmp=""
-  fi
 
   # Prefer the reviewed commit so uncommitted working-tree edits cannot diverge
   # from REVIEWED_HEAD provenance (same contract as strict_git_show_at_head).
@@ -1040,10 +1032,12 @@ reviewer_durability_mode_raw_supply() {
 
   # Product repositories in workflow-hub mode do not receive hub_only docs under
   # docs/workflow/**. Fall back to the workflow-tool checkout that owns this
-  # script. Self-review of the hub must not paper over a missing reviewed-head
-  # copy with the working tree.
+  # script — but never when reviewing lhpaul/ronda itself (with or without
+  # --repo-root), so a missing reviewed-head copy stays unavailable.
   if [ "$loaded_from_head" -eq 0 ]; then
-    if [ -n "$tool_root" ] && [ "$tool_root" != "$repo_cmp" ] && [ -f "$tool_root/$path" ]; then
+    if [ "${OWNER}/${REPO}" != "lhpaul/ronda" ] \
+      && [ -n "$tool_root" ] \
+      && [ -f "$tool_root/$path" ]; then
       cp "$tool_root/$path" "$snapshot" 2>/dev/null || {
         rm -f "$snapshot"
         printf '%s\n' "$unreadable"
