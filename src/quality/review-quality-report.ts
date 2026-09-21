@@ -474,7 +474,9 @@ function missRows(
       falseCleanCandidate,
       cleanAgreement: false,
       duplicateOrOutOfScope:
-        record.verdict === "already_found" || record.verdict === "out_of_scope",
+        !stale &&
+        resolvable &&
+        (record.verdict === "already_found" || record.verdict === "out_of_scope"),
       unresolvableEvidence: !resolvable,
     },
   ];
@@ -571,6 +573,11 @@ export function buildReviewQualityReport(input: BuildReportInput): ReviewQuality
     if (row.cleanAgreement) {
       cleanAgreement.count += 1;
       cleanAgreement.drillDown.push(toReference(row));
+      continue;
+    }
+    if (row.primaryOutcome === "stale_head") {
+      primaryOutcomes.stale_head.count += 1;
+      primaryOutcomes.stale_head.drillDown.push(toReference(row));
       continue;
     }
     if (row.duplicateOrOutOfScope) {

@@ -151,9 +151,8 @@ export function buildPushOrderedHeadShas(input: {
     pushUnique(event.after);
   }
 
-  for (const commit of input.commits) {
-    pushUnique(commit.sha);
-  }
+  // The PR commits endpoint lists every reachable commit, not each branch tip.
+  // Historical PR heads come from timeline force-push tips only (AC37).
 
   const withoutCurrent = ordered.filter(
     (sha) => !headsMatch(sha, input.currentHeadSha),
@@ -496,12 +495,16 @@ export function readCodexGithubFindings(input: {
 
   const findings: ExternalFindingCandidate[] = [];
   let sawCurrentHeadBody = false;
+  const reviewIdsWithInlineComments = new Set<string>();
 
   for (const comment of codexComments) {
     const head =
       comment.commit_id?.trim() || comment.original_commit_id?.trim() || "";
     if (!headsMatch(head, input.currentHeadSha)) {
       continue;
+    }
+    if (comment.pull_request_review_id != null) {
+      reviewIdsWithInlineComments.add(String(comment.pull_request_review_id));
     }
     sawCurrentHeadBody = true;
     const body = (comment.body ?? "").trim();
@@ -537,12 +540,11 @@ export function readCodexGithubFindings(input: {
       continue;
     }
     sawCurrentHeadBody = true;
-    // Skip if inline comments already captured this review's substance.
-    const alreadyFromComments = findings.some(
-      (finding) => finding.sourceId.startsWith(`${review.id}:`) ||
-        finding.text === body,
-    );
-    if (alreadyFromComments) {
+    // Skip when inline comments on this review were already captured.
+    if (
+      review.id != null &&
+      reviewIdsWithInlineComments.has(String(review.id))
+    ) {
       continue;
     }
     findings.push({

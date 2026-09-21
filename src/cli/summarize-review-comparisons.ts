@@ -87,7 +87,6 @@ export function summarizeMissRecords(
       ? options.isResolvable(record)
       : true;
     const category = record.affectedCategory?.trim() || "uncategorized";
-    categoryBreakdown[category] = (categoryBreakdown[category] ?? 0) + 1;
 
     if (stale) {
       staleEvidence += 1;
@@ -106,6 +105,7 @@ export function summarizeMissRecords(
       case "true_positive":
         confirmedMisses += 1;
         verdictOutcomeCounts.ronda_miss += 1;
+        categoryBreakdown[category] = (categoryBreakdown[category] ?? 0) + 1;
         break;
       case "false_positive":
         reviewerNoise += 1;

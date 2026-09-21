@@ -153,7 +153,9 @@ test("readPullRequestEvidence flattens paginated commits/reviews pages", () => {
       return `${JSON.stringify([{ sha: HEAD_A }])}${JSON.stringify([{ sha: HEAD_C }])}`;
     }
     if (joined.includes("/timeline")) {
-      return "[]";
+      return JSON.stringify([
+        { event: "head_ref_force_pushed", before: HEAD_A, after: HEAD_C },
+      ]);
     }
     if (joined.includes("/reviews")) {
       return `${JSON.stringify([
