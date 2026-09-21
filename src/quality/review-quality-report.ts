@@ -78,6 +78,8 @@ export interface ClassifiedEvidenceRow extends EvidenceReference {
   falseCleanCandidate: boolean;
   cleanAgreement: boolean;
   duplicateOrOutOfScope: boolean;
+  /** Fresh read-time flag; never persisted on the miss record (AC48). */
+  unresolvableEvidence?: boolean;
   timestamp?: string;
 }
 
@@ -151,6 +153,8 @@ export interface ReviewQualityReport {
   supplementary: {
     duplicate: number;
     outOfScope: number;
+    /** Additive AC48 count; independent of stale_head / verdict outcomes. */
+    unresolvableEvidence: number;
   };
   breakdowns: {
     byCategory: Record<string, Record<PrimaryOutcome, number>>;
@@ -178,6 +182,12 @@ export interface BuildReportInput {
   missDirectory: string;
   skippedFiles: SkippedFile[];
   filters: ReportFilters;
+  /**
+   * Fresh Ronda-evidence resolvability (AC48). When omitted, miss records are
+   * treated as resolvable — callers that claim a spec-complete report must
+   * supply a checker built from live evidence.
+   */
+  isResolvable?: (record: CapturedMissRecord) => boolean;
 }
 
 export function readComparisonRecords(
@@ -426,15 +436,19 @@ function comparisonRows(record: ComparisonRecordWithMeta): ClassifiedEvidenceRow
   });
 }
 
-function missRows(record: CapturedMissRecord): ClassifiedEvidenceRow[] {
+function missRows(
+  record: CapturedMissRecord,
+  isResolvable?: (record: CapturedMissRecord) => boolean,
+): ClassifiedEvidenceRow[] {
   const sameHead = missHeadsMatch(
     record.reviewedHeadSha,
     record.rondaResultHeadSha,
   );
   const stale = record.staleEvidence === true || !sameHead;
+  const resolvable = isResolvable ? isResolvable(record) : true;
   const category = record.affectedCategory?.trim() || UNCategorized_CATEGORY;
   const falseCleanCandidate =
-    !stale && record.verdict === "unadjudicated" && sameHead;
+    !stale && resolvable && record.verdict === "unadjudicated" && sameHead;
 
   const primaryOutcome = stale
     ? "stale_head"
@@ -459,6 +473,7 @@ function missRows(record: CapturedMissRecord): ClassifiedEvidenceRow[] {
       cleanAgreement: false,
       duplicateOrOutOfScope:
         record.verdict === "already_found" || record.verdict === "out_of_scope",
+      unresolvableEvidence: !resolvable,
     },
   ];
 }
@@ -515,7 +530,9 @@ function incrementBreakdown(
 
 export function buildReviewQualityReport(input: BuildReportInput): ReviewQualityReport {
   const comparisonRowsFlat = input.comparisonRecords.flatMap(comparisonRows);
-  const missRowsFlat = input.missRecords.flatMap(missRows);
+  const missRowsFlat = input.missRecords.flatMap((record) =>
+    missRows(record, input.isResolvable),
+  );
   const allRows = [...comparisonRowsFlat, ...missRowsFlat].filter((row) =>
     passesFilters(row, input.filters),
   );
@@ -530,7 +547,7 @@ export function buildReviewQualityReport(input: BuildReportInput): ReviewQuality
 
   const cleanAgreement: OutcomeBucket = { count: 0, drillDown: [] };
   const falseCleanCandidates: EvidenceReference[] = [];
-  const supplementary = { duplicate: 0, outOfScope: 0 };
+  const supplementary = { duplicate: 0, outOfScope: 0, unresolvableEvidence: 0 };
   const breakdowns = {
     byCategory: {} as Record<string, Record<PrimaryOutcome, number>>,
     byRepository: {} as Record<string, Record<PrimaryOutcome, number>>,
@@ -538,6 +555,17 @@ export function buildReviewQualityReport(input: BuildReportInput): ReviewQuality
   };
 
   for (const row of allRows) {
+    if (row.unresolvableEvidence) {
+      supplementary.unresolvableEvidence += 1;
+      // Stale + unresolvable both count independently (AC48); verdict outcomes
+      // remain excluded while unresolvable.
+      if (row.primaryOutcome === "stale_head") {
+        primaryOutcomes.stale_head.count += 1;
+        primaryOutcomes.stale_head.drillDown.push(toReference(row));
+      }
+      continue;
+    }
+
     if (row.cleanAgreement) {
       cleanAgreement.count += 1;
       cleanAgreement.drillDown.push(toReference(row));
@@ -576,6 +604,9 @@ export function buildReviewQualityReport(input: BuildReportInput): ReviewQuality
   const confirmedMissesByCategory = new Map<string, number>();
   const unclearFalseCleanByCategory = new Map<string, number>();
   for (const row of allRows) {
+    if (row.unresolvableEvidence) {
+      continue;
+    }
     if (row.primaryOutcome === "true_positive") {
       confirmedMissesByCategory.set(
         row.category,
@@ -704,6 +735,13 @@ export function formatMarkdownSummary(report: ReviewQualityReport): string {
 
   lines.push("", "## Clean agreement", `- count: ${report.cleanAgreement.count}`);
   lines.push("", "## False-clean candidates", `- count: ${report.falseCleanCandidates.length}`);
+  lines.push(
+    "",
+    "## Supplementary",
+    `- duplicate: ${report.supplementary.duplicate}`,
+    `- out_of_scope: ${report.supplementary.outOfScope}`,
+    `- unresolvable_evidence: ${report.supplementary.unresolvableEvidence}`,
+  );
 
   lines.push("", "## Improvement");
   for (const entry of report.improvement.topMissedCategories.slice(0, 5)) {

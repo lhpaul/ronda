@@ -43,6 +43,15 @@ test("AC9 credential forms refuse non-placeholder values", () => {
     findCredentialMatch('password = "s3cret-value"')?.form,
     "secret_assignment",
   );
+  assert.equal(
+    findCredentialMatch("password=supersecret")?.form,
+    "secret_assignment",
+  );
+  assert.equal(
+    findCredentialMatch("secret=bare-literal-value")?.form,
+    "secret_assignment",
+  );
+  assert.equal(findCredentialMatch("password=REDACTED"), null);
 });
 
 test("quote and indent normalization strips block quotes and shared indent", () => {

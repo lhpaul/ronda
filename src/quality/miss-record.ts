@@ -77,6 +77,11 @@ export interface ExternalReviewMissRecord {
   captureSource: CaptureSource;
   /** Immutable source id for automatic records; null for manual. */
   sourceId: string | null;
+  /**
+   * Full pre-truncation manual identity key (`manual:<digest>`). Stored so
+   * truncated title/text cannot collide distinct findings (AC41).
+   */
+  identityDigest?: string;
   rationale?: string;
   rationaleTruncated?: boolean;
   /** Optional local forensic timestamps; durable audit is git history. */
@@ -196,6 +201,11 @@ export function recordIdentityKey(record: ExternalReviewMissRecord): string {
       pullNumber: record.pullNumber,
       sourceId: record.sourceId,
     });
+  }
+  // Prefer the persisted full-text digest when present so truncated storage
+  // fields cannot rematch a different finding's identity.
+  if (record.identityDigest && record.identityDigest.startsWith("manual:")) {
+    return record.identityDigest;
   }
   return manualIdentityKey({
     repository: record.repository,

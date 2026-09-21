@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { summarizeMissRecords } from "../../../src/cli/summarize-review-comparisons.js";
+import { buildResolvabilityChecker } from "../../../src/quality/miss-github-evidence.js";
 import type { CapturedMissRecord } from "../../../src/quality/review-quality-report.js";
 import { summarizeComparisonRecords } from "../../../src/quality/review-quality-report.js";
 import type { ReviewComparisonRecord } from "../../../src/cli/recall-benchmark.js";
@@ -112,4 +113,24 @@ test("clean agreement comparison counts are unchanged by miss records (AC7)", ()
   assert.deepEqual(after.adjudicationCounts, before.adjudicationCounts);
   assert.equal(missRollup.confirmedMisses, 1);
   assert.equal(after.adjudicationCounts.clean_agreement, 1);
+});
+
+test("AC48 summary-time fresh resolvability excludes unresolvable from verdicts", () => {
+  const evidenceByPull = new Map([
+    ["lhpaul/ronda#53", { rondaResultHeadShas: [HEAD_A] }],
+  ]);
+  const rollup = summarizeMissRecords(
+    [
+      miss({ id: "ok", verdict: "true_positive", rondaResultHeadSha: HEAD_A }),
+      miss({
+        id: "gone",
+        verdict: "true_positive",
+        rondaResultHeadSha: HEAD_B,
+      }),
+    ],
+    { isResolvable: buildResolvabilityChecker(evidenceByPull) },
+  );
+  assert.equal(rollup.confirmedMisses, 1);
+  assert.equal(rollup.unresolvableEvidence, 1);
+  assert.equal(rollup.verdictOutcomeCounts.ronda_miss, 1);
 });

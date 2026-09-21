@@ -54,6 +54,9 @@ function createGhFixture(input: {
     if (joined.includes("/commits")) {
       return JSON.stringify(commits.map((sha) => ({ sha })));
     }
+    if (joined.includes("/timeline")) {
+      return JSON.stringify([]);
+    }
     if (joined.includes("/reviews")) {
       return JSON.stringify(reviews);
     }
@@ -436,4 +439,137 @@ test("fixture JSON sample loads as a miss record shape", () => {
   );
   const parsed = JSON.parse(readFileSync(fixture, "utf8"));
   assert.equal(parsed.captureSource, "manual");
+});
+
+test("adjudication refuses when source corpus cannot be loaded", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ronda-misses-"));
+  try {
+    const runGh = createGhFixture({});
+    await main(
+      [
+        "capture-manual",
+        "--pr",
+        "53",
+        "--repository",
+        "lhpaul/ronda",
+        "--reviewer",
+        "human",
+        "--location",
+        "src/x.ts:1",
+        "--text",
+        "A durable finding",
+        "--category",
+        "other",
+        "--dir",
+        dir,
+      ],
+      { runGh },
+    );
+    const files = (await import("node:fs")).readdirSync(dir);
+    const record = JSON.parse(readFileSync(join(dir, files[0]!), "utf8"));
+
+    const brokenGh = (args: string[]): string => {
+      const joined = args.join(" ");
+      if (joined.includes("/compare/") && !joined.includes("--jq")) {
+        return JSON.stringify({
+          files: [{ filename: "src/a.ts", patch: "+x", status: "modified" }],
+        });
+      }
+      if (joined.includes("/contents/")) {
+        throw new Error("blob unavailable");
+      }
+      return runGh(args);
+    };
+
+    const logs: string[] = [];
+    const original = console.log;
+    console.log = (...args: unknown[]) => {
+      logs.push(args.map(String).join(" "));
+    };
+    try {
+      const code = await main(
+        [
+          "adjudicate",
+          "--id",
+          record.id,
+          "--verdict",
+          "true_positive",
+          "--rationale",
+          "Should refuse without corpus",
+          "--dir",
+          dir,
+        ],
+        { runGh: brokenGh },
+      );
+      assert.equal(code, 1);
+      assert.ok(logs.some((line) => line.includes("adjudication_refused")));
+      assert.ok(logs.some((line) => /source corpus could not be loaded/i.test(line)));
+    } finally {
+      console.log = original;
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("delete/adjudicate --id refuses paths outside the miss directory", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ronda-misses-"));
+  const outsideDir = mkdtempSync(join(tmpdir(), "ronda-outside-"));
+  try {
+    const outsidePath = join(outsideDir, "escape.json");
+    writeFileSync(
+      outsidePath,
+      `${JSON.stringify({
+        id: "escape-record",
+        repository: "lhpaul/ronda",
+        pullNumber: 53,
+        reviewedHeadSha: HEAD_A,
+        rondaResultHeadSha: HEAD_A,
+        staleEvidence: false,
+        externalReviewer: "human",
+        location: "src/x.ts:1",
+        locationUnresolved: false,
+        title: "escape",
+        text: "escape",
+        textTruncated: false,
+        verdict: "unadjudicated",
+        affectedCategory: "other",
+        intendedFollowUp: "undecided",
+        captureSource: "manual",
+        sourceId: null,
+      })}\n`,
+    );
+
+    const deleteCode = await main(
+      ["delete", "--id", outsidePath, "--dir", dir],
+      { runGh: createGhFixture({}) },
+    );
+    assert.equal(deleteCode, 1);
+    assert.equal(
+      (await import("node:fs")).existsSync(outsidePath),
+      true,
+      "outside file must remain untouched",
+    );
+
+    const adjCode = await main(
+      [
+        "adjudicate",
+        "--id",
+        outsidePath,
+        "--verdict",
+        "true_positive",
+        "--rationale",
+        "must not touch outside path",
+        "--dir",
+        dir,
+      ],
+      { runGh: createGhFixture({}) },
+    );
+    assert.equal(adjCode, 1);
+    const outside = JSON.parse(readFileSync(outsidePath, "utf8"));
+    assert.equal(outside.verdict, "unadjudicated");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(outsideDir, { recursive: true, force: true });
+  }
 });

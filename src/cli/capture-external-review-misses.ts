@@ -24,6 +24,7 @@ import {
 } from "../quality/miss-github-evidence.js";
 import { DEFAULT_MISS_DIRECTORY } from "../quality/review-quality-report.js";
 import type { SourceScanCorpus } from "../quality/miss-content-validator.js";
+import { isAbsolute, normalize, relative, resolve, sep } from "node:path";
 
 type Command =
   | "capture-automatic"
@@ -394,6 +395,13 @@ function printCaptureResult(
   console.log(`FINDINGS_REFUSED=${refused}`);
 }
 
+function isPathInsideDirectory(candidatePath: string, directory: string): boolean {
+  const resolvedDir = resolve(directory);
+  const resolvedPath = resolve(candidatePath);
+  const rel = relative(resolvedDir, resolvedPath);
+  return rel !== "" && !rel.startsWith(`..${sep}`) && !rel.startsWith("..") && !isAbsolute(rel);
+}
+
 function findRecordById(
   directory: string,
   id: string,
@@ -403,13 +411,21 @@ function findRecordById(
       return { record, path: missRecordPath(record, directory) };
     }
   }
-  // Also allow path-as-id for operator convenience
-  try {
-    const record = readMissRecordFile(id);
-    return { record, path: id };
-  } catch {
-    return null;
+  // Path-as-id is allowed only when the path resolves inside the configured
+  // miss directory — never operate on arbitrary filesystem paths.
+  const normalizedId = normalize(id);
+  if (
+    (normalizedId.includes(sep) || normalizedId.endsWith(".json")) &&
+    isPathInsideDirectory(normalizedId, directory)
+  ) {
+    try {
+      const record = readMissRecordFile(resolve(normalizedId));
+      return { record, path: resolve(normalizedId) };
+    } catch {
+      return null;
+    }
   }
+  return null;
 }
 
 export async function main(
@@ -479,7 +495,7 @@ export async function main(
       console.error(`No miss record found for id ${options.id}`);
       return 1;
     }
-    let corpus: SourceScanCorpus | undefined;
+    let corpus: SourceScanCorpus;
     try {
       const evidence = readPullRequestEvidence({
         pullNumber: found.record.pullNumber,
@@ -488,8 +504,14 @@ export async function main(
       });
       const { corpusForHead } = corpusCache(evidence, options.runGh);
       corpus = corpusForHead(found.record.reviewedHeadSha);
-    } catch {
-      corpus = undefined;
+    } catch (error: unknown) {
+      console.log(`OUTCOME=adjudication_refused`);
+      console.log(
+        `REASON=Adjudication refused: source corpus could not be loaded (${
+          error instanceof Error ? error.message : String(error)
+        }).`,
+      );
+      return 1;
     }
 
     const result = adjudicateMissRecord({

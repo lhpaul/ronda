@@ -9,8 +9,10 @@ import {
   type CapturedMissRecord,
 } from "../quality/review-quality-report.js";
 import {
-  isResolvableRondaHead,
-  type PullRequestEvidence,
+  defaultGhRunner,
+  buildResolvabilityChecker,
+  loadFreshMissEvidenceByPull,
+  type GhRunner,
 } from "../quality/miss-github-evidence.js";
 import {
   headsMatch,
@@ -25,6 +27,7 @@ interface CliOptions {
   missDirectory: string;
   /** Optional injectable resolvability map: record id → resolvable. */
   resolvableById?: Record<string, boolean>;
+  runGh?: GhRunner;
 }
 
 export {
@@ -138,25 +141,8 @@ export function summarizeMissRecords(
   };
 }
 
-/**
- * Build a resolvability checker from freshly loaded PR evidence keyed by
- * repository#pullNumber. When evidence is missing, the record is unresolvable.
- */
-export function buildResolvabilityChecker(
-  evidenceByPull: Map<string, Pick<PullRequestEvidence, "rondaResultHeadShas">>,
-): (record: CapturedMissRecord) => boolean {
-  return (record) => {
-    const key = `${record.repository}#${record.pullNumber}`;
-    const evidence = evidenceByPull.get(key);
-    if (!evidence) {
-      return false;
-    }
-    return isResolvableRondaHead({
-      rondaResultHeadSha: record.rondaResultHeadSha,
-      rondaResultHeadShas: evidence.rondaResultHeadShas,
-    });
-  };
-}
+/** @deprecated Prefer importing from miss-github-evidence directly. */
+export { buildResolvabilityChecker, loadFreshMissEvidenceByPull };
 
 function parseArgs(argv: string[]): CliOptions {
   const options: CliOptions = {
@@ -189,7 +175,10 @@ function parseArgs(argv: string[]): CliOptions {
   return options;
 }
 
-export async function main(argv = process.argv.slice(2)): Promise<number> {
+export async function main(
+  argv = process.argv.slice(2),
+  deps: { runGh?: GhRunner } = {},
+): Promise<number> {
   const options = parseArgs(argv);
   const files = resolveComparisonFiles(options);
   const records = readComparisonRecords(files);
@@ -200,11 +189,12 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     directory: options.missDirectory,
   });
   const missRecords = readMissRecords(missFiles);
-  // Summary-time resolvability defaults to resolvable when no live evidence is
-  // injected; operators use `quality:misses read` / `quality:report` for fresh
-  // checks. Unit tests inject via summarizeMissRecords directly.
+  const evidenceByPull = loadFreshMissEvidenceByPull({
+    records: missRecords,
+    runGh: deps.runGh ?? options.runGh ?? defaultGhRunner,
+  });
   const missRollup = summarizeMissRecords(missRecords, {
-    isResolvable: () => true,
+    isResolvable: buildResolvabilityChecker(evidenceByPull),
   });
 
   console.log(

@@ -93,6 +93,45 @@ test("AC37 Ronda result head fallback uses push-order only", () => {
     }),
     HEAD_B,
   );
+
+  // Fail closed: never fall back to reviews/publish order when Ronda heads are
+  // absent from push order (e.g. force-pushed away from commits API alone).
+  // rondaResultHeadShas listed as [A, B] with A published last must not yield A.
+  assert.equal(
+    resolveRondaResultHead({
+      reviewedHeadSha: HEAD_A,
+      pushOrderedHeadShas: [HEAD_A],
+      rondaResultHeadShas: [HEAD_C, HEAD_B],
+    }),
+    null,
+  );
+});
+
+test("AC41 manual identity uses full pre-truncation text digest", () => {
+  const sharedPrefix = "x".repeat(2000);
+  const first = runCaptureDecisionGate(
+    baseManual({ text: `${sharedPrefix}DISTINCT_TAIL_ONE` }),
+  );
+  const second = runCaptureDecisionGate({
+    ...baseManual({ text: `${sharedPrefix}DISTINCT_TAIL_TWO` }),
+    existingRecords: [first.findings[0]!.record!],
+  });
+  assert.equal(first.findings[0]?.outcome, "record_written");
+  assert.equal(second.findings[0]?.outcome, "record_written");
+  assert.notEqual(first.findings[0]?.record?.id, second.findings[0]?.record?.id);
+  assert.ok(first.findings[0]?.record?.identityDigest?.startsWith("manual:"));
+  assert.notEqual(
+    first.findings[0]?.record?.identityDigest,
+    second.findings[0]?.record?.identityDigest,
+  );
+
+  // Same full text (case/whitespace only) updates in place.
+  const same = runCaptureDecisionGate({
+    ...baseManual({ text: `  ${sharedPrefix}DISTINCT_TAIL_ONE  ` }),
+    existingRecords: [first.findings[0]!.record!],
+  });
+  assert.equal(same.findings[0]?.outcome, "record_updated");
+  assert.equal(same.findings[0]?.record?.id, first.findings[0]?.record?.id);
 });
 
 test("Stage 1 conditions: unresolved reviewer, no Ronda, unsupported, silence, unparseable", () => {
@@ -523,6 +562,7 @@ test("AC5 / AC28 adjudication requires rationale and scans it", () => {
     record,
     verdict: "true_positive",
     rationale: 'password = "s3cret-value"',
+    corpus: { changedFileContents: [], diffText: "" },
   });
   assert.equal(credential.ok, false);
   if (!credential.ok) {
@@ -534,11 +574,22 @@ test("AC5 / AC28 adjudication requires rationale and scans it", () => {
     verdict: "true_positive",
     intendedFollowUp: "eval_record",
     rationale: "Confirmed miss on retry path.",
+    corpus: { changedFileContents: [], diffText: "" },
   });
   assert.equal(ok.ok, true);
   if (ok.ok) {
     assert.equal(ok.record.verdict, "true_positive");
     assert.equal(ok.record.intendedFollowUp, "eval_record");
+  }
+
+  const missingCorpus = adjudicateMissRecord({
+    record,
+    verdict: "true_positive",
+    rationale: "Needs corpus",
+  });
+  assert.equal(missingCorpus.ok, false);
+  if (!missingCorpus.ok) {
+    assert.match(missingCorpus.reason, /source corpus/);
   }
 });
 

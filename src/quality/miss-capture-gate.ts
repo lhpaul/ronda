@@ -504,20 +504,8 @@ function processOneFinding(input: {
     return { outcome: "record_updated", record };
   }
 
-  // Manual
+  // Manual identity always uses full pre-truncation title/text (AC41).
   const identityKey = manualIdentityKey({
-    repository: input.gate.evidence.repository,
-    pullNumber: input.gate.evidence.pullNumber,
-    externalReviewer: input.finding.externalReviewer,
-    reviewedHeadSha,
-    location: input.finding.location,
-    title: truncatedTitle.value,
-    text: truncatedText.value,
-  });
-  // Identity uses full (pre-storage-canonical) text for matching against
-  // existing records — compare using the truncated stored form for stability
-  // with what would be persisted, and also try the raw text key.
-  const identityKeyRaw = manualIdentityKey({
     repository: input.gate.evidence.repository,
     pullNumber: input.gate.evidence.pullNumber,
     externalReviewer: input.finding.externalReviewer,
@@ -527,9 +515,7 @@ function processOneFinding(input: {
     text: input.finding.text,
   });
 
-  const existing =
-    findMissByIdentity(input.gate.existingRecords, identityKey) ??
-    findMissByIdentity(input.gate.existingRecords, identityKeyRaw);
+  const existing = findMissByIdentity(input.gate.existingRecords, identityKey);
 
   if (!existing) {
     const id = buildMissRecordId({
@@ -556,6 +542,7 @@ function processOneFinding(input: {
       intendedFollowUp: followUpParse.value ?? "undecided",
       captureSource: "manual",
       sourceId: null,
+      identityDigest: identityKey,
       capturedAt: now,
       updatedAt: now,
       mergeBaseSha,
@@ -588,6 +575,7 @@ function processOneFinding(input: {
     mergeBaseSha,
     captureSource: "manual",
     sourceId: null,
+    identityDigest: identityKey,
     id: existing.id,
     capturedAt: existing.capturedAt ?? now,
   };
@@ -740,11 +728,19 @@ export function adjudicateMissRecord(
     nextFollowUp = input.intendedFollowUp;
   }
 
+  if (!input.corpus) {
+    return {
+      ok: false,
+      reason:
+        "Adjudication refused: source corpus could not be loaded for sensitive-content scanning.",
+    };
+  }
+
   const rationaleRefusal = validateMissField({
     field: "rationale",
     value: input.rationale,
     corpus: input.corpus,
-    scanSourceExcerpts: Boolean(input.corpus),
+    scanSourceExcerpts: true,
   });
   if (rationaleRefusal) {
     if (rationaleRefusal.kind === "credential") {

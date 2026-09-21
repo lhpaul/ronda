@@ -83,6 +83,53 @@ interface GhCommit {
   sha?: string;
 }
 
+interface GhTimelineEvent {
+  event?: string;
+  before?: string;
+  after?: string;
+}
+
+/**
+ * Build push-ordered PR head tips (oldest first). Prefer timeline
+ * `head_ref_force_pushed` before/after tips so force-pushed-away heads remain
+ * ordered; then append commits still reachable on the PR. Never use review
+ * publish order (AC37).
+ */
+export function buildPushOrderedHeadShas(input: {
+  currentHeadSha: string;
+  commits: Array<{ sha?: string }>;
+  timelineEvents?: GhTimelineEvent[];
+}): string[] {
+  const ordered: string[] = [];
+  const pushUnique = (sha: string | undefined): void => {
+    const trimmed = sha?.trim() ?? "";
+    if (!trimmed) {
+      return;
+    }
+    if (ordered.some((existing) => headsMatch(existing, trimmed))) {
+      return;
+    }
+    ordered.push(trimmed);
+  };
+
+  for (const event of input.timelineEvents ?? []) {
+    if (event.event !== "head_ref_force_pushed") {
+      continue;
+    }
+    pushUnique(event.before);
+    pushUnique(event.after);
+  }
+
+  for (const commit of input.commits) {
+    pushUnique(commit.sha);
+  }
+
+  const withoutCurrent = ordered.filter(
+    (sha) => !headsMatch(sha, input.currentHeadSha),
+  );
+  return [...withoutCurrent, input.currentHeadSha];
+}
+
 /**
  * Read pull-request metadata and Ronda/Codex evidence via `gh` (read-only).
  * Injectable runner keeps unit tests off the network.
@@ -104,10 +151,10 @@ export function readPullRequestEvidence(input: {
     "pr",
     "view",
     String(input.pullNumber),
-    "--repo",
-    repository,
     "--json",
     "headRefOid,baseRefName,baseRefOid,url",
+    "--repo",
+    repository,
   ]);
   const view = JSON.parse(viewRaw) as GhPullView;
   const currentHeadSha = view.headRefOid?.trim() ?? "";
@@ -122,21 +169,24 @@ export function readPullRequestEvidence(input: {
     "--paginate",
   ]);
   const commits = JSON.parse(commitsRaw || "[]") as GhCommit[];
-  const pushOrderedHeadShas = commits
-    .map((commit) => commit.sha?.trim() ?? "")
-    .filter((sha) => sha.length > 0);
 
-  // Ensure the current head is present as the latest push tip.
-  if (
-    pushOrderedHeadShas.length === 0 ||
-    pushOrderedHeadShas[pushOrderedHeadShas.length - 1] !== currentHeadSha
-  ) {
-    const withoutCurrent = pushOrderedHeadShas.filter(
-      (sha) => !headsMatch(sha, currentHeadSha),
-    );
-    pushOrderedHeadShas.length = 0;
-    pushOrderedHeadShas.push(...withoutCurrent, currentHeadSha);
+  let timelineEvents: GhTimelineEvent[] = [];
+  try {
+    const timelineRaw = runGh([
+      "api",
+      `repos/${owner}/${repo}/issues/${input.pullNumber}/timeline`,
+      "--paginate",
+    ]);
+    timelineEvents = JSON.parse(timelineRaw || "[]") as GhTimelineEvent[];
+  } catch {
+    // Timeline enrichment is best-effort; commits + fail-closed resolve remain.
   }
+
+  const pushOrderedHeadShas = buildPushOrderedHeadShas({
+    currentHeadSha,
+    commits,
+    timelineEvents,
+  });
 
   const reviewsRaw = runGh([
     "api",
@@ -197,10 +247,10 @@ export function resolveRondaResultHead(input: {
     }
   }
 
-  // Fallback: if push-order list did not include a Ronda head (e.g. force-push
-  // dropped it), pick the last entry in the Ronda list as best-effort — but
-  // still prefer membership in push order when available.
-  return input.rondaResultHeadShas[input.rondaResultHeadShas.length - 1] ?? null;
+  // Fail closed (AC37): never fall back to reviews-endpoint / publish order.
+  // When no Ronda-bearing head appears in push order, there is no push-order
+  // resolution — callers refuse capture rather than guessing.
+  return null;
 }
 
 export function isResolvableRondaHead(input: {
@@ -210,6 +260,65 @@ export function isResolvableRondaHead(input: {
   return input.rondaResultHeadShas.some((sha) =>
     headsMatch(sha, input.rondaResultHeadSha),
   );
+}
+
+/**
+ * Build a resolvability checker from freshly loaded PR evidence keyed by
+ * repository#pullNumber. When evidence is missing, the record is unresolvable.
+ */
+export function buildResolvabilityChecker(
+  evidenceByPull: Map<string, Pick<PullRequestEvidence, "rondaResultHeadShas">>,
+): (record: {
+  repository: string;
+  pullNumber: number;
+  rondaResultHeadSha: string;
+}) => boolean {
+  return (record) => {
+    const key = `${record.repository}#${record.pullNumber}`;
+    const evidence = evidenceByPull.get(key);
+    if (!evidence) {
+      return false;
+    }
+    return isResolvableRondaHead({
+      rondaResultHeadSha: record.rondaResultHeadSha,
+      rondaResultHeadShas: evidence.rondaResultHeadShas,
+    });
+  };
+}
+
+/**
+ * Load fresh Ronda result-head evidence per repository#pullNumber. Missing or
+ * failed lookups leave the key absent so {@link buildResolvabilityChecker}
+ * treats those records as unresolvable (AC48).
+ */
+export function loadFreshMissEvidenceByPull(input: {
+  records: Array<{ repository: string; pullNumber: number }>;
+  runGh?: GhRunner;
+}): Map<string, Pick<PullRequestEvidence, "rondaResultHeadShas">> {
+  const evidenceByPull = new Map<
+    string,
+    Pick<PullRequestEvidence, "rondaResultHeadShas">
+  >();
+  const runGh = input.runGh ?? defaultGhRunner;
+  for (const record of input.records) {
+    const key = `${record.repository}#${record.pullNumber}`;
+    if (evidenceByPull.has(key)) {
+      continue;
+    }
+    try {
+      const evidence = readPullRequestEvidence({
+        pullNumber: record.pullNumber,
+        repository: record.repository,
+        runGh,
+      });
+      evidenceByPull.set(key, {
+        rondaResultHeadShas: evidence.rondaResultHeadShas,
+      });
+    } catch {
+      // Absent key → unresolvable at summary/report time (fail closed for AC48).
+    }
+  }
+  return evidenceByPull;
 }
 
 export function isKnownPullRequestHead(input: {
@@ -323,11 +432,14 @@ export function readCodexGithubFindings(input: {
     if (!body) {
       continue;
     }
+    // One review comment = one finding at stable position 0. Do not use
+    // findings.length — removing/reordering sibling comments must not change
+    // this comment's immutable source id (AC41).
     findings.push(
       parseFindingFromComment({
         comment,
         reviewOrCommentId: String(comment.id ?? comment.pull_request_review_id ?? "comment"),
-        findingIndex: findings.length,
+        findingIndex: 0,
         reviewerLogin: comment.user?.login ?? input.namedReviewer,
       }),
     );
@@ -472,27 +584,39 @@ export function readSourceScanCorpus(input: {
     if (!filename || file.status === "removed") {
       continue;
     }
+    // Fail closed (sensitive-content scan): every non-removed changed file must
+    // contribute readable content, or the corpus is incomplete and capture must
+    // refuse rather than under-scan.
+    const encoded = filename
+      .split("/")
+      .map((part) => encodeURIComponent(part))
+      .join("/");
+    let contentRaw: string;
     try {
-      const encoded = filename
-        .split("/")
-        .map((part) => encodeURIComponent(part))
-        .join("/");
-      const contentRaw = runGh([
+      contentRaw = runGh([
         "api",
         `repos/${owner}/${repo}/contents/${encoded}?ref=${input.reviewedHeadSha}`,
       ]);
-      const content = JSON.parse(contentRaw || "{}") as {
-        content?: string;
-        encoding?: string;
-      };
-      if (content.encoding === "base64" && content.content) {
-        changedFileContents.push(
-          Buffer.from(content.content.replace(/\n/g, ""), "base64").toString("utf8"),
-        );
-      }
-    } catch {
-      // Missing/binary/unreadable blobs are skipped; marker checks still apply.
+    } catch (error: unknown) {
+      throw new Error(
+        `Blob lookup failed for changed file '${filename}' at ${input.reviewedHeadSha}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        { cause: error },
+      );
     }
+    const content = JSON.parse(contentRaw || "{}") as {
+      content?: string;
+      encoding?: string;
+    };
+    if (content.encoding !== "base64" || !content.content) {
+      throw new Error(
+        `Blob lookup returned unreadable content for changed file '${filename}' at ${input.reviewedHeadSha}`,
+      );
+    }
+    changedFileContents.push(
+      Buffer.from(content.content.replace(/\n/g, ""), "base64").toString("utf8"),
+    );
   }
 
   return {

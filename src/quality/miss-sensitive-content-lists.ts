@@ -41,8 +41,13 @@ const CLOUD_ACCESS_KEY = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/;
 const AUTHORIZATION_BEARER =
   /\bAuthorization\s*:\s*Bearer\s+[A-Za-z0-9\-._~+/]+=*/i;
 
+/**
+ * Assignment whose name reads as password/secret/token/api_key with a literal
+ * value — quoted (`password="x"`) or unquoted (`password=x`) per AC9.
+ * Capture groups: [2]=quoted value, [3]=unquoted value.
+ */
 const SECRET_ASSIGNMENT =
-  /\b(?:password|passwd|secret|token|api[_-]?key)\b\s*[:=]\s*(['"])([^'"]+)\1/i;
+  /\b(?:password|passwd|secret|token|api[_-]?key)\b\s*[:=]\s*(?:(['"])([^'"]+)\1|([^\s'"]+))/i;
 
 /**
  * Returns whether `value` equals a published placeholder literal after
@@ -86,9 +91,9 @@ export function findCredentialMatch(text: string): CredentialMatch | null {
       continue;
     }
     // For secret assignments, also accept when the assigned *value* alone is
-    // a published placeholder (e.g. password = "REDACTED").
+    // a published placeholder (e.g. password = "REDACTED" or password=REDACTED).
     if (check.form === "secret_assignment") {
-      const assigned = match[2] ?? "";
+      const assigned = match[2] ?? match[3] ?? "";
       if (isPublishedPlaceholder(assigned)) {
         continue;
       }

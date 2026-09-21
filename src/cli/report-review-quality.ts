@@ -1,5 +1,11 @@
 import { writeFileSync } from "node:fs";
 import {
+  buildResolvabilityChecker,
+  defaultGhRunner,
+  loadFreshMissEvidenceByPull,
+  type GhRunner,
+} from "../quality/miss-github-evidence.js";
+import {
   buildReviewQualityReport,
   DEFAULT_COMPARISON_DIRECTORY,
   DEFAULT_MISS_DIRECTORY,
@@ -20,6 +26,7 @@ interface CliOptions {
   filters: ReportFilters;
   format: OutputFormat;
   out?: string;
+  runGh?: GhRunner;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -79,7 +86,10 @@ function parseArgs(argv: string[]): CliOptions {
   return options;
 }
 
-export async function main(argv = process.argv.slice(2)): Promise<number> {
+export async function main(
+  argv = process.argv.slice(2),
+  deps: { runGh?: GhRunner } = {},
+): Promise<number> {
   const options = parseArgs(argv);
   const comparisonFiles = resolveComparisonFiles({
     files: options.comparisonFiles,
@@ -114,6 +124,11 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     `quality:report scope: comparisons=${loaded.comparisonRecords.length} missRecords=${loaded.missRecords.length} files=${comparisonFiles.length + missFiles.length} skipped=${loaded.skippedFiles.length}`,
   );
 
+  const evidenceByPull = loadFreshMissEvidenceByPull({
+    records: loaded.missRecords,
+    runGh: deps.runGh ?? options.runGh ?? defaultGhRunner,
+  });
+
   const report = buildReviewQualityReport({
     comparisonRecords: loaded.comparisonRecords,
     missRecords: loaded.missRecords,
@@ -123,6 +138,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     missDirectory: options.missDirectory,
     skippedFiles: loaded.skippedFiles,
     filters: options.filters,
+    isResolvable: buildResolvabilityChecker(evidenceByPull),
   });
 
   const jsonBody = `${JSON.stringify(report, null, 2)}\n`;
