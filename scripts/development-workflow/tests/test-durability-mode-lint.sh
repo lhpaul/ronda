@@ -7,8 +7,13 @@ set -euo pipefail
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 LINTER="$REPO_ROOT/scripts/lint/durability-idempotency-mode-lint.sh"
-FIXTURES="$SCRIPT_DIR/fixtures/durability-mode"
 SHIPPED="$REPO_ROOT/docs/workflow/development-workflow/durability-idempotency-review-mode.md"
+FIXTURES="$(mktemp -d "${TMPDIR:-/tmp}/durability-mode-lint.XXXXXX")"
+
+cleanup() {
+  rm -rf "$FIXTURES"
+}
+trap cleanup EXIT
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -34,8 +39,6 @@ lint_exit() {
   set -e
   printf '%s' "$status"
 }
-
-mkdir -p "$FIXTURES"
 
 # Valid minimal doc
 cat >"$FIXTURES/valid.md" <<'EOF'
