@@ -4287,6 +4287,15 @@ capture_durability_mode_globals_from_output() {
   local state
   state="$(kv_value_default REVIEW_DURABILITY_MODE_STATE "$script_output" "")"
   if [ -z "$state" ]; then
+    # Clear prior-round metadata so a failed/early-exit local reviewer pass does
+    # not leave a stale durability_mode object on the next history entry.
+    durability_mode_recorded=0
+    durability_mode_state=""
+    durability_mode_activation_reason=""
+    durability_mode_unavailable_reason=""
+    durability_mode_inactive_reason=""
+    durability_mode_families_in_scope=""
+    durability_mode_families_na="[]"
     return 0
   fi
   durability_mode_recorded=1

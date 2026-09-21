@@ -185,7 +185,7 @@ precedence over the config file, which takes precedence over Ronda's built-in
 defaults.
 
 `RONDA_DURABILITY_MODE=on|off` forces the durability and idempotency review
-mode for a run (or set `durabilityMode` in the config file). 
+mode for a run (or set `durabilityMode` in the config file).
 `RONDA_DURABILITY_MODE_DEFAULT=on` (or `durabilityModeDefault: true`) enables
 the mode for every implementation-stage review even when automatic path rules
 do not match. When unset, activation follows changed-path rules for webhook,

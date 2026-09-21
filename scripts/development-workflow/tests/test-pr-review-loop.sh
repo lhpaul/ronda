@@ -18641,6 +18641,14 @@ _54_inactive_entry="$(reviewer_loop_history_build_entry 1 clean "" "local-ai-rev
 run_test "durability_mode_ledger_inactive_state" "inactive" "$(printf '%s' "$_54_inactive_entry" | jq -r '.durability_mode.state // empty')"
 run_test "durability_mode_ledger_inactive_reason" "operator_override" "$(printf '%s' "$_54_inactive_entry" | jq -r '.durability_mode.inactive_reason // empty')"
 
+capture_durability_mode_globals_from_output "RESULT=escalate
+COMMENT_COUNT=0
+BLOCKING_COUNT=0
+SUGGESTION_COUNT=0
+"
+_54_cleared_entry="$(reviewer_loop_history_build_entry 1 escalate "head_mismatch" "local-ai-reviewer" 0 0 0 "" 0 0 "")"
+run_test "durability_mode_ledger_cleared_on_missing_state" "null" "$(printf '%s' "$_54_cleared_entry" | jq -c '.durability_mode // null')"
+
 
 # ---------------------------------------------------------------------------
 # Summary

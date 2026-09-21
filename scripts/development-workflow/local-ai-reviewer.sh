@@ -1013,11 +1013,27 @@ reviewer_durability_mode_raw_supply() {
   local path="docs/workflow/development-workflow/durability-idempotency-review-mode.md"
   local snapshot bytes text
   local unreadable='{"state":"unreadable","text":""}'
-
-  [ -f "$path" ] || { printf '{"state":"absent","text":""}\n'; return 0; }
+  local git_dir="${REPO_ROOT:-.}"
 
   snapshot="$(mktemp)" || { printf '%s\n' "$unreadable"; return 0; }
-  cp "$path" "$snapshot" 2>/dev/null || { rm -f "$snapshot"; printf '%s\n' "$unreadable"; return 0; }
+
+  # Prefer the reviewed commit so uncommitted working-tree edits cannot diverge
+  # from REVIEWED_HEAD provenance (same contract as strict_git_show_at_head).
+  if [ -n "${HEAD_SHA:-}" ]; then
+    if ! git -C "$git_dir" cat-file -e "${HEAD_SHA}:${path}" 2>/dev/null; then
+      rm -f "$snapshot"
+      printf '{"state":"absent","text":""}\n'
+      return 0
+    fi
+    if ! git -C "$git_dir" show "${HEAD_SHA}:${path}" >"$snapshot" 2>/dev/null; then
+      rm -f "$snapshot"
+      printf '%s\n' "$unreadable"
+      return 0
+    fi
+  else
+    [ -f "$path" ] || { rm -f "$snapshot"; printf '{"state":"absent","text":""}\n'; return 0; }
+    cp "$path" "$snapshot" 2>/dev/null || { rm -f "$snapshot"; printf '%s\n' "$unreadable"; return 0; }
+  fi
 
   bytes="$(wc -c <"$snapshot" 2>/dev/null)" || { rm -f "$snapshot"; printf '%s\n' "$unreadable"; return 0; }
   bytes="${bytes//[[:space:]]/}"
