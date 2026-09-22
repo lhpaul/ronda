@@ -184,6 +184,10 @@ test("readPullRequestEvidence flattens paginated commits/reviews pages", () => {
   assert.ok(evidence.pushOrderedHeadShas.includes(HEAD_C));
   assert.ok(evidence.rondaResultHeadShas.some((sha) => sha === HEAD_A));
   assert.ok(evidence.rondaResultHeadShas.some((sha) => sha === HEAD_C));
+  assert.equal(
+    evidence.rondaReviewBodyByHeadSha.get(HEAD_A)?.includes(RONDA_REVIEW_HEADING),
+    true,
+  );
 });
 
 test("splitCommentFindingTexts separates bullet items in one comment", () => {

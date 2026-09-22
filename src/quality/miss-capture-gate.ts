@@ -612,13 +612,6 @@ function resolveAutomaticFindingJudgements(input: {
       refuse: `Capture refused: automatic capture found ${input.count} findings; supply --categories with ${input.count} comma-separated values (one affected category per finding). Optional --verdicts and --follow-ups must match the same count when provided.`,
     };
   }
-  for (let index = 0; index < input.perFinding.length; index += 1) {
-    if (!input.perFinding[index]?.affectedCategory?.trim()) {
-      return {
-        refuse: `Capture refused: finding ${index + 1} of ${input.count} is missing an affected category.`,
-      };
-    }
-  }
   return input.perFinding;
 }
 

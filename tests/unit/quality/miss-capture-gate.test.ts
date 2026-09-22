@@ -28,6 +28,7 @@ function evidence(overrides: Partial<PullRequestEvidence> = {}): PullRequestEvid
     baseSha: "dddddddddddddddddddddddddddddddddddddddd",
     pushOrderedHeadShas: [HEAD_B, HEAD_A],
     rondaResultHeadShas: [HEAD_A],
+    rondaReviewBodyByHeadSha: new Map(),
     ...overrides,
   };
 }
@@ -518,6 +519,50 @@ test("automatic multi-finding capture requires per-finding categories", () => {
   assert.equal(withCategories.findings.length, 2);
   assert.equal(withCategories.findings[0]?.record?.affectedCategory, "correctness");
   assert.equal(withCategories.findings[1]?.record?.affectedCategory, "security");
+});
+
+test("AC35 one missing category refuses only that automatic finding", () => {
+  const partial = runCaptureDecisionGate({
+    path: "automatic",
+    evidence: evidence(),
+    namedReviewer: "codex",
+    automatic: {
+      supported: true,
+      presentOnPullRequest: true,
+      unparseableOnCurrentHead: false,
+      findingsOnCurrentHead: [
+        {
+          sourceId: "c:0",
+          externalReviewer: "codex",
+          reviewedHeadSha: HEAD_A,
+          location: "a.ts:1",
+          locationUnresolved: false,
+          title: "One",
+          text: "Body one",
+        },
+        {
+          sourceId: "c:1",
+          externalReviewer: "codex",
+          reviewedHeadSha: HEAD_A,
+          location: "b.ts:2",
+          locationUnresolved: false,
+          title: "Two",
+          text: "Body two",
+        },
+      ],
+    },
+    automaticPerFinding: [
+      { affectedCategory: "correctness" },
+      { affectedCategory: "" },
+    ],
+    existingRecords: [],
+    corpusForHead: () => emptyCorpus(),
+    mergeBaseForHead: () => "ee",
+  });
+  assert.equal(partial.wholeCapture, undefined);
+  assert.equal(partial.findings[0]?.outcome, "record_written");
+  assert.equal(partial.findings[1]?.outcome, "capture_refused");
+  assert.match(partial.findings[1]?.reason ?? "", /affectedCategory/);
 });
 
 test("AC30 / AC52 manual identity: case/whitespace update; location case-sensitive", () => {

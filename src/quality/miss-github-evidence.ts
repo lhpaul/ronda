@@ -13,6 +13,8 @@ export interface PullRequestEvidence {
   pushOrderedHeadShas: string[];
   /** Head SHAs for which a Ronda review result is resolvable. */
   rondaResultHeadShas: string[];
+  /** Ronda review bodies keyed by commit id (full SHA). */
+  rondaReviewBodyByHeadSha: Map<string, string>;
 }
 
 export interface ExternalFindingCandidate {
@@ -230,6 +232,7 @@ export function readPullRequestEvidence(input: {
   ]);
   const reviews = parseGhPaginatedJsonArray<GhReview>(reviewsRaw || "[]");
   const rondaResultHeadShas: string[] = [];
+  const rondaReviewBodyByHeadSha = new Map<string, string>();
   for (const review of reviews) {
     const body = review.body ?? "";
     const commitId = review.commit_id?.trim() ?? "";
@@ -239,6 +242,7 @@ export function readPullRequestEvidence(input: {
     if (!rondaResultHeadShas.some((sha) => headsMatch(sha, commitId))) {
       rondaResultHeadShas.push(commitId);
     }
+    rondaReviewBodyByHeadSha.set(commitId, body);
   }
 
   return {
@@ -249,7 +253,20 @@ export function readPullRequestEvidence(input: {
     baseSha: view.baseRefOid ?? "",
     pushOrderedHeadShas,
     rondaResultHeadShas,
+    rondaReviewBodyByHeadSha,
   };
+}
+
+export function rondaReviewBodyForHead(input: {
+  headSha: string;
+  rondaReviewBodyByHeadSha: Map<string, string>;
+}): string | null {
+  for (const [commitId, body] of input.rondaReviewBodyByHeadSha) {
+    if (headsMatch(commitId, input.headSha)) {
+      return body;
+    }
+  }
+  return null;
 }
 
 /**

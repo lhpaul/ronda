@@ -39,6 +39,7 @@ test("AC9 credential forms refuse non-placeholder values", () => {
     findCredentialMatch("Authorization: Bearer abcdef0123456789")?.form,
     "authorization_bearer",
   );
+  assert.equal(findCredentialMatch("Authorization: Bearer REDACTED"), null);
   assert.equal(
     findCredentialMatch('password = "s3cret-value"')?.form,
     "secret_assignment",

@@ -39,7 +39,7 @@ const PRIVATE_KEY_BLOCK =
 const CLOUD_ACCESS_KEY = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/;
 
 const AUTHORIZATION_BEARER =
-  /\bAuthorization\s*:\s*Bearer\s+[A-Za-z0-9\-._~+/]+=*/i;
+  /\bAuthorization\s*:\s*Bearer\s+([A-Za-z0-9\-._~+/]+=*)/i;
 
 /**
  * Assignment whose name reads as password/secret/token/api_key with a literal
@@ -110,7 +110,12 @@ export function findCredentialMatch(text: string): CredentialMatch | null {
     if (!match) {
       continue;
     }
-    if (isPublishedPlaceholder(match[0])) {
+    if (check.form === "authorization_bearer") {
+      const bearerValue = match[1] ?? "";
+      if (isPublishedPlaceholder(bearerValue)) {
+        continue;
+      }
+    } else if (isPublishedPlaceholder(match[0])) {
       continue;
     }
     return { form: check.form, matchedLength: match[0].length };

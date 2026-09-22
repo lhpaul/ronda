@@ -17,6 +17,7 @@ import {
   isResolvableRondaHead,
   readCodexGithubFindings,
   readPullRequestEvidence,
+  rondaReviewBodyForHead,
   readSourceScanCorpus,
   resolveFreshMergeBase,
   type GhRunner,
@@ -516,13 +517,33 @@ export async function main(
           rondaResultHeadSha: record.rondaResultHeadSha,
           rondaResultHeadShas: evidence.rondaResultHeadShas,
         });
+        const rondaReviewBody =
+          rondaReviewBodyForHead({
+            headSha: record.rondaResultHeadSha,
+            rondaReviewBodyByHeadSha: evidence.rondaReviewBodyByHeadSha,
+          }) ?? null;
+        return {
+          ...record,
+          unresolvableEvidence,
+          displayRondaResultHead: {
+            reviewedHeadSha: record.reviewedHeadSha,
+            rondaResultHeadSha: record.rondaResultHeadSha,
+            staleEvidence: record.staleEvidence,
+            rondaReviewBody,
+          },
+        };
       } catch {
         unresolvableEvidence = true;
       }
       return {
         ...record,
         unresolvableEvidence,
-        displayRondaResultHead: record.rondaResultHeadSha,
+        displayRondaResultHead: {
+          reviewedHeadSha: record.reviewedHeadSha,
+          rondaResultHeadSha: record.rondaResultHeadSha,
+          staleEvidence: record.staleEvidence,
+          rondaReviewBody: null,
+        },
       };
     });
 
