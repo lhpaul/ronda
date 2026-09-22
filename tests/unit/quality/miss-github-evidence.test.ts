@@ -350,6 +350,62 @@ test("readPullRequestEvidence uses timeline tips and never publish-order fallbac
   );
 });
 
+test("AC37 buildPushOrderedHeadShas uses commits for linear push history", () => {
+  const ordered = buildPushOrderedHeadShas({
+    currentHeadSha: HEAD_C,
+    commits: [{ sha: HEAD_A }, { sha: HEAD_B }, { sha: HEAD_C }],
+    timelineEvents: [],
+  });
+  assert.deepEqual(ordered, [HEAD_A, HEAD_B, HEAD_C]);
+});
+
+test("review body findings split when inline comments exist on same review", () => {
+  const reviews = [
+    {
+      id: 42,
+      user: { login: "chatgpt-codex-connector[bot]" },
+      body: "- Summary alpha\n- Summary beta",
+      commit_id: HEAD_A,
+    },
+  ];
+  const comments = [
+    {
+      id: 301,
+      user: { login: "chatgpt-codex-connector[bot]" },
+      body: "Inline detail",
+      path: "src/a.ts",
+      line: 10,
+      commit_id: HEAD_A,
+      pull_request_review_id: 42,
+    },
+  ];
+
+  const runGh = (args: string[]): string => {
+    const joined = args.join(" ");
+    if (joined.includes("/reviews")) {
+      return JSON.stringify(reviews);
+    }
+    if (joined.includes("/comments")) {
+      return JSON.stringify(comments);
+    }
+    throw new Error(`Unexpected: ${joined}`);
+  };
+
+  const result = readCodexGithubFindings({
+    repository: "lhpaul/ronda",
+    pullNumber: 53,
+    currentHeadSha: HEAD_A,
+    namedReviewer: "codex",
+    runGh,
+  });
+  assert.equal(result.findingsOnCurrentHead.length, 3);
+  assert.equal(result.findingsOnCurrentHead[0]?.sourceId, "301:0");
+  assert.equal(result.findingsOnCurrentHead[1]?.sourceId, "42:0");
+  assert.equal(result.findingsOnCurrentHead[2]?.sourceId, "42:1");
+  assert.match(result.findingsOnCurrentHead[1]?.text ?? "", /Summary alpha/);
+  assert.match(result.findingsOnCurrentHead[2]?.text ?? "", /Summary beta/);
+});
+
 test("buildResolvabilityChecker treats missing evidence as unresolvable", () => {
   const checker = buildResolvabilityChecker(
     new Map([["lhpaul/ronda#53", { rondaResultHeadShas: [HEAD_A] }]]),

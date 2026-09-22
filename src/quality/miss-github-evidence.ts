@@ -151,8 +151,11 @@ export function buildPushOrderedHeadShas(input: {
     pushUnique(event.after);
   }
 
-  // The PR commits endpoint lists every reachable commit, not each branch tip.
-  // Historical PR heads come from timeline force-push tips only (AC37).
+  // Ordinary linear pushes: each commit on the PR was a head in push order.
+  // Force-pushed-away tips not still listed as commits come from timeline above.
+  for (const commit of input.commits) {
+    pushUnique(commit.sha);
+  }
 
   const withoutCurrent = ordered.filter(
     (sha) => !headsMatch(sha, input.currentHeadSha),
@@ -495,16 +498,12 @@ export function readCodexGithubFindings(input: {
 
   const findings: ExternalFindingCandidate[] = [];
   let sawCurrentHeadBody = false;
-  const reviewIdsWithInlineComments = new Set<string>();
 
   for (const comment of codexComments) {
     const head =
       comment.commit_id?.trim() || comment.original_commit_id?.trim() || "";
     if (!headsMatch(head, input.currentHeadSha)) {
       continue;
-    }
-    if (comment.pull_request_review_id != null) {
-      reviewIdsWithInlineComments.add(String(comment.pull_request_review_id));
     }
     sawCurrentHeadBody = true;
     const body = (comment.body ?? "").trim();
@@ -540,22 +539,22 @@ export function readCodexGithubFindings(input: {
       continue;
     }
     sawCurrentHeadBody = true;
-    // Skip when inline comments on this review were already captured.
-    if (
-      review.id != null &&
-      reviewIdsWithInlineComments.has(String(review.id))
-    ) {
-      continue;
-    }
-    findings.push({
-      sourceId: `${review.id ?? review.node_id ?? "review"}:0`,
-      externalReviewer: review.user?.login ?? input.namedReviewer,
-      reviewedHeadSha: head,
-      location: "unresolved",
-      locationUnresolved: true,
-      title:
-        body.split(/\r?\n/).find((line) => line.trim())?.trim() ?? null,
-      text: body,
+    const reviewId = String(review.id ?? review.node_id ?? "review");
+    const findingTexts = splitCommentFindingTexts(body);
+    findingTexts.forEach((findingText, findingIndex) => {
+      const firstLine = findingText
+        .split(/\r?\n/)
+        .find((line) => line.trim())
+        ?.trim();
+      findings.push({
+        sourceId: `${reviewId}:${findingIndex}`,
+        externalReviewer: review.user?.login ?? input.namedReviewer,
+        reviewedHeadSha: head,
+        location: "unresolved",
+        locationUnresolved: true,
+        title: firstLine ?? null,
+        text: findingText,
+      });
     });
   }
 

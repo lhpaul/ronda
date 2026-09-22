@@ -86,18 +86,31 @@ export function findCredentialMatch(text: string): CredentialMatch | null {
   ];
 
   for (const check of checks) {
+    if (check.form === "secret_assignment") {
+      const assignmentPattern = new RegExp(
+        SECRET_ASSIGNMENT.source,
+        SECRET_ASSIGNMENT.flags.includes("g")
+          ? SECRET_ASSIGNMENT.flags
+          : `${SECRET_ASSIGNMENT.flags}g`,
+      );
+      let assignmentMatch: RegExpExecArray | null;
+      while ((assignmentMatch = assignmentPattern.exec(text)) !== null) {
+        const assigned = assignmentMatch[2] ?? assignmentMatch[3] ?? "";
+        if (!isPublishedPlaceholder(assigned)) {
+          return {
+            form: "secret_assignment",
+            matchedLength: assignmentMatch[0].length,
+          };
+        }
+      }
+      continue;
+    }
+
     const match = check.regex.exec(text);
     if (!match) {
       continue;
     }
-    // For secret assignments, also accept when the assigned *value* alone is
-    // a published placeholder (e.g. password = "REDACTED" or password=REDACTED).
-    if (check.form === "secret_assignment") {
-      const assigned = match[2] ?? match[3] ?? "";
-      if (isPublishedPlaceholder(assigned)) {
-        continue;
-      }
-    } else if (isPublishedPlaceholder(match[0])) {
+    if (isPublishedPlaceholder(match[0])) {
       continue;
     }
     return { form: check.form, matchedLength: match[0].length };
