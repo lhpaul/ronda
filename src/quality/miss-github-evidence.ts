@@ -121,9 +121,10 @@ interface GhTimelineEvent {
 
 /**
  * Build push-ordered PR head tips (oldest first) from timeline head-transition
- * evidence only (`committed`, `head_ref_force_pushed`). Intermediate commits on
- * the PR that were never branch tips are excluded (AC31). When timeline evidence
- * is missing, only the current head is known — fail closed for other heads.
+ * evidence only (`committed` push tips and `head_ref_force_pushed`). Consecutive
+ * `committed` timeline entries belong to one push — only the last SHA in each
+ * run was a PR head (AC31). When timeline evidence is missing, only the current
+ * head is known — fail closed for other heads.
  * Never use review publish order (AC37).
  */
 export function buildPushOrderedHeadShas(input: {
@@ -142,16 +143,32 @@ export function buildPushOrderedHeadShas(input: {
     ordered.push(trimmed);
   };
 
+  let committedRun: string[] = [];
+  const flushCommittedRun = (): void => {
+    if (committedRun.length === 0) {
+      return;
+    }
+    pushUnique(committedRun[committedRun.length - 1]);
+    committedRun = [];
+  };
+
   for (const event of input.timelineEvents ?? []) {
     if (event.event === "head_ref_force_pushed") {
+      flushCommittedRun();
       pushUnique(event.before);
       pushUnique(event.after);
       continue;
     }
     if (event.event === "committed") {
-      pushUnique(event.sha);
+      const sha = event.sha?.trim() ?? "";
+      if (sha) {
+        committedRun.push(sha);
+      }
+      continue;
     }
+    flushCommittedRun();
   }
+  flushCommittedRun();
 
   const withoutCurrent = ordered.filter(
     (sha) => !headsMatch(sha, input.currentHeadSha),

@@ -16,25 +16,43 @@ test("AC18 placeholder literals are accepted as whole values", () => {
   assert.equal(findCredentialMatch("password = \"REDACTED\""), null);
 });
 
-test("AC9 credential forms refuse non-placeholder values", () => {
+test("AC9 planted proof: code_hosting_access_token refuses gh tokens", () => {
   assert.equal(
     findCredentialMatch("token ghp_abcdefghijklmnopqrstuvwxyz0123456789")?.form,
     "code_hosting_access_token",
   );
+});
+
+test("AC9 planted proof: api_key refuses sk-proj and prefixed assignments", () => {
   assert.equal(
     findCredentialMatch("key sk-abcdefghijklmnopqrstuvwxyz0123")?.form,
     "api_key",
   );
   assert.equal(
     findCredentialMatch(
+      "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz0123456789",
+    )?.form,
+    "api_key",
+  );
+});
+
+test("AC9 planted proof: private_key_block refuses PEM blocks", () => {
+  assert.equal(
+    findCredentialMatch(
       "-----BEGIN PRIVATE KEY-----\nABC\n-----END PRIVATE KEY-----",
     )?.form,
     "private_key_block",
   );
+});
+
+test("AC9 planted proof: cloud_access_key_identifier refuses AKIA/ASIA ids", () => {
   assert.equal(
     findCredentialMatch("AKIAIOSFODNN7EXAMPLE")?.form,
     "cloud_access_key_identifier",
   );
+});
+
+test("AC9 planted proof: authorization_bearer refuses real bearer values", () => {
   assert.equal(
     findCredentialMatch("Authorization: Bearer abcdef0123456789")?.form,
     "authorization_bearer",
@@ -46,6 +64,9 @@ test("AC9 credential forms refuse non-placeholder values", () => {
     )?.form,
     "authorization_bearer",
   );
+});
+
+test("AC9 planted proof: secret_assignment refuses non-placeholder assignments", () => {
   assert.equal(
     findCredentialMatch('password = "s3cret-value"')?.form,
     "secret_assignment",

@@ -353,7 +353,21 @@ test("readPullRequestEvidence uses timeline tips and never publish-order fallbac
   );
 });
 
-test("AC37 buildPushOrderedHeadShas uses timeline committed events for linear pushes", () => {
+test("AC37 buildPushOrderedHeadShas uses one tip per push from committed runs", () => {
+  const ordered = buildPushOrderedHeadShas({
+    currentHeadSha: HEAD_C,
+    timelineEvents: [
+      { event: "committed", sha: HEAD_A },
+      { event: "commented" },
+      { event: "committed", sha: HEAD_B },
+      { event: "commented" },
+      { event: "committed", sha: HEAD_C },
+    ],
+  });
+  assert.deepEqual(ordered, [HEAD_A, HEAD_B, HEAD_C]);
+});
+
+test("AC31 buildPushOrderedHeadShas keeps only the last SHA in a multi-commit push", () => {
   const ordered = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
     timelineEvents: [
@@ -361,14 +375,6 @@ test("AC37 buildPushOrderedHeadShas uses timeline committed events for linear pu
       { event: "committed", sha: HEAD_B },
       { event: "committed", sha: HEAD_C },
     ],
-  });
-  assert.deepEqual(ordered, [HEAD_A, HEAD_B, HEAD_C]);
-});
-
-test("AC31 buildPushOrderedHeadShas ignores commits that were never PR heads", () => {
-  const ordered = buildPushOrderedHeadShas({
-    currentHeadSha: HEAD_C,
-    timelineEvents: [{ event: "committed", sha: HEAD_C }],
   });
   assert.deepEqual(ordered, [HEAD_C]);
   assert.equal(

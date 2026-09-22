@@ -31,7 +31,7 @@ const CODE_HOSTING_TOKEN =
   /\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})\b/;
 
 const API_KEY =
-  /\b(?:sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{20,}|api[_-]?key\s*[:=]\s*['"]?[A-Za-z0-9_-]{16,}['"]?)\b/i;
+  /\b(?:sk(?:-[A-Za-z0-9]+)*-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{20,}|(?:[A-Za-z0-9_]*_)?api[_-]?key\s*[:=]\s*['"]?[A-Za-z0-9_-]{16,}['"]?)\b/i;
 
 const PRIVATE_KEY_BLOCK =
   /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/;
@@ -47,7 +47,7 @@ const AUTHORIZATION_BEARER =
  * Capture groups: [2]=quoted value, [3]=unquoted value.
  */
 const SECRET_ASSIGNMENT =
-  /\b(?:password|passwd|secret|token|api[_-]?key)\b\s*[:=]\s*(?:(['"])([^'"]+)\1|([^\s'"]+))/i;
+  /(?:^|[^A-Za-z0-9_])(?:password|passwd|secret|token|(?:[A-Za-z0-9_]+_)?api[_-]?key)\b\s*[:=]\s*(?:(['"])([^'"]+)\1|([^\s'"]+))/i;
 
 /**
  * Returns whether `value` equals a published placeholder literal after
