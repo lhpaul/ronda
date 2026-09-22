@@ -84,6 +84,9 @@ test("AC9 planted proof: secret_assignment refuses non-placeholder assignments",
     findCredentialMatch("password=REDACTED password=supersecret")?.form,
     "secret_assignment",
   );
+  assert.equal(findCredentialMatch("GITHUB_TOKEN=supersecret")?.form, "secret_assignment");
+  assert.equal(findCredentialMatch("CLIENT_SECRET=not-a-placeholder")?.form, "secret_assignment");
+  assert.equal(findCredentialMatch("DB_PASSWORD=not-a-placeholder")?.form, "secret_assignment");
 });
 
 test("quote and indent normalization strips block quotes and shared indent", () => {

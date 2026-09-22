@@ -279,6 +279,7 @@ function validateFindingStage2(input: {
   category?: string;
   verdict?: string;
   followUp?: string;
+  automaticFindingLabel?: string;
 }): CaptureFindingResult | null {
   // Condition 7 — required inputs
   if (!input.reviewer.trim()) {
@@ -291,7 +292,12 @@ function validateFindingStage2(input: {
     return refuse("Capture refused: required input 'text' is missing.");
   }
   if (!input.category || !input.category.trim()) {
-    return refuse("Capture refused: required input 'affectedCategory' is missing.");
+    const suffix = input.automaticFindingLabel
+      ? ` Supply --categories in extraction order (${input.automaticFindingLabel}).`
+      : "";
+    return refuse(
+      `Capture refused: required input 'affectedCategory' is missing.${suffix}`,
+    );
   }
 
   // Condition 8 — category closed set
@@ -330,6 +336,8 @@ function processOneFinding(input: {
   gate: CaptureGateInput;
   finding: CaptureFindingInput;
   captureSource: CaptureSource;
+  findingIndex?: number;
+  findingCount?: number;
 }): CaptureFindingResult {
   const stage2 = validateFindingStage2({
     reviewer: input.finding.externalReviewer,
@@ -338,6 +346,13 @@ function processOneFinding(input: {
     category: input.finding.affectedCategory,
     verdict: input.finding.verdict,
     followUp: input.finding.intendedFollowUp,
+    automaticFindingLabel:
+      input.captureSource === "automatic" &&
+      input.findingCount !== undefined &&
+      input.findingCount > 1 &&
+      input.findingIndex !== undefined
+        ? `finding ${input.findingIndex + 1} of ${input.findingCount} at ${input.finding.location.trim() || "(no location)"}`
+        : undefined,
   });
   if (stage2) {
     return stage2;
@@ -663,6 +678,8 @@ export function runCaptureDecisionGate(
       processOneFinding({
         gate: input,
         captureSource: "automatic",
+        findingIndex: index,
+        findingCount: candidates.length,
         finding: {
           externalReviewer: candidate.externalReviewer || input.namedReviewer,
           location: candidate.location,
