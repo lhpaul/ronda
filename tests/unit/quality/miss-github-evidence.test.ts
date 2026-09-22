@@ -10,8 +10,6 @@ import {
   resolveRondaResultHead,
   splitCommentFindingTexts,
 } from "../../../src/quality/miss-github-evidence.js";
-import { headsMatch } from "../../../src/quality/miss-record.js";
-
 const HEAD_A = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const HEAD_B = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const HEAD_C = "cccccccccccccccccccccccccccccccccccccccc";
