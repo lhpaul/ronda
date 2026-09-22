@@ -428,6 +428,17 @@ test("AC31 planted-violation: commits-API intermediates are not known tips", () 
     }),
     true,
   );
+
+  // Use Case 2: an ordinary earlier head with a Ronda review is a known head.
+  assert.equal(
+    isKnownPullRequestHead({
+      headSha: HEAD_B,
+      pushOrderedHeadShas: tipsOnly,
+      currentHeadSha: HEAD_C,
+      rondaResultHeadShas: [HEAD_A, HEAD_B],
+    }),
+    true,
+  );
 });
 
 test("review body findings split when inline comments exist on same review", () => {

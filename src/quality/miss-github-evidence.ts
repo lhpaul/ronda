@@ -465,12 +465,19 @@ export function isKnownPullRequestHead(input: {
   headSha: string;
   pushOrderedHeadShas: string[];
   currentHeadSha: string;
+  /** Heads with a resolvable Ronda review — each was a PR head when reviewed. */
+  rondaResultHeadShas?: string[];
 }): boolean {
   // Malformed abbreviations (too short / non-hex) never count as known (AC31).
   if (!isWellFormedCommitSha(input.headSha)) {
     return false;
   }
   if (headsMatch(input.headSha, input.currentHeadSha)) {
+    return true;
+  }
+  if (
+    input.rondaResultHeadShas?.some((sha) => headsMatch(sha, input.headSha))
+  ) {
     return true;
   }
   return input.pushOrderedHeadShas.some((sha) => headsMatch(sha, input.headSha));

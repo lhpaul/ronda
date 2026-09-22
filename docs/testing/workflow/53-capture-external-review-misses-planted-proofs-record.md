@@ -6,14 +6,29 @@ location, **executed** fail command, and restored passing run (REVIEW.md Pass 2)
 ## Executed suite (same PR)
 
 ```bash
-node --import tsx --test --test-name-pattern='validator planted-violation|CLI planted-violation|AC37 ordinary|AC35 count-mismatched|review-body findings capture|malformed --pr|blank lines in corpus' \
+node --import tsx --test --test-name-pattern='AC9 planted proof|validator planted-violation|CLI planted-violation|AC37 ordinary|AC35 count-mismatched|review-body findings capture|malformed --pr|blank lines in corpus' \
   tests/unit/quality/miss-content-validator.test.ts \
   tests/unit/cli/capture-external-review-misses.test.ts \
   tests/unit/quality/miss-github-evidence.test.ts \
   tests/unit/quality/miss-capture-gate.test.ts
 ```
 
-Result on this branch tip: **7 pass / 0 fail** (re-run locally or in CI to refresh).
+Result on this branch tip: re-run locally or in CI to refresh (expect **13+ pass / 0 fail**).
+
+## AC9 credential-form proofs (unit, isolating)
+
+Each `AC9 planted proof:` test in `miss-content-validator.test.ts` plants one
+published form and asserts `findCredentialMatch` returns that form (fail) or
+`null` for placeholders (pass where applicable):
+
+| Form | Test lines (approx.) |
+|------|----------------------|
+| `code_hosting_access_token` | 19–24 |
+| `api_key` | 26–37 |
+| `private_key_block` | 39–46 |
+| `cloud_access_key_identifier` | 48–53 |
+| `authorization_bearer` | 55–67 |
+| `secret_assignment` (snake, env, camelCase) | 69–96 |
 
 ## P1 — credential form refusal (AC9)
 

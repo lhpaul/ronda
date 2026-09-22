@@ -369,6 +369,7 @@ function processOneFinding(input: {
         headSha: reviewedHeadSha,
         pushOrderedHeadShas: input.gate.evidence.pushOrderedHeadShas,
         currentHeadSha: input.gate.evidence.currentHeadSha,
+        rondaResultHeadShas: input.gate.evidence.rondaResultHeadShas,
       })
     ) {
       return refuse(
@@ -377,12 +378,15 @@ function processOneFinding(input: {
     }
   }
 
-  // Full title candidate before any 120-char truncation (scan-before-truncate).
-  const titleCandidate =
-    input.finding.title && input.finding.title.trim()
-      ? input.finding.title.trim()
-      : deriveFindingTitle(input.finding.text);
-  if (!titleCandidate) {
+  // Preserve explicit titles as supplied (AC30 storage); identity canonicalizes.
+  const derivedTitle = deriveFindingTitle(input.finding.text);
+  const storedTitle =
+    input.finding.title !== undefined &&
+    input.finding.title !== null &&
+    input.finding.title.trim().length > 0
+      ? input.finding.title
+      : derivedTitle;
+  if (!storedTitle || storedTitle.trim().length === 0) {
     return refuse("Capture refused: required input 'text' is missing.");
   }
 
@@ -392,7 +396,7 @@ function processOneFinding(input: {
       ? input.finding.reviewedHeadSha
       : undefined,
     location: input.finding.location,
-    title: titleCandidate,
+    title: storedTitle,
     text: input.finding.text,
   };
 
@@ -433,7 +437,7 @@ function processOneFinding(input: {
     input.finding.text,
     MAX_FINDING_TEXT_CHARS,
   );
-  const truncatedTitle = truncateBounded(titleCandidate, MAX_TITLE_CHARS);
+  const truncatedTitle = truncateBounded(storedTitle, MAX_TITLE_CHARS);
 
   const rondaResultHeadSha = resolveRondaResultHead({
     reviewedHeadSha,
@@ -545,6 +549,7 @@ function processOneFinding(input: {
   // Codex aliases collapse via canonicalizeReviewerForIdentity (AC39).
   const knownHeadShas = [
     ...input.gate.evidence.pushOrderedHeadShas,
+    ...input.gate.evidence.rondaResultHeadShas,
     input.gate.evidence.currentHeadSha,
   ];
   const identityKey = manualIdentityKey({
@@ -553,7 +558,7 @@ function processOneFinding(input: {
     externalReviewer: input.finding.externalReviewer,
     reviewedHeadSha,
     location: input.finding.location,
-    title: titleCandidate,
+    title: storedTitle,
     text: input.finding.text,
     knownHeadShas,
   });
