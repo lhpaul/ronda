@@ -90,6 +90,9 @@ test("AC9 planted proof: secret_assignment refuses non-placeholder assignments",
   assert.equal(findCredentialMatch("GITHUB_TOKEN=supersecret")?.form, "secret_assignment");
   assert.equal(findCredentialMatch("CLIENT_SECRET=not-a-placeholder")?.form, "secret_assignment");
   assert.equal(findCredentialMatch("DB_PASSWORD=not-a-placeholder")?.form, "secret_assignment");
+  assert.equal(findCredentialMatch("dbPassword=not-a-placeholder")?.form, "secret_assignment");
+  assert.equal(findCredentialMatch("clientSecret=not-a-placeholder")?.form, "secret_assignment");
+  assert.ok(findCredentialMatch("apiKey=not-a-placeholder"));
 });
 
 test("quote and indent normalization strips block quotes and shared indent", () => {
@@ -110,6 +113,7 @@ test("quote and indent normalization strips block quotes and shared indent", () 
 test("AC38 / AC49 diff markers refuse after normalization", () => {
   assert.equal(hasDiffMarkers("diff --git a/foo b/foo"), true);
   assert.equal(hasDiffMarkers("@@ -1,3 +1,4 @@"), true);
+  assert.equal(hasDiffMarkers("  @@ -1,2 +1,2 @@"), false);
   assert.equal(hasDiffMarkers("--- a/foo\n+++ b/foo"), true);
   assert.equal(hasDiffMarkers("> diff --git a/foo b/foo"), false);
   assert.equal(

@@ -77,15 +77,14 @@ export function hasDiffMarkers(normalizedText: string): boolean {
   const lines = normalizedText.split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? "";
-    const trimmedStart = line.replace(/^\s+/, "");
-    if (trimmedStart.startsWith("diff --git")) {
+    if (line.startsWith("diff --git")) {
       return true;
     }
-    if (trimmedStart.startsWith("@@")) {
+    if (line.startsWith("@@")) {
       return true;
     }
-    if (trimmedStart.startsWith("--- ")) {
-      const next = (lines[index + 1] ?? "").replace(/^\s+/, "");
+    if (line.startsWith("--- ")) {
+      const next = lines[index + 1] ?? "";
       if (next.startsWith("+++ ")) {
         return true;
       }

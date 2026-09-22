@@ -19,23 +19,25 @@ Result on this branch tip: **7 pass / 0 fail** (re-run locally or in CI to refre
 
 - **Assertion:** `validateCaptureFields` / `findCredentialMatch` refuses
   `password = "..."` assignments with non-placeholder values.
-- **Plant location:** `tests/unit/quality/miss-content-validator.test.ts:225-231`
+- **Plant location:** `tests/unit/quality/miss-content-validator.test.ts:227-240`
 - **Fail evidence:** plant present → `credential` kind (test asserts).
-- **Pass evidence:** clean text → `null` (same test, lines 232–237).
+- **Pass evidence:** clean text → `null` (same test, lines 235–240).
 
 ## P2 — diff-marker refusal (AC38)
 
-- **Assertion:** finding text containing `@@` hunk markers is refused.
-- **Plant location:** `tests/unit/quality/miss-content-validator.test.ts:241-249`
+- **Assertion:** finding text containing `@@` hunk markers at column 0 (after
+  quote/shared-indent normalization only) is refused.
+- **Plant location:** `tests/unit/quality/miss-content-validator.test.ts:243-260`
 - **Fail evidence:** → `diff_marker`.
-- **Pass evidence:** lines 251–256 clean text → `null`.
+- **Pass evidence:** lines 254–260 clean text → `null`.
+- **Boundary:** two-space-indented `@@` is not a marker (`hasDiffMarkers` test ~line 113).
 
 ## P3 — six-line source excerpt refusal (AC50)
 
 - **Assertion:** six consecutive corpus lines refused; five not. Blank lines in
   the corpus break consecutiveness (do not collapse).
 - **Plant location:** six-line plant at
-  `miss-content-validator.test.ts:259-266`; corpus blank-boundary at 124–147.
+  `miss-content-validator.test.ts:262-276`; corpus blank-boundary at 137–148.
 - **Fail evidence:** → `source_excerpt` / `hasExcessiveSourceExcerpt === true`.
 - **Pass evidence:** five lines → `null`; blank-separated corpus → `false`.
 
@@ -45,8 +47,8 @@ Result on this branch tip: **7 pass / 0 fail** (re-run locally or in CI to refre
   diff / source plants before write; clean input writes one record; malformed
   `--pr` refused before GitHub.
 - **Plant location:**
-  `tests/unit/cli/capture-external-review-misses.test.ts:454-635`
-  (CLI planted-violation); malformed `--pr` at 409–441.
+  `tests/unit/cli/capture-external-review-misses.test.ts:501-679`
+  (CLI planted-violation); malformed `--pr` at 456–487.
 - **Fail evidence:** plant → exit `1` / throw, zero files.
 - **Pass evidence:** clean → `record_written`, one JSON file.
 
@@ -54,16 +56,16 @@ Result on this branch tip: **7 pass / 0 fail** (re-run locally or in CI to refre
 
 - **Assertion:** non-placeholder Bearer refused; placeholder accepted; placeholder
   must not hide a later real bearer.
-- **Plant location:** unit `miss-content-validator.test.ts:39-48`; CLI
-  `capture-external-review-misses.test.ts:541-558`.
+- **Plant location:** unit `miss-content-validator.test.ts:55-66`; CLI
+  `capture-external-review-misses.test.ts:587-607`.
 - **Fail / pass:** covered by the executed suite above.
 
 ## P6 — mixed placeholder then real secret assignment (AC9)
 
 - **Assertion:** after `password=REDACTED`, later non-placeholder assignments
   still refuse.
-- **Plant location:** unit `miss-content-validator.test.ts:62-65`; CLI
-  `capture-external-review-misses.test.ts:564-577`.
+- **Plant location:** unit `miss-content-validator.test.ts:86-88`; CLI
+  `capture-external-review-misses.test.ts:610-627`.
 - **Fail / pass:** covered by the executed suite above.
 
 ## P7 — push-order / review location / AC35 siblings
