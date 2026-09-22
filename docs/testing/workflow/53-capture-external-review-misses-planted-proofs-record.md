@@ -19,23 +19,23 @@ Result on this branch tip: **7 pass / 0 fail** (re-run locally or in CI to refre
 
 - **Assertion:** `validateCaptureFields` / `findCredentialMatch` refuses
   `password = "..."` assignments with non-placeholder values.
-- **Plant location:** `tests/unit/quality/miss-content-validator.test.ts:203`
+- **Plant location:** `tests/unit/quality/miss-content-validator.test.ts:225-231`
 - **Fail evidence:** plant present → `credential` kind (test asserts).
-- **Pass evidence:** clean text → `null` (same test, lines 208–213).
+- **Pass evidence:** clean text → `null` (same test, lines 232–237).
 
 ## P2 — diff-marker refusal (AC38)
 
 - **Assertion:** finding text containing `@@` hunk markers is refused.
-- **Plant location:** `tests/unit/quality/miss-content-validator.test.ts:216-222`
+- **Plant location:** `tests/unit/quality/miss-content-validator.test.ts:241-249`
 - **Fail evidence:** → `diff_marker`.
-- **Pass evidence:** lines 227–232 clean text → `null`.
+- **Pass evidence:** lines 251–256 clean text → `null`.
 
 ## P3 — six-line source excerpt refusal (AC50)
 
 - **Assertion:** six consecutive corpus lines refused; five not. Blank lines in
   the corpus break consecutiveness (do not collapse).
 - **Plant location:** six-line plant at
-  `miss-content-validator.test.ts:236-242`; corpus blank-boundary at 124–147.
+  `miss-content-validator.test.ts:259-266`; corpus blank-boundary at 124–147.
 - **Fail evidence:** → `source_excerpt` / `hasExcessiveSourceExcerpt === true`.
 - **Pass evidence:** five lines → `null`; blank-separated corpus → `false`.
 

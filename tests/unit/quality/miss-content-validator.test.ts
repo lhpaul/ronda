@@ -80,6 +80,9 @@ test("AC9 planted proof: secret_assignment refuses non-placeholder assignments",
     "secret_assignment",
   );
   assert.equal(findCredentialMatch("password=REDACTED"), null);
+  assert.equal(findCredentialMatch("password=REDACTED;"), null);
+  assert.equal(findCredentialMatch("password=changeme,"), null);
+  assert.equal(findCredentialMatch("token=example)"), null);
   assert.equal(
     findCredentialMatch("password=REDACTED password=supersecret")?.form,
     "secret_assignment",

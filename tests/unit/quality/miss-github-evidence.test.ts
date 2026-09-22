@@ -564,6 +564,37 @@ test("AC17 malformed current-head review prose is unparseable", () => {
   assert.equal(result.unparseableOnCurrentHead, true);
 });
 
+test("structured review body drops preamble before bullet findings", () => {
+  const runGh = (args: string[]): string => {
+    const joined = args.join(" ");
+    if (joined.includes("/reviews")) {
+      return JSON.stringify([
+        {
+          id: 88,
+          user: { login: "chatgpt-codex-connector[bot]" },
+          body:
+            "Codex found two issues:\n- src/a.ts:1 first\n- src/b.ts:2 second",
+          commit_id: HEAD_A,
+        },
+      ]);
+    }
+    if (joined.includes("/comments")) {
+      return JSON.stringify([]);
+    }
+    throw new Error(`Unexpected: ${joined}`);
+  };
+  const result = readCodexGithubFindings({
+    repository: "lhpaul/ronda",
+    pullNumber: 53,
+    currentHeadSha: HEAD_A,
+    namedReviewer: "codex",
+    runGh,
+  });
+  assert.equal(result.findingsOnCurrentHead.length, 2);
+  assert.equal(result.findingsOnCurrentHead[0]?.location, "src/a.ts:1");
+  assert.equal(result.findingsOnCurrentHead[1]?.location, "src/b.ts:2");
+});
+
 test("review-body findings capture path:line from interpretable text", () => {
   const runGh = (args: string[]): string => {
     const joined = args.join(" ");

@@ -463,9 +463,14 @@ export function splitCommentFindingTexts(body: string): string[] {
   if (nonEmpty.length <= 1) {
     return [trimmed];
   }
-  return nonEmpty.map((segment) =>
+  const mapped = nonEmpty.map((segment) =>
     segment.replace(/^(\*\s+|-\s+|\d+\.\s+)/, "").trim(),
   );
+  // Drop introductory prose before the first bullet/numbered item.
+  if (mapped.length > 1 && !isItemStart(nonEmpty[0] ?? "")) {
+    return mapped.slice(1);
+  }
+  return mapped;
 }
 
 /** Extract `path:line` from finding text when present (review-body findings). */

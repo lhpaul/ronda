@@ -47,7 +47,7 @@ const AUTHORIZATION_BEARER =
  * Capture groups: [2]=quoted value, [3]=unquoted value.
  */
 const SECRET_ASSIGNMENT =
-  /(?:^|[^A-Za-z0-9_])(?:(?:[A-Za-z0-9]+_)*(?:password|passwd|secret|token)|(?:[A-Za-z0-9_]+_)?api[_-]?key)\b\s*[:=]\s*(?:(['"])([^'"]+)\1|([^\s'"]+))/i;
+  /(?:^|[^A-Za-z0-9_])(?:(?:[A-Za-z0-9]+_)*(?:password|passwd|secret|token)|(?:[A-Za-z0-9_]+_)?api[_-]?key)\b\s*[:=]\s*(?:(['"])([^'"]+)\1|([^\s'";,)]+))/i;
 
 /**
  * Returns whether `value` equals a published placeholder literal after
