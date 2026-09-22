@@ -13,7 +13,24 @@ node --import tsx --test --test-name-pattern='AC9 planted proof|validator plante
   tests/unit/quality/miss-capture-gate.test.ts
 ```
 
-Result on this branch tip: re-run locally or in CI to refresh (expect **13+ pass / 0 fail**).
+**Executed on head `65512ae` (2026-09-22):**
+
+```
+✔ malformed --pr values are refused before any GitHub call
+✔ CLI planted-violation fail-then-pass: credential, diff-marker, source-excerpt
+✔ AC35 count-mismatched categories refuse only uncovered findings
+✔ AC9 planted proof: code_hosting_access_token refuses gh tokens
+✔ AC9 planted proof: api_key refuses sk-proj and prefixed assignments
+✔ AC9 planted proof: private_key_block refuses PEM blocks
+✔ AC9 planted proof: cloud_access_key_identifier refuses AKIA/ASIA ids
+✔ AC9 planted proof: authorization_bearer refuses real bearer values
+✔ AC9 planted proof: secret_assignment refuses non-placeholder assignments
+✔ blank lines in corpus break consecutive source matching (AC50)
+✔ validator planted-violation fail-then-pass isolates credential, diff, source
+✔ AC37 ordinary linear pushes: commit-order among Ronda SHAs when tips are only current
+✔ review-body findings capture path:line from interpretable text
+ℹ tests 13 / pass 13 / fail 0
+```
 
 ## AC9 credential-form proofs (unit, isolating)
 
@@ -21,14 +38,17 @@ Each `AC9 planted proof:` test in `miss-content-validator.test.ts` plants one
 published form and asserts `findCredentialMatch` returns that form (fail) or
 `null` for placeholders (pass where applicable):
 
-| Form | Test lines (approx.) |
-|------|----------------------|
-| `code_hosting_access_token` | 19–24 |
-| `api_key` | 26–37 |
-| `private_key_block` | 39–46 |
-| `cloud_access_key_identifier` | 48–53 |
-| `authorization_bearer` | 55–67 |
-| `secret_assignment` (snake, env, camelCase) | 69–96 |
+| Form | Test name (file: `miss-content-validator.test.ts`) |
+|------|------------------------------------------------------|
+| `code_hosting_access_token` | `AC9 planted proof: code_hosting_access_token refuses gh tokens` |
+| `api_key` | `AC9 planted proof: api_key refuses sk-proj and prefixed assignments` |
+| `private_key_block` | `AC9 planted proof: private_key_block refuses PEM blocks` |
+| `cloud_access_key_identifier` | `AC9 planted proof: cloud_access_key_identifier refuses AKIA/ASIA ids` |
+| `authorization_bearer` | `AC9 planted proof: authorization_bearer refuses real bearer values` |
+| `secret_assignment` | `AC9 planted proof: secret_assignment refuses non-placeholder assignments` |
+
+Each row is an isolating unit test: non-placeholder plant → matching form; placeholder
+and clean variants are asserted in the same test where applicable.
 
 ## P1 — credential form refusal (AC9)
 
