@@ -92,14 +92,14 @@ location, failing run, and restored passing run (REVIEW.md Pass 2).
 - **Fail run:** `AKIAIOSFODNN7EXAMPLE` → `cloud_access_key_identifier`.
 - **Pass run:** remove identifier → `null`.
 
-## P11 — multi-commit push head tips (AC31)
+## P11 — commit-list head inference rejected (AC31)
 
-- **Assertion:** consecutive timeline `committed` events with the same author
-  timestamp collapse to one PR head tip; intermediate SHAs are not known heads.
+- **Assertion:** without `head_ref_force_pushed` timeline evidence, only the
+  current PR head is treated as a known tip; commit-list inference must not admit
+  intermediate SHAs as heads.
 - **Plant location:** `tests/unit/quality/miss-github-evidence.test.ts`
-  (`AC31 planted-violation fail-then-pass for multi-commit push tips` — `plantOrdered`
-  simulates per-commit head acceptance).
-- **Fail run:** same test block’s plant branch → `isKnownPullRequestHead(HEAD_B)` is
-  `true` (wrong acceptance).
-- **Pass run:** production grouping → ordered `[HEAD_C]` only and
-  `isKnownPullRequestHead(HEAD_B)` is `false`.
+  (`AC31 planted-violation fail-then-pass rejects commit-list head inference`).
+- **Fail run:** plant branch (`plantOrdered = [A,B,C]`) → `isKnownPullRequestHead(B)` is
+  `true`.
+- **Pass run:** force-push-only builder → ordered `[HEAD_C]` and
+  `isKnownPullRequestHead(B)` is `false`.

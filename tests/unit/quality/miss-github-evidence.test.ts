@@ -353,65 +353,30 @@ test("readPullRequestEvidence uses timeline tips and never publish-order fallbac
   );
 });
 
-test("AC37 buildPushOrderedHeadShas uses one tip per push from committed runs", () => {
+test("AC31 without force-push timeline only the current head is a known tip", () => {
   const ordered = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
-    timelineEvents: [
-      { event: "committed", sha: HEAD_A, author: { date: "2026-01-01T00:00:01Z" } },
-      { event: "commented" },
-      { event: "committed", sha: HEAD_B, author: { date: "2026-01-01T00:00:02Z" } },
-      { event: "commented" },
-      { event: "committed", sha: HEAD_C, author: { date: "2026-01-01T00:00:03Z" } },
-    ],
+    timelineEvents: [],
   });
-  assert.deepEqual(ordered, [HEAD_A, HEAD_B, HEAD_C]);
-});
-
-test("AC37 adjacent separate pushes with distinct timestamps stay separate tips", () => {
-  const ordered = buildPushOrderedHeadShas({
-    currentHeadSha: HEAD_C,
-    timelineEvents: [
-      { event: "committed", sha: HEAD_A, author: { date: "2026-01-01T00:00:01Z" } },
-      { event: "committed", sha: HEAD_B, author: { date: "2026-01-01T00:00:02Z" } },
-      { event: "committed", sha: HEAD_C, author: { date: "2026-01-01T00:00:03Z" } },
-    ],
-  });
-  assert.deepEqual(ordered, [HEAD_A, HEAD_B, HEAD_C]);
-  assert.equal(
-    resolveRondaResultHead({
-      reviewedHeadSha: HEAD_C,
-      pushOrderedHeadShas: ordered,
-      rondaResultHeadShas: [HEAD_A, HEAD_B],
-    }),
-    HEAD_B,
-  );
-});
-
-test("AC31 planted-violation fail-then-pass for multi-commit push tips", () => {
-  const samePushTimestamp = "2026-01-01T00:00:00Z";
-  const events = [
-    { event: "committed", sha: HEAD_A, author: { date: samePushTimestamp } },
-    { event: "committed", sha: HEAD_B, author: { date: samePushTimestamp } },
-    { event: "committed", sha: HEAD_C, author: { date: samePushTimestamp } },
-  ] as const;
-
-  const pass = buildPushOrderedHeadShas({
-    currentHeadSha: HEAD_C,
-    timelineEvents: [...events],
-  });
-  assert.deepEqual(pass, [HEAD_C]);
+  assert.deepEqual(ordered, [HEAD_C]);
   assert.equal(
     isKnownPullRequestHead({
       headSha: HEAD_B,
-      pushOrderedHeadShas: pass,
+      pushOrderedHeadShas: ordered,
       currentHeadSha: HEAD_C,
     }),
     false,
   );
+});
 
-  // Plant: treat every committed SHA as a head (wrong for multi-commit pushes).
-  const plantOrdered = events.map((event) => event.sha);
-  assert.deepEqual(plantOrdered, [HEAD_A, HEAD_B, HEAD_C]);
+test("AC31 planted-violation fail-then-pass rejects commit-list head inference", () => {
+  const pass = buildPushOrderedHeadShas({
+    currentHeadSha: HEAD_C,
+    timelineEvents: [],
+  });
+  assert.deepEqual(pass, [HEAD_C]);
+
+  const plantOrdered = [HEAD_A, HEAD_B, HEAD_C];
   assert.equal(
     isKnownPullRequestHead({
       headSha: HEAD_B,
@@ -420,18 +385,14 @@ test("AC31 planted-violation fail-then-pass for multi-commit push tips", () => {
     }),
     true,
   );
-});
-
-test("AC31 buildPushOrderedHeadShas keeps only the last SHA in a multi-commit push", () => {
-  const ordered = buildPushOrderedHeadShas({
-    currentHeadSha: HEAD_C,
-    timelineEvents: [
-      { event: "committed", sha: HEAD_A, author: { date: "2026-01-01T00:00:00Z" } },
-      { event: "committed", sha: HEAD_B, author: { date: "2026-01-01T00:00:00Z" } },
-      { event: "committed", sha: HEAD_C, author: { date: "2026-01-01T00:00:00Z" } },
-    ],
-  });
-  assert.deepEqual(ordered, [HEAD_C]);
+  assert.equal(
+    isKnownPullRequestHead({
+      headSha: HEAD_B,
+      pushOrderedHeadShas: pass,
+      currentHeadSha: HEAD_C,
+    }),
+    false,
+  );
 });
 
 test("review body findings split when inline comments exist on same review", () => {
@@ -486,7 +447,7 @@ test("AC41 comment and review numeric ids do not collide in sourceId namespace",
     {
       id: 100,
       user: { login: "chatgpt-codex-connector[bot]" },
-      body: "Review-level finding",
+      body: "- Review-level finding",
       commit_id: HEAD_A,
     },
   ];
@@ -530,7 +491,7 @@ test("AC16 clean Codex review body yields nothing_to_capture signal", () => {
         {
           id: 1,
           user: { login: "chatgpt-codex-connector[bot]" },
-          body: "Codex Review: Didn't find any major issues. Swish!\n**Reviewed commit:** `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`",
+          body: "Codex Review: Didn't find any major issues.\n**Reviewed commit:** `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`",
           commit_id: HEAD_A,
         },
       ]);
@@ -549,6 +510,35 @@ test("AC16 clean Codex review body yields nothing_to_capture signal", () => {
   });
   assert.equal(result.findingsOnCurrentHead.length, 0);
   assert.equal(result.unparseableOnCurrentHead, false);
+});
+
+test("AC17 malformed current-head review prose is unparseable", () => {
+  const runGh = (args: string[]): string => {
+    const joined = args.join(" ");
+    if (joined.includes("/reviews")) {
+      return JSON.stringify([
+        {
+          id: 1,
+          user: { login: "chatgpt-codex-connector[bot]" },
+          body: "Review still running — check back later.",
+          commit_id: HEAD_A,
+        },
+      ]);
+    }
+    if (joined.includes("/comments")) {
+      return JSON.stringify([]);
+    }
+    throw new Error(`Unexpected: ${joined}`);
+  };
+  const result = readCodexGithubFindings({
+    repository: "lhpaul/ronda",
+    pullNumber: 53,
+    currentHeadSha: HEAD_A,
+    namedReviewer: "codex",
+    runGh,
+  });
+  assert.equal(result.findingsOnCurrentHead.length, 0);
+  assert.equal(result.unparseableOnCurrentHead, true);
 });
 
 test("AC37 fails closed when Ronda head is absent from push-order evidence", () => {

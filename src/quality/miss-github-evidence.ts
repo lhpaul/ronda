@@ -116,19 +116,14 @@ interface GhTimelineEvent {
   event?: string;
   before?: string;
   after?: string;
-  sha?: string;
-  author?: { date?: string | null } | null;
 }
 
 /**
  * Build push-ordered PR head tips (oldest first) from timeline head-transition
- * evidence only (`committed` push tips and `head_ref_force_pushed`). Consecutive
- * `committed` events with the same author timestamp belong to one multi-commit
- * push — only the last SHA in that run was a PR head (AC31). Adjacent commits
- * with distinct timestamps are separate push tips (AC37). When timeline
- * evidence is missing, only the current head is known — fail closed for other
- * heads.
- * Never use review publish order (AC37).
+ * evidence only (`head_ref_force_pushed` before/after tips). Ordinary commit
+ * lists and author timestamps are not reliable head transitions (AC31). When
+ * force-push history is unavailable, only the current head is known — fail
+ * closed for other heads. Never use review publish order (AC37).
  */
 export function buildPushOrderedHeadShas(input: {
   currentHeadSha: string;
@@ -146,46 +141,13 @@ export function buildPushOrderedHeadShas(input: {
     ordered.push(trimmed);
   };
 
-  let committedRun: Array<{ sha: string; authoredAt: string }> = [];
-  const committedAuthoredAt = (event: GhTimelineEvent): string =>
-    event.author?.date?.trim() ?? "";
-
-  const flushCommittedRun = (): void => {
-    if (committedRun.length === 0) {
-      return;
-    }
-    pushUnique(committedRun[committedRun.length - 1]?.sha);
-    committedRun = [];
-  };
-
   for (const event of input.timelineEvents ?? []) {
-    if (event.event === "head_ref_force_pushed") {
-      flushCommittedRun();
-      pushUnique(event.before);
-      pushUnique(event.after);
+    if (event.event !== "head_ref_force_pushed") {
       continue;
     }
-    if (event.event === "committed") {
-      const sha = event.sha?.trim() ?? "";
-      if (!sha) {
-        continue;
-      }
-      const authoredAt = committedAuthoredAt(event);
-      const previous = committedRun[committedRun.length - 1];
-      if (
-        previous &&
-        authoredAt !== "" &&
-        previous.authoredAt !== "" &&
-        authoredAt !== previous.authoredAt
-      ) {
-        flushCommittedRun();
-      }
-      committedRun.push({ sha, authoredAt });
-      continue;
-    }
-    flushCommittedRun();
+    pushUnique(event.before);
+    pushUnique(event.after);
   }
-  flushCommittedRun();
 
   const withoutCurrent = ordered.filter(
     (sha) => !headsMatch(sha, input.currentHeadSha),
@@ -193,22 +155,43 @@ export function buildPushOrderedHeadShas(input: {
   return [...withoutCurrent, input.currentHeadSha];
 }
 
-/** Codex/Ronda outputs that mean "no findings on this head" (AC16), not capture text. */
+/** Strip Codex review footers before clean/silent classification. */
+export function normalizeCodexReviewBodyForClassification(body: string): string {
+  return body
+    .split(/\r?\n/)
+    .filter((line) => !/^\*\*Reviewed commit:\*\*/i.test(line.trim()))
+    .join("\n")
+    .trim();
+}
+
+/** Codex outputs that mean "no findings on this head" (AC16), not capture text. */
 export function isCodexSilentOrCleanReviewBody(body: string): boolean {
-  const trimmed = body.trim();
+  const trimmed = normalizeCodexReviewBodyForClassification(body);
   if (!trimmed) {
     return true;
   }
   if (/^no findings\.?$/i.test(trimmed)) {
     return true;
   }
-  if (/codex review:\s*didn't find any major issues\./i.test(trimmed)) {
+  if (/^codex review:\s*didn't find any major issues\.?\s*$/i.test(trimmed)) {
     return true;
   }
-  if (/didn't find any major issues/i.test(trimmed)) {
+  if (/^no blocking issues found\.?\s*$/i.test(trimmed)) {
     return true;
   }
-  if (/no blocking issues found/i.test(trimmed)) {
+  return false;
+}
+
+/** Whether automatic reading can treat review text as a structured finding (AC17). */
+export function isInterpretableAutomaticFindingText(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (/^(\*\s+|-\s+|\d+\.\s+)/m.test(trimmed)) {
+    return true;
+  }
+  if (/\b[\w./-]+\.(?:[a-z0-9]{1,4}):\d+\b/i.test(trimmed)) {
     return true;
   }
   return false;
@@ -600,7 +583,14 @@ export function readCodexGithubFindings(input: {
     }
     const reviewId = String(review.id ?? review.node_id ?? "review");
     const findingTexts = splitCommentFindingTexts(body);
+    const structuredReviewBody = /^(\*\s+|-\s+|\d+\.\s+)/m.test(body);
     findingTexts.forEach((findingText, findingIndex) => {
+      if (
+        !structuredReviewBody &&
+        !isInterpretableAutomaticFindingText(findingText)
+      ) {
+        return;
+      }
       const firstLine = findingText
         .split(/\r?\n/)
         .find((line) => line.trim())
