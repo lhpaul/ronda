@@ -371,6 +371,25 @@ function processOneFinding(input: {
     return refuse("Capture refused: required input 'text' is missing.");
   }
 
+  const scanFields = {
+    externalReviewer: input.finding.externalReviewer,
+    reviewedHeadSha: input.finding.reviewedHeadSha?.trim()
+      ? input.finding.reviewedHeadSha
+      : undefined,
+    location: input.finding.location,
+    title: titleCandidate,
+    text: input.finding.text,
+  };
+
+  // Credential scan before corpus resolution (refusal precedence over baseline).
+  const credentialRefusal = validateCaptureFields({
+    fields: scanFields,
+    scanSourceExcerpts: false,
+  });
+  if (credentialRefusal) {
+    return refuse(formatContentReason(credentialRefusal));
+  }
+
   let corpus: SourceScanCorpus;
   let mergeBaseSha: string;
   try {
@@ -384,17 +403,9 @@ function processOneFinding(input: {
     );
   }
 
-  // Stage 3 — credential / diff / source scan before truncation (full title + text)
+  // Stage 3 — diff / source scan before truncation (full title + text)
   const contentRefusal = validateCaptureFields({
-    fields: {
-      externalReviewer: input.finding.externalReviewer,
-      reviewedHeadSha: input.finding.reviewedHeadSha?.trim()
-        ? input.finding.reviewedHeadSha
-        : undefined,
-      location: input.finding.location,
-      title: titleCandidate,
-      text: input.finding.text,
-    },
+    fields: scanFields,
     corpus,
     scanSourceExcerpts: true,
   });

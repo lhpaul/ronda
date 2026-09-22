@@ -336,4 +336,10 @@ test("AC48 report excludes unresolvable miss records from verdict outcomes", () 
   assert.equal(report.supplementary.unresolvableEvidence, 2);
   assert.equal(report.primaryOutcomes.stale_head.count, 1);
   assert.match(formatMarkdownSummary(report), /unresolvable_evidence: 2/);
+
+  const action = report.improvement.suggestedActions.find((entry) =>
+    /category correctness/i.test(entry.action),
+  );
+  assert.equal(action?.recordIds.length, 1);
+  assert.deepEqual(action?.recordIds, ["resolvable-tp"]);
 });

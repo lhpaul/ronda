@@ -94,11 +94,12 @@ location, failing run, and restored passing run (REVIEW.md Pass 2).
 
 ## P11 — multi-commit push head tips (AC31)
 
-- **Assertion:** consecutive timeline `committed` events collapse to one PR head
-  tip per push; intermediate SHAs are not known heads.
+- **Assertion:** consecutive timeline `committed` events with the same author
+  timestamp collapse to one PR head tip; intermediate SHAs are not known heads.
 - **Plant location:** `tests/unit/quality/miss-github-evidence.test.ts`
-  (`AC31 buildPushOrderedHeadShas keeps only the last SHA in a multi-commit push`).
-- **Fail run:** treat every committed SHA as a head → manual capture accepts
-  intermediate commit (not run in CI; regression test asserts ordered `[HEAD_C]` only).
-- **Pass run:** grouped timeline test passes; `isKnownPullRequestHead(HEAD_B)` is
-  `false`.
+  (`AC31 planted-violation fail-then-pass for multi-commit push tips` — `plantOrdered`
+  simulates per-commit head acceptance).
+- **Fail run:** same test block’s plant branch → `isKnownPullRequestHead(HEAD_B)` is
+  `true` (wrong acceptance).
+- **Pass run:** production grouping → ordered `[HEAD_C]` only and
+  `isKnownPullRequestHead(HEAD_B)` is `false`.

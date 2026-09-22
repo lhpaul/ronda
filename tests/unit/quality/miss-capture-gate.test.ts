@@ -55,6 +55,23 @@ function baseManual(overrides: Record<string, unknown> = {}) {
   };
 }
 
+test("Stage 3 credential refusal precedes corpus baseline failure", () => {
+  const result = runCaptureDecisionGate({
+    ...baseManual({ text: 'password = "s3cret-value"' }),
+    mergeBaseForHead: () => {
+      throw new Error("merge base unavailable");
+    },
+    corpusForHead: () => {
+      throw new Error("corpus unavailable");
+    },
+  });
+  assert.equal(result.findings[0]?.outcome, "capture_refused");
+  assert.match(
+    result.findings[0]?.reason ?? "",
+    /credential form/i,
+  );
+});
+
 test("AC39 closed reviewer alias list is case and whitespace insensitive", () => {
   assert.equal(isCodexGithubReviewer("codex"), true);
   assert.equal(isCodexGithubReviewer("  Codex-GitHub  "), true);

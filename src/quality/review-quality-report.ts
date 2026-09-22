@@ -647,7 +647,10 @@ export function buildReviewQualityReport(input: BuildReportInput): ReviewQuality
     if (count > 0) {
       const ids = allRows
         .filter(
-          (row) => row.category === category && row.primaryOutcome === "true_positive",
+          (row) =>
+            row.category === category &&
+            row.primaryOutcome === "true_positive" &&
+            !row.unresolvableEvidence,
         )
         .map((row) => row.id);
       suggestedActions.push({

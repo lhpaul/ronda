@@ -357,34 +357,81 @@ test("AC37 buildPushOrderedHeadShas uses one tip per push from committed runs", 
   const ordered = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
     timelineEvents: [
-      { event: "committed", sha: HEAD_A },
+      { event: "committed", sha: HEAD_A, author: { date: "2026-01-01T00:00:01Z" } },
       { event: "commented" },
-      { event: "committed", sha: HEAD_B },
+      { event: "committed", sha: HEAD_B, author: { date: "2026-01-01T00:00:02Z" } },
       { event: "commented" },
-      { event: "committed", sha: HEAD_C },
+      { event: "committed", sha: HEAD_C, author: { date: "2026-01-01T00:00:03Z" } },
     ],
   });
   assert.deepEqual(ordered, [HEAD_A, HEAD_B, HEAD_C]);
+});
+
+test("AC37 adjacent separate pushes with distinct timestamps stay separate tips", () => {
+  const ordered = buildPushOrderedHeadShas({
+    currentHeadSha: HEAD_C,
+    timelineEvents: [
+      { event: "committed", sha: HEAD_A, author: { date: "2026-01-01T00:00:01Z" } },
+      { event: "committed", sha: HEAD_B, author: { date: "2026-01-01T00:00:02Z" } },
+      { event: "committed", sha: HEAD_C, author: { date: "2026-01-01T00:00:03Z" } },
+    ],
+  });
+  assert.deepEqual(ordered, [HEAD_A, HEAD_B, HEAD_C]);
+  assert.equal(
+    resolveRondaResultHead({
+      reviewedHeadSha: HEAD_C,
+      pushOrderedHeadShas: ordered,
+      rondaResultHeadShas: [HEAD_A, HEAD_B],
+    }),
+    HEAD_B,
+  );
+});
+
+test("AC31 planted-violation fail-then-pass for multi-commit push tips", () => {
+  const samePushTimestamp = "2026-01-01T00:00:00Z";
+  const events = [
+    { event: "committed", sha: HEAD_A, author: { date: samePushTimestamp } },
+    { event: "committed", sha: HEAD_B, author: { date: samePushTimestamp } },
+    { event: "committed", sha: HEAD_C, author: { date: samePushTimestamp } },
+  ] as const;
+
+  const pass = buildPushOrderedHeadShas({
+    currentHeadSha: HEAD_C,
+    timelineEvents: [...events],
+  });
+  assert.deepEqual(pass, [HEAD_C]);
+  assert.equal(
+    isKnownPullRequestHead({
+      headSha: HEAD_B,
+      pushOrderedHeadShas: pass,
+      currentHeadSha: HEAD_C,
+    }),
+    false,
+  );
+
+  // Plant: treat every committed SHA as a head (wrong for multi-commit pushes).
+  const plantOrdered = events.map((event) => event.sha);
+  assert.deepEqual(plantOrdered, [HEAD_A, HEAD_B, HEAD_C]);
+  assert.equal(
+    isKnownPullRequestHead({
+      headSha: HEAD_B,
+      pushOrderedHeadShas: plantOrdered,
+      currentHeadSha: HEAD_C,
+    }),
+    true,
+  );
 });
 
 test("AC31 buildPushOrderedHeadShas keeps only the last SHA in a multi-commit push", () => {
   const ordered = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
     timelineEvents: [
-      { event: "committed", sha: HEAD_A },
-      { event: "committed", sha: HEAD_B },
-      { event: "committed", sha: HEAD_C },
+      { event: "committed", sha: HEAD_A, author: { date: "2026-01-01T00:00:00Z" } },
+      { event: "committed", sha: HEAD_B, author: { date: "2026-01-01T00:00:00Z" } },
+      { event: "committed", sha: HEAD_C, author: { date: "2026-01-01T00:00:00Z" } },
     ],
   });
   assert.deepEqual(ordered, [HEAD_C]);
-  assert.equal(
-    isKnownPullRequestHead({
-      headSha: HEAD_B,
-      pushOrderedHeadShas: ordered,
-      currentHeadSha: HEAD_C,
-    }),
-    false,
-  );
 });
 
 test("review body findings split when inline comments exist on same review", () => {

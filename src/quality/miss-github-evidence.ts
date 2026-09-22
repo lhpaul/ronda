@@ -117,14 +117,17 @@ interface GhTimelineEvent {
   before?: string;
   after?: string;
   sha?: string;
+  author?: { date?: string | null } | null;
 }
 
 /**
  * Build push-ordered PR head tips (oldest first) from timeline head-transition
  * evidence only (`committed` push tips and `head_ref_force_pushed`). Consecutive
- * `committed` timeline entries belong to one push — only the last SHA in each
- * run was a PR head (AC31). When timeline evidence is missing, only the current
- * head is known — fail closed for other heads.
+ * `committed` events with the same author timestamp belong to one multi-commit
+ * push — only the last SHA in that run was a PR head (AC31). Adjacent commits
+ * with distinct timestamps are separate push tips (AC37). When timeline
+ * evidence is missing, only the current head is known — fail closed for other
+ * heads.
  * Never use review publish order (AC37).
  */
 export function buildPushOrderedHeadShas(input: {
@@ -143,12 +146,15 @@ export function buildPushOrderedHeadShas(input: {
     ordered.push(trimmed);
   };
 
-  let committedRun: string[] = [];
+  let committedRun: Array<{ sha: string; authoredAt: string }> = [];
+  const committedAuthoredAt = (event: GhTimelineEvent): string =>
+    event.author?.date?.trim() ?? "";
+
   const flushCommittedRun = (): void => {
     if (committedRun.length === 0) {
       return;
     }
-    pushUnique(committedRun[committedRun.length - 1]);
+    pushUnique(committedRun[committedRun.length - 1]?.sha);
     committedRun = [];
   };
 
@@ -161,9 +167,20 @@ export function buildPushOrderedHeadShas(input: {
     }
     if (event.event === "committed") {
       const sha = event.sha?.trim() ?? "";
-      if (sha) {
-        committedRun.push(sha);
+      if (!sha) {
+        continue;
       }
+      const authoredAt = committedAuthoredAt(event);
+      const previous = committedRun[committedRun.length - 1];
+      if (
+        previous &&
+        authoredAt !== "" &&
+        previous.authoredAt !== "" &&
+        authoredAt !== previous.authoredAt
+      ) {
+        flushCommittedRun();
+      }
+      committedRun.push({ sha, authoredAt });
       continue;
     }
     flushCommittedRun();
