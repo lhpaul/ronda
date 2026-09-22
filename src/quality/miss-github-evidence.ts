@@ -186,24 +186,6 @@ export function isCodexSilentOrCleanReviewBody(body: string): boolean {
   return false;
 }
 
-function mergePushOrderWithRondaHeads(input: {
-  pushOrderedHeadShas: string[];
-  currentHeadSha: string;
-  rondaResultHeadShas: string[];
-}): string[] {
-  let ordered = [...input.pushOrderedHeadShas];
-  for (const sha of input.rondaResultHeadShas) {
-    if (ordered.some((existing) => headsMatch(existing, sha))) {
-      continue;
-    }
-    const withoutCurrent = ordered.filter(
-      (head) => !headsMatch(head, input.currentHeadSha),
-    );
-    ordered = [...withoutCurrent, sha, input.currentHeadSha];
-  }
-  return ordered;
-}
-
 /**
  * Read pull-request metadata and Ronda/Codex evidence via `gh` (read-only).
  * Injectable runner keeps unit tests off the network.
@@ -258,7 +240,7 @@ export function readPullRequestEvidence(input: {
     // Timeline enrichment is best-effort; commits + fail-closed resolve remain.
   }
 
-  let pushOrderedHeadShas = buildPushOrderedHeadShas({
+  const pushOrderedHeadShas = buildPushOrderedHeadShas({
     currentHeadSha,
     commits,
     timelineEvents,
@@ -283,12 +265,6 @@ export function readPullRequestEvidence(input: {
     }
     rondaReviewBodyByHeadSha.set(commitId, body);
   }
-
-  pushOrderedHeadShas = mergePushOrderWithRondaHeads({
-    pushOrderedHeadShas,
-    currentHeadSha,
-    rondaResultHeadShas,
-  });
 
   return {
     repository,

@@ -106,16 +106,31 @@ export function findCredentialMatch(text: string): CredentialMatch | null {
       continue;
     }
 
+    if (check.form === "authorization_bearer") {
+      const bearerPattern = new RegExp(
+        AUTHORIZATION_BEARER.source,
+        AUTHORIZATION_BEARER.flags.includes("g")
+          ? AUTHORIZATION_BEARER.flags
+          : `${AUTHORIZATION_BEARER.flags}g`,
+      );
+      let bearerMatch: RegExpExecArray | null;
+      while ((bearerMatch = bearerPattern.exec(text)) !== null) {
+        const bearerValue = bearerMatch[1] ?? "";
+        if (!isPublishedPlaceholder(bearerValue)) {
+          return {
+            form: "authorization_bearer",
+            matchedLength: bearerMatch[0].length,
+          };
+        }
+      }
+      continue;
+    }
+
     const match = check.regex.exec(text);
     if (!match) {
       continue;
     }
-    if (check.form === "authorization_bearer") {
-      const bearerValue = match[1] ?? "";
-      if (isPublishedPlaceholder(bearerValue)) {
-        continue;
-      }
-    } else if (isPublishedPlaceholder(match[0])) {
+    if (isPublishedPlaceholder(match[0])) {
       continue;
     }
     return { form: check.form, matchedLength: match[0].length };

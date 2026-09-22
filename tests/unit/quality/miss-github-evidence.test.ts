@@ -481,45 +481,14 @@ test("AC16 clean Codex review body yields nothing_to_capture signal", () => {
   assert.equal(result.unparseableOnCurrentHead, false);
 });
 
-test("mergePushOrderWithRondaHeads retains force-pushed-away Ronda result heads", () => {
-  const runGh = (args: string[]): string => {
-    const joined = args.join(" ");
-    if (joined.includes("repo view")) {
-      return "lhpaul/ronda";
-    }
-    if (args[0] === "pr" && args[1] === "view") {
-      return JSON.stringify({
-        headRefOid: HEAD_C,
-        baseRefName: "develop",
-        baseRefOid: BASE,
-      });
-    }
-    if (joined.includes("/commits")) {
-      return JSON.stringify([{ sha: HEAD_C }]);
-    }
-    if (joined.includes("/timeline")) {
-      return JSON.stringify([
-        { event: "head_ref_force_pushed", before: HEAD_B, after: HEAD_C },
-      ]);
-    }
-    if (joined.includes("/reviews")) {
-      return JSON.stringify([
-        {
-          id: 1,
-          body: `${RONDA_REVIEW_HEADING}\nB`,
-          commit_id: HEAD_B,
-        },
-      ]);
-    }
-    throw new Error(`Unexpected: ${joined}`);
-  };
-  const evidence = readPullRequestEvidence({
-    pullNumber: 53,
-    repository: "lhpaul/ronda",
-    runGh,
-  });
-  assert.ok(
-    evidence.pushOrderedHeadShas.some((sha) => headsMatch(sha, HEAD_B)),
+test("AC37 fails closed when Ronda head is absent from push-order evidence", () => {
+  assert.equal(
+    resolveRondaResultHead({
+      reviewedHeadSha: HEAD_C,
+      pushOrderedHeadShas: [HEAD_C],
+      rondaResultHeadShas: [HEAD_A, HEAD_B],
+    }),
+    null,
   );
 });
 
