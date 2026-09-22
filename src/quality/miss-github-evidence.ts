@@ -9,8 +9,17 @@ export interface PullRequestEvidence {
   currentHeadSha: string;
   baseRef: string;
   baseSha: string;
-  /** Push-order head SHAs for this PR (oldest first; last is most recently pushed). */
+  /**
+   * Confirmed PR head tips in push order (oldest first): force-push timeline
+   * tips plus the current head. Used for AC31 known-head checks — intermediate
+   * commits from a multi-commit push are not tips.
+   */
   pushOrderedHeadShas: string[];
+  /**
+   * Commits still on the PR (oldest first). Used only to order Ronda result
+   * heads for AC37 fallback when tip evidence alone cannot resolve.
+   */
+  commitOrderShas: string[];
   /** Head SHAs for which a Ronda review result is resolvable. */
   rondaResultHeadShas: string[];
   /** Ronda review bodies keyed by commit id (full SHA). */
@@ -123,14 +132,16 @@ interface GhCommit {
 }
 
 /**
- * Build push-ordered PR head tips (oldest first). Prefer timeline
- * `head_ref_force_pushed` before/after tips so force-pushed-away heads remain
- * ordered; then append commits still reachable on the PR (ordinary A→B→C
- * pushes). Never use review publish order (AC37).
+ * Build confirmed PR head tips (oldest first) from timeline
+ * `head_ref_force_pushed` before/after tips, always ending with the current
+ * head. Does **not** treat every commits-API entry as a tip (AC31): a
+ * multi-commit initial push exposes intermediate commits that were never
+ * heads. Ordinary A→B→C tip ordering for AC37 uses
+ * {@link resolveRondaResultHead}'s commit-order fallback among Ronda-reviewed
+ * SHAs instead. Never use review publish order.
  */
 export function buildPushOrderedHeadShas(input: {
   currentHeadSha: string;
-  commits?: Array<{ sha?: string }>;
   timelineEvents?: GhTimelineEvent[];
 }): string[] {
   const ordered: string[] = [];
@@ -153,17 +164,28 @@ export function buildPushOrderedHeadShas(input: {
     pushUnique(event.after);
   }
 
-  // Ordinary linear pushes: each commit still on the PR was a head tip in
-  // push order. Force-pushed-away tips not listed as commits come from
-  // timeline above.
-  for (const commit of input.commits ?? []) {
-    pushUnique(commit.sha);
-  }
-
   const withoutCurrent = ordered.filter(
     (sha) => !headsMatch(sha, input.currentHeadSha),
   );
   return [...withoutCurrent, input.currentHeadSha];
+}
+
+/** Oldest-first SHAs from the PR commits endpoint (paginated pages flattened). */
+export function buildCommitOrderShas(
+  commits: Array<{ sha?: string }> | undefined,
+): string[] {
+  const ordered: string[] = [];
+  for (const commit of commits ?? []) {
+    const trimmed = commit.sha?.trim() ?? "";
+    if (!trimmed) {
+      continue;
+    }
+    if (ordered.some((existing) => headsMatch(existing, trimmed))) {
+      continue;
+    }
+    ordered.push(trimmed);
+  }
+  return ordered;
 }
 
 /** Strip Codex review footers before clean/silent classification. */
@@ -260,14 +282,14 @@ export function readPullRequestEvidence(input: {
       timelineRaw || "[]",
     );
   } catch {
-    // Timeline enrichment is best-effort; commits + fail-closed resolve remain.
+    // Timeline enrichment is best-effort; tip list falls back to current head.
   }
 
   const pushOrderedHeadShas = buildPushOrderedHeadShas({
     currentHeadSha,
-    commits,
     timelineEvents,
   });
+  const commitOrderShas = buildCommitOrderShas(commits);
 
   const reviewsRaw = runGh([
     "api",
@@ -296,6 +318,7 @@ export function readPullRequestEvidence(input: {
     baseRef: view.baseRefName ?? "",
     baseSha: view.baseRefOid ?? "",
     pushOrderedHeadShas,
+    commitOrderShas,
     rondaResultHeadShas,
     rondaReviewBodyByHeadSha,
   };
@@ -314,14 +337,19 @@ export function rondaReviewBodyForHead(input: {
 }
 
 /**
- * Resolve the Ronda result head for a reviewed head using push-order only
- * (AC37): same-head first, otherwise the most recently pushed PR head that
- * has a Ronda result.
+ * Resolve the Ronda result head for a reviewed head (AC37):
+ * 1. Same-head Ronda result wins.
+ * 2. Otherwise the newest confirmed tip (force-push timeline / current) that
+ *    has a Ronda result.
+ * 3. Otherwise, among Ronda result SHAs that appear in the PR commit list,
+ *    the latest in commit order (ordinary A→B→C pushes with no force-push
+ *    tip events). Never use review publish order.
  */
 export function resolveRondaResultHead(input: {
   reviewedHeadSha: string;
   pushOrderedHeadShas: string[];
   rondaResultHeadShas: string[];
+  commitOrderShas?: string[];
 }): string | null {
   if (input.rondaResultHeadShas.length === 0) {
     return null;
@@ -334,7 +362,7 @@ export function resolveRondaResultHead(input: {
     return sameHead;
   }
 
-  // Walk push order from newest to oldest; first Ronda-bearing head wins.
+  // Walk tip order from newest to oldest; first Ronda-bearing tip wins.
   for (let index = input.pushOrderedHeadShas.length - 1; index >= 0; index -= 1) {
     const head = input.pushOrderedHeadShas[index] ?? "";
     const match = input.rondaResultHeadShas.find((sha) => headsMatch(sha, head));
@@ -343,9 +371,25 @@ export function resolveRondaResultHead(input: {
     }
   }
 
-  // Fail closed (AC37): never fall back to reviews-endpoint / publish order.
-  // When no Ronda-bearing head appears in push order, there is no push-order
-  // resolution — callers refuse capture rather than guessing.
+  // Ordinary multi-push history without force-push tip events: order only
+  // among SHAs that both have a Ronda result and appear on the PR commits list.
+  const commitOrder = input.commitOrderShas ?? [];
+  if (commitOrder.length > 0) {
+    for (let index = commitOrder.length - 1; index >= 0; index -= 1) {
+      const sha = commitOrder[index] ?? "";
+      if (headsMatch(sha, input.reviewedHeadSha)) {
+        continue;
+      }
+      const match = input.rondaResultHeadShas.find((result) =>
+        headsMatch(result, sha),
+      );
+      if (match) {
+        return match;
+      }
+    }
+  }
+
+  // Fail closed: never fall back to reviews-endpoint / publish order.
   return null;
 }
 

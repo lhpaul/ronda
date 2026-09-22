@@ -27,6 +27,7 @@ function evidence(overrides: Partial<PullRequestEvidence> = {}): PullRequestEvid
     baseRef: "develop",
     baseSha: "dddddddddddddddddddddddddddddddddddddddd",
     pushOrderedHeadShas: [HEAD_B, HEAD_A],
+    commitOrderShas: [HEAD_B, HEAD_A],
     rondaResultHeadShas: [HEAD_A],
     rondaReviewBodyByHeadSha: new Map(),
     ...overrides,
@@ -79,11 +80,7 @@ test("AC39 closed reviewer alias list is case and whitespace insensitive", () =>
   assert.equal(isCodexGithubReviewer("bugbot"), false);
 });
 
-test("AC37 Ronda result head fallback uses push-order only", () => {
-  // HEAD_C has a Ronda result but was pushed before HEAD_B; HEAD_B is newer
-  // without a Ronda result. Reviewed HEAD_A has no Ronda result → fallback to
-  // HEAD_B? No — only heads with Ronda results; newest push among those is HEAD_C
-  // if push order is [HEAD_C, HEAD_B, HEAD_A] and only HEAD_C has Ronda.
+test("AC37 Ronda result head fallback uses tip order then commit-order among Ronda SHAs", () => {
   const resolved = resolveRondaResultHead({
     reviewedHeadSha: HEAD_A,
     pushOrderedHeadShas: [HEAD_C, HEAD_B, HEAD_A],
@@ -101,8 +98,7 @@ test("AC37 Ronda result head fallback uses push-order only", () => {
     HEAD_B,
   );
 
-  // Newer pushed Ronda head wins over older even if older commit timestamp
-  // would sort differently — we only consult push order.
+  // Newer tip with Ronda wins over older tip.
   assert.equal(
     resolveRondaResultHead({
       reviewedHeadSha: HEAD_A,
@@ -112,14 +108,25 @@ test("AC37 Ronda result head fallback uses push-order only", () => {
     HEAD_B,
   );
 
-  // Fail closed: never fall back to reviews/publish order when Ronda heads are
-  // absent from push order (e.g. force-pushed away from commits API alone).
-  // rondaResultHeadShas listed as [A, B] with A published last must not yield A.
+  // Ordinary A→B→C with tips=[C] only: commit-order among Ronda SHAs picks B
+  // (not publish-later A).
+  assert.equal(
+    resolveRondaResultHead({
+      reviewedHeadSha: HEAD_C,
+      pushOrderedHeadShas: [HEAD_C],
+      rondaResultHeadShas: [HEAD_A, HEAD_B],
+      commitOrderShas: [HEAD_A, HEAD_B, HEAD_C],
+    }),
+    HEAD_B,
+  );
+
+  // Fail closed: Ronda SHAs absent from both tip list and commit order.
   assert.equal(
     resolveRondaResultHead({
       reviewedHeadSha: HEAD_A,
       pushOrderedHeadShas: [HEAD_A],
       rondaResultHeadShas: [HEAD_C, HEAD_B],
+      commitOrderShas: [HEAD_A],
     }),
     null,
   );

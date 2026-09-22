@@ -16,10 +16,9 @@ const HEAD_B = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const HEAD_C = "cccccccccccccccccccccccccccccccccccccccc";
 const BASE = "dddddddddddddddddddddddddddddddddddddddd";
 
-test("AC37 buildPushOrderedHeadShas prefers timeline force-push tips over commit list", () => {
+test("AC37 buildPushOrderedHeadShas uses force-push tips only (not every commit)", () => {
   const ordered = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
-    commits: [{ sha: HEAD_C }],
     timelineEvents: [
       { event: "head_ref_force_pushed", before: HEAD_A, after: HEAD_B },
       { event: "head_ref_force_pushed", before: HEAD_B, after: HEAD_C },
@@ -27,7 +26,7 @@ test("AC37 buildPushOrderedHeadShas prefers timeline force-push tips over commit
   });
   assert.deepEqual(ordered, [HEAD_A, HEAD_B, HEAD_C]);
 
-  // With timeline tips present, push-order fallback selects B (not publish-later A).
+  // With timeline tips present, tip-order fallback selects B (not publish-later A).
   assert.equal(
     resolveRondaResultHead({
       reviewedHeadSha: HEAD_C,
@@ -38,18 +37,28 @@ test("AC37 buildPushOrderedHeadShas prefers timeline force-push tips over commit
   );
 });
 
-test("AC37 ordinary linear commits provide push-order without force-push events", () => {
-  const ordered = buildPushOrderedHeadShas({
+test("AC37 ordinary linear pushes: commit-order among Ronda SHAs when tips are only current", () => {
+  const tips = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
-    commits: [{ sha: HEAD_A }, { sha: HEAD_B }, { sha: HEAD_C }],
     timelineEvents: [],
   });
-  assert.deepEqual(ordered, [HEAD_A, HEAD_B, HEAD_C]);
+  assert.deepEqual(tips, [HEAD_C]);
+  // Intermediate commits are not known tips (AC31).
+  assert.equal(
+    isKnownPullRequestHead({
+      headSha: HEAD_B,
+      pushOrderedHeadShas: tips,
+      currentHeadSha: HEAD_C,
+    }),
+    false,
+  );
+  // AC37 stale capture on C still resolves Ronda result B via commit order.
   assert.equal(
     resolveRondaResultHead({
       reviewedHeadSha: HEAD_C,
-      pushOrderedHeadShas: ordered,
+      pushOrderedHeadShas: tips,
       rondaResultHeadShas: [HEAD_A, HEAD_B],
+      commitOrderShas: [HEAD_A, HEAD_B, HEAD_C],
     }),
     HEAD_B,
   );
@@ -197,8 +206,9 @@ test("readPullRequestEvidence flattens paginated commits/reviews pages", () => {
     repository: "lhpaul/ronda",
     runGh,
   });
-  assert.ok(evidence.pushOrderedHeadShas.includes(HEAD_A));
-  assert.ok(evidence.pushOrderedHeadShas.includes(HEAD_C));
+  // Tips come from force-push timeline, not every commits-API entry.
+  assert.deepEqual(evidence.pushOrderedHeadShas, [HEAD_A, HEAD_C]);
+  assert.deepEqual(evidence.commitOrderShas, [HEAD_A, HEAD_C]);
   assert.ok(evidence.rondaResultHeadShas.some((sha) => sha === HEAD_A));
   assert.ok(evidence.rondaResultHeadShas.some((sha) => sha === HEAD_C));
   assert.equal(
@@ -361,20 +371,21 @@ test("readPullRequestEvidence uses timeline tips and never publish-order fallbac
     runGh,
   });
   assert.deepEqual(evidence.pushOrderedHeadShas, [HEAD_A, HEAD_B, HEAD_C]);
+  assert.deepEqual(evidence.commitOrderShas, [HEAD_C]);
   assert.equal(
     resolveRondaResultHead({
       reviewedHeadSha: HEAD_C,
       pushOrderedHeadShas: evidence.pushOrderedHeadShas,
       rondaResultHeadShas: evidence.rondaResultHeadShas,
+      commitOrderShas: evidence.commitOrderShas,
     }),
     HEAD_B,
   );
 });
 
-test("AC31 without commits or force-push timeline only the current head is known", () => {
+test("AC31 without force-push timeline only the current head is a known tip", () => {
   const ordered = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
-    commits: [],
     timelineEvents: [],
   });
   assert.deepEqual(ordered, [HEAD_C]);
@@ -388,30 +399,31 @@ test("AC31 without commits or force-push timeline only the current head is known
   );
 });
 
-test("AC31 planted-violation fail-then-pass: unknown SHA refused; commit-list heads accepted", () => {
-  const unknownOnly = buildPushOrderedHeadShas({
+test("AC31 planted-violation: commits-API intermediates are not known tips", () => {
+  const tipsOnly = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
-    commits: [],
     timelineEvents: [],
   });
   assert.equal(
     isKnownPullRequestHead({
       headSha: HEAD_B,
-      pushOrderedHeadShas: unknownOnly,
+      pushOrderedHeadShas: tipsOnly,
       currentHeadSha: HEAD_C,
     }),
     false,
   );
 
-  const withCommits = buildPushOrderedHeadShas({
+  // Force-push tip evidence makes B a known historical head.
+  const withTips = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
-    commits: [{ sha: HEAD_A }, { sha: HEAD_B }, { sha: HEAD_C }],
-    timelineEvents: [],
+    timelineEvents: [
+      { event: "head_ref_force_pushed", before: HEAD_B, after: HEAD_C },
+    ],
   });
   assert.equal(
     isKnownPullRequestHead({
       headSha: HEAD_B,
-      pushOrderedHeadShas: withCommits,
+      pushOrderedHeadShas: withTips,
       currentHeadSha: HEAD_C,
     }),
     true,
@@ -628,12 +640,21 @@ test("review-body findings capture path:line from interpretable text", () => {
   assert.equal(result.findingsOnCurrentHead[0]?.locationUnresolved, false);
 });
 
-test("AC37 fails closed when Ronda head is absent from push-order evidence", () => {
+test("AC37 fails closed when Ronda heads are absent from tips and commit order", () => {
   assert.equal(
     resolveRondaResultHead({
       reviewedHeadSha: HEAD_C,
       pushOrderedHeadShas: [HEAD_C],
       rondaResultHeadShas: [HEAD_A, HEAD_B],
+    }),
+    null,
+  );
+  assert.equal(
+    resolveRondaResultHead({
+      reviewedHeadSha: HEAD_C,
+      pushOrderedHeadShas: [HEAD_C],
+      rondaResultHeadShas: [HEAD_A, HEAD_B],
+      commitOrderShas: [HEAD_C],
     }),
     null,
   );

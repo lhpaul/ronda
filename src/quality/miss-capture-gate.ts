@@ -439,6 +439,7 @@ function processOneFinding(input: {
     reviewedHeadSha,
     pushOrderedHeadShas: input.gate.evidence.pushOrderedHeadShas,
     rondaResultHeadShas: input.gate.evidence.rondaResultHeadShas,
+    commitOrderShas: input.gate.evidence.commitOrderShas,
   });
   if (!rondaResultHeadSha) {
     return refuse(

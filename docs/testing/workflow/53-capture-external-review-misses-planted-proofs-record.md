@@ -68,7 +68,8 @@ Result on this branch tip: **7 pass / 0 fail** (re-run locally or in CI to refre
 
 ## P7 — push-order / review location / AC35 siblings
 
-- **AC37 ordinary commits:** `miss-github-evidence.test.ts` —
-  `AC37 ordinary linear commits provide push-order without force-push events`
+- **AC37 tip + commit-order fallback:**
+  `AC37 ordinary linear pushes: commit-order among Ronda SHAs when tips are only current`
+  (tips = current only for AC31; Ronda fallback uses commit order among reviewed SHAs)
 - **Review body `path:line`:** `review-body findings capture path:line from interpretable text`
 - **AC35 per-finding categories:** `AC35 count-mismatched categories refuse only uncovered findings`
