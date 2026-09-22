@@ -121,6 +121,31 @@ test("blank lines break consecutive source-excerpt runs", () => {
   assert.equal(hasExcessiveSourceExcerpt(separated, corpus), false);
 });
 
+test("blank lines in corpus break consecutive source matching (AC50)", () => {
+  const lines = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"];
+  // Same six lines exist in the file but are not consecutive (blank between).
+  const corpus = {
+    changedFileContents: [
+      [...lines.slice(0, 3), "", ...lines.slice(3)].join("\n"),
+    ],
+    diffText: "",
+  };
+  assert.equal(
+    hasExcessiveSourceExcerpt(lines.join("\n"), corpus),
+    false,
+    "non-adjacent corpus lines must not count as consecutive",
+  );
+  // Adjacent six-line block in corpus still refuses.
+  const contiguousCorpus = {
+    changedFileContents: [lines.join("\n")],
+    diffText: "",
+  };
+  assert.equal(
+    hasExcessiveSourceExcerpt(lines.join("\n"), contiguousCorpus),
+    true,
+  );
+});
+
 test("AC38 / AC50 six consecutive source lines refuse; five do not", () => {
   const lines = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"];
   const corpus = {

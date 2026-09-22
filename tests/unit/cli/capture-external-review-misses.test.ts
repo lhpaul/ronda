@@ -406,10 +406,46 @@ test("planted credential in fixture refuses capture", async () => {
   }
 });
 
+test("malformed --pr values are refused before any GitHub call", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ronda-miss-badpr-"));
+  try {
+    await assert.rejects(
+      () =>
+        main(
+          [
+            "capture-manual",
+            "--pr",
+            "98oops",
+            "--repository",
+            "lhpaul/ronda",
+            "--reviewer",
+            "human",
+            "--location",
+            "src/x.ts:1",
+            "--text",
+            "Missing retry backoff",
+            "--dir",
+            dir,
+          ],
+          {
+            runGh: () => {
+              throw new Error("GitHub must not be called for malformed --pr");
+            },
+          },
+        ),
+      /--pr must be a positive integer/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 /**
  * REVIEW.md planted-violation proof (fail-then-pass) for each sensitive-content
  * guard at the CLI capture boundary:
  * - credential form (`password = "..."`)
+ * - authorization bearer header
+ * - mixed placeholder then real secret assignment
  * - diff hunk marker (`@@ `)
  * - six consecutive source lines from the compare corpus
  *
@@ -496,6 +532,49 @@ test("CLI planted-violation fail-then-pass: credential, diff-marker, source-exce
         cleaned.logs.some((line) => /record_written/.test(line)),
         "clean path must report record_written",
       );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  // --- Bearer header guard (isolating plant) ---
+  {
+    const dir = mkdtempSync(join(tmpdir(), "ronda-miss-bearer-"));
+    try {
+      const planted = await runCapture(
+        "Authorization: Bearer abcdef0123456789",
+        dir,
+      );
+      assert.equal(planted.code, 1, "bearer plant must fail capture");
+      assert.ok(planted.logs.some((line) => /credential form/.test(line)));
+      assert.equal(planted.files.length, 0);
+
+      const cleaned = await runCapture(
+        "Authorization: Bearer REDACTED",
+        dir,
+      );
+      assert.equal(cleaned.code, 0, "placeholder bearer must pass");
+      assert.equal(cleaned.files.length, 1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  // --- Mixed placeholder then real secret assignment (isolating plant) ---
+  {
+    const dir = mkdtempSync(join(tmpdir(), "ronda-miss-mixed-"));
+    try {
+      const planted = await runCapture(
+        "password=REDACTED password=supersecretvalue",
+        dir,
+      );
+      assert.equal(planted.code, 1, "mixed placeholder+secret must fail");
+      assert.ok(planted.logs.some((line) => /credential form/.test(line)));
+      assert.equal(planted.files.length, 0);
+
+      const cleaned = await runCapture("password=REDACTED", dir);
+      assert.equal(cleaned.code, 0, "placeholder-only assignment must pass");
+      assert.equal(cleaned.files.length, 1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

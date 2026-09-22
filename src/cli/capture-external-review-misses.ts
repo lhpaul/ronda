@@ -220,7 +220,7 @@ function parseArgs(argv: string[]): CliOptions {
 
   const runGh = defaultGhRunner;
   const dir = String(options.dir ?? DEFAULT_MISS_DIRECTORY);
-  const pr = options.pr ? Number.parseInt(String(options.pr), 10) : undefined;
+  const pr = parseOptionalPositiveInt(options.pr, "--pr");
 
   if (command === "capture-automatic") {
     return {
@@ -292,8 +292,26 @@ function parseArgs(argv: string[]): CliOptions {
   };
 }
 
+/**
+ * Parse an optional CLI integer that must be the entire argument
+ * (`98` ok, `98oops` refused). Avoid Number.parseInt's trailing-junk accept.
+ */
+function parseOptionalPositiveInt(
+  raw: unknown,
+  flag: string,
+): number | undefined {
+  if (raw === undefined || raw === null || raw === "") {
+    return undefined;
+  }
+  const text = String(raw);
+  if (!/^[1-9]\d*$/.test(text)) {
+    throw new Error(`${flag} must be a positive integer`);
+  }
+  return Number(text);
+}
+
 function requirePr(pr: number | undefined): number {
-  if (!pr || !Number.isInteger(pr) || pr <= 0) {
+  if (pr === undefined || !Number.isInteger(pr) || pr <= 0) {
     throw new Error("--pr is required and must be a positive integer");
   }
   return pr;

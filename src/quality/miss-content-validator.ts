@@ -102,25 +102,52 @@ function normalizeComparableLine(line: string, forDiff: boolean): string {
   return value;
 }
 
+/**
+ * Split normalized lines into runs of consecutive nonblank lines.
+ * Blank lines are sequence boundaries in both finding text and corpus
+ * content so AC38/AC50 "consecutive" means consecutive in the source.
+ */
+function nonblankLineRuns(lines: string[]): string[][] {
+  const runs: string[][] = [];
+  let current: string[] = [];
+  for (const line of lines) {
+    if (line.length === 0) {
+      if (current.length > 0) {
+        runs.push(current);
+        current = [];
+      }
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length > 0) {
+    runs.push(current);
+  }
+  return runs;
+}
+
+/**
+ * Collect consecutive nonblank line runs from changed files and the diff.
+ * Do not collapse blanks across the corpus — that would make non-adjacent
+ * source lines appear consecutive and falsely refuse permitted excerpts.
+ */
 function collectCorpusLineSequences(corpus: SourceScanCorpus): string[][] {
   const sequences: string[][] = [];
 
   for (const content of corpus.changedFileContents) {
     const lines = content
       .split(/\r?\n/)
-      .map((line) => normalizeComparableLine(line, false))
-      .filter((line) => line.length > 0);
-    if (lines.length > 0) {
-      sequences.push(lines);
+      .map((line) => normalizeComparableLine(line, false));
+    for (const run of nonblankLineRuns(lines)) {
+      sequences.push(run);
     }
   }
 
   const diffLines = corpus.diffText
     .split(/\r?\n/)
-    .map((line) => normalizeComparableLine(line, true))
-    .filter((line) => line.length > 0);
-  if (diffLines.length > 0) {
-    sequences.push(diffLines);
+    .map((line) => normalizeComparableLine(line, true));
+  for (const run of nonblankLineRuns(diffLines)) {
+    sequences.push(run);
   }
 
   return sequences;
@@ -152,24 +179,6 @@ function sequenceContainsRun(
  * True when normalized text contains more than five consecutive nonblank
  * lines that appear consecutively in changed-file or diff content (AC38, AC50).
  */
-function nonblankLineRuns(lines: string[]): string[][] {
-  const runs: string[][] = [];
-  let current: string[] = [];
-  for (const line of lines) {
-    if (line.length === 0) {
-      if (current.length > 0) {
-        runs.push(current);
-        current = [];
-      }
-    } else {
-      current.push(line);
-    }
-  }
-  if (current.length > 0) {
-    runs.push(current);
-  }
-  return runs;
-}
 
 export function hasExcessiveSourceExcerpt(
   normalizedText: string,

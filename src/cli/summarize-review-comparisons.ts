@@ -189,12 +189,19 @@ export async function main(
     directory: options.missDirectory,
   });
   const missRecords = readMissRecords(missFiles);
-  const evidenceByPull = loadFreshMissEvidenceByPull({
-    records: missRecords,
-    runGh: deps.runGh ?? options.runGh ?? defaultGhRunner,
-  });
+  // Comparison-only stays offline; miss records need AC48 fresh resolvability.
+  const evidenceByPull =
+    missRecords.length === 0
+      ? new Map()
+      : loadFreshMissEvidenceByPull({
+          records: missRecords,
+          runGh: deps.runGh ?? options.runGh ?? defaultGhRunner,
+        });
   const missRollup = summarizeMissRecords(missRecords, {
-    isResolvable: buildResolvabilityChecker(evidenceByPull),
+    isResolvable:
+      missRecords.length === 0
+        ? undefined
+        : buildResolvabilityChecker(evidenceByPull),
   });
 
   console.log(

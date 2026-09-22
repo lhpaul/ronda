@@ -124,10 +124,16 @@ export async function main(
     `quality:report scope: comparisons=${loaded.comparisonRecords.length} missRecords=${loaded.missRecords.length} files=${comparisonFiles.length + missFiles.length} skipped=${loaded.skippedFiles.length}`,
   );
 
-  const evidenceByPull = loadFreshMissEvidenceByPull({
-    records: loaded.missRecords,
-    runGh: deps.runGh ?? options.runGh ?? defaultGhRunner,
-  });
+  // Comparison-only reports stay offline. When miss records are present,
+  // AC48 requires fresh read-only GitHub lookups for Ronda resolvability
+  // (#53); #56's offline-only contract applies to comparison rollups.
+  const evidenceByPull =
+    loaded.missRecords.length === 0
+      ? new Map()
+      : loadFreshMissEvidenceByPull({
+          records: loaded.missRecords,
+          runGh: deps.runGh ?? options.runGh ?? defaultGhRunner,
+        });
 
   const report = buildReviewQualityReport({
     comparisonRecords: loaded.comparisonRecords,
@@ -138,7 +144,10 @@ export async function main(
     missDirectory: options.missDirectory,
     skippedFiles: loaded.skippedFiles,
     filters: options.filters,
-    isResolvable: buildResolvabilityChecker(evidenceByPull),
+    isResolvable:
+      loaded.missRecords.length === 0
+        ? undefined
+        : buildResolvabilityChecker(evidenceByPull),
   });
 
   const jsonBody = `${JSON.stringify(report, null, 2)}\n`;
