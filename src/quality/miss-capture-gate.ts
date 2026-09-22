@@ -619,7 +619,7 @@ function resolveAutomaticFindingJudgements(input: {
   count: number;
   defaults?: AutomaticFindingJudgement;
   perFinding?: AutomaticFindingJudgement[];
-}): AutomaticFindingJudgement[] | { refuse: string } {
+}): AutomaticFindingJudgement[] {
   if (input.count === 0) {
     return [];
   }
@@ -627,12 +627,14 @@ function resolveAutomaticFindingJudgements(input: {
     const single = input.perFinding?.[0] ?? input.defaults ?? {};
     return [single];
   }
-  if (!input.perFinding || input.perFinding.length !== input.count) {
-    return {
-      refuse: `Capture refused: automatic capture found ${input.count} findings; supply --categories with ${input.count} comma-separated values (one affected category per finding). Optional --verdicts and --follow-ups must match the same count when provided.`,
-    };
+  // Multi-finding: Stage 2 is per finding (AC35). Pad missing slots with empty
+  // judgements so siblings with valid categories still write; missing/invalid
+  // categories refuse only that finding.
+  const judgements: AutomaticFindingJudgement[] = [];
+  for (let index = 0; index < input.count; index += 1) {
+    judgements.push(input.perFinding?.[index] ?? {});
   }
-  return input.perFinding;
+  return judgements;
 }
 
 /**
@@ -657,9 +659,6 @@ export function runCaptureDecisionGate(
       defaults: input.automaticDefaults,
       perFinding: input.automaticPerFinding,
     });
-    if ("refuse" in judgements) {
-      return { wholeCapture: refuse(judgements.refuse), findings: [] };
-    }
     const findings = candidates.map((candidate, index) =>
       processOneFinding({
         gate: input,

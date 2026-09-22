@@ -19,6 +19,7 @@ const BASE = "dddddddddddddddddddddddddddddddddddddddd";
 test("AC37 buildPushOrderedHeadShas prefers timeline force-push tips over commit list", () => {
   const ordered = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
+    commits: [{ sha: HEAD_C }],
     timelineEvents: [
       { event: "head_ref_force_pushed", before: HEAD_A, after: HEAD_B },
       { event: "head_ref_force_pushed", before: HEAD_B, after: HEAD_C },
@@ -27,6 +28,23 @@ test("AC37 buildPushOrderedHeadShas prefers timeline force-push tips over commit
   assert.deepEqual(ordered, [HEAD_A, HEAD_B, HEAD_C]);
 
   // With timeline tips present, push-order fallback selects B (not publish-later A).
+  assert.equal(
+    resolveRondaResultHead({
+      reviewedHeadSha: HEAD_C,
+      pushOrderedHeadShas: ordered,
+      rondaResultHeadShas: [HEAD_A, HEAD_B],
+    }),
+    HEAD_B,
+  );
+});
+
+test("AC37 ordinary linear commits provide push-order without force-push events", () => {
+  const ordered = buildPushOrderedHeadShas({
+    currentHeadSha: HEAD_C,
+    commits: [{ sha: HEAD_A }, { sha: HEAD_B }, { sha: HEAD_C }],
+    timelineEvents: [],
+  });
+  assert.deepEqual(ordered, [HEAD_A, HEAD_B, HEAD_C]);
   assert.equal(
     resolveRondaResultHead({
       reviewedHeadSha: HEAD_C,
@@ -353,9 +371,10 @@ test("readPullRequestEvidence uses timeline tips and never publish-order fallbac
   );
 });
 
-test("AC31 without force-push timeline only the current head is a known tip", () => {
+test("AC31 without commits or force-push timeline only the current head is known", () => {
   const ordered = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
+    commits: [],
     timelineEvents: [],
   });
   assert.deepEqual(ordered, [HEAD_C]);
@@ -369,29 +388,33 @@ test("AC31 without force-push timeline only the current head is a known tip", ()
   );
 });
 
-test("AC31 planted-violation fail-then-pass rejects commit-list head inference", () => {
-  const pass = buildPushOrderedHeadShas({
+test("AC31 planted-violation fail-then-pass: unknown SHA refused; commit-list heads accepted", () => {
+  const unknownOnly = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
+    commits: [],
     timelineEvents: [],
   });
-  assert.deepEqual(pass, [HEAD_C]);
-
-  const plantOrdered = [HEAD_A, HEAD_B, HEAD_C];
   assert.equal(
     isKnownPullRequestHead({
       headSha: HEAD_B,
-      pushOrderedHeadShas: plantOrdered,
-      currentHeadSha: HEAD_C,
-    }),
-    true,
-  );
-  assert.equal(
-    isKnownPullRequestHead({
-      headSha: HEAD_B,
-      pushOrderedHeadShas: pass,
+      pushOrderedHeadShas: unknownOnly,
       currentHeadSha: HEAD_C,
     }),
     false,
+  );
+
+  const withCommits = buildPushOrderedHeadShas({
+    currentHeadSha: HEAD_C,
+    commits: [{ sha: HEAD_A }, { sha: HEAD_B }, { sha: HEAD_C }],
+    timelineEvents: [],
+  });
+  assert.equal(
+    isKnownPullRequestHead({
+      headSha: HEAD_B,
+      pushOrderedHeadShas: withCommits,
+      currentHeadSha: HEAD_C,
+    }),
+    true,
   );
 });
 
@@ -539,6 +562,39 @@ test("AC17 malformed current-head review prose is unparseable", () => {
   });
   assert.equal(result.findingsOnCurrentHead.length, 0);
   assert.equal(result.unparseableOnCurrentHead, true);
+});
+
+test("review-body findings capture path:line from interpretable text", () => {
+  const runGh = (args: string[]): string => {
+    const joined = args.join(" ");
+    if (joined.includes("/reviews")) {
+      return JSON.stringify([
+        {
+          id: 77,
+          user: { login: "chatgpt-codex-connector[bot]" },
+          body: "- src/cli/report-review-quality.ts:127 live GitHub calls contradict the offline contract.",
+          commit_id: HEAD_A,
+        },
+      ]);
+    }
+    if (joined.includes("/comments")) {
+      return JSON.stringify([]);
+    }
+    throw new Error(`Unexpected: ${joined}`);
+  };
+  const result = readCodexGithubFindings({
+    repository: "lhpaul/ronda",
+    pullNumber: 53,
+    currentHeadSha: HEAD_A,
+    namedReviewer: "codex",
+    runGh,
+  });
+  assert.equal(result.findingsOnCurrentHead.length, 1);
+  assert.equal(
+    result.findingsOnCurrentHead[0]?.location,
+    "src/cli/report-review-quality.ts:127",
+  );
+  assert.equal(result.findingsOnCurrentHead[0]?.locationUnresolved, false);
 });
 
 test("AC37 fails closed when Ronda head is absent from push-order evidence", () => {

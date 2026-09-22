@@ -118,15 +118,19 @@ interface GhTimelineEvent {
   after?: string;
 }
 
+interface GhCommit {
+  sha?: string;
+}
+
 /**
- * Build push-ordered PR head tips (oldest first) from timeline head-transition
- * evidence only (`head_ref_force_pushed` before/after tips). Ordinary commit
- * lists and author timestamps are not reliable head transitions (AC31). When
- * force-push history is unavailable, only the current head is known — fail
- * closed for other heads. Never use review publish order (AC37).
+ * Build push-ordered PR head tips (oldest first). Prefer timeline
+ * `head_ref_force_pushed` before/after tips so force-pushed-away heads remain
+ * ordered; then append commits still reachable on the PR (ordinary A→B→C
+ * pushes). Never use review publish order (AC37).
  */
 export function buildPushOrderedHeadShas(input: {
   currentHeadSha: string;
+  commits?: Array<{ sha?: string }>;
   timelineEvents?: GhTimelineEvent[];
 }): string[] {
   const ordered: string[] = [];
@@ -147,6 +151,13 @@ export function buildPushOrderedHeadShas(input: {
     }
     pushUnique(event.before);
     pushUnique(event.after);
+  }
+
+  // Ordinary linear pushes: each commit still on the PR was a head tip in
+  // push order. Force-pushed-away tips not listed as commits come from
+  // timeline above.
+  for (const commit of input.commits ?? []) {
+    pushUnique(commit.sha);
   }
 
   const withoutCurrent = ordered.filter(
@@ -231,6 +242,13 @@ export function readPullRequestEvidence(input: {
 
   const { owner, repo } = splitOwnerRepo(repository);
 
+  const commitsRaw = runGh([
+    "api",
+    `repos/${owner}/${repo}/pulls/${input.pullNumber}/commits`,
+    "--paginate",
+  ]);
+  const commits = parseGhPaginatedJsonArray<GhCommit>(commitsRaw || "[]");
+
   let timelineEvents: GhTimelineEvent[] = [];
   try {
     const timelineRaw = runGh([
@@ -242,11 +260,12 @@ export function readPullRequestEvidence(input: {
       timelineRaw || "[]",
     );
   } catch {
-    // Timeline unavailable — only the current head is treated as a known tip.
+    // Timeline enrichment is best-effort; commits + fail-closed resolve remain.
   }
 
   const pushOrderedHeadShas = buildPushOrderedHeadShas({
     currentHeadSha,
+    commits,
     timelineEvents,
   });
 
@@ -449,6 +468,18 @@ export function splitCommentFindingTexts(body: string): string[] {
   );
 }
 
+/** Extract `path:line` from finding text when present (review-body findings). */
+export function extractPathLineLocation(text: string): {
+  location: string;
+  locationUnresolved: boolean;
+} | null {
+  const match = /\b([\w./-]+\.(?:[a-z0-9]{1,4}):\d+)\b/i.exec(text);
+  if (!match?.[1]) {
+    return null;
+  }
+  return { location: match[1], locationUnresolved: false };
+}
+
 function parseFindingFromComment(input: {
   comment: GhReviewComment;
   reviewOrCommentId: string;
@@ -468,8 +499,14 @@ function parseFindingFromComment(input: {
     location = path;
     locationUnresolved = true;
   } else {
-    location = "unresolved";
-    locationUnresolved = true;
+    const fromText = extractPathLineLocation(text);
+    if (fromText) {
+      location = fromText.location;
+      locationUnresolved = fromText.locationUnresolved;
+    } else {
+      location = "unresolved";
+      locationUnresolved = true;
+    }
   }
 
   const firstLine = text.split(/\r?\n/).find((lineText) => lineText.trim())?.trim();
@@ -595,12 +632,13 @@ export function readCodexGithubFindings(input: {
         .split(/\r?\n/)
         .find((line) => line.trim())
         ?.trim();
+      const fromText = extractPathLineLocation(findingText);
       findings.push({
         sourceId: `review:${reviewId}:${findingIndex}`,
         externalReviewer: review.user?.login ?? input.namedReviewer,
         reviewedHeadSha: head,
-        location: "unresolved",
-        locationUnresolved: true,
+        location: fromText?.location ?? "unresolved",
+        locationUnresolved: fromText ? fromText.locationUnresolved : true,
         title: firstLine ?? null,
         text: findingText,
       });
