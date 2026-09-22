@@ -10,6 +10,7 @@ import {
   resolveRondaResultHead,
   splitCommentFindingTexts,
 } from "../../../src/quality/miss-github-evidence.js";
+import { headsMatch } from "../../../src/quality/miss-record.js";
 
 const HEAD_A = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const HEAD_B = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -228,8 +229,8 @@ test("one comment with multiple findings yields distinct stable source positions
     runGh,
   });
   assert.equal(result.findingsOnCurrentHead.length, 2);
-  assert.equal(result.findingsOnCurrentHead[0]?.sourceId, "300:0");
-  assert.equal(result.findingsOnCurrentHead[1]?.sourceId, "300:1");
+  assert.equal(result.findingsOnCurrentHead[0]?.sourceId, "comment:300:0");
+  assert.equal(result.findingsOnCurrentHead[1]?.sourceId, "comment:300:1");
   assert.match(result.findingsOnCurrentHead[0]?.text ?? "", /Alpha/);
   assert.match(result.findingsOnCurrentHead[1]?.text ?? "", /Beta/);
 });
@@ -273,8 +274,8 @@ test("review-comment source id is stable (not findings.length position)", () => 
     runGh: runGhBoth,
   });
   assert.equal(both.findingsOnCurrentHead.length, 2);
-  assert.equal(both.findingsOnCurrentHead[0]?.sourceId, "100:0");
-  assert.equal(both.findingsOnCurrentHead[1]?.sourceId, "200:0");
+  assert.equal(both.findingsOnCurrentHead[0]?.sourceId, "comment:100:0");
+  assert.equal(both.findingsOnCurrentHead[1]?.sourceId, "comment:200:0");
 
   // Dropping the first comment must not change the second comment's source id.
   const runGhSecondOnly = (args: string[]): string => {
@@ -294,7 +295,7 @@ test("review-comment source id is stable (not findings.length position)", () => 
     namedReviewer: "codex",
     runGh: runGhSecondOnly,
   });
-  assert.equal(secondOnly.findingsOnCurrentHead[0]?.sourceId, "200:0");
+  assert.equal(secondOnly.findingsOnCurrentHead[0]?.sourceId, "comment:200:0");
 });
 
 test("readPullRequestEvidence uses timeline tips and never publish-order fallback", () => {
@@ -403,11 +404,123 @@ test("review body findings split when inline comments exist on same review", () 
     runGh,
   });
   assert.equal(result.findingsOnCurrentHead.length, 3);
-  assert.equal(result.findingsOnCurrentHead[0]?.sourceId, "301:0");
-  assert.equal(result.findingsOnCurrentHead[1]?.sourceId, "42:0");
-  assert.equal(result.findingsOnCurrentHead[2]?.sourceId, "42:1");
+  assert.equal(result.findingsOnCurrentHead[0]?.sourceId, "comment:301:0");
+  assert.equal(result.findingsOnCurrentHead[1]?.sourceId, "review:42:0");
+  assert.equal(result.findingsOnCurrentHead[2]?.sourceId, "review:42:1");
   assert.match(result.findingsOnCurrentHead[1]?.text ?? "", /Summary alpha/);
   assert.match(result.findingsOnCurrentHead[2]?.text ?? "", /Summary beta/);
+});
+
+test("AC41 comment and review numeric ids do not collide in sourceId namespace", () => {
+  const reviews = [
+    {
+      id: 100,
+      user: { login: "chatgpt-codex-connector[bot]" },
+      body: "Review-level finding",
+      commit_id: HEAD_A,
+    },
+  ];
+  const comments = [
+    {
+      id: 100,
+      user: { login: "chatgpt-codex-connector[bot]" },
+      body: "Comment-level finding",
+      path: "src/a.ts",
+      line: 1,
+      commit_id: HEAD_A,
+    },
+  ];
+  const runGh = (args: string[]): string => {
+    const joined = args.join(" ");
+    if (joined.includes("/reviews")) {
+      return JSON.stringify(reviews);
+    }
+    if (joined.includes("/comments")) {
+      return JSON.stringify(comments);
+    }
+    throw new Error(`Unexpected: ${joined}`);
+  };
+  const result = readCodexGithubFindings({
+    repository: "lhpaul/ronda",
+    pullNumber: 53,
+    currentHeadSha: HEAD_A,
+    namedReviewer: "codex",
+    runGh,
+  });
+  assert.equal(result.findingsOnCurrentHead.length, 2);
+  assert.equal(result.findingsOnCurrentHead[0]?.sourceId, "comment:100:0");
+  assert.equal(result.findingsOnCurrentHead[1]?.sourceId, "review:100:0");
+});
+
+test("AC16 clean Codex review body yields nothing_to_capture signal", () => {
+  const runGh = (args: string[]): string => {
+    const joined = args.join(" ");
+    if (joined.includes("/reviews")) {
+      return JSON.stringify([
+        {
+          id: 1,
+          user: { login: "chatgpt-codex-connector[bot]" },
+          body: "Codex Review: Didn't find any major issues. Swish!\n**Reviewed commit:** `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`",
+          commit_id: HEAD_A,
+        },
+      ]);
+    }
+    if (joined.includes("/comments")) {
+      return JSON.stringify([]);
+    }
+    throw new Error(`Unexpected: ${joined}`);
+  };
+  const result = readCodexGithubFindings({
+    repository: "lhpaul/ronda",
+    pullNumber: 53,
+    currentHeadSha: HEAD_A,
+    namedReviewer: "codex",
+    runGh,
+  });
+  assert.equal(result.findingsOnCurrentHead.length, 0);
+  assert.equal(result.unparseableOnCurrentHead, false);
+});
+
+test("mergePushOrderWithRondaHeads retains force-pushed-away Ronda result heads", () => {
+  const runGh = (args: string[]): string => {
+    const joined = args.join(" ");
+    if (joined.includes("repo view")) {
+      return "lhpaul/ronda";
+    }
+    if (args[0] === "pr" && args[1] === "view") {
+      return JSON.stringify({
+        headRefOid: HEAD_C,
+        baseRefName: "develop",
+        baseRefOid: BASE,
+      });
+    }
+    if (joined.includes("/commits")) {
+      return JSON.stringify([{ sha: HEAD_C }]);
+    }
+    if (joined.includes("/timeline")) {
+      return JSON.stringify([
+        { event: "head_ref_force_pushed", before: HEAD_B, after: HEAD_C },
+      ]);
+    }
+    if (joined.includes("/reviews")) {
+      return JSON.stringify([
+        {
+          id: 1,
+          body: `${RONDA_REVIEW_HEADING}\nB`,
+          commit_id: HEAD_B,
+        },
+      ]);
+    }
+    throw new Error(`Unexpected: ${joined}`);
+  };
+  const evidence = readPullRequestEvidence({
+    pullNumber: 53,
+    repository: "lhpaul/ronda",
+    runGh,
+  });
+  assert.ok(
+    evidence.pushOrderedHeadShas.some((sha) => headsMatch(sha, HEAD_B)),
+  );
 });
 
 test("buildResolvabilityChecker treats missing evidence as unresolvable", () => {

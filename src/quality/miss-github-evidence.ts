@@ -165,6 +165,45 @@ export function buildPushOrderedHeadShas(input: {
   return [...withoutCurrent, input.currentHeadSha];
 }
 
+/** Codex/Ronda outputs that mean "no findings on this head" (AC16), not capture text. */
+export function isCodexSilentOrCleanReviewBody(body: string): boolean {
+  const trimmed = body.trim();
+  if (!trimmed) {
+    return true;
+  }
+  if (/^no findings\.?$/i.test(trimmed)) {
+    return true;
+  }
+  if (/codex review:\s*didn't find any major issues\./i.test(trimmed)) {
+    return true;
+  }
+  if (/didn't find any major issues/i.test(trimmed)) {
+    return true;
+  }
+  if (/no blocking issues found/i.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
+function mergePushOrderWithRondaHeads(input: {
+  pushOrderedHeadShas: string[];
+  currentHeadSha: string;
+  rondaResultHeadShas: string[];
+}): string[] {
+  let ordered = [...input.pushOrderedHeadShas];
+  for (const sha of input.rondaResultHeadShas) {
+    if (ordered.some((existing) => headsMatch(existing, sha))) {
+      continue;
+    }
+    const withoutCurrent = ordered.filter(
+      (head) => !headsMatch(head, input.currentHeadSha),
+    );
+    ordered = [...withoutCurrent, sha, input.currentHeadSha];
+  }
+  return ordered;
+}
+
 /**
  * Read pull-request metadata and Ronda/Codex evidence via `gh` (read-only).
  * Injectable runner keeps unit tests off the network.
@@ -219,7 +258,7 @@ export function readPullRequestEvidence(input: {
     // Timeline enrichment is best-effort; commits + fail-closed resolve remain.
   }
 
-  const pushOrderedHeadShas = buildPushOrderedHeadShas({
+  let pushOrderedHeadShas = buildPushOrderedHeadShas({
     currentHeadSha,
     commits,
     timelineEvents,
@@ -244,6 +283,12 @@ export function readPullRequestEvidence(input: {
     }
     rondaReviewBodyByHeadSha.set(commitId, body);
   }
+
+  pushOrderedHeadShas = mergePushOrderWithRondaHeads({
+    pushOrderedHeadShas,
+    currentHeadSha,
+    rondaResultHeadShas,
+  });
 
   return {
     repository,
@@ -453,7 +498,7 @@ function parseFindingFromComment(input: {
   const title = firstLine ?? null;
 
   return {
-    sourceId: `${input.reviewOrCommentId}:${input.findingIndex}`,
+    sourceId: `comment:${input.reviewOrCommentId}:${input.findingIndex}`,
     externalReviewer: input.reviewerLogin,
     reviewedHeadSha:
       input.comment.commit_id?.trim() ||
@@ -514,7 +559,6 @@ export function readCodexGithubFindings(input: {
     codexReviews.length > 0 || codexComments.length > 0;
 
   const findings: ExternalFindingCandidate[] = [];
-  let sawCurrentHeadBody = false;
 
   for (const comment of codexComments) {
     const head =
@@ -522,9 +566,8 @@ export function readCodexGithubFindings(input: {
     if (!headsMatch(head, input.currentHeadSha)) {
       continue;
     }
-    sawCurrentHeadBody = true;
     const body = (comment.body ?? "").trim();
-    if (!body) {
+    if (!body || isCodexSilentOrCleanReviewBody(body)) {
       continue;
     }
     const commentId = String(
@@ -555,7 +598,9 @@ export function readCodexGithubFindings(input: {
     if (!body) {
       continue;
     }
-    sawCurrentHeadBody = true;
+    if (isCodexSilentOrCleanReviewBody(body)) {
+      continue;
+    }
     const reviewId = String(review.id ?? review.node_id ?? "review");
     const findingTexts = splitCommentFindingTexts(body);
     findingTexts.forEach((findingText, findingIndex) => {
@@ -564,7 +609,7 @@ export function readCodexGithubFindings(input: {
         .find((line) => line.trim())
         ?.trim();
       findings.push({
-        sourceId: `${reviewId}:${findingIndex}`,
+        sourceId: `review:${reviewId}:${findingIndex}`,
         externalReviewer: review.user?.login ?? input.namedReviewer,
         reviewedHeadSha: head,
         location: "unresolved",
@@ -575,18 +620,6 @@ export function readCodexGithubFindings(input: {
     });
   }
 
-  const unparseableOnCurrentHead =
-    sawCurrentHeadBody === false &&
-    presentOnPullRequest &&
-    codexReviews.some((review) =>
-      headsMatch(review.commit_id?.trim() ?? "", input.currentHeadSha),
-    ) &&
-    findings.length === 0;
-
-  // Stronger unparseable signal: body present on current head but empty of
-  // extractable finding text after we already saw a current-head review with
-  // only whitespace — treat as unparseable when presence is current-head-only
-  // and findings stayed empty while a non-empty marker was expected.
   const currentHeadReviews = codexReviews.filter((review) =>
     headsMatch(review.commit_id?.trim() ?? "", input.currentHeadSha),
   );
@@ -596,21 +629,22 @@ export function readCodexGithubFindings(input: {
       input.currentHeadSha,
     ),
   );
-  const hasCurrentHeadPresence =
-    currentHeadReviews.length > 0 || currentHeadComments.length > 0;
+
+  const hasNonSilentCurrentHeadOutput = [
+    ...currentHeadReviews.map((review) => (review.body ?? "").trim()),
+    ...currentHeadComments.map((comment) => (comment.body ?? "").trim()),
+  ].some((body) => body.length > 0 && !isCodexSilentOrCleanReviewBody(body));
+
+  const unparseableOnCurrentHead =
+    findings.length === 0 &&
+    presentOnPullRequest &&
+    hasNonSilentCurrentHeadOutput;
 
   return {
     supported: true,
     presentOnPullRequest,
     findingsOnCurrentHead: findings,
-    unparseableOnCurrentHead:
-      unparseableOnCurrentHead ||
-      (hasCurrentHeadPresence &&
-        findings.length === 0 &&
-        currentHeadComments.some((comment) => (comment.body ?? "").length > 0) === false &&
-        currentHeadReviews.some(
-          (review) => (review.body ?? "").trim().length > 0 && !(review.body ?? "").includes("\n"),
-        )),
+    unparseableOnCurrentHead,
   };
 }
 

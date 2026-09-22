@@ -196,7 +196,7 @@ test("automatic capture of Codex comments writes source-based record", async () 
     assert.equal(files.length, 1);
     const record = JSON.parse(readFileSync(join(dir, files[0]!), "utf8"));
     assert.equal(record.captureSource, "automatic");
-    assert.equal(record.sourceId, "99:0");
+    assert.equal(record.sourceId, "comment:99:0");
     assert.equal(record.affectedCategory, "timeouts");
   } finally {
     rmSync(dir, { recursive: true, force: true });
