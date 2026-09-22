@@ -92,6 +92,15 @@ test("AC9 planted proof: secret_assignment refuses non-placeholder assignments",
   assert.equal(findCredentialMatch("DB_PASSWORD=not-a-placeholder")?.form, "secret_assignment");
   assert.equal(findCredentialMatch("dbPassword=not-a-placeholder")?.form, "secret_assignment");
   assert.equal(findCredentialMatch("clientSecret=not-a-placeholder")?.form, "secret_assignment");
+  assert.equal(
+    findCredentialMatch("AWS_SECRET_ACCESS_KEY=supersecretvalue")?.form,
+    "secret_assignment",
+  );
+  assert.equal(
+    findCredentialMatch("AUTH_TOKEN_VALUE=supersecretvalue")?.form,
+    "secret_assignment",
+  );
+  assert.equal(findCredentialMatch("AWS_SECRET_ACCESS_KEY=REDACTED"), null);
   assert.ok(findCredentialMatch("apiKey=not-a-placeholder"));
 });
 

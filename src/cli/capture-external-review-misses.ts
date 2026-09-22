@@ -688,21 +688,26 @@ export async function main(
       };
     }
     const perFinding = buildAutomaticPerFinding(options);
+    // --categories (even a one-entry list) must stay as automaticPerFinding so
+    // AC35 can write covered findings and refuse only uncovered siblings.
+    // Singular --category remains defaults for the single-finding path.
+    const fromCategoriesList = Boolean(
+      options.categories && options.categories.length > 0,
+    );
     const result = runCaptureDecisionGate({
       path: "automatic",
       evidence,
       namedReviewer: reviewer,
       automatic: codex,
       automaticDefaults:
-        perFinding?.length === 1
+        !fromCategoriesList && perFinding?.length === 1
           ? {
               affectedCategory: perFinding[0]?.affectedCategory,
               verdict: perFinding[0]?.verdict,
               intendedFollowUp: perFinding[0]?.intendedFollowUp,
             }
           : undefined,
-      automaticPerFinding:
-        perFinding && perFinding.length > 1 ? perFinding : undefined,
+      automaticPerFinding: fromCategoriesList ? perFinding : undefined,
       existingRecords,
       corpusForHead,
       mergeBaseForHead,
