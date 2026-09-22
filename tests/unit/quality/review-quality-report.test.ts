@@ -280,3 +280,66 @@ test("markdown summary omits forbidden finding body substrings", () => {
   const markdown = formatMarkdownSummary(report);
   assert.doesNotMatch(markdown, /SUPER_SECRET_TOKEN_VALUE/);
 });
+
+test("AC48 report excludes unresolvable miss records from verdict outcomes", () => {
+  const head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const other = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  const missRecords: CapturedMissRecord[] = [
+    {
+      id: "resolvable-tp",
+      repository: "lhpaul/ronda",
+      pullNumber: 53,
+      reviewedHeadSha: head,
+      rondaResultHeadSha: head,
+      staleEvidence: false,
+      externalReviewer: "codex",
+      affectedCategory: "correctness",
+      verdict: "true_positive",
+    },
+    {
+      id: "unresolvable-tp",
+      repository: "lhpaul/ronda",
+      pullNumber: 53,
+      reviewedHeadSha: head,
+      rondaResultHeadSha: head,
+      staleEvidence: false,
+      externalReviewer: "codex",
+      affectedCategory: "correctness",
+      verdict: "true_positive",
+    },
+    {
+      id: "stale-and-unresolvable",
+      repository: "lhpaul/ronda",
+      pullNumber: 53,
+      reviewedHeadSha: other,
+      rondaResultHeadSha: head,
+      staleEvidence: true,
+      externalReviewer: "codex",
+      affectedCategory: "correctness",
+      verdict: "true_positive",
+    },
+  ];
+
+  const report = buildReviewQualityReport({
+    comparisonRecords: [],
+    missRecords,
+    comparisonFiles: [],
+    missFiles: ["m.json"],
+    comparisonDirectory: "docs/testing/ronda/comparisons",
+    missDirectory: "docs/testing/ronda/misses",
+    skippedFiles: [],
+    filters: {},
+    isResolvable: (record) => record.id === "resolvable-tp",
+  });
+
+  assert.equal(report.primaryOutcomes.true_positive.count, 1);
+  assert.equal(report.supplementary.unresolvableEvidence, 2);
+  assert.equal(report.primaryOutcomes.stale_head.count, 1);
+  assert.match(formatMarkdownSummary(report), /unresolvable_evidence: 2/);
+
+  const action = report.improvement.suggestedActions.find((entry) =>
+    /category correctness/i.test(entry.action),
+  );
+  assert.equal(action?.recordIds.length, 1);
+  assert.deepEqual(action?.recordIds, ["resolvable-tp"]);
+});

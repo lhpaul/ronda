@@ -16,6 +16,7 @@
     "benchmark:durability": "tsx src/cli/durability-regression.ts",
     "quality:comparison": "tsx src/cli/record-review-comparison.ts",
     "quality:summary": "tsx src/cli/summarize-review-comparisons.ts",
+    "quality:misses": "tsx src/cli/capture-external-review-misses.ts",
     "quality:report": "tsx src/cli/report-review-quality.ts"
   },
   "dependencies": {

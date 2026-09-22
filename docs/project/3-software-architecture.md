@@ -41,6 +41,18 @@ smoke runbook as the second tier — see
   second-reviewer comparison records. Other reviewer output is treated as a
   second opinion, not truth; external-only findings count as Ronda misses only
   after human adjudication.
+- **External-review miss records** (committed quality evidence):
+  `npm run quality:misses` captures adjudicated external findings as JSON under
+  `docs/testing/ronda/misses/`. Capture reads GitHub evidence only (no PR
+  mutation). Records store two heads (reviewed vs Ronda result), a stale
+  marker when they differ, and closed verdict/follow-up/category enums.
+  Summary and report readers resolve Ronda review resolvability fresh at read
+  time and exclude stale or unresolvable records from verdict outcomes.
+  Sensitive-content, diff-marker, and consecutive-line source scans refuse
+  unsafe free-text before any derivation, truncation, or write. Unit tests use
+  injectable `gh` seams and fixtures under
+  `tests/fixtures/external-review-misses/`; live GitHub smoke is
+  `docs/testing/ronda/capture-external-review-misses.smoke-test.md`.
 - **Smoke** (manual, against real GitHub): `docs/testing/ronda/ronda-v0-github-review.smoke-test.md`,
   covering the dogfood run against `lhpaul/ai-dev-framework-template` and
   cases impractical to stage in CI (missing credential, timeout, supersede).

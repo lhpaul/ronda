@@ -60,3 +60,21 @@ Look for:
 - External-reviewer noise that Ronda avoided.
 - Stale-head evidence that must be discarded or rerun.
 - Miss categories that should become new seeded benchmark fixtures.
+
+## Durable external-review miss capture
+
+Same-head comparison records above are the first-batch workflow. When an
+external reviewer finding should become a durable, adjudicated miss record
+(with privacy-bounded free text and closed enums), use:
+
+```bash
+npm run quality:misses -- help
+```
+
+Capture is read-only toward GitHub and writes committed JSON under
+`docs/testing/ronda/misses/`. Follow the operator smoke runbook
+[`capture-external-review-misses.smoke-test.md`](./capture-external-review-misses.smoke-test.md)
+for automatic Codex GitHub capture, manual entry, adjudication, guarded
+deletion, and quality-summary checks. Adjudication and deletion rules are
+enforced by `npm run quality:misses` only; committed miss JSON can still be
+edited outside the tooling.

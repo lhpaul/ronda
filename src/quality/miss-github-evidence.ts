@@ -1,0 +1,852 @@
+import { execFileSync } from "node:child_process";
+import { RONDA_REVIEW_HEADING } from "../core/summary.js";
+import { isCodexGithubReviewer } from "./miss-reviewer-aliases.js";
+import { headsMatch, isWellFormedCommitSha } from "./miss-record.js";
+
+export interface PullRequestEvidence {
+  repository: string;
+  pullNumber: number;
+  currentHeadSha: string;
+  baseRef: string;
+  baseSha: string;
+  /**
+   * Confirmed PR head tips in push order (oldest first): force-push timeline
+   * tips plus the current head. Used for AC31 known-head checks — intermediate
+   * commits from a multi-commit push are not tips.
+   */
+  pushOrderedHeadShas: string[];
+  /**
+   * Commits still on the PR (oldest first). Used only to order Ronda result
+   * heads for AC37 fallback when tip evidence alone cannot resolve.
+   */
+  commitOrderShas: string[];
+  /** Head SHAs for which a Ronda review result is resolvable. */
+  rondaResultHeadShas: string[];
+  /** Ronda review bodies keyed by commit id (full SHA). */
+  rondaReviewBodyByHeadSha: Map<string, string>;
+}
+
+export interface ExternalFindingCandidate {
+  sourceId: string;
+  externalReviewer: string;
+  reviewedHeadSha: string;
+  location: string;
+  locationUnresolved: boolean;
+  title: string | null;
+  text: string;
+}
+
+export interface CodexPresence {
+  supported: boolean;
+  presentOnPullRequest: boolean;
+  findingsOnCurrentHead: ExternalFindingCandidate[];
+  /** True when reviewer output on the current head exists but could not be parsed. */
+  unparseableOnCurrentHead: boolean;
+}
+
+export type GhRunner = (args: string[]) => string;
+
+export function defaultGhRunner(args: string[]): string {
+  return execFileSync("gh", args, { encoding: "utf8" }).trim();
+}
+
+/**
+ * Parse `gh api --paginate` output. Paginate emits one JSON array document per
+ * page concatenated together; a single `JSON.parse` only works for one page.
+ */
+export function parseGhPaginatedJsonArray<T>(raw: string): T[] {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed as T[];
+    }
+    return [parsed as T];
+  } catch {
+    // Concatenated page arrays: `[{...}][{...}]` → one flat array.
+    const merged = `[${trimmed
+      .replace(/^\s*\[/, "")
+      .replace(/\]\s*$/, "")
+      .replace(/\]\s*\[/g, ",")}]`;
+    const parsed = JSON.parse(merged) as unknown;
+    if (!Array.isArray(parsed)) {
+      throw new Error(
+        "Expected gh api --paginate output to be one or more JSON arrays",
+      );
+    }
+    return parsed as T[];
+  }
+}
+
+export function splitOwnerRepo(repository: string): {
+  owner: string;
+  repo: string;
+} {
+  const [owner, repo] = repository.split("/");
+  if (!owner || !repo) {
+    throw new Error(`Invalid repository '${repository}'; expected owner/repo`);
+  }
+  return { owner, repo };
+}
+
+interface GhPullView {
+  headRefOid?: string;
+  baseRefName?: string;
+  baseRefOid?: string;
+  url?: string;
+}
+
+interface GhReview {
+  id?: number | string;
+  node_id?: string;
+  user?: { login?: string } | null;
+  body?: string | null;
+  commit_id?: string | null;
+  submitted_at?: string | null;
+  state?: string | null;
+}
+
+interface GhReviewComment {
+  id?: number | string;
+  user?: { login?: string } | null;
+  body?: string | null;
+  path?: string | null;
+  line?: number | null;
+  original_line?: number | null;
+  commit_id?: string | null;
+  original_commit_id?: string | null;
+  pull_request_review_id?: number | null;
+}
+
+interface GhTimelineEvent {
+  event?: string;
+  before?: string;
+  after?: string;
+}
+
+interface GhCommit {
+  sha?: string;
+}
+
+/**
+ * Build confirmed PR head tips (oldest first) from timeline
+ * `head_ref_force_pushed` before/after tips, always ending with the current
+ * head. Does **not** treat every commits-API entry as a tip (AC31): a
+ * multi-commit initial push exposes intermediate commits that were never
+ * heads. Ordinary A→B→C tip ordering for AC37 uses
+ * {@link resolveRondaResultHead}'s commit-order fallback among Ronda-reviewed
+ * SHAs instead. Never use review publish order.
+ */
+export function buildPushOrderedHeadShas(input: {
+  currentHeadSha: string;
+  timelineEvents?: GhTimelineEvent[];
+}): string[] {
+  const ordered: string[] = [];
+  const pushUnique = (sha: string | undefined): void => {
+    const trimmed = sha?.trim() ?? "";
+    if (!trimmed) {
+      return;
+    }
+    if (ordered.some((existing) => headsMatch(existing, trimmed))) {
+      return;
+    }
+    ordered.push(trimmed);
+  };
+
+  for (const event of input.timelineEvents ?? []) {
+    if (event.event !== "head_ref_force_pushed") {
+      continue;
+    }
+    pushUnique(event.before);
+    pushUnique(event.after);
+  }
+
+  const withoutCurrent = ordered.filter(
+    (sha) => !headsMatch(sha, input.currentHeadSha),
+  );
+  return [...withoutCurrent, input.currentHeadSha];
+}
+
+/** Oldest-first SHAs from the PR commits endpoint (paginated pages flattened). */
+export function buildCommitOrderShas(
+  commits: Array<{ sha?: string }> | undefined,
+): string[] {
+  const ordered: string[] = [];
+  for (const commit of commits ?? []) {
+    const trimmed = commit.sha?.trim() ?? "";
+    if (!trimmed) {
+      continue;
+    }
+    if (ordered.some((existing) => headsMatch(existing, trimmed))) {
+      continue;
+    }
+    ordered.push(trimmed);
+  }
+  return ordered;
+}
+
+/** Strip Codex review footers before clean/silent classification. */
+export function normalizeCodexReviewBodyForClassification(body: string): string {
+  return body
+    .split(/\r?\n/)
+    .filter((line) => !/^\*\*Reviewed commit:\*\*/i.test(line.trim()))
+    .join("\n")
+    .trim();
+}
+
+/** Codex outputs that mean "no findings on this head" (AC16), not capture text. */
+export function isCodexSilentOrCleanReviewBody(body: string): boolean {
+  const trimmed = normalizeCodexReviewBodyForClassification(body);
+  if (!trimmed) {
+    return true;
+  }
+  if (/^no findings\.?$/i.test(trimmed)) {
+    return true;
+  }
+  if (/^codex review:\s*didn't find any major issues\.?\s*$/i.test(trimmed)) {
+    return true;
+  }
+  if (/^no blocking issues found\.?\s*$/i.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
+/** Whether automatic reading can treat review text as a structured finding (AC17). */
+export function isInterpretableAutomaticFindingText(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (/^(\*\s+|-\s+|\d+\.\s+)/m.test(trimmed)) {
+    return true;
+  }
+  if (/\b[\w./-]+\.(?:[a-z0-9]{1,4}):\d+\b/i.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Read pull-request metadata and Ronda/Codex evidence via `gh` (read-only).
+ * Injectable runner keeps unit tests off the network.
+ */
+export function readPullRequestEvidence(input: {
+  pullNumber: number;
+  repository?: string;
+  runGh?: GhRunner;
+}): PullRequestEvidence {
+  const runGh = input.runGh ?? defaultGhRunner;
+  const repository =
+    input.repository ??
+    runGh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
+  if (!repository) {
+    throw new Error("Could not resolve repository; pass --repository");
+  }
+
+  const viewRaw = runGh([
+    "pr",
+    "view",
+    String(input.pullNumber),
+    "--json",
+    "headRefOid,baseRefName,baseRefOid,url",
+    "--repo",
+    repository,
+  ]);
+  const view = JSON.parse(viewRaw) as GhPullView;
+  const currentHeadSha = view.headRefOid?.trim() ?? "";
+  if (!currentHeadSha) {
+    throw new Error("Could not resolve PR head SHA");
+  }
+
+  const { owner, repo } = splitOwnerRepo(repository);
+
+  const commitsRaw = runGh([
+    "api",
+    `repos/${owner}/${repo}/pulls/${input.pullNumber}/commits`,
+    "--paginate",
+  ]);
+  const commits = parseGhPaginatedJsonArray<GhCommit>(commitsRaw || "[]");
+
+  let timelineEvents: GhTimelineEvent[] = [];
+  try {
+    const timelineRaw = runGh([
+      "api",
+      `repos/${owner}/${repo}/issues/${input.pullNumber}/timeline`,
+      "--paginate",
+    ]);
+    timelineEvents = parseGhPaginatedJsonArray<GhTimelineEvent>(
+      timelineRaw || "[]",
+    );
+  } catch {
+    // Timeline enrichment is best-effort; tip list falls back to current head.
+  }
+
+  const pushOrderedHeadShas = buildPushOrderedHeadShas({
+    currentHeadSha,
+    timelineEvents,
+  });
+  const commitOrderShas = buildCommitOrderShas(commits);
+
+  const reviewsRaw = runGh([
+    "api",
+    `repos/${owner}/${repo}/pulls/${input.pullNumber}/reviews`,
+    "--paginate",
+  ]);
+  const reviews = parseGhPaginatedJsonArray<GhReview>(reviewsRaw || "[]");
+  const rondaResultHeadShas: string[] = [];
+  const rondaReviewBodyByHeadSha = new Map<string, string>();
+  for (const review of reviews) {
+    const body = review.body ?? "";
+    const commitId = review.commit_id?.trim() ?? "";
+    if (!commitId || !body.includes(RONDA_REVIEW_HEADING)) {
+      continue;
+    }
+    if (!rondaResultHeadShas.some((sha) => headsMatch(sha, commitId))) {
+      rondaResultHeadShas.push(commitId);
+    }
+    rondaReviewBodyByHeadSha.set(commitId, body);
+  }
+
+  return {
+    repository,
+    pullNumber: input.pullNumber,
+    currentHeadSha,
+    baseRef: view.baseRefName ?? "",
+    baseSha: view.baseRefOid ?? "",
+    pushOrderedHeadShas,
+    commitOrderShas,
+    rondaResultHeadShas,
+    rondaReviewBodyByHeadSha,
+  };
+}
+
+export function rondaReviewBodyForHead(input: {
+  headSha: string;
+  rondaReviewBodyByHeadSha: Map<string, string>;
+}): string | null {
+  for (const [commitId, body] of input.rondaReviewBodyByHeadSha) {
+    if (headsMatch(commitId, input.headSha)) {
+      return body;
+    }
+  }
+  return null;
+}
+
+/**
+ * Resolve the Ronda result head for a reviewed head (AC37):
+ * 1. Same-head Ronda result wins.
+ * 2. Otherwise the newest confirmed tip (force-push timeline / current) that
+ *    has a Ronda result.
+ * 3. Otherwise, among Ronda result SHAs that appear in the PR commit list,
+ *    the latest in commit order (ordinary A→B→C pushes with no force-push
+ *    tip events). Never use review publish order.
+ */
+export function resolveRondaResultHead(input: {
+  reviewedHeadSha: string;
+  pushOrderedHeadShas: string[];
+  rondaResultHeadShas: string[];
+  commitOrderShas?: string[];
+}): string | null {
+  if (input.rondaResultHeadShas.length === 0) {
+    return null;
+  }
+
+  const sameHead = input.rondaResultHeadShas.find((sha) =>
+    headsMatch(sha, input.reviewedHeadSha),
+  );
+  if (sameHead) {
+    return sameHead;
+  }
+
+  // Walk tip order from newest to oldest; first Ronda-bearing tip wins.
+  for (let index = input.pushOrderedHeadShas.length - 1; index >= 0; index -= 1) {
+    const head = input.pushOrderedHeadShas[index] ?? "";
+    const match = input.rondaResultHeadShas.find((sha) => headsMatch(sha, head));
+    if (match) {
+      return match;
+    }
+  }
+
+  // Ordinary multi-push history without force-push tip events: order only
+  // among SHAs that both have a Ronda result and appear on the PR commits list.
+  const commitOrder = input.commitOrderShas ?? [];
+  if (commitOrder.length > 0) {
+    for (let index = commitOrder.length - 1; index >= 0; index -= 1) {
+      const sha = commitOrder[index] ?? "";
+      if (headsMatch(sha, input.reviewedHeadSha)) {
+        continue;
+      }
+      const match = input.rondaResultHeadShas.find((result) =>
+        headsMatch(result, sha),
+      );
+      if (match) {
+        return match;
+      }
+    }
+  }
+
+  // Fail closed: never fall back to reviews-endpoint / publish order.
+  return null;
+}
+
+export function isResolvableRondaHead(input: {
+  rondaResultHeadSha: string;
+  rondaResultHeadShas: string[];
+}): boolean {
+  return input.rondaResultHeadShas.some((sha) =>
+    headsMatch(sha, input.rondaResultHeadSha),
+  );
+}
+
+/**
+ * Build a resolvability checker from freshly loaded PR evidence keyed by
+ * repository#pullNumber. When evidence is missing, the record is unresolvable.
+ */
+export function buildResolvabilityChecker(
+  evidenceByPull: Map<string, Pick<PullRequestEvidence, "rondaResultHeadShas">>,
+): (record: {
+  repository: string;
+  pullNumber: number;
+  rondaResultHeadSha: string;
+}) => boolean {
+  return (record) => {
+    const key = `${record.repository}#${record.pullNumber}`;
+    const evidence = evidenceByPull.get(key);
+    if (!evidence) {
+      return false;
+    }
+    return isResolvableRondaHead({
+      rondaResultHeadSha: record.rondaResultHeadSha,
+      rondaResultHeadShas: evidence.rondaResultHeadShas,
+    });
+  };
+}
+
+/**
+ * Load fresh Ronda result-head evidence per repository#pullNumber. Missing or
+ * failed lookups leave the key absent so {@link buildResolvabilityChecker}
+ * treats those records as unresolvable (AC48).
+ */
+export function loadFreshMissEvidenceByPull(input: {
+  records: Array<{ repository: string; pullNumber: number }>;
+  runGh?: GhRunner;
+}): Map<string, Pick<PullRequestEvidence, "rondaResultHeadShas">> {
+  const evidenceByPull = new Map<
+    string,
+    Pick<PullRequestEvidence, "rondaResultHeadShas">
+  >();
+  const runGh = input.runGh ?? defaultGhRunner;
+  for (const record of input.records) {
+    const key = `${record.repository}#${record.pullNumber}`;
+    if (evidenceByPull.has(key)) {
+      continue;
+    }
+    try {
+      const evidence = readPullRequestEvidence({
+        pullNumber: record.pullNumber,
+        repository: record.repository,
+        runGh,
+      });
+      evidenceByPull.set(key, {
+        rondaResultHeadShas: evidence.rondaResultHeadShas,
+      });
+    } catch {
+      // Absent key → unresolvable at summary/report time (fail closed for AC48).
+    }
+  }
+  return evidenceByPull;
+}
+
+export function isKnownPullRequestHead(input: {
+  headSha: string;
+  pushOrderedHeadShas: string[];
+  currentHeadSha: string;
+  /** Heads with a resolvable Ronda review — each was a PR head when reviewed. */
+  rondaResultHeadShas?: string[];
+}): boolean {
+  // Malformed abbreviations (too short / non-hex) never count as known (AC31).
+  if (!isWellFormedCommitSha(input.headSha)) {
+    return false;
+  }
+  if (headsMatch(input.headSha, input.currentHeadSha)) {
+    return true;
+  }
+  if (
+    input.rondaResultHeadShas?.some((sha) => headsMatch(sha, input.headSha))
+  ) {
+    return true;
+  }
+  return input.pushOrderedHeadShas.some((sha) => headsMatch(sha, input.headSha));
+}
+
+/**
+ * Split one review comment body into distinct finding texts when the reviewer
+ * published multiple bullet/numbered items in a single comment.
+ */
+export function splitCommentFindingTexts(body: string): string[] {
+  const trimmed = body.trim();
+  if (!trimmed) {
+    return [];
+  }
+  const lines = trimmed.split(/\r?\n/);
+  const segments: string[] = [];
+  let current: string[] = [];
+  const isItemStart = (line: string): boolean =>
+    /^(\*\s+|-\s+|\d+\.\s+)/.test(line.trim());
+
+  for (const line of lines) {
+    if (isItemStart(line) && current.length > 0) {
+      segments.push(current.join("\n").trim());
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length > 0) {
+    segments.push(current.join("\n").trim());
+  }
+
+  const nonEmpty = segments.filter((segment) => segment.length > 0);
+  if (nonEmpty.length <= 1) {
+    return [trimmed];
+  }
+  const mapped = nonEmpty.map((segment) =>
+    segment.replace(/^(\*\s+|-\s+|\d+\.\s+)/, "").trim(),
+  );
+  // Drop introductory prose before the first bullet/numbered item.
+  if (mapped.length > 1 && !isItemStart(nonEmpty[0] ?? "")) {
+    return mapped.slice(1);
+  }
+  return mapped;
+}
+
+/** Extract `path:line` from finding text when present (review-body findings). */
+export function extractPathLineLocation(text: string): {
+  location: string;
+  locationUnresolved: boolean;
+} | null {
+  const match = /\b([\w./-]+\.(?:[a-z0-9]{1,4}):\d+)\b/i.exec(text);
+  if (!match?.[1]) {
+    return null;
+  }
+  return { location: match[1], locationUnresolved: false };
+}
+
+function parseFindingFromComment(input: {
+  comment: GhReviewComment;
+  reviewOrCommentId: string;
+  findingIndex: number;
+  reviewerLogin: string;
+  textOverride?: string;
+}): ExternalFindingCandidate {
+  const text = (input.textOverride ?? input.comment.body ?? "").trim();
+  const path = input.comment.path?.trim() ?? "";
+  const line = input.comment.line ?? input.comment.original_line;
+  let location: string;
+  let locationUnresolved: boolean;
+  if (path && typeof line === "number" && line > 0) {
+    location = `${path}:${line}`;
+    locationUnresolved = false;
+  } else if (path) {
+    location = path;
+    locationUnresolved = true;
+  } else {
+    const fromText = extractPathLineLocation(text);
+    if (fromText) {
+      location = fromText.location;
+      locationUnresolved = fromText.locationUnresolved;
+    } else {
+      location = "unresolved";
+      locationUnresolved = true;
+    }
+  }
+
+  const firstLine = text.split(/\r?\n/).find((lineText) => lineText.trim())?.trim();
+  // Pass the full first-line title candidate; the capture gate scans before
+  // truncating to 120 characters for storage.
+  const title = firstLine ?? null;
+
+  return {
+    sourceId: `comment:${input.reviewOrCommentId}:${input.findingIndex}`,
+    externalReviewer: input.reviewerLogin,
+    reviewedHeadSha:
+      input.comment.commit_id?.trim() ||
+      input.comment.original_commit_id?.trim() ||
+      "",
+    location,
+    locationUnresolved,
+    title,
+    text,
+  };
+}
+
+/**
+ * Read Codex GitHub reviewer presence and current-head findings.
+ */
+export function readCodexGithubFindings(input: {
+  repository: string;
+  pullNumber: number;
+  currentHeadSha: string;
+  namedReviewer: string;
+  runGh?: GhRunner;
+}): CodexPresence {
+  const runGh = input.runGh ?? defaultGhRunner;
+
+  if (!isCodexGithubReviewer(input.namedReviewer)) {
+    return {
+      supported: false,
+      presentOnPullRequest: false,
+      findingsOnCurrentHead: [],
+      unparseableOnCurrentHead: false,
+    };
+  }
+
+  const { owner, repo } = splitOwnerRepo(input.repository);
+  const reviewsRaw = runGh([
+    "api",
+    `repos/${owner}/${repo}/pulls/${input.pullNumber}/reviews`,
+    "--paginate",
+  ]);
+  const commentsRaw = runGh([
+    "api",
+    `repos/${owner}/${repo}/pulls/${input.pullNumber}/comments`,
+    "--paginate",
+  ]);
+  const reviews = parseGhPaginatedJsonArray<GhReview>(reviewsRaw || "[]");
+  const comments = parseGhPaginatedJsonArray<GhReviewComment>(
+    commentsRaw || "[]",
+  );
+
+  const codexReviews = reviews.filter((review) =>
+    isCodexGithubReviewer(review.user?.login ?? ""),
+  );
+  const codexComments = comments.filter((comment) =>
+    isCodexGithubReviewer(comment.user?.login ?? ""),
+  );
+
+  const presentOnPullRequest =
+    codexReviews.length > 0 || codexComments.length > 0;
+
+  const findings: ExternalFindingCandidate[] = [];
+
+  for (const comment of codexComments) {
+    const head =
+      comment.commit_id?.trim() || comment.original_commit_id?.trim() || "";
+    if (!headsMatch(head, input.currentHeadSha)) {
+      continue;
+    }
+    const body = (comment.body ?? "").trim();
+    if (!body || isCodexSilentOrCleanReviewBody(body)) {
+      continue;
+    }
+    const commentId = String(
+      comment.id ?? comment.pull_request_review_id ?? "comment",
+    );
+    const findingTexts = splitCommentFindingTexts(body);
+    findingTexts.forEach((findingText, findingIndex) => {
+      findings.push(
+        parseFindingFromComment({
+          comment,
+          reviewOrCommentId: commentId,
+          findingIndex,
+          reviewerLogin: comment.user?.login ?? input.namedReviewer,
+          textOverride: findingText,
+        }),
+      );
+    });
+  }
+
+  // Review-level bodies without inline comments: treat as a single finding when
+  // on the current head and body is non-empty.
+  for (const review of codexReviews) {
+    const head = review.commit_id?.trim() ?? "";
+    if (!headsMatch(head, input.currentHeadSha)) {
+      continue;
+    }
+    const body = (review.body ?? "").trim();
+    if (!body) {
+      continue;
+    }
+    if (isCodexSilentOrCleanReviewBody(body)) {
+      continue;
+    }
+    const reviewId = String(review.id ?? review.node_id ?? "review");
+    const findingTexts = splitCommentFindingTexts(body);
+    const structuredReviewBody = /^(\*\s+|-\s+|\d+\.\s+)/m.test(body);
+    findingTexts.forEach((findingText, findingIndex) => {
+      if (
+        !structuredReviewBody &&
+        !isInterpretableAutomaticFindingText(findingText)
+      ) {
+        return;
+      }
+      const firstLine = findingText
+        .split(/\r?\n/)
+        .find((line) => line.trim())
+        ?.trim();
+      const fromText = extractPathLineLocation(findingText);
+      findings.push({
+        sourceId: `review:${reviewId}:${findingIndex}`,
+        externalReviewer: review.user?.login ?? input.namedReviewer,
+        reviewedHeadSha: head,
+        location: fromText?.location ?? "unresolved",
+        locationUnresolved: fromText ? fromText.locationUnresolved : true,
+        title: firstLine ?? null,
+        text: findingText,
+      });
+    });
+  }
+
+  const currentHeadReviews = codexReviews.filter((review) =>
+    headsMatch(review.commit_id?.trim() ?? "", input.currentHeadSha),
+  );
+  const currentHeadComments = codexComments.filter((comment) =>
+    headsMatch(
+      comment.commit_id?.trim() || comment.original_commit_id?.trim() || "",
+      input.currentHeadSha,
+    ),
+  );
+
+  const hasNonSilentCurrentHeadOutput = [
+    ...currentHeadReviews.map((review) => (review.body ?? "").trim()),
+    ...currentHeadComments.map((comment) => (comment.body ?? "").trim()),
+  ].some((body) => body.length > 0 && !isCodexSilentOrCleanReviewBody(body));
+
+  const unparseableOnCurrentHead =
+    findings.length === 0 &&
+    presentOnPullRequest &&
+    hasNonSilentCurrentHeadOutput;
+
+  return {
+    supported: true,
+    presentOnPullRequest,
+    findingsOnCurrentHead: findings,
+    unparseableOnCurrentHead,
+  };
+}
+
+/**
+ * Resolve a fresh merge-base of reviewed head and base-branch tip at capture
+ * time (AC54). Never reuse a prior capture's merge-base.
+ */
+export function resolveFreshMergeBase(input: {
+  repository: string;
+  reviewedHeadSha: string;
+  baseRef: string;
+  runGh?: GhRunner;
+}): string {
+  const runGh = input.runGh ?? defaultGhRunner;
+  const { owner, repo } = splitOwnerRepo(input.repository);
+
+  // Resolve base branch tip at capture time.
+  const baseTip = runGh([
+    "api",
+    `repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(input.baseRef)}`,
+    "--jq",
+    ".object.sha",
+  ]).trim();
+  if (!baseTip) {
+    throw new Error(`Could not resolve base branch tip for ${input.baseRef}`);
+  }
+
+  const mergeBase = runGh([
+    "api",
+    `repos/${owner}/${repo}/compare/${baseTip}...${input.reviewedHeadSha}`,
+    "--jq",
+    ".merge_base_commit.sha",
+  ]).trim();
+  if (!mergeBase) {
+    throw new Error(
+      `Could not resolve merge-base for ${input.reviewedHeadSha} and ${input.baseRef}`,
+    );
+  }
+  return mergeBase;
+}
+
+export function readSourceScanCorpus(input: {
+  repository: string;
+  pullNumber: number;
+  reviewedHeadSha: string;
+  mergeBaseSha: string;
+  runGh?: GhRunner;
+}): { changedFileContents: string[]; diffText: string } {
+  const runGh = input.runGh ?? defaultGhRunner;
+  const { owner, repo } = splitOwnerRepo(input.repository);
+
+  const compareRaw = runGh([
+    "api",
+    `repos/${owner}/${repo}/compare/${input.mergeBaseSha}...${input.reviewedHeadSha}`,
+  ]);
+  const compare = JSON.parse(compareRaw || "{}") as {
+    files?: Array<{ filename?: string; patch?: string; status?: string }>;
+  };
+
+  if ((compare.files?.length ?? 0) >= 300) {
+    throw new Error(
+      "Incomplete diff evidence: compare response reached GitHub's 300-file limit; capture refused.",
+    );
+  }
+
+  const diffParts: string[] = [];
+  const changedFileContents: string[] = [];
+
+  for (const file of compare.files ?? []) {
+    const filename = file.filename ?? "";
+    // Fail closed for AC10/AC38: a missing patch leaves diff-marker / copied-
+    // hunk scanning incomplete (removed files have no head-blob fallback).
+    if (!file.patch) {
+      throw new Error(
+        `Incomplete diff evidence: compare entry for '${
+          filename || "(unnamed)"
+        }' has no patch; capture refused.`,
+      );
+    }
+    diffParts.push(`diff --git a/${filename} b/${filename}`);
+    diffParts.push(file.patch);
+    if (!filename || file.status === "removed") {
+      continue;
+    }
+    // Fail closed (sensitive-content scan): every non-removed changed file must
+    // contribute readable content, or the corpus is incomplete and capture must
+    // refuse rather than under-scan.
+    const encoded = filename
+      .split("/")
+      .map((part) => encodeURIComponent(part))
+      .join("/");
+    let contentRaw: string;
+    try {
+      contentRaw = runGh([
+        "api",
+        `repos/${owner}/${repo}/contents/${encoded}?ref=${input.reviewedHeadSha}`,
+      ]);
+    } catch (error: unknown) {
+      throw new Error(
+        `Blob lookup failed for changed file '${filename}' at ${input.reviewedHeadSha}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        { cause: error },
+      );
+    }
+    const content = JSON.parse(contentRaw || "{}") as {
+      content?: string;
+      encoding?: string;
+    };
+    if (content.encoding !== "base64" || !content.content) {
+      throw new Error(
+        `Blob lookup returned unreadable content for changed file '${filename}' at ${input.reviewedHeadSha}`,
+      );
+    }
+    changedFileContents.push(
+      Buffer.from(content.content.replace(/\n/g, ""), "base64").toString("utf8"),
+    );
+  }
+
+  return {
+    changedFileContents,
+    diffText: diffParts.join("\n"),
+  };
+}

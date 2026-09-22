@@ -65,5 +65,36 @@ npm run quality:report
 npm run quality:report -- --repository lhpaul/ronda --format both --out /tmp/ronda-quality-report.json
 ```
 
-`quality:summary` remains a legacy comparison-only rollup; prefer
+`quality:summary` remains a legacy comparison rollup (now also includes miss
+counts when `docs/testing/ronda/misses/` has records); prefer
 `quality:report` for spec-complete reporting.
+
+### Capture external-review misses
+
+Turn an external reviewer's finding that Ronda stayed quiet about into a
+durable, privacy-bounded eval record under `docs/testing/ronda/misses/`.
+Capture is **read-only toward GitHub** — it never posts comments, reviews,
+labels, or state changes.
+
+```bash
+# Automatic Codex GitHub capture (category required)
+npm run quality:misses -- capture --pr <n> --reviewer codex --category timeouts
+
+# Manual entry when automatic reading cannot return the finding
+npm run quality:misses -- capture-manual --pr <n> --reviewer <name> \
+  --location 'src/file.ts:12' --text 'Finding text' --category correctness
+
+# Read, adjudicate, or guarded-delete records
+npm run quality:misses -- read
+npm run quality:misses -- adjudicate --id <id> --verdict true_positive \
+  --follow-up eval_record --rationale 'Confirmed miss'
+npm run quality:misses -- delete --id <id>
+
+npm run quality:misses -- help
+```
+
+Operator smoke runbook:
+[`docs/testing/ronda/capture-external-review-misses.smoke-test.md`](docs/testing/ronda/capture-external-review-misses.smoke-test.md).
+Adjudication and deletion rules are enforced by `quality:misses` only;
+committed JSON under `docs/testing/ronda/misses/` can still be edited outside
+the tooling.

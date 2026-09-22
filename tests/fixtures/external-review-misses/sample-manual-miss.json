@@ -1,0 +1,19 @@
+{
+  "id": "lhpaul-ronda-pr-53-manual-sample",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 53,
+  "reviewedHeadSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "rondaResultHeadSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "staleEvidence": false,
+  "externalReviewer": "human-reviewer",
+  "location": "src/example.ts:10",
+  "locationUnresolved": false,
+  "title": "Missing idempotency key on retry.",
+  "text": "Missing idempotency key on retry.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "idempotency",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null
+}
