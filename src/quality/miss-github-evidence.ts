@@ -112,25 +112,22 @@ interface GhReviewComment {
   pull_request_review_id?: number | null;
 }
 
-interface GhCommit {
-  sha?: string;
-}
-
 interface GhTimelineEvent {
   event?: string;
   before?: string;
   after?: string;
+  sha?: string;
 }
 
 /**
- * Build push-ordered PR head tips (oldest first). Prefer timeline
- * `head_ref_force_pushed` before/after tips so force-pushed-away heads remain
- * ordered; then append commits still reachable on the PR. Never use review
- * publish order (AC37).
+ * Build push-ordered PR head tips (oldest first) from timeline head-transition
+ * evidence only (`committed`, `head_ref_force_pushed`). Intermediate commits on
+ * the PR that were never branch tips are excluded (AC31). When timeline evidence
+ * is missing, only the current head is known — fail closed for other heads.
+ * Never use review publish order (AC37).
  */
 export function buildPushOrderedHeadShas(input: {
   currentHeadSha: string;
-  commits: Array<{ sha?: string }>;
   timelineEvents?: GhTimelineEvent[];
 }): string[] {
   const ordered: string[] = [];
@@ -146,17 +143,14 @@ export function buildPushOrderedHeadShas(input: {
   };
 
   for (const event of input.timelineEvents ?? []) {
-    if (event.event !== "head_ref_force_pushed") {
+    if (event.event === "head_ref_force_pushed") {
+      pushUnique(event.before);
+      pushUnique(event.after);
       continue;
     }
-    pushUnique(event.before);
-    pushUnique(event.after);
-  }
-
-  // Ordinary linear pushes: each commit on the PR was a head in push order.
-  // Force-pushed-away tips not still listed as commits come from timeline above.
-  for (const commit of input.commits) {
-    pushUnique(commit.sha);
+    if (event.event === "committed") {
+      pushUnique(event.sha);
+    }
   }
 
   const withoutCurrent = ordered.filter(
@@ -219,12 +213,6 @@ export function readPullRequestEvidence(input: {
   }
 
   const { owner, repo } = splitOwnerRepo(repository);
-  const commitsRaw = runGh([
-    "api",
-    `repos/${owner}/${repo}/pulls/${input.pullNumber}/commits`,
-    "--paginate",
-  ]);
-  const commits = parseGhPaginatedJsonArray<GhCommit>(commitsRaw || "[]");
 
   let timelineEvents: GhTimelineEvent[] = [];
   try {
@@ -237,12 +225,11 @@ export function readPullRequestEvidence(input: {
       timelineRaw || "[]",
     );
   } catch {
-    // Timeline enrichment is best-effort; commits + fail-closed resolve remain.
+    // Timeline unavailable — only the current head is treated as a known tip.
   }
 
   const pushOrderedHeadShas = buildPushOrderedHeadShas({
     currentHeadSha,
-    commits,
     timelineEvents,
   });
 

@@ -1,6 +1,7 @@
 import {
   adjudicateMissRecord,
   canDeleteMissRecord,
+  evaluateCaptureStage1ThroughCondition3,
   runCaptureDecisionGate,
   type CaptureGateResult,
 } from "../quality/miss-capture-gate.js";
@@ -16,6 +17,7 @@ import {
   defaultGhRunner,
   isResolvableRondaHead,
   readCodexGithubFindings,
+  type CodexPresence,
   readPullRequestEvidence,
   rondaReviewBodyForHead,
   readSourceScanCorpus,
@@ -657,13 +659,34 @@ export async function main(
 
   if (options.command === "capture-automatic") {
     const reviewer = options.reviewer ?? "";
-    const codex = readCodexGithubFindings({
-      repository: evidence.repository,
-      pullNumber: evidence.pullNumber,
-      currentHeadSha: evidence.currentHeadSha,
+    const stage1Through3 = evaluateCaptureStage1ThroughCondition3({
+      evidence,
       namedReviewer: reviewer,
-      runGh: options.runGh,
     });
+    if (stage1Through3) {
+      const refused = { wholeCapture: stage1Through3, findings: [] };
+      persistResult(refused, options.dir);
+      printCaptureResult(evidence, refused);
+      return 1;
+    }
+
+    let codex: CodexPresence;
+    try {
+      codex = readCodexGithubFindings({
+        repository: evidence.repository,
+        pullNumber: evidence.pullNumber,
+        currentHeadSha: evidence.currentHeadSha,
+        namedReviewer: reviewer,
+        runGh: options.runGh,
+      });
+    } catch {
+      codex = {
+        supported: true,
+        presentOnPullRequest: false,
+        findingsOnCurrentHead: [],
+        unparseableOnCurrentHead: false,
+      };
+    }
     const perFinding = buildAutomaticPerFinding(options);
     const result = runCaptureDecisionGate({
       path: "automatic",

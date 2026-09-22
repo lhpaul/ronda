@@ -4,6 +4,7 @@ import { RONDA_REVIEW_HEADING } from "../../../src/core/summary.js";
 import {
   buildPushOrderedHeadShas,
   buildResolvabilityChecker,
+  isKnownPullRequestHead,
   readCodexGithubFindings,
   readPullRequestEvidence,
   readSourceScanCorpus,
@@ -15,10 +16,9 @@ const HEAD_B = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const HEAD_C = "cccccccccccccccccccccccccccccccccccccccc";
 const BASE = "dddddddddddddddddddddddddddddddddddddddd";
 
-test("AC37 buildPushOrderedHeadShas prefers timeline force-push tips over commits alone", () => {
+test("AC37 buildPushOrderedHeadShas prefers timeline force-push tips over commit list", () => {
   const ordered = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
-    commits: [{ sha: HEAD_C }],
     timelineEvents: [
       { event: "head_ref_force_pushed", before: HEAD_A, after: HEAD_B },
       { event: "head_ref_force_pushed", before: HEAD_B, after: HEAD_C },
@@ -353,13 +353,32 @@ test("readPullRequestEvidence uses timeline tips and never publish-order fallbac
   );
 });
 
-test("AC37 buildPushOrderedHeadShas uses commits for linear push history", () => {
+test("AC37 buildPushOrderedHeadShas uses timeline committed events for linear pushes", () => {
   const ordered = buildPushOrderedHeadShas({
     currentHeadSha: HEAD_C,
-    commits: [{ sha: HEAD_A }, { sha: HEAD_B }, { sha: HEAD_C }],
-    timelineEvents: [],
+    timelineEvents: [
+      { event: "committed", sha: HEAD_A },
+      { event: "committed", sha: HEAD_B },
+      { event: "committed", sha: HEAD_C },
+    ],
   });
   assert.deepEqual(ordered, [HEAD_A, HEAD_B, HEAD_C]);
+});
+
+test("AC31 buildPushOrderedHeadShas ignores commits that were never PR heads", () => {
+  const ordered = buildPushOrderedHeadShas({
+    currentHeadSha: HEAD_C,
+    timelineEvents: [{ event: "committed", sha: HEAD_C }],
+  });
+  assert.deepEqual(ordered, [HEAD_C]);
+  assert.equal(
+    isKnownPullRequestHead({
+      headSha: HEAD_B,
+      pushOrderedHeadShas: ordered,
+      currentHeadSha: HEAD_C,
+    }),
+    false,
+  );
 });
 
 test("review body findings split when inline comments exist on same review", () => {

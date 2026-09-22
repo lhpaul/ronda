@@ -265,6 +265,53 @@ test("automatic silence on current head reports nothing_to_capture (AC16)", asyn
   }
 });
 
+test("automatic capture reports Stage 1 condition 3 before Codex fetch failures", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ronda-misses-"));
+  try {
+    const runGh = (args: string[]) => {
+      const joined = args.join(" ");
+      if (joined.includes("/comments")) {
+        throw new Error("comments API unavailable");
+      }
+      return createGhFixture({ reviews: [] })(args);
+    };
+    const logs: string[] = [];
+    const original = console.log;
+    console.log = (...args: unknown[]) => {
+      logs.push(args.map(String).join(" "));
+    };
+    try {
+      const code = await main(
+        [
+          "capture",
+          "--pr",
+          "53",
+          "--repository",
+          "lhpaul/ronda",
+          "--reviewer",
+          "codex",
+          "--category",
+          "other",
+          "--dir",
+          dir,
+        ],
+        { runGh },
+      );
+      assert.equal(code, 1);
+      assert.ok(logs.some((line) => line.includes("capture_refused")));
+      assert.ok(
+        logs.some((line) =>
+          line.includes("no Ronda result to compare against"),
+        ),
+      );
+    } finally {
+      console.log = original;
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("gh fixture never issues write verbs (AC2 read-only)", () => {
   const calls: string[] = [];
   const runGh = createGhFixture({});

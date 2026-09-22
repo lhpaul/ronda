@@ -198,27 +198,36 @@ function parseOptionalFollowUp(
   return { ok: true, value };
 }
 
-function stage1(input: CaptureGateInput): CaptureFindingResult | null {
-  // Condition 1 — PR / head resolution (caller throws before gate if truly
-  // unresolvable; still guard empty head here).
+/** Stage 1 conditions 1–3 (whole-capture), shared by CLI preflight and gate. */
+export function evaluateCaptureStage1ThroughCondition3(input: {
+  evidence: PullRequestEvidence;
+  namedReviewer: string;
+}): CaptureFindingResult | null {
   if (!input.evidence.currentHeadSha) {
     return refuse(
       "Capture refused: the pull request or its current head could not be resolved.",
     );
   }
-
-  // Condition 2 — reviewer named
   if (!input.namedReviewer.trim()) {
     return refuse(
       "Capture refused: a reviewer name is required; manual entry is available.",
     );
   }
-
-  // Condition 3 — any Ronda result
   if (input.evidence.rondaResultHeadShas.length === 0) {
     return refuse(
       "Capture refused: there is no Ronda result to compare against on this pull request.",
     );
+  }
+  return null;
+}
+
+function stage1(input: CaptureGateInput): CaptureFindingResult | null {
+  const through3 = evaluateCaptureStage1ThroughCondition3({
+    evidence: input.evidence,
+    namedReviewer: input.namedReviewer,
+  });
+  if (through3) {
+    return through3;
   }
 
   if (input.path === "automatic") {
