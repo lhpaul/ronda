@@ -233,7 +233,7 @@ from `local-ai-reviewer` across 26 loop iterations, 5 from `codex-github` across
 2 passes. Details and the full row-by-row mapping are in
 [`pr-98-external-finding-corpus-2026-09-23.md`](pr-98-external-finding-corpus-2026-09-23.md).
 
-Three limits, stated up front:
+Four limits, stated up front:
 
 - **n = 1 pull request.** #98 is a TypeScript PR about security guards and
   evidence records. Its category mix is partly a property of what it changed.
