@@ -19,13 +19,38 @@ Scope: every pull request merged in the #93–#100 window
 | 96 | feature | 9 | +464 / -37 | 2 | 0.11 h | 14 | 7.4 m | 1 | 0 |
 | 97 | feature | 48 | +2988 / -42 | 25 | **70.12 h** | 179 | **316.4 m** | 2 | 0 |
 | 98 | feature | 27 | +6813 / -19 | 33 | **21.13 h** | 193 | **186.8 m** | 5 | 3 |
-| 99 | release → `main` | 100 | +16223 / -819 | 100 | 0.20 h | 14 | 19.1 m | 0 | 0 |
+| 99 | release → `main` | 171 | +30968 / -916 | 316 | 0.20 h | 14 | 19.1 m | 0 | 0 |
 | 100 | release → `develop` | 28 | +30 / -35 | 1 | 0.20 h | 15 | 19.3 m | 0 | 0 |
 
 Measurement notes:
 
 - **Wall clock** is `mergedAt - createdAt` on the PR. It includes human idle
   time and is not an attempt at active-work time.
+- **Files, +/- and commits are not taken from `gh pr view`**, which silently
+  caps `commits` and `files` at 100. On PR #99 that cap reported
+  `100 commits / 100 files / +16223 / -819` against a true
+  `316 commits / 171 files / +30968 / -916` — a 3x understatement of commits and
+  a 1.9x understatement of added lines. The paginated
+  `pulls/{n}/commits` endpoint is not a fix either: it has its own documented
+  250-commit ceiling and reported 250. The figures above come from the
+  **merge-parent compare**, which is the only method that agrees with the diff:
+
+  ```bash
+  mc=$(gh pr view <n> --json mergeCommit --jq '.mergeCommit.oid')
+  read -r base head < <(gh api "repos/<owner>/<repo>/commits/$mc" \
+    --jq '[.parents[].sha] | @tsv')
+  gh api "repos/<owner>/<repo>/compare/$base...$head" \
+    --jq '{commits: .total_commits, files: (.files | length),
+           additions: ([.files[].additions] | add),
+           deletions: ([.files[].deletions] | add)}'
+  ```
+
+  Only PR #99 exceeded either cap — every other row reports well under 100
+  commits and 100 files, so truncation cannot have applied to them. The five
+  two-parent merges among them (#94, #95, #97, #98, #100) were re-verified under
+  the compare method and matched exactly. #93 and #96 were squash-merged, so
+  their merge commits have a single parent and the compare method does not
+  apply; both are far below the cap.
 - **Actions runs / wall time** counts every workflow run on the PR's head branch
   between `createdAt` and `mergedAt`, summing `updated_at - run_started_at`. It
   is run wall time, not billable minutes, and parallel jobs inside one run are
