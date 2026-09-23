@@ -92,9 +92,17 @@ enough to compare against later.
 The table below is **derived from a committed snapshot**, not from a live query:
 [`evidence/actions-window-2026-09-17_2026-09-23.csv`](evidence/actions-window-2026-09-17_2026-09-23.csv).
 The snapshot holds one row per workflow-run attempt in the window
-(`workflow, attempt_started, attempt_ended`), plus one row with empty timestamps
-for each workflow that had no attempts at all, so zero-run workflows stay
-visible.
+(`run_id, attempt, workflow, attempt_started, attempt_ended`), plus one row with
+empty columns for each workflow that had no attempts at all, so zero-run
+workflows stay visible.
+
+`run_id` and `attempt` are carried so the counts are **auditable from the data
+itself** rather than asserted: 1020 attempt rows, 1019 distinct `run_id` values,
+and zero repeated `(run_id, attempt)` pairs. Without those columns, two
+byte-identical rows could equally mean two genuine runs or one accidentally
+collected twice, and a duplicate or omission would shift the baseline
+undetectably. The derivation below asserts all three invariants and fails loudly
+if the file is ever edited into an inconsistent state.
 
 Freezing the inputs is the point. An earlier revision of this document
 re-derived the table by re-querying the Actions API on every run, and each
@@ -160,7 +168,8 @@ the shares to 99.8%; the total is the unrounded sum.
 
 The **Runs** column counts *attempts*, not distinct run records — a re-run
 consumed Actions minutes twice and is counted twice. Exactly one run in this
-window was re-run, so 1020 attempts come from 1019 distinct runs.
+window was re-run, so 1020 attempts come from 1019 distinct runs, which the
+snapshot's `run_id` column makes checkable.
 
 Regenerate the table from the snapshot. No network and no API, so the same
 input always produces the same table:
@@ -169,6 +178,8 @@ input always produces the same table:
 import csv, collections, datetime
 
 agg = collections.defaultdict(lambda: [0, 0.0])
+seen_attempts = set()
+run_ids = set()
 
 
 def parse(value):
@@ -181,12 +192,19 @@ with open(path) as handle:
         entry = agg[row["workflow"]]          # materialises zero-run workflows
         if not row["attempt_started"]:
             continue
+        key = (row["run_id"], row["attempt"])
+        assert key not in seen_attempts, f"duplicate attempt row: {key}"
+        seen_attempts.add(key)
+        run_ids.add(row["run_id"])
         entry[0] += 1
         entry[1] += (parse(row["attempt_ended"])
                      - parse(row["attempt_started"])).total_seconds() / 60
 
 total = sum(minutes for _, minutes in agg.values())
 runs = sum(count for count, _ in agg.values())
+
+assert runs == len(seen_attempts) == 1020, runs
+assert len(run_ids) == 1019, len(run_ids)
 
 print("| Workflow | Runs | Total wall time | Share |")
 print("| --- | ---: | ---: | ---: |")
@@ -256,6 +274,7 @@ set -euo pipefail
 repo=lhpaul/ronda
 since=2026-09-17T00:00:00Z
 until=2026-09-23T10:36:01Z
+# Each kept attempt is recorded with its run id and attempt number.
 
 # Candidate runs are selected by the UPPER bound only. A lower bound on
 # created_at would drop a run created before the window whose re-run attempt
