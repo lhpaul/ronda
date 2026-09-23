@@ -222,9 +222,9 @@ here differ by three orders of magnitude:
 
 | Workflow | Jobs | Wall time | Share of wall | Runner minutes | Share of minutes |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| workflow test harnesses | 3,271 | 331.6 m | 37.3% | **3,546 m** | **78.6%** |
+| workflow test harnesses | 3,271 | 331.6 m | 37.3% | **3,540 m** | **78.5%** |
 | ShellCheck | 53 | 311.8 m | 35.1% | 338 m | 7.5% |
-| PR policy | 297 | 56.0 m | 6.3% | 300 m | 6.6% |
+| PR policy | 297 | 56.0 m | 6.3% | 300 m | 6.7% |
 | PR-Agent | 196 | 89.5 m | 10.1% | 110 m | 2.4% |
 | Markdown Lint | 102 | 46.5 m | 5.2% | 102 m | 2.3% |
 | Node CI | 64 | 37.5 m | 4.2% | 64 m | 1.4% |
@@ -233,14 +233,14 @@ here differ by three orders of magnitude:
 | Auto-tag release | 1 | 0.2 m | 0.0% | 1 m | 0.0% |
 | E2E / Regression (placeholder) | 145 | 6.4 m | 0.7% | 0 m | 0.0% |
 | **Ronda review** | **0** | **0.0 m** | **0%** | **0 m** | **0%** |
-| **Total** | **4,182** | **888.1 m** | | **4,514 m** | |
+| **Total** | **4,182** | **888.1 m** | | **4,508 m** | |
 
 `workflow-tests.yml` runs its suites as a `max-parallel: 8` matrix — one
 observed run expanded to 82 jobs — while ShellCheck runs a single job. **Ranking
 by wall time gets the answer wrong, not merely imprecise**: ShellCheck and the
 harnesses look comparable at 35.1% and 37.3% of wall time, but in runner minutes
-the harnesses are 78.6% and ShellCheck is 7.5%, a 10x difference. Total runner
-minutes are 4,514 against 888.1 m of wall time, 5.1x.
+the harnesses are 78.5% and ShellCheck is 7.5%, a 10x difference. Total runner
+minutes are 4,508 against 888.1 m of wall time, 5.1x.
 
 #### What "runner minutes" means here
 
@@ -253,18 +253,25 @@ rank where compute goes.
 The estimate is built as follows, and each rule is visible in the derivation
 below:
 
-- **Rounding dominates.** Raw job time is 1,506.4 m. GitHub rounds each job up
-  to the minute, and rounding 3,271 mostly-sub-minute harness jobs to a minute
-  each is what turns 1,506.4 into 4,514.
-- **Skipped jobs are not counted.** 261 jobs have `conclusion: skipped`; they
-  consume no runner and are charged 0. This is why the E2E placeholder shows 145
-  jobs and 0 m — every one of its jobs skips — and why PR-Agent's 110 m is well
-  below its 196 jobs.
-- **Negative durations are clamped to zero before rounding.** 149 rows report
-  `completed_at` before `started_at`; 147 are `skipped` and 2 `cancelled`.
+- **A job is charged only when it has a positive measured duration.** 267 of the
+  4,182 jobs do not: 261 `skipped` and 6 `cancelled`, of which 149 report
+  `completed_at` before `started_at` and 118 report the two as equal. Those
+  records carry no evidence that a runner ran, so they are charged 0 rather than
+  rounded up to a minute. This is why the E2E placeholder shows 145 jobs and
+  0 m — every one of its jobs skips — and why PR-Agent's 110 m sits well below
+  its 196 jobs.
+- **Rounding dominates the rest.** Raw job time across the 3,915 measurable jobs
+  is 1,506.4 m. GitHub rounds each job up to the minute, and rounding 3,271
+  mostly-sub-minute harness jobs to a minute each is what turns 1,506.4 into
+  4,508.
 - **A 1x runner multiplier is assumed**, true for this repository's
   `ubuntu-latest` but not necessarily for a downstream adopter. Larger or
   non-Linux runners bill at a multiple.
+
+The charge rule keys on measured duration rather than on `conclusion`, so a
+cancelled job that did consume runner time before being cancelled is still
+counted — 73 of the 79 cancelled jobs are. Only the 6 with no positive duration
+are not.
 
 Use the account's billing data for an exact figure.
 
@@ -351,10 +358,12 @@ with open(jobs_path) as handle:
         if row["started_at"] and row["completed_at"]:
             minutes = (parse(row["completed_at"])
                        - parse(row["started_at"])).total_seconds() / 60
-        minutes = max(0.0, minutes)          # skipped/cancelled report negative
-
-        # Skipped jobs consume no runner; everything else rounds up per job.
-        billed = 0 if row["conclusion"] == "skipped" else max(1, math.ceil(minutes))
+        # A job is charged only on positive measured duration. Skipped and
+        # instantly-cancelled legs report completed_at <= started_at and carry
+        # no evidence a runner ran, so they are 0 rather than a rounded-up
+        # minute. Everything measurable rounds up per job.
+        billed = 0 if minutes <= 0 else max(1, math.ceil(minutes))
+        minutes = max(0.0, minutes)
 
         entry = agg[row["workflow"]]
         entry[0] += 1
@@ -408,7 +417,7 @@ from a branch-scoped, fully paginated query bounded by that PR's own
    `Human product decision — waive local-ai AC31 tip finding`.
 
 5. **The workflow test harnesses alone are four fifths of compute cost.**
-   3,546 of 4,514 runner minutes (78.6%) across 3,271 jobs, from a
+   3,540 of 4,508 runner minutes (78.5%) across 3,271 jobs, from a
    `max-parallel: 8` suite matrix on `pull_request`. It is the single
    highest-value target for path or event narrowing if downstream Actions cost
    matters.
@@ -417,7 +426,7 @@ from a branch-scoped, fully paginated query bounded by that PR's own
    "ShellCheck and the workflow test harnesses are 72.4% combined". That was
    **wrong, not merely imprecise**: by wall time the two look comparable (35.1%
    and 37.3%), but ShellCheck runs one job per run and is 7.5% of runner
-   minutes, while the harnesses are 78.6%. Wall time hid a 10x difference. The
+   minutes, while the harnesses are 78.5%. Wall time hid a 10x difference. The
    corrected ranking is in the runner-minutes table above.
 
 ## Reproduction
