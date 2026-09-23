@@ -41,16 +41,23 @@ Both numbers, stated plainly:
 | Unit | `local-ai-reviewer` | `codex-github` | Total |
 | --- | ---: | ---: | ---: |
 | Finding instances (the tables below) | 74 | 5 | 79 |
-| Distinct defects, if `pr-head-push-order` collapses to one | 61 | 5 | 66 |
+| After collapsing `pr-head-push-order` to one defect | 61 | 5 | 66 |
 
-The second row collapses only the largest and most clearly-single cluster. Other
-sub-themes contain smaller repeats that are **not** collapsed in either number —
-for example `excerpt-sequence-boundaries` #17/#19/#41 are three raisings of the
-same blank-line-normalisation defect, `external-output-parsing` #18/#27 are two
-raisings of the same review-body-versus-inline-comment dedup mismatch, and
-`credential-pattern-gap` #28/#38 are two raisings of "only the first match is
-scanned". A full defect-level adjudication was not performed, so treat the
-instance counts as the reproducible figure and the defect counts as a floor.
+The second row collapses only the largest and most clearly-single cluster, so it
+is an **upper bound** on the number of distinct defects, not the distinct-defect
+count and not a floor. Further deduplication can only reduce it. Smaller repeats
+that remain uncollapsed in both rows include `excerpt-sequence-boundaries`
+#17/#19/#41 (three raisings of the same blank-line-normalisation defect),
+`external-output-parsing` #18/#27 (two raisings of the same
+review-body-versus-inline-comment dedup mismatch), and `credential-pattern-gap`
+#28/#38 (two raisings of "only the first match is scanned"). Collapsing those
+three clusters as well takes the figure to 62 (57 local + 5 Codex).
+
+A full defect-level adjudication was not performed, so the honest statement is:
+**79 finding instances; at most 66 distinct defects, and at most 62 once the
+three clusters named above are also collapsed.** The instance count is the
+reproducible figure; every bound below it rests on manual judgement about which
+rows describe the same defect, and each further collapse can only lower it.
 
 Every distribution table below uses **instance** counts. The ranked list in the
 baseline document does too, and says so.

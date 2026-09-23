@@ -237,9 +237,10 @@ Three limits, stated up front:
 - **These are finding *instances*, not distinct defects.** The same underlying
   defect raised again at a different location after a failed fix counts again.
   The 14 `pr-head-push-order` instances are one defect; collapsing just that
-  cluster takes the corpus from 79 to 66. See the counting rule in the corpus
-  document. Instance counts are the reproducible figure and are used
-  throughout; defect counts are a floor.
+  cluster takes the corpus from 79 to 66, which is an **upper bound** on
+  distinct defects — further deduplication can only reduce it. Instance counts
+  are the reproducible figure and are used throughout every table here. See the
+  counting rule in the corpus document for the smaller uncollapsed clusters.
 
 ### Ranked list
 
