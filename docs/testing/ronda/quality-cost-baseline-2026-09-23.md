@@ -148,7 +148,7 @@ Full tables in
 | Actions runs | 48 | 179 | 193 |
 | Actions wall time | 32.9 m | 316.4 m | 186.8 m |
 | Reviewer-loop iterations (recorded) | 9 | 3 (final run only) | 26 |
-| Escalations | 6 | 3 | 10 |
+| Declared escalations | 0 | 0 | 3 |
 
 Repository-wide, 580.3 m of Actions wall time over the six-day window across 500
 runs. `Ronda review` accounts for 0 m of it.
@@ -167,8 +167,9 @@ Headline cost findings:
 
 PR #97's committed reviewer-loop history records only its final clean invocation
 (3 iterations, 0 blocking findings), even though the PR took 25 commits over 70
-hours with three escalations. The history comment is rewritten in place per loop
-invocation, so earlier invocations are not recoverable. **#97's true convergence
+hours and 316.4 m of Actions wall time — more than any other PR in the window.
+The history comment is rewritten in place per loop invocation, so earlier
+invocations are not recoverable. **#97's true convergence
 cost cannot be reconstructed from committed evidence.** Any future comparison
 should treat #98 as the only fully-instrumented expensive PR in this window.
 

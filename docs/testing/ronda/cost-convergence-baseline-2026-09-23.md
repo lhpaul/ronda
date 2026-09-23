@@ -11,14 +11,14 @@ Scope: every pull request merged in the #93–#100 window
 
 ## Per-PR convergence
 
-| PR | Kind | Files | +/- | Commits | Wall clock | Actions runs | Actions wall time | Loop summaries | Escalations |
+| PR | Kind | Files | +/- | Commits | Wall clock | Actions runs | Actions wall time | Loop summaries | Declared escalations |
 | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | 93 | feature | 20 | +976 / -4 | 3 | 0.14 h | 20 | 9.3 m | 1 | 0 |
-| 94 | plan | 2 | +363 / -0 | 1 | 0.10 h | 6 | 1.9 m | 1 | 2 |
-| 95 | feature | 7 | +222 / -9 | 4 | 0.17 h | 8 | 14.3 m | 1 | 4 |
+| 94 | plan | 2 | +363 / -0 | 1 | 0.10 h | 6 | 1.9 m | 1 | 0 |
+| 95 | feature | 7 | +222 / -9 | 4 | 0.17 h | 8 | 14.3 m | 1 | 0 |
 | 96 | feature | 9 | +464 / -37 | 2 | 0.11 h | 14 | 7.4 m | 1 | 0 |
-| 97 | feature | 48 | +2988 / -42 | 25 | **70.12 h** | 179 | **316.4 m** | 2 | 3 |
-| 98 | feature | 27 | +6813 / -19 | 33 | **21.13 h** | 193 | **186.8 m** | 6 | 10 |
+| 97 | feature | 48 | +2988 / -42 | 25 | **70.12 h** | 179 | **316.4 m** | 2 | 0 |
+| 98 | feature | 27 | +6813 / -19 | 33 | **21.13 h** | 193 | **186.8 m** | 5 | 3 |
 | 99 | release → `main` | 100 | +16223 / -819 | 100 | 0.20 h | 14 | 19.1 m | 0 | 0 |
 | 100 | release → `develop` | 28 | +30 / -35 | 1 | 0.20 h | 15 | 19.3 m | 0 | 0 |
 
@@ -31,11 +31,20 @@ Measurement notes:
   is run wall time, not billable minutes, and parallel jobs inside one run are
   counted once. PRs #99 and #100 share the head branch `release/v0.2.0`, so
   their run sets overlap and must not be added together.
-- **Loop summaries** counts comments matching `Automated Reviewer Loop`;
-  **escalations** counts comments containing `escalat`. Both are lower bounds:
-  the loop rewrites one summary comment in place across iterations, so a single
-  summary can represent many passes. The authoritative per-iteration count is in
-  the embedded `reviewer-loop-history:v1` payload.
+- **Loop summaries** counts issue comments whose body contains
+  `Automated Reviewer Loop`. **Declared escalations** counts issue comments
+  whose *first line* matches `escalat`. The heading test matters: a routine loop
+  summary can mention the word inside its embedded history payload without being
+  an escalation, which is true of one comment each on #94, #95 and #97 and two
+  on #98. A body-substring count would report 2 / 4 / 3 / 10 for those PRs
+  instead of 0 / 0 / 0 / 3.
+- Loop summaries are a lower bound on passes: the loop rewrites one summary
+  comment in place across iterations, so a single summary can represent many.
+  The authoritative per-iteration count is in the embedded
+  `reviewer-loop-history:v1` payload.
+- **PR #98 is the only PR in this window with any declared escalation.** Its
+  three are `escalation summary`, `escalated (low-value / thrashing)`, and
+  `escalated (AC31 thrashing)`.
 
 ## Reviewer-loop iteration counts
 
@@ -53,9 +62,9 @@ From the embedded `reviewer-loop-history:v1` payload on each PR:
 | 100 | — | — | — |
 
 The history comment records only the most recent loop invocation's iteration
-series. PR #97 took 25 commits over 70 hours with three escalations, so its
-`3 iterations / 0 blocking` row reflects the final clean run, not the whole
-history. **#97's true convergence cost is not recoverable from committed
+series. PR #97 took 25 commits over 70 hours and 316.4 m of Actions wall time,
+so its `3 iterations / 0 blocking` row reflects the final clean run, not the
+whole history. **#97's true convergence cost is not recoverable from committed
 evidence** — this is a measurement gap, recorded in the baseline document.
 
 ## Aggregate
@@ -69,8 +78,11 @@ evidence** — this is a measurement gap, recorded in the baseline document.
 | Actions min / commit | 3.3 | 12.7 | 5.7 |
 | Actions runs / commit | 4.8 | 7.2 | 5.8 |
 
-Two PRs (#97, #98) account for **84%** of Actions wall time and **81%** of
-Actions runs in the window while carrying 58 of 68 non-release commits.
+Two PRs (#97, #98) account for **93.9%** of Actions wall time (503.2 m of
+536.1 m) and **88.6%** of Actions runs (372 of 420) while carrying 58 of 68
+commits. The denominator is the sum of the six non-release PRs #93–#98; #99 and
+#100 are excluded because they share the head branch `release/v0.2.0` and their
+run sets overlap, so they cannot be added to this total.
 
 ## Repository-wide Actions audit
 
@@ -122,7 +134,7 @@ the denominator for any later claim that a Ronda change made review cheaper.
 
 4. **Convergence cost is dominated by re-finding one defect.** 14 of PR #98's
    74 unique blocking findings are restatements of the same PR-head / push-order
-   reconstruction problem across iterations 1–22. The loop escalated four times
+   reconstruction problem across iterations 1–22. The loop escalated three times
    and twice self-reported thrashing
    (`escalated (low-value / thrashing)`, `escalated (AC31 thrashing)`), and the
    PR was finally closed out under an explicit
