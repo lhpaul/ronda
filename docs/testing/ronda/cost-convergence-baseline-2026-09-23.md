@@ -223,11 +223,19 @@ set -euo pipefail
 ./docs/testing/ronda/scripts/actions-window-audit.sh
 ```
 
-It takes optional `[repo] [since] [until]` arguments; the defaults are
-`lhpaul/ronda`, `2026-09-17T00:00:00Z`, and `2026-09-23T10:36:01Z` (the merge of
-#100), and reproduce the table above verbatim — including the 887.9 m total and
-every share. It refuses rather than printing an empty table when no runs match
-the window.
+It takes optional `[repo] [since] [until] [workflows-file]` arguments; the
+defaults are `lhpaul/ronda`, `2026-09-17T00:00:00Z`, `2026-09-23T10:36:01Z` (the
+merge of #100), and `actions-window-audit.workflows` beside the script — and
+reproduce the table above verbatim, including the 887.9 m total and every share.
+It refuses rather than printing an empty table when no runs match the window or
+the workflow snapshot is empty or unreadable.
+
+The workflow roster is read from that **pinned snapshot** rather than from
+current repository state. Zero-run rows are part of the table, so querying live
+state would let a later workflow rename, addition, removal, or disablement
+change the output for this fixed historical window — the table would stop being
+a reproducible record of 2026-09-17 → 2026-09-23. Regenerate the snapshot only
+when defining a new window; its header carries the command.
 
 Per-PR figures:
 

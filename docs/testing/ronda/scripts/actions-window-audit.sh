@@ -8,20 +8,35 @@
 # share calculation used for the committed table.
 #
 # Usage:
-#   docs/testing/ronda/scripts/actions-window-audit.sh [repo] [since] [until]
+#   docs/testing/ronda/scripts/actions-window-audit.sh \
+#     [repo] [since] [until] [workflows-file]
 #
 # Defaults reproduce the committed table exactly:
-#   repo  lhpaul/ronda
-#   since 2026-09-17T00:00:00Z
-#   until 2026-09-23T10:36:01Z   (the merge of PR #100, the last PR in scope)
+#   repo            lhpaul/ronda
+#   since           2026-09-17T00:00:00Z
+#   until           2026-09-23T10:36:01Z   (the merge of PR #100)
+#   workflows-file  actions-window-audit.workflows, beside this script — the
+#                   PINNED roster of workflows active at the cutoff. Reading
+#                   current repository state instead would let a later workflow
+#                   rename, addition, removal, or disablement change the output
+#                   for this fixed historical window. Regenerate it only when
+#                   defining a new window; see the file's own header.
 #
 # Timestamps are ISO-8601 UTC (YYYY-MM-DDTHH:MM:SSZ) and are compared as
 # strings, which is why the trailing Z and zero padding are required.
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+
 repo="${1:-lhpaul/ronda}"
 since="${2:-2026-09-17T00:00:00Z}"
 until_="${3:-2026-09-23T10:36:01Z}"
+workflows_file="${4:-${script_dir}/actions-window-audit.workflows}"
+
+if [ ! -r "$workflows_file" ]; then
+  echo "workflow snapshot not readable: ${workflows_file}" >&2
+  exit 2
+fi
 
 if ! printf '%s' "$repo" | grep -Eq '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$'; then
   echo "invalid repository '${repo}'; expected <owner>/<name>" >&2
@@ -42,14 +57,15 @@ if [ "$since" \> "$until_" ]; then
   exit 2
 fi
 
-# Every active workflow defined in the repository, so that a workflow with no
-# runs in the window is still reported as a zero row rather than silently
-# omitted. "Ronda review has 0 runs" is a finding, not an absence of data.
-workflow_names="$(gh api "repos/${repo}/actions/workflows" --paginate \
-  --jq '.workflows[] | select(.state == "active") | .name')"
+# The workflow roster is read from a PINNED snapshot, not from current
+# repository state, so that a workflow with no runs in the window is reported as
+# a zero row ("Ronda review has 0 runs" is a finding, not an absence of data)
+# without a later rename, addition, removal, or disablement silently changing
+# the output for this fixed historical window.
+workflow_names="$(grep -v '^[[:space:]]*#' "$workflows_file" | grep -v '^[[:space:]]*$' || true)"
 
 if [ -z "$workflow_names" ]; then
-  echo "refusing to report a result: no active workflows found in ${repo}" >&2
+  echo "refusing to report a result: no workflow names in ${workflows_file}" >&2
   exit 1
 fi
 
