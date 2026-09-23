@@ -9,6 +9,11 @@ import {
   readChangedFiles,
   readPullRequest,
 } from "../github/pull-request-reader.js";
+import { readRepositoryFileAtRef } from "../github/repo-content-reader.js";
+import {
+  DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+  DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+} from "../config/load-config.js";
 import { publishReview } from "../github/review-publisher.js";
 import { publishCheckRun } from "../github/check-run-publisher.js";
 import { createOpenAiCompatibleClient } from "../inference/openai-compatible-client.js";
@@ -60,6 +65,8 @@ export async function main(): Promise<number> {
   const github: GithubOperations = {
     readPullRequest: (o, r, n, signal) => readPullRequest(octokit, o, r, n, signal),
     readChangedFiles: (o, r, n, signal) => readChangedFiles(octokit, o, r, n, signal),
+    readFileAtRef: (o, r, path, ref, signal, options) =>
+      readRepositoryFileAtRef(octokit, o, r, path, ref, signal, options),
     findExistingCheckRun: (o, r, sha, signal) => findExistingCheckRun(octokit, o, r, sha, signal),
     publishReview: (reviewInput, signal) => publishReview(octokit, reviewInput, signal),
     publishCheckRun: (checkRunInput, signal) => publishCheckRun(octokit, checkRunInput, signal),
@@ -74,6 +81,10 @@ export async function main(): Promise<number> {
       model: { apiKey: "", baseUrl: "", modelName: "" },
       passTimeoutMs: 600_000,
       maxPatchChars: 400_000,
+      maxAuthoritativeDocCount: DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+      maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+      durabilityMode: "default",
+      durabilityModeDefault: false,
       loadError: `Failed to load Ronda config file at ${path}`,
     };
   }

@@ -77,8 +77,13 @@ Deferrals are bounded by `PR_REVIEW_LOOP_MAX_EXPENSIVE_DEFERRALS` (default
   (`EXPENSIVE_GATE_DEFERRALS=-1`); an absent ledger is `0` and defers normally
 
 Override with `PR_REVIEW_LOOP_FORCE_EXPENSIVE_REVIEWERS=1` for a one-off run
-(justify in the PR). The gate still emits `EXPENSIVE_GATE_RESULT=forced` with
-the reason it would have deferred.
+and set non-empty `PR_REVIEW_LOOP_EXPENSIVE_OVERRIDE_JUSTIFICATION` (posted
+idempotently under `<!-- expensive-review-override -->` on the PR). Without
+justification the gate defers with `expensive_override_missing_justification`.
+When local infrastructure blocked dispatch, the would-have-deferred reason is
+`local_infrastructure_failure` or `local_infrastructure_repeated`, not
+`local_evidence_missing`. The gate still emits `EXPENSIVE_GATE_RESULT=forced`
+with the preserved would-have-deferred reason when override succeeds.
 
 See Protocol 93 § Expensive reviewer gate for the full normative contract.
 
@@ -173,7 +178,7 @@ The template default is:
 review:
   on_draft:
     github:
-      - pr-agent
+      - local-ai-reviewer
   on_ready:
     github:
       - codex-github
@@ -192,7 +197,7 @@ Use a disposable or already-open PR and run:
 
 ```bash
 ./scripts/development-workflow/pr-review-loop.sh <pr_number> \
-  --platform pr-agent,codex-github \
+  --platform local-ai-reviewer,codex-github \
   --ready-phase codex-github \
   --post-final-summary \
   --max-wait 1800 \
@@ -201,8 +206,8 @@ Use a disposable or already-open PR and run:
 
 Expected successful evidence:
 
-- `PLATFORM_1_RESULT=clean` for PR-Agent, or `skipped` only when intentionally
-  unavailable.
+- `PLATFORM_1_NAME=local-ai-reviewer`.
+- `PLATFORM_1_RESULT=clean`.
 - `PLATFORM_2_NAME=codex-github`.
 - `PLATFORM_2_RESULT=clean`.
 - `RESULT=clean`.

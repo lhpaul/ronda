@@ -1,0 +1,19 @@
+{
+  "shape": "dual_ingress_arbitration",
+  "expectedKeywords": [
+    "dual",
+    "ingress",
+    "arbitration",
+    "duplicate"
+  ],
+  "severity": "blocking",
+  "changedFiles": [
+    {
+      "path": "src/webhook/dual_ingress_arbitration.ts",
+      "status": "added",
+      "additions": 4,
+      "deletions": 0,
+      "patch": "@@ -0,0 +1 @@\n+export function handleManual() { triggerReview(); }\n+export function handleWebhook() { triggerReview(); }\n+function triggerReview() { publishReview(); }\n+"
+    }
+  ]
+}

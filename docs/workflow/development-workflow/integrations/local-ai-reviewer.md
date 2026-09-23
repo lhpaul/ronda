@@ -2,8 +2,8 @@
 
 `local-ai-reviewer` is the default first Step 7 draft GitHub review platform in
 this template. It runs a repository-local review command before draft GitHub
-reviewers such as PR-Agent and before ready-phase reviewers such as Bugbot. It
-is implemented by `scripts/development-workflow/local-ai-reviewer.sh` and is
+reviewers such as PR-Agent and before ready-phase reviewers such as Codex
+GitHub. It is implemented by `scripts/development-workflow/local-ai-reviewer.sh` and is
 consumed by `scripts/development-workflow/pr-review-loop.sh`.
 
 The platform is local-only. It does not post GitHub inline comments in this
@@ -14,17 +14,17 @@ thread checks, or the configured ready-phase reviewer.
 
 ## Configuration
 
-The shared template enables it before PR-Agent in `.ai-dev-workflow.yaml`:
+The shared template enables it before the ready-phase Codex GitHub reviewer in
+`.ai-dev-workflow.yaml`:
 
 ```yaml
 review:
   on_draft:
     github:
       - local-ai-reviewer
-      - pr-agent
   on_ready:
     github:
-      - bugbot
+      - codex-github
 ```
 
 Set the local command in the runner environment when you need a custom command.
@@ -82,6 +82,9 @@ The command runs under `sh -c` with these environment variables:
 - `REVIEWED_HEAD`
 - `REVIEW_STAGE`, `REVIEW_STAGE_SOURCE`, `REVIEW_CHECKLISTS`
 - `REVIEW_DOCTRINE_STATE`, `REVIEW_DOCTRINE_PATTERN_COUNT`, `REVIEW_DOCTRINE_VERSION`
+- `REVIEW_DURABILITY_MODE_STATE`, `REVIEW_DURABILITY_ACTIVATION_REASON`,
+  `REVIEW_DURABILITY_UNAVAILABLE_REASON`, `REVIEW_DURABILITY_FAMILIES_IN_SCOPE`,
+  `REVIEW_DURABILITY_FAMILIES_NA`
 - `LOCAL_AI_REVIEWER_MODE` — `ordinary` (default) or `strict`
 
 The context bundle JSON uses `schema_version:
@@ -105,6 +108,19 @@ local_ai_reviewer_context.v1` and includes:
   `supplied`)
 - `review_doctrine_version` — first twelve hex characters of the catalogue
   SHA-256 (empty when no bytes were read)
+- `durability_mode_state` — `active`, `inactive`, or `unavailable`
+- `durability_mode_activation_reason` — `automatic_match`, `operator_default`,
+  `operator_override`, or empty
+- `durability_mode_unavailable_reason` — `missing`, `unreadable`, `oversized`,
+  `incomplete`, or empty
+- `durability_mode_text` — full mode document when active, otherwise empty
+- `durability_mode_families_in_scope` / `durability_mode_families_na` —
+  scenario-family coverage for the activation
+
+Durability mode shares the ordinary review pass (no second unbounded model
+call). Operator overrides: `RONDA_DURABILITY_MODE=on|off` and
+`RONDA_DURABILITY_MODE_DEFAULT=on`. When active, the Codex ordinary prompt
+appends mode guidance from the bundle; doctrine and strict passes are unchanged.
 
 Selection is **additive and monotone**: `REVIEW.md` as a whole and its Core
 Rules always apply. The branch tier names one stage checklist; changed files
@@ -148,9 +164,9 @@ files, compact diff summary, a `review_stage` object (stage, source,
 checklists), a `review_doctrine` object (state, pattern_count, version), a
 `strict_spec` object that mirrors the `STRICT_SPEC_*` keys, and a `strict_plan`
 object that mirrors the `STRICT_PLAN_*` keys (including `applied` when state is
-`applied`). Keep this artifact alongside ready-phase
-reviewer-loop evidence when measuring whether Bugbot or another ready-phase
-reviewer found net-new blockers. Relative evidence paths are resolved from the
+`applied`). Keep this artifact alongside ready-phase reviewer-loop evidence
+when measuring whether Codex GitHub, Bugbot, or another ready-phase reviewer
+found net-new blockers. Relative evidence paths are resolved from the
 operator's original working directory before `--repo-root` changes the checkout
 directory.
 
@@ -330,12 +346,30 @@ The local reviewer fails closed:
 | Missing credentials or auth failure | `RESULT=escalate`, `REASON=missing_credentials` |
 | Checkout head mismatch | `RESULT=escalate`, `REASON=head_mismatch` |
 | Missing `REVIEW.md` | `RESULT=escalate`, `REASON=review_contract_missing` |
-| Timeout | `RESULT=escalate`, `REASON=timeout` |
+| Timeout | `RESULT=escalate`, `REASON=timeout` (or `RESULT=needs_fixes` when partial output parses as blocking findings before timeout) |
 | Malformed output | `RESULT=escalate`, `REASON=malformed_output` |
+
+Infrastructure escalate paths also emit `LOCAL_REVIEWER_COMMAND_ID`
+(`bundled_codex_preset`, `operator_command`, or `disabled`),
+`LOCAL_REVIEWER_ATTEMPT_HEAD`, `LOCAL_REVIEWER_PARTIAL_OUTPUT` (`0|1`), and
+`LOCAL_REVIEWER_ELAPSED_SECONDS` when measurable. The expensive-review gate
+maps these outcomes to `local_infrastructure_failure` instead of
+`local_evidence_missing` when local is configured and the attempt targeted
+the current head.
 | Explicit disabled config | `RESULT=skipped`, `REASON=disabled_by_config` |
 
 A skipped or escalated local result is availability evidence, not clean review
 evidence.
+
+When `pr-review-loop.sh` receives a local `RESULT=needs_fixes`, it runs one
+same-head local confirmation pass before treating the finding as a blocker. A
+confirmed same-head `needs_fixes` result remains blocking. A clean confirmation
+escalates with `REASON=local_finding_unconfirmed`; skipped, escalated,
+unparseable, missing-head, or stale-head confirmation escalates with
+`REASON=local_blocker_confirmation_unavailable`. The loop emits
+`LOCAL_BLOCKER_CONFIRMATION=0|1`,
+`LOCAL_BLOCKER_CONFIRMATION_REASON=<reason>`, and, when a confirmation ran,
+`LOCAL_BLOCKER_CONFIRMATION_RESULT=<result>`.
 
 ---
 
@@ -372,6 +406,15 @@ Required.
 
 `local-ai-reviewer` does not own a GitHub bot login. `bot_login_for_platform`
 returns empty, and the Automated Reviewer Loop Summary is the durable evidence.
+
+When the local reviewer reports blocking findings and they survive local blocker
+confirmation, `pr-review-loop.sh` adds a **Local reviewer blocking findings**
+subsection to the Automated Reviewer Loop Summary (path, optional line, redacted
+message per finding). The same pass stores matching `local_blocking_findings[]`
+on the `reviewer_loop_history.v1` ledger entry. Redaction uses the shared
+`workflow_audit_redact_text` rules documented in guardrails enforcement §6;
+finding bodies are not redacted inside `local-ai-reviewer.sh`. Hosted reviewer
+comments are not duplicated in this section.
 
 The companion script emits:
 

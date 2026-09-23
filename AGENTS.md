@@ -131,6 +131,11 @@ npm ci
 # a model credential — see docs/adoption/ronda-review-adoption.md)
 npm run review
 
+# Roll up committed comparison/miss evidence into a quality report.
+# Comparison-only is offline; when miss records are included, read-only
+# GitHub lookups refresh Ronda resolvability (AC48 / #53).
+npm run quality:report
+
 # Build
 # No build step — TypeScript runs directly via tsx; there is no committed
 # build artifact (dist/ is gitignored).

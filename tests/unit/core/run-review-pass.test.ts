@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runReviewPass } from "../../../src/core/run-review-pass.js";
+import {
+  ReviewPublishedCheckRunError,
+  runReviewPass,
+} from "../../../src/core/run-review-pass.js";
 import { GithubClientError } from "../../../src/github/github-client.js";
 import { ModelClientError } from "../../../src/inference/model-client.js";
 import type {
@@ -14,6 +17,10 @@ import type {
 } from "../../../src/domain/review-pass.types.js";
 import type { ModelClient } from "../../../src/inference/model-client.js";
 import type { RondaConfig } from "../../../src/config/config.types.js";
+import {
+  DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+  DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+} from "../../../src/config/load-config.js";
 import type { DeadlineClock, DeadlineTimerHandle } from "../../../src/core/pass-deadline.js";
 
 /**
@@ -49,6 +56,7 @@ function createPullRequest(overrides: Partial<PullRequestMetadata> = {}): PullRe
     body: "Description",
     draft: false,
     headSha: HEAD_SHA,
+    headBranch: "feature/test",
     ...overrides,
   };
 }
@@ -63,6 +71,12 @@ type GithubCallName =
 interface FakeGithubOptions {
   pullRequest: PullRequestMetadata;
   changedFiles?: ChangedFile[];
+  readFileAtRef?: (
+    owner: string,
+    repo: string,
+    path: string,
+    ref: string,
+  ) => Promise<string | undefined>;
   existingCheckRunId?: number | null;
   /** When true, the second `readPullRequest` call (the pre-publication re-read) reports a moved head SHA. */
   supersedeOnReRead?: boolean;
@@ -167,6 +181,13 @@ function createFakeGithub(options: FakeGithubOptions): FakeGithub {
       }
       return options.changedFiles ?? [];
     },
+    async readFileAtRef(owner, repo, path, ref, signal) {
+      throwIfAborted(signal);
+      if (options.readFileAtRef) {
+        return options.readFileAtRef(owner, repo, path, ref);
+      }
+      return undefined;
+    },
     async findExistingCheckRun(_owner, _repo, _headSha, signal) {
       signalsSeen.findExistingCheckRun.push(signal);
       throwIfAborted(signal);
@@ -233,6 +254,10 @@ function createConfig(overrides: Partial<RondaConfig> = {}): RondaConfig {
     model: { apiKey: "test-key", baseUrl: "https://example.test/v1", modelName: "fake-model" },
     passTimeoutMs: 600_000,
     maxPatchChars: 400_000,
+    maxAuthoritativeDocCount: DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+    maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+    durabilityMode: "default",
+    durabilityModeDefault: false,
     ...overrides,
   };
 }
@@ -288,6 +313,42 @@ test("Scenario 1: a ready PR with findings publishes one review and one successf
   assert.equal(github.publishedReviews.length, 1);
   assert.equal(github.publishedCheckRuns.length, 1);
   assert.equal(github.publishedCheckRuns[0].conclusion, "success");
+});
+
+test("onReviewPublished runs after review publication and before check-run publication", async () => {
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const events: string[] = [];
+  let recoveryInput: PublishCheckRunInput | undefined;
+
+  github.ops.publishReview = async (input) => {
+    events.push("publishReview");
+    github.publishedReviews.push(input);
+  };
+  github.ops.publishCheckRun = async (input) => {
+    events.push("publishCheckRun");
+    github.checkRunAttempts.push(input);
+    github.publishedCheckRuns.push(input);
+  };
+
+  await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      onReviewPublished: (checkRunInput) => {
+        events.push("onReviewPublished");
+        recoveryInput = checkRunInput;
+      },
+    }),
+  );
+
+  assert.deepEqual(events, ["publishReview", "onReviewPublished", "publishCheckRun"]);
+  assert.equal(recoveryInput?.headSha, HEAD_SHA);
+  assert.equal(github.publishedCheckRuns[0], recoveryInput);
 });
 
 test("Scenario 2: findings on a changed line are inline; others land in the summary; the total matches", async () => {
@@ -531,7 +592,7 @@ test("a check-run write that keeps failing after a successful review rejects ins
         { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
         baseDeps({ github: github.ops, model }),
       ),
-    /check run could not be published/,
+    ReviewPublishedCheckRunError,
   );
 
   // The review was already published and must not be contradicted: exactly
@@ -620,6 +681,7 @@ test("Gap 1: a deadline that fires while the very first readPullRequest is in fl
   // so the pass degrades to a logged failure rather than a check-run write.
   assert.equal(result.outcome, "failed");
   assert.equal(result.failureReason, "timed_out");
+  assert.equal(result.terminalCheckRunPublished, false);
   assert.equal(github.publishedReviews.length, 0);
   assert.equal(github.publishedCheckRuns.length, 0);
 });
@@ -644,6 +706,7 @@ test("Gap 1 degradation path: the same first-readPullRequest abort, given a head
 
   assert.equal(result.outcome, "failed");
   assert.equal(result.failureReason, "timed_out");
+  assert.equal(result.terminalCheckRunPublished, true);
   assert.equal(github.publishedReviews.length, 0);
   assert.equal(github.publishedCheckRuns.length, 1);
   assert.equal(github.publishedCheckRuns[0].headSha, eventHeadSha);
@@ -753,7 +816,7 @@ test("an abort classified at the terminal success publishCheckRun write still re
         { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
         baseDeps({ github: github.ops, model }),
       ),
-    /check run could not be published/,
+    ReviewPublishedCheckRunError,
   );
 
   // The review published cleanly; the check-run write is what "aborted".
@@ -852,4 +915,116 @@ test("AC16: a head SHA that moves before publication still publishes nothing, wi
   assert.equal(github.signalsSeen.readPullRequest.length, 2);
   assert.ok(github.signalsSeen.readPullRequest[0] instanceof AbortSignal);
   assert.ok(github.signalsSeen.readPullRequest[1] instanceof AbortSignal);
+});
+
+test("authoritative docs: webhook changes fetch catalog files and attach them to the model prompt", async () => {
+  const { FAKE_AUTHORITATIVE_DOC_CONTENT_BY_PATH } = await import(
+    "../../support/fake-authoritative-docs.js"
+  );
+  let lastUserPrompt = "";
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: [
+      {
+        path: "src/webhook/webhook-server.ts",
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        patch: "+// webhook tweak",
+      },
+    ],
+    readFileAtRef: async (_owner, _repo, path) => FAKE_AUTHORITATIVE_DOC_CONTENT_BY_PATH[path],
+  });
+  const { model } = createFakeModel({
+    response: '{"findings":[]}',
+  });
+  const originalComplete = model.complete.bind(model);
+  model.complete = async (request, signal) => {
+    lastUserPrompt = request.userPrompt;
+    return originalComplete(request, signal);
+  };
+
+  const logEvents: Array<{ name: string; fields: Record<string, unknown> }> = [];
+  const logger: Logger = {
+    event(name, fields) {
+      logEvents.push({ name, fields });
+    },
+  };
+
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({ github: github.ops, model, logger }),
+  );
+
+  assert.equal(result.outcome, "succeeded");
+  assert.match(lastUserPrompt, /### \[binding\] docs\/constitution\.md/);
+  assert.ok(logEvents.some((entry) => entry.name === "authoritative_docs_selection"));
+});
+
+test("authoritative docs: irrelevant paths stay diff-only without doc fetch errors", async () => {
+  let readFileCalls = 0;
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: [
+      {
+        path: "src/domain/severity.ts",
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        patch: "+// noop",
+      },
+    ],
+    readFileAtRef: async () => {
+      readFileCalls += 1;
+      return "should-not-happen";
+    },
+  });
+  let lastUserPrompt = "";
+  const { model } = createFakeModel({ response: '{"findings":[]}' });
+  const originalComplete = model.complete.bind(model);
+  model.complete = async (request, signal) => {
+    lastUserPrompt = request.userPrompt;
+    return originalComplete(request, signal);
+  };
+
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({ github: github.ops, model }),
+  );
+
+  assert.equal(result.outcome, "succeeded");
+  assert.equal(readFileCalls, 0);
+  assert.doesNotMatch(lastUserPrompt, /Authoritative repository documentation/);
+});
+
+test("authoritative docs: missing catalog file content still completes the pass", async () => {
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: [
+      {
+        path: "src/config/load-config.ts",
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        patch: "+// config tweak",
+      },
+    ],
+    readFileAtRef: async (_owner, _repo, path) =>
+      path === "docs/constitution.md" ? "Binding rules." : undefined,
+  });
+  const logEvents: Array<{ name: string; fields: Record<string, unknown> }> = [];
+  const logger: Logger = {
+    event(name, fields) {
+      logEvents.push({ name, fields });
+    },
+  };
+  const { model } = createFakeModel({ response: '{"findings":[]}' });
+
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({ github: github.ops, model, logger }),
+  );
+
+  assert.equal(result.outcome, "succeeded");
+  assert.ok(logEvents.some((entry) => entry.name === "authoritative_doc_skipped"));
 });

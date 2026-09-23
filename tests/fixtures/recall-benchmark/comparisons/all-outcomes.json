@@ -1,0 +1,81 @@
+[
+  {
+    "id": "bugbot-all-outcomes",
+    "repository": "lhpaul/ronda",
+    "pullNumber": 28,
+    "headSha": "dddddddddddddddddddddddddddddddddddddddd",
+    "ronda": {
+      "result": "findings",
+      "reviewedHeadSha": "dddddddddddddddddddddddddddddddddddddddd",
+      "findings": [
+        {
+          "path": "src/benchmark/range.ts",
+          "line": 2,
+          "severity": "important",
+          "title": "Reject malformed ranges",
+          "body": "Ronda found the range validation issue."
+        },
+        {
+          "path": "src/benchmark/title.ts",
+          "line": 3,
+          "severity": "nit",
+          "title": "Leave acronym casing alone",
+          "body": "Ronda identified a duplicate title-casing concern."
+        }
+      ]
+    },
+    "otherReviewer": {
+      "name": "Cursor Bugbot",
+      "result": "findings",
+      "reviewedHeadSha": "dddddddddddddddddddddddddddddddddddddddd",
+      "findings": [
+        {
+          "path": "src/benchmark/storage.ts",
+          "line": 4,
+          "severity": "blocking",
+          "title": "Preserve existing storage",
+          "body": "The other reviewer found a real overwrite issue."
+        },
+        {
+          "path": "src/benchmark/title.ts",
+          "line": 3,
+          "severity": "important",
+          "title": "Avoid duplicate title-casing behavior",
+          "body": "The other reviewer found the same underlying issue."
+        },
+        {
+          "path": "src/benchmark/config.ts",
+          "line": 2,
+          "severity": "nit",
+          "title": "Consider renaming the config helper",
+          "body": "Human adjudication rejected this as noisy."
+        }
+      ]
+    },
+    "adjudications": [
+      {
+        "outcome": "ronda_miss",
+        "findingTitle": "Preserve existing storage",
+        "notes": "External-only actionable issue."
+      },
+      {
+        "outcome": "ronda_better",
+        "findingTitle": "Consider renaming the config helper",
+        "notes": "External-only noise."
+      },
+      {
+        "outcome": "duplicate",
+        "findingTitle": "Avoid duplicate title-casing behavior",
+        "notes": "Both reviewers found the same underlying issue."
+      },
+      {
+        "outcome": "clean_agreement",
+        "notes": "Separate clean comparison case recorded in the same evidence set."
+      },
+      {
+        "outcome": "unclear",
+        "notes": "Held for later human review."
+      }
+    ]
+  }
+]

@@ -6,7 +6,7 @@ function issueComment(body: string, overrides: Record<string, unknown> = {}) {
   return {
     action: "created",
     issue: { number: 7, pull_request: {} },
-    comment: { body },
+    comment: { body, author_association: "MEMBER" },
     ...overrides,
   };
 }
@@ -54,7 +54,29 @@ test("T7: issue_comment on an issue that is not a pull request does not run", ()
   assert.equal(decision.shouldRun, false);
 });
 
-test("T8: a pull_request event with draft true still resolves to automatic", () => {
+test("T8: issue_comment from an untrusted author association does not run", () => {
+  const decision = resolveTrigger(
+    "issue_comment",
+    issueComment(REVIEW_COMMAND, { comment: { body: REVIEW_COMMAND, author_association: "CONTRIBUTOR" } }),
+  );
+  assert.deepEqual(decision, {
+    shouldRun: false,
+    reason: "comment author cannot request manual reviews",
+  });
+});
+
+test("T9: issue_comment without an author association does not run", () => {
+  const decision = resolveTrigger(
+    "issue_comment",
+    issueComment(REVIEW_COMMAND, { comment: { body: REVIEW_COMMAND } }),
+  );
+  assert.deepEqual(decision, {
+    shouldRun: false,
+    reason: "comment author cannot request manual reviews",
+  });
+});
+
+test("T10: a pull_request event with draft true still resolves to automatic", () => {
   const decision = resolveTrigger("pull_request", {
     action: "ready_for_review",
     pull_request: { number: 9, draft: true },
@@ -62,7 +84,7 @@ test("T8: a pull_request event with draft true still resolves to automatic", () 
   assert.deepEqual(decision, { shouldRun: true, pullNumber: 9, trigger: "automatic" });
 });
 
-test("T9: a pull_request action outside the four handled types does not run", () => {
+test("T11: a pull_request action outside the four handled types does not run", () => {
   const decision = resolveTrigger("pull_request", {
     action: "closed",
     pull_request: { number: 9 },
@@ -70,7 +92,7 @@ test("T9: a pull_request action outside the four handled types does not run", ()
   assert.equal(decision.shouldRun, false);
 });
 
-test("T10: a payload missing the pull request number does not run and is not thrown", () => {
+test("T12: a payload missing the pull request number does not run and is not thrown", () => {
   assert.doesNotThrow(() => {
     const decision = resolveTrigger("pull_request", { action: "opened", pull_request: {} });
     assert.equal(decision.shouldRun, false);
@@ -86,7 +108,7 @@ test("an unsupported event name does not run", () => {
 // through so a first-readPullRequest abort still has a SHA to publish a
 // failure check run against. ---
 
-test("T11: a pull_request event carrying pull_request.head.sha threads it through as headSha", () => {
+test("T13: a pull_request event carrying pull_request.head.sha threads it through as headSha", () => {
   const decision = resolveTrigger("pull_request", {
     action: "synchronize",
     pull_request: { number: 9, head: { sha: "d".repeat(40) } },
@@ -99,7 +121,7 @@ test("T11: a pull_request event carrying pull_request.head.sha threads it throug
   });
 });
 
-test("T12: a pull_request event with no head.sha omits headSha entirely (not undefined-valued)", () => {
+test("T14: a pull_request event with no head.sha omits headSha entirely (not undefined-valued)", () => {
   const decision = resolveTrigger("pull_request", {
     action: "opened",
     pull_request: { number: 9 },
@@ -108,7 +130,7 @@ test("T12: a pull_request event with no head.sha omits headSha entirely (not und
   assert.equal(Object.prototype.hasOwnProperty.call(decision, "headSha"), false);
 });
 
-test("T13: issue_comment events never carry a headSha (the payload shape has none)", () => {
+test("T15: issue_comment events never carry a headSha (the payload shape has none)", () => {
   const decision = resolveTrigger("issue_comment", issueComment(REVIEW_COMMAND));
   assert.equal(decision.headSha, undefined);
 });

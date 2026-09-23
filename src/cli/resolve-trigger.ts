@@ -24,7 +24,7 @@ interface PullRequestEventPayload {
 interface IssueCommentEventPayload {
   action?: string;
   issue?: { number?: number; pull_request?: unknown };
-  comment?: { body?: string };
+  comment?: { body?: string; author_association?: string };
 }
 
 /** The four `pull_request` actions the caller workflow subscribes to. */
@@ -34,6 +34,7 @@ const PULL_REQUEST_ACTIONS = new Set([
   "ready_for_review",
   "synchronize",
 ]);
+const MANUAL_TRIGGER_AUTHOR_ASSOCIATIONS = new Set(["COLLABORATOR", "MEMBER", "OWNER"]);
 
 /**
  * Translates a GitHub Actions event into a pass decision. The draft gate
@@ -83,7 +84,17 @@ function resolveIssueCommentEvent(payload: IssueCommentEventPayload): TriggerDec
   if (!matchesReviewCommand(body)) {
     return { shouldRun: false, reason: "comment does not match the review command" };
   }
+  if (!canAuthorRequestManualReview(payload.comment?.author_association)) {
+    return { shouldRun: false, reason: "comment author cannot request manual reviews" };
+  }
   return { shouldRun: true, pullNumber, trigger: "manual" };
+}
+
+function canAuthorRequestManualReview(authorAssociation: string | undefined): boolean {
+  if (authorAssociation === undefined) {
+    return false;
+  }
+  return MANUAL_TRIGGER_AUTHOR_ASSOCIATIONS.has(authorAssociation.toUpperCase());
 }
 
 /**

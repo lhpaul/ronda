@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   ConfigLoadError,
+  DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+  DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
   DEFAULT_MAX_PATCH_CHARS,
   DEFAULT_MODEL_BASE_URL,
   DEFAULT_MODEL_NAME,
@@ -26,6 +28,10 @@ test("no environment and no config file: apiKey is blank and defaults apply", ()
   assert.equal(config.model.modelName, DEFAULT_MODEL_NAME);
   assert.equal(config.passTimeoutMs, DEFAULT_PASS_TIMEOUT_MS);
   assert.equal(config.maxPatchChars, DEFAULT_MAX_PATCH_CHARS);
+  assert.equal(config.maxAuthoritativeDocCount, DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT);
+  assert.equal(config.maxAuthoritativeDocChars, DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS);
+  assert.equal(config.durabilityMode, "default");
+  assert.equal(config.durabilityModeDefault, false);
 });
 
 test("missing config file is not an error", () => {

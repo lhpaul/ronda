@@ -1,7 +1,12 @@
 import type { Octokit } from "@octokit/rest";
+import { RONDA_REVIEW_HEADING } from "../core/summary.js";
 import { CHECK_RUN_NAME } from "../domain/review-pass.types.js";
 import type { ChangedFile, PullRequestMetadata } from "../domain/review-pass.types.js";
 import { withAbortMapping, withRetry } from "./github-client.js";
+
+export interface ExistingRondaPullRequestReview {
+  headSha: string;
+}
 
 export async function readPullRequest(
   octokit: Octokit,
@@ -12,8 +17,10 @@ export async function readPullRequest(
 ): Promise<PullRequestMetadata> {
   const response = await withAbortMapping(
     () =>
-      withRetry(() =>
-        octokit.pulls.get({ owner, repo, pull_number: pullNumber, request: { signal } }),
+      withRetry(
+        () => octokit.pulls.get({ owner, repo, pull_number: pullNumber, request: { signal } }),
+        undefined,
+        signal,
       ),
     signal,
   );
@@ -24,6 +31,7 @@ export async function readPullRequest(
     body: data.body ?? "",
     draft: Boolean(data.draft),
     headSha: data.head.sha,
+    headBranch: data.head.ref ?? "",
   };
 }
 
@@ -45,14 +53,17 @@ export async function readChangedFiles(
 ): Promise<ChangedFile[]> {
   const files = await withAbortMapping(
     () =>
-      withRetry(() =>
-        octokit.paginate(octokit.pulls.listFiles, {
-          owner,
-          repo,
-          pull_number: pullNumber,
-          per_page: 100,
-          request: { signal },
-        }),
+      withRetry(
+        () =>
+          octokit.paginate(octokit.pulls.listFiles, {
+            owner,
+            repo,
+            pull_number: pullNumber,
+            per_page: 100,
+            request: { signal },
+          }),
+        undefined,
+        signal,
       ),
     signal,
   );
@@ -79,20 +90,67 @@ export async function findExistingCheckRun(
   repo: string,
   headSha: string,
   signal?: AbortSignal,
+  options: { appId?: number } = {},
 ): Promise<number | null> {
   const response = await withAbortMapping(
     () =>
-      withRetry(() =>
-        octokit.checks.listForRef({
-          owner,
-          repo,
-          ref: headSha,
-          check_name: CHECK_RUN_NAME,
-          request: { signal },
-        }),
+      withRetry(
+        () =>
+          octokit.checks.listForRef({
+            owner,
+            repo,
+            ref: headSha,
+            check_name: CHECK_RUN_NAME,
+            request: { signal },
+          }),
+        undefined,
+        signal,
       ),
     signal,
   );
-  const run = response.data.check_runs[0];
+  const run = response.data.check_runs.find(
+    (checkRun) => options.appId === undefined || checkRun.app?.id === options.appId,
+  );
   return run ? run.id : null;
+}
+
+/**
+ * Returns a Ronda pull-request review already published on `headSha`, if any.
+ * Matches `commit_id` to the head SHA and the canonical Ronda summary marker.
+ */
+export async function findExistingRondaReview(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  pullNumber: number,
+  headSha: string,
+  signal?: AbortSignal,
+): Promise<ExistingRondaPullRequestReview | null> {
+  const reviews = await withAbortMapping(
+    () =>
+      withRetry(
+        () =>
+          octokit.paginate(octokit.pulls.listReviews, {
+            owner,
+            repo,
+            pull_number: pullNumber,
+            per_page: 100,
+            request: { signal },
+          }),
+        undefined,
+        signal,
+      ),
+    signal,
+  );
+  for (const review of reviews) {
+    if (review.commit_id !== headSha) {
+      continue;
+    }
+    const body = review.body ?? "";
+    if (!body.includes(RONDA_REVIEW_HEADING)) {
+      continue;
+    }
+    return { headSha: review.commit_id };
+  }
+  return null;
 }

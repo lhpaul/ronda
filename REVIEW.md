@@ -323,6 +323,8 @@ Additional checks for **PRs that add new filter parameters to a tool schema** (Z
 Additional checks for **PRs that add or modify an automated check, guard, lint rule, or CI job** (any change that introduces or strengthens an automated validation gate):
 
 - **Planted-violation proof presence** (blocking): confirm the PR evidence includes, for each new or materially modified check, a demonstrated run at a concrete file and line showing (a) the check fails when the targeted violation is present at that location, and (b) the check passes once the violation is removed. A description of intended behavior without both demonstrated runs does not satisfy this requirement.
+- **Plant-set sufficiency** (blocking): when the PR adds or materially modifies **multiple** checks or assertions, confirm the cited proof set includes at least one **isolating** planted violation for **each** new assertion — the assertion fails with that plant applied and passes with that plant removed (or with a plant that does not target that assertion). Reproducing the author's stated aggregate failure output is **necessary but not sufficient**; internal review must judge whether the plant set isolates every new assertion.
+- **Isolating plant per new assertion** (blocking): a plant that flips an assertion only because sibling assertions, fields, or checks changed in the same combined edit does **not** count as proof for assertions that stayed green under that combined edit. Each new assertion needs its own isolating plant pairing in the PR evidence.
 - **Location specificity** (blocking): confirm the cited location is an actual file path and line number (or an equivalent addressable location for non-file checks, e.g. a specific command invocation or config key) — not a paraphrase or hypothetical example.
 - **Same-PR inclusion** (blocking): confirm the proof is part of this PR's evidence, not deferred to a follow-up PR or assumed from a prior similar change.
 - **Exemption**: pure refactors of already-proven validation logic, with no behavior change, are exempt from re-proof; the PR evidence should state the exemption rationale.
@@ -398,8 +400,14 @@ branch implies.
    treated as satisfied, an absent value treated as a match?
 4. Does every new or modified check carry a planted-violation proof at a
    concrete file and line, and can the plant actually change the check's
-   answer? A proof whose plant is masked by an earlier rule is not a
-   proof.
+   answer? A proof whose plant is masked by an **earlier rule in the
+   pipeline** is not a proof. When a change adds or materially modifies
+   **multiple** checks or assertions, **each** new assertion must have at
+   least one **isolating** plant in the cited proof set: the assertion fails
+   with that plant and passes once the plant is removed (or with a plant that
+   does not target that assertion). A plant masked by **sibling assertions,
+   fields, or checks changed in the same combined edit** is not proof for
+   assertions that stayed green under that combined rollback.
 5. Does the change alter a `key=value` contract, a JSON schema version, or
    a stdout surface another script parses, and if so is every consumer
    named?

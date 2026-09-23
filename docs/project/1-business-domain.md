@@ -12,7 +12,7 @@ It does not implement product features and does not merge.
 | Actor | Description |
 | --- | --- |
 | GitHub | Sends pull-request events to the webhook URL. |
-| Ronda process | In v0, one run of the reusable GitHub Actions workflow per pass (`src/cli/review-pr.ts` → `runReviewPass`) — not yet a long-running HTTP server. The later webhook process reuses the same `runReviewPass` core unchanged. |
+| Ronda process | Either one reusable GitHub Actions workflow run (`src/cli/review-pr.ts` → `runReviewPass`) or the local webhook service (`src/webhook/webhook-server.ts` → `runReviewPass`) for a repository that has migrated to the App path. |
 | Inference backend | API (GLM/Qwen/…) or a local model. Swappable. |
 | ADF reviewer-loop | Waits on the check/review and drives fix cycles. |
 | Operator | Installs the App, points the webhook URL at a machine, reads findings. |
@@ -43,6 +43,8 @@ It does not implement product features and does not merge.
 - One GitHub review per head SHA.
 - All findings in that one review (do not stop at the first issue).
 - The webhook URL is operator config; moving host does not change the App.
+- A repository should use one active Ronda ingress for a trigger at a time
+  until shared Action/webhook arbitration exists.
 - Secrets and model API keys are not in git.
 - ADF/Helm remain the orchestrators of “is this PR ready?”.
 

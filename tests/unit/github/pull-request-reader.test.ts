@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import type { Octokit } from "@octokit/rest";
 import {
   findExistingCheckRun,
+  findExistingRondaReview,
   readChangedFiles,
   readPullRequest,
 } from "../../../src/github/pull-request-reader.js";
+import { RONDA_REVIEW_HEADING } from "../../../src/core/summary.js";
 import { CHECK_RUN_NAME } from "../../../src/domain/review-pass.types.js";
 import { GithubClientError } from "../../../src/github/github-client.js";
 
@@ -139,6 +141,53 @@ test("findExistingCheckRun returns null when no check run is found for the head 
   assert.equal(id, null);
 });
 
+test("findExistingCheckRun can filter runs to the publishing GitHub App", async () => {
+  const octokit = createFakeOctokit({
+    checks: {
+      listForRef: async () => ({
+        data: {
+          check_runs: [
+            { id: 111, app: { id: 15368, slug: "github-actions" } },
+            { id: 222, app: { id: 42, slug: "ronda" } },
+          ],
+        },
+      }),
+    },
+  });
+
+  const id = await findExistingCheckRun(
+    octokit,
+    "lhpaul",
+    "ronda",
+    "a".repeat(40),
+    undefined,
+    { appId: 42 },
+  );
+
+  assert.equal(id, 222);
+});
+
+test("findExistingCheckRun returns null when only foreign App runs exist", async () => {
+  const octokit = createFakeOctokit({
+    checks: {
+      listForRef: async () => ({
+        data: { check_runs: [{ id: 111, app: { id: 15368, slug: "github-actions" } }] },
+      }),
+    },
+  });
+
+  const id = await findExistingCheckRun(
+    octokit,
+    "lhpaul",
+    "ronda",
+    "a".repeat(40),
+    undefined,
+    { appId: 42 },
+  );
+
+  assert.equal(id, null);
+});
+
 // --- Fix 3: readChangedFiles must be under the same bounded retry policy as
 // every other GitHub read/publish call, and retry must compose correctly
 // with pagination (retry the whole paginated fetch, never a single page). ---
@@ -264,6 +313,51 @@ test("readPullRequest, readChangedFiles, and findExistingCheckRun each forward t
   assert.ok(seenSignals.every((signal) => signal === controller.signal));
 });
 
+test("readPullRequest aborts retry backoff when the caller signal aborts", async () => {
+  const controller = new AbortController();
+  let attempts = 0;
+  const octokit = createFakeOctokit({
+    pulls: {
+      get: async () => {
+        attempts += 1;
+        if (attempts > 1) {
+          return {
+            data: {
+              number: 4,
+              title: "unexpected retry",
+              body: "",
+              draft: false,
+              head: { sha: "a".repeat(40) },
+            },
+          };
+        }
+        throw { status: 500, message: "server unavailable" };
+      },
+      listFiles: () => undefined,
+    },
+  });
+  const readPromise = readPullRequest(
+    octokit,
+    "lhpaul",
+    "ronda",
+    4,
+    controller.signal,
+  );
+
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  controller.abort(new DOMException("The operation was aborted.", "AbortError"));
+
+  await assert.rejects(
+    () => readPromise,
+    (error: unknown) => {
+      assert.ok(error instanceof GithubClientError);
+      assert.equal(error.reason, "timed_out");
+      return true;
+    },
+  );
+  assert.equal(attempts, 1);
+});
+
 // --- Issue #11: a deadline expiring during any GitHub call must classify as
 // a typed `GithubClientError` (reason `timed_out`), not the raw
 // `AbortError`/`DOMException` Octokit's underlying `fetch` transport throws.
@@ -348,4 +442,32 @@ test("a non-abort failure (signal not aborted) propagates unchanged, never wrapp
       return true;
     },
   );
+});
+
+test("findExistingRondaReview matches a review on the head SHA with the Ronda summary marker", async () => {
+  const headSha = "f".repeat(40);
+  const octokit = createFakeOctokit({
+    paginate: async () => [
+      {
+        commit_id: headSha,
+        body: `${RONDA_REVIEW_HEADING}\n\nReviewed 1 changed file(s).`,
+      },
+    ],
+  });
+
+  const result = await findExistingRondaReview(octokit, "lhpaul", "ronda", 4, headSha);
+  assert.deepEqual(result, { headSha });
+});
+
+test("findExistingRondaReview ignores reviews on other commits or without the Ronda marker", async () => {
+  const headSha = "f".repeat(40);
+  const octokit = createFakeOctokit({
+    paginate: async () => [
+      { commit_id: "0".repeat(40), body: `${RONDA_REVIEW_HEADING}\n` },
+      { commit_id: headSha, body: "Human review without the marker" },
+    ],
+  });
+
+  const result = await findExistingRondaReview(octokit, "lhpaul", "ronda", 4, headSha);
+  assert.equal(result, null);
 });

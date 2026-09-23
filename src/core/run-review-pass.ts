@@ -1,7 +1,18 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { buildCommentableLinesByFile } from "../github/diff-lines.js";
 import { GithubClientError } from "../github/github-client.js";
 import { ModelClientError } from "../inference/model-client.js";
-import { ChangesTooLargeError, buildReviewPrompt } from "../inference/review-prompt.js";
+import {
+  AuthoritativeDocsTooLargeError,
+  ChangesTooLargeError,
+  buildReviewPrompt,
+} from "../inference/review-prompt.js";
+import {
+  applyAuthoritativeDocBudgets,
+  collectChangedPaths,
+  selectAuthoritativeDocCandidates,
+} from "./select-authoritative-docs.js";
 import {
   UnusableModelOutputError,
   parseModelResponse,
@@ -20,6 +31,50 @@ import type {
 } from "../domain/review-pass.types.js";
 import { buildCheckRunOutput, buildReviewSummary, countBySeverity } from "./summary.js";
 import { createPassDeadline } from "./pass-deadline.js";
+import {
+  DURABILITY_MODE_DOCUMENT_PATH,
+  REVIEW_DURABILITY_MODE_MAX_BYTES,
+  resolveDurabilityMode,
+  type DurabilityModeResolution,
+} from "../review/durability-mode.js";
+import { RepositoryFileUnusableError } from "../github/repo-content-reader.js";
+
+function readLocalDurabilityModeDocument(
+  cwd: string = process.cwd(),
+): { text: string | null; unreadable: boolean } {
+  const localPath = join(cwd, DURABILITY_MODE_DOCUMENT_PATH);
+  if (!existsSync(localPath)) {
+    return { text: null, unreadable: false };
+  }
+  try {
+    return { text: readFileSync(localPath, "utf8"), unreadable: false };
+  } catch {
+    return { text: null, unreadable: true };
+  }
+}
+
+/**
+ * The reusable Action checks out lhpaul/ronda and reviews consumer PRs that
+ * are not expected to vendor the mode document. Self-review of Ronda must not
+ * fall back to the checkout copy when the reviewed head deleted or broke it.
+ */
+function shouldFallBackToLocalDurabilityModeDocument(
+  owner: string,
+  repo: string,
+): boolean {
+  return `${owner}/${repo}`.toLowerCase() !== "lhpaul/ronda";
+}
+
+export class ReviewPublishedCheckRunError extends Error {
+  constructor(
+    message: string,
+    readonly reviewedHeadSha?: string,
+    readonly checkRunInput?: PublishCheckRunInput,
+  ) {
+    super(message);
+    this.name = "ReviewPublishedCheckRunError";
+  }
+}
 
 /**
  * Orchestrates one review pass end to end, implementing the plan's "Pass
@@ -85,7 +140,7 @@ export async function runReviewPass(
 
     if (pr.draft) {
       deps.logger.event("pass_skipped", { reason: "draft_pull_request", headSha: pr.headSha });
-      return skippedResult("draft_pull_request", startMs, deps);
+      return skippedResult("draft_pull_request", startMs, deps, pr.headSha);
     }
 
     try {
@@ -118,7 +173,7 @@ export async function runReviewPass(
         reason: "already_reviewed_automatically",
         headSha: pr.headSha,
       });
-      return skippedResult("already_reviewed_automatically", startMs, deps);
+      return skippedResult("already_reviewed_automatically", startMs, deps, pr.headSha);
     }
 
     if (deps.config.loadError) {
@@ -150,11 +205,158 @@ export async function runReviewPass(
       deadline.signal,
     );
 
+    const changedPaths = collectChangedPaths(changedFiles);
+    const preResolve = resolveDurabilityMode({
+      headBranch: pr.headBranch,
+      changedPaths,
+      durabilityMode: deps.config.durabilityMode,
+      durabilityModeDefault: deps.config.durabilityModeDefault,
+      modeDocumentText: "placeholder",
+    });
+
+    let durabilityMode: DurabilityModeResolution;
+    if (preResolve.state === "inactive") {
+      durabilityMode = {
+        ...preResolve,
+        modeText: "",
+      };
+    } else {
+      let modeDocumentText: string | null = null;
+      let modeDocumentUnreadable = false;
+      try {
+        const loaded = await deps.github.readFileAtRef(
+          input.owner,
+          input.repo,
+          DURABILITY_MODE_DOCUMENT_PATH,
+          pr.headSha,
+          deadline.signal,
+          { failOnUnusable: true, oversizedMaxBytes: REVIEW_DURABILITY_MODE_MAX_BYTES },
+        );
+        // Prefer the reviewed-head copy when present (self-review of mode-doc
+        // edits). When a consumer PR head has no copy — the common reusable-
+        // Action case — fall back to the deployed Ronda checkout document.
+        // Do not fall back when reviewing Ronda itself: a missing/broken head
+        // copy must surface as unavailable. Unusable head content (truncated,
+        // empty) is unavailable — never substituted with local guidance.
+        modeDocumentText =
+          loaded ??
+          (() => {
+            if (
+              !shouldFallBackToLocalDurabilityModeDocument(
+                input.owner,
+                input.repo,
+              )
+            ) {
+              return null;
+            }
+            const local = readLocalDurabilityModeDocument();
+            if (local.unreadable) {
+              modeDocumentUnreadable = true;
+              return null;
+            }
+            return local.text;
+          })();
+      } catch (error) {
+        if (error instanceof RepositoryFileUnusableError) {
+          // Empty files are present but incomplete (match shell supply). Files
+          // whose reported size exceeds the mode bound are oversized. Truncated
+          // or non-file content remains unreadable.
+          if (error.reason === "empty") {
+            modeDocumentText = "";
+          } else if (error.reason === "oversized") {
+            modeDocumentText = "x".repeat(REVIEW_DURABILITY_MODE_MAX_BYTES + 1);
+          } else {
+            modeDocumentUnreadable = true;
+            deps.logger.event("durability_mode_document_unreadable", {
+              message: error.message,
+              reason: error.reason,
+            });
+          }
+        } else {
+          const message = String(error);
+          if (/404|Not Found|does not exist/i.test(message)) {
+            if (
+              shouldFallBackToLocalDurabilityModeDocument(input.owner, input.repo)
+            ) {
+              const local = readLocalDurabilityModeDocument();
+              if (local.unreadable) {
+                modeDocumentUnreadable = true;
+                modeDocumentText = null;
+              } else {
+                modeDocumentText = local.text;
+              }
+            } else {
+              modeDocumentText = null;
+            }
+          } else {
+            modeDocumentUnreadable = true;
+            deps.logger.event("durability_mode_document_unreadable", { message });
+          }
+        }
+      }
+      durabilityMode = resolveDurabilityMode({
+        headBranch: pr.headBranch,
+        changedPaths,
+        durabilityMode: deps.config.durabilityMode,
+        durabilityModeDefault: deps.config.durabilityModeDefault,
+        modeDocumentText,
+        modeDocumentUnreadable,
+      });
+    }
+    deps.logger.event("durability_mode_resolved", {
+      state: durabilityMode.state,
+      activationReason: durabilityMode.activationReason,
+      unavailableReason: durabilityMode.unavailableReason,
+      familiesInScope: durabilityMode.scenarioFamiliesInScope,
+    });
+
+    const phase1 = selectAuthoritativeDocCandidates(changedPaths);
+    const candidatesWithText = [];
+    for (const candidate of phase1.candidates) {
+      const text = await deps.github.readFileAtRef(
+        input.owner,
+        input.repo,
+        candidate.path,
+        pr.headSha,
+        deadline.signal,
+      );
+      candidatesWithText.push({
+        id: candidate.id,
+        path: candidate.path,
+        role: candidate.role,
+        priority: candidate.priority,
+        text,
+      });
+    }
+    const phase2 = applyAuthoritativeDocBudgets(candidatesWithText, {
+      maxAuthoritativeDocCount: deps.config.maxAuthoritativeDocCount,
+      maxAuthoritativeDocChars: deps.config.maxAuthoritativeDocChars,
+    });
+    const allSkipped = [...phase1.skipped, ...phase2.skipped];
+    if (phase2.selected.length > 0 || allSkipped.length > 0) {
+      deps.logger.event("authoritative_docs_selection", {
+        selectedIds: phase2.selected.map((doc) => doc.id),
+        skippedCount: allSkipped.length,
+        docCharTotal: phase2.selected.reduce((sum, doc) => sum + doc.text.length, 0),
+      });
+      for (const skip of allSkipped) {
+        deps.logger.event("authoritative_doc_skipped", {
+          id: skip.id,
+          path: skip.path,
+          reason: skip.reason,
+        });
+      }
+    }
+
     const prompt = buildReviewPrompt({
       title: pr.title,
       body: pr.body,
       changedFiles,
       maxPatchChars: deps.config.maxPatchChars,
+      authoritativeDocs: phase2.selected,
+      maxAuthoritativeDocCount: deps.config.maxAuthoritativeDocCount,
+      maxAuthoritativeDocChars: deps.config.maxAuthoritativeDocChars,
+      durabilityMode,
     });
 
     const raw = await deps.model.complete(prompt, deadline.signal);
@@ -190,7 +392,7 @@ export async function runReviewPass(
         headSha: pr.headSha,
         newHeadSha: latest.headSha,
       });
-      return skippedResult("superseded_head_sha", startMs, deps);
+      return skippedResult("superseded_head_sha", startMs, deps, pr.headSha);
     }
 
     const totals = fileTotals(changedFiles);
@@ -206,6 +408,7 @@ export async function runReviewPass(
       malformedCount: parsed.malformedCount,
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
+      durabilityMode,
     });
     const fallbackSummaryBody = buildReviewSummary({
       changedFileCount: changedFiles.length,
@@ -219,6 +422,7 @@ export async function runReviewPass(
       malformedCount: parsed.malformedCount,
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
+      durabilityMode,
     });
 
     deadline.markPublishing();
@@ -260,6 +464,16 @@ export async function runReviewPass(
       completedAt: deps.clock.isoNow(),
       detailsUrl: deps.detailsUrl,
     };
+    try {
+      await deps.onReviewPublished?.(checkRunInput);
+    } catch {
+      throw new ReviewPublishedCheckRunError(
+        `Review was published for ${pr.headSha} but the check run recovery state ` +
+          "could not be persisted",
+        pr.headSha,
+        checkRunInput,
+      );
+    }
 
     const checkRunResult = await publishSuccessCheckRun(deps, input, checkRunInput, deadline.signal);
     if (!checkRunResult.ok) {
@@ -271,9 +485,11 @@ export async function runReviewPass(
       // `finalizeFailure` unchanged, and the caller (the CLI entrypoint)
       // turns it into a non-zero process exit, so the failure is visible in
       // the Actions run rather than silently swallowed.
-      throw new Error(
+      throw new ReviewPublishedCheckRunError(
         `Review was published for ${pr.headSha} but the check run could not be ` +
           `published after retrying: ${checkRunResult.message}`,
+        pr.headSha,
+        checkRunInput,
       );
     }
 
@@ -285,6 +501,8 @@ export async function runReviewPass(
 
     return {
       outcome: "succeeded",
+      reviewedHeadSha: pr.headSha,
+      terminalCheckRunPublished: true,
       findings: parsed.findings,
       malformedCount: parsed.malformedCount,
       coercedSeverityCount: parsed.coercedSeverityCount,
@@ -311,6 +529,7 @@ export async function runReviewPass(
       return {
         outcome: "failed",
         failureReason: reason,
+        terminalCheckRunPublished: false,
         findings: [],
         malformedCount: 0,
         coercedSeverityCount: 0,
@@ -380,7 +599,7 @@ function mapErrorToFailureReason(error: unknown, deadlineExpired: boolean): Fail
   if (error instanceof GithubClientError) {
     return error.reason;
   }
-  if (error instanceof ChangesTooLargeError) {
+  if (error instanceof ChangesTooLargeError || error instanceof AuthoritativeDocsTooLargeError) {
     return "changes_too_large";
   }
   if (error instanceof UnusableModelOutputError) {
@@ -413,10 +632,13 @@ function skippedResult(
   skipReason: ReviewPassResult["skipReason"],
   startMs: number,
   deps: ReviewPassDeps,
+  reviewedHeadSha?: string,
 ): ReviewPassResult {
   return {
     outcome: "skipped",
     skipReason,
+    ...(reviewedHeadSha !== undefined ? { reviewedHeadSha } : {}),
+    terminalCheckRunPublished: false,
     findings: [],
     malformedCount: 0,
     coercedSeverityCount: 0,
@@ -478,6 +700,8 @@ async function finalizeFailure(
   return {
     outcome: "failed",
     failureReason: failure.reason,
+    reviewedHeadSha: failure.headSha,
+    terminalCheckRunPublished: true,
     findings: [],
     malformedCount: 0,
     coercedSeverityCount: 0,

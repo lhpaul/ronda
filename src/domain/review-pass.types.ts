@@ -73,6 +73,8 @@ export interface PullRequestMetadata {
   body: string;
   draft: boolean;
   headSha: string;
+  /** Head branch name (for stage resolution). Empty when unavailable. */
+  headBranch: string;
 }
 
 export interface ReviewPassInput {
@@ -152,6 +154,14 @@ export interface GithubOperations {
     pullNumber: number,
     signal?: AbortSignal,
   ): Promise<ChangedFile[]>;
+  readFileAtRef(
+    owner: string,
+    repo: string,
+    path: string,
+    ref: string,
+    signal?: AbortSignal,
+    options?: { failOnUnusable?: boolean; oversizedMaxBytes?: number },
+  ): Promise<string | undefined>;
   findExistingCheckRun(
     owner: string,
     repo: string,
@@ -180,6 +190,12 @@ export interface ReviewPassDeps {
   /** Actions run URL used as the check run's "details" link, when known. */
   detailsUrl?: string;
   /**
+   * Called after the pull-request review is public and before publishing the
+   * terminal check run. Webhook callers use this to persist check-run recovery
+   * state so a process crash cannot rerun the full review for the same head.
+   */
+  onReviewPublished?: (checkRunInput: PublishCheckRunInput) => void | Promise<void>;
+  /**
    * Overrides the timer implementation `createPassDeadline` uses. Absent in
    * production (the real, `unref`-ed system timer is used). Tests that need
    * to exercise a real elapsed-time expiry inject a short, non-`unref`-able
@@ -196,6 +212,8 @@ export interface ReviewPassResult {
   outcome: PassOutcome;
   failureReason?: FailureReason;
   skipReason?: SkipReason;
+  reviewedHeadSha?: string;
+  terminalCheckRunPublished?: boolean;
   findings: Finding[];
   malformedCount: number;
   coercedSeverityCount: number;

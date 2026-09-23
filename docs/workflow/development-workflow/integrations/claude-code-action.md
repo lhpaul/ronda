@@ -117,14 +117,14 @@ place it in the ready phase:
 review:
   on_draft:
     github:
-      - pr-agent
+      - local-ai-reviewer
   on_ready:
     github:
       - claude-code-action
 ```
 
 This configuration makes Claude Code Action's net-new findings measurable
-independently of whether `pr-agent` already found issues.
+independently of whether `local-ai-reviewer` already found issues.
 
 ---
 

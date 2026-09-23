@@ -63,15 +63,16 @@ review:
     # Supported today by pr-review-loop.sh: greptile, devin, coderabbit,
     # coderabbit-cli, local-ai-reviewer, pr-agent, codex-github,
     # claude-code-action, haystack, copilot, bugbot.
-    # Empty on purpose: draft GitHub bots stay off. Internal review is Claude
-    # Code (Step 7a). Bugbot runs after `gh pr ready`.
-    github: []
+    # Local AI runs before the expensive ready-phase Codex GitHub review, so
+    # the expensive-reviewer gate has current-head local evidence.
+    github:
+      - local-ai-reviewer
 
   on_ready:
     # Ordered list of GitHub/App/CLI reviewers that run only after draft gates
     # are clean and the PR has been converted with `gh pr ready`.
     github:
-      - bugbot
+      - codex-github
 
   # Optional: TWO independent reviewer-loop cycle caps enforced by
   # pr-review-loop.sh (issue #1502; dual-cap decision recorded on PR #1507's
@@ -109,10 +110,12 @@ review:
   # max_cycles: 10
   # max_total_cycles: 25
   #
-  # Bugbot is the default ready-phase GitHub reviewer for this repository.
+  # Codex GitHub is the default ready-phase GitHub reviewer for this repository.
   # CodeRabbit remains supported as an opt-in reviewer (`coderabbit` for the
   # GitHub App, `coderabbit-cli` for the local CLI), but it is not a default
   # gate because vendor rate limits/spending caps can block otherwise-clean PRs.
+  # Bugbot remains supported as an opt-in reviewer, but it is not a default gate
+  # because Cursor usage/spend limits can block otherwise-clean PRs.
   #
   # CodeRabbit CLI platform options (local CLI reviewer; place "coderabbit-cli"
   # in on_draft.github or on_ready.github to opt in; independent from the
@@ -120,7 +123,7 @@ review:
   #   rate_limit_policy: warn      # warn|strict; default warn
   #
   # Local AI reviewer platform options (local-only CLI reviewer; enabled first
-  # in on_draft.github by default before PR-Agent and ready-phase reviewers):
+  # in on_draft.github by default before ready-phase reviewers):
   #   LOCAL_AI_REVIEWER_COMMAND        — optional override; when unset,
   #                                      local-ai-reviewer.sh defaults to
   #                                      scripts/development-workflow/local-codex-review-command.sh

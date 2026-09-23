@@ -21,6 +21,25 @@ else
   readonly REVIEW_DOCTRINE_MAX_BYTES=12000
 fi
 
+# Durability/idempotency mode instruction size bound (#54).
+# One source of truth for the mode document linter and reviewer supply.
+if declare -p REVIEW_DURABILITY_MODE_MAX_BYTES >/dev/null 2>&1; then
+  case "$(declare -p REVIEW_DURABILITY_MODE_MAX_BYTES 2>/dev/null || true)" in
+    *"-r"*)
+      if [ "${REVIEW_DURABILITY_MODE_MAX_BYTES}" != "16000" ]; then
+        echo "ERROR: REVIEW_DURABILITY_MODE_MAX_BYTES is readonly at ${REVIEW_DURABILITY_MODE_MAX_BYTES}; #54 requires 16000." >&2
+        return 1
+      fi
+      ;;
+    *)
+      unset REVIEW_DURABILITY_MODE_MAX_BYTES
+      readonly REVIEW_DURABILITY_MODE_MAX_BYTES=16000
+      ;;
+  esac
+else
+  readonly REVIEW_DURABILITY_MODE_MAX_BYTES=16000
+fi
+
 workflow_script_dir() {
   if [[ -z "${BASH_SOURCE[0]:-}" ]]; then
     printf 'ERROR: BASH_SOURCE[0] is unset — source workflow-lib.sh from a Bash script or via:\n  bash -c "source scripts/development-workflow/workflow-lib.sh"\n' >&2
@@ -30,11 +49,30 @@ workflow_script_dir() {
 }
 
 workflow_repo_root() {
-  CDPATH='' cd -- "$(workflow_script_dir)/../.." && pwd
+  local script_dir=""
+  if ! script_dir="$(workflow_script_dir)"; then
+    return 1
+  fi
+  CDPATH='' cd -- "$script_dir/../.." && pwd
+}
+
+# Shared redaction for workflow audit comments and reviewer-loop GitHub surfaces (#64).
+# Reads stdin, writes redacted text to stdout. Same rules as run-epic-audit-trail.sh.
+workflow_audit_redact_text() {
+  sed -E \
+    -e 's#gh[pousr]_[A-Za-z0-9_]+#[REDACTED_TOKEN]#g' \
+    -e 's#Bearer[[:space:]]+[A-Za-z0-9._=-]+#Bearer [REDACTED]#g' \
+    -e 's#Authorization:[[:space:]]*[^[:space:]]+#Authorization: [REDACTED]#g' \
+    -e 's#/Users/[^[:space:]|)]+#[REDACTED_LOCAL_PATH]#g' \
+    -e 's#/tmp/[^[:space:]|)]+#[REDACTED_LOCAL_PATH]#g'
 }
 
 workflow_config_file() {
-  printf '%s/.ai-dev-workflow.yaml\n' "$(workflow_repo_root)"
+  local repo_root=""
+  if ! repo_root="$(workflow_repo_root)"; then
+    return 1
+  fi
+  printf '%s/.ai-dev-workflow.yaml\n' "$repo_root"
 }
 
 # workflow_effective_config_file
@@ -176,7 +214,11 @@ workflow_config_exists() {
 }
 
 cd_workflow_repo_root() {
-  cd -- "$(workflow_repo_root)"
+  local repo_root=""
+  if ! repo_root="$(workflow_repo_root)"; then
+    return 1
+  fi
+  cd -- "$repo_root"
 }
 
 have_cmd() {
@@ -3454,4 +3496,359 @@ reviewer_loop_history_select_latest_summary_record() {
         body: (.body // "")
       }
   '
+}
+
+# ---------------------------------------------------------------------------
+# Durability / idempotency review mode activation (#54)
+# ---------------------------------------------------------------------------
+
+# All six scenario family codes from the #54 spec.
+REVIEW_DURABILITY_SCENARIO_FAMILIES='["restart_recovery","retry_semantics","timeout_watchdog","duplicate_delivery","partial_success","persistence_integrity"]'
+
+# Returns 0 when the mode document text includes every required family heading
+# as an actual Markdown heading line (not merely as a prose/code substring).
+# Fenced code blocks (``` / ~~~) are excluded before the heading scan.
+reviewer_durability_mode_document_is_complete() {
+  local text="${1:-}"
+  local heading
+  local line
+  local normalized=""
+  local in_fence=0
+  local fence_char=""
+  local fence_len=0
+  local marker info marker_char marker_len
+  local required_headings=(
+    "### Restart and recovery"
+    "### Retry semantics"
+    "### Timeout and watchdog"
+    "### Duplicate delivery"
+    "### Partial success"
+    "### Persistence integrity"
+  )
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [[ "$line" =~ ^( {0,3})(\`{3,}|~{3,})(.*)$ ]]; then
+      marker="${BASH_REMATCH[2]}"
+      info="${BASH_REMATCH[3]}"
+      marker_char="${marker:0:1}"
+      marker_len="${#marker}"
+      if [ "$in_fence" -eq 0 ]; then
+        in_fence=1
+        fence_char="$marker_char"
+        fence_len="$marker_len"
+        continue
+      fi
+      if [ "$marker_char" = "$fence_char" ] && [ "$marker_len" -ge "$fence_len" ]; then
+        info="${info#"${info%%[![:space:]]*}"}"
+        info="${info%"${info##*[![:space:]]}"}"
+        if [ -z "$info" ]; then
+          in_fence=0
+          fence_char=""
+          fence_len=0
+          continue
+        fi
+      fi
+      continue
+    fi
+    if [ "$in_fence" -ne 0 ]; then
+      continue
+    fi
+    line="$(printf '%s' "$line" | sed -E 's/^[[:space:]]{0,3}//; s/[[:space:]]+$//')"
+    normalized="${normalized}${line}"$'\n'
+  done <<< "$text"
+
+  for heading in "${required_headings[@]}"; do
+    if ! grep -Fxq "$heading" <<< "$normalized"; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+# Returns 0 when the path matches documented sensitive surfaces (AC-1).
+reviewer_durability_path_is_sensitive() {
+  local path="${1:-}"
+
+  [ -n "$path" ] || return 1
+
+  case "$path" in
+    src/webhook/*|src/webhook)
+      return 0
+      ;;
+    src/github/check-run-publisher.ts|src/github/review-publisher.ts)
+      return 0
+      ;;
+    src/core/run-review-pass.ts)
+      return 0
+      ;;
+    scripts/development-workflow/pr-review-loop.sh|scripts/development-workflow/local-ai-reviewer.sh)
+      return 0
+      ;;
+  esac
+
+  # Nested webhook modules (**/webhook-*.ts, **/webhook/*.ts).
+  # `**` may match zero path segments, so root-level webhook/*.ts counts.
+  case "$path" in
+    webhook/*.ts|*/webhook/*.ts)
+      return 0
+      ;;
+    */webhook-*.ts|webhook-*.ts)
+      return 0
+      ;;
+  esac
+
+  # Keyword surfaces under src/ or scripts/ only
+  # (*queue*, *retry*, *idempot*, *durable*, *persist*).
+  # Match case-insensitively to mirror TypeScript keyword regex.
+  case "$path" in
+    src/*|scripts/*)
+      lower_path="$(printf '%s' "$path" | sed 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/')"
+      case "$lower_path" in
+        *queue*|*retry*|*idempot*|*durable*|*persist*)
+          return 0
+          ;;
+      esac
+      ;;
+  esac
+
+  return 1
+}
+
+# True (0) when any path in the JSON array is sensitive.
+reviewer_durability_paths_match() {
+  local changed_paths_json="${1:-[]}"
+  local path
+
+  if ! printf '%s' "$changed_paths_json" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    return 1
+  fi
+
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    if reviewer_durability_path_is_sensitive "$path"; then
+      return 0
+    fi
+  done < <(printf '%s' "$changed_paths_json" | jq -r '.[]? // empty')
+
+  return 1
+}
+
+# Build families_na JSON when no webhook/publication surface is in the change set.
+reviewer_durability_families_na_for_paths() {
+  local changed_paths_json="${1:-[]}"
+  local has_delivery_surface=0
+  local path
+
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    case "$path" in
+      src/webhook|src/webhook/*|webhook/*.ts|*/webhook/*.ts|*/webhook-*.ts|webhook-*.ts|\
+      src/github/check-run-publisher.ts|src/github/review-publisher.ts|src/core/run-review-pass.ts)
+        has_delivery_surface=1
+        break
+        ;;
+      esac
+  done < <(printf '%s' "$changed_paths_json" | jq -r '.[]? // empty' 2>/dev/null || true)
+
+  if [ "$has_delivery_surface" -eq 0 ]; then
+    jq -n '[{"family":"duplicate_delivery","reason":"no webhook, dual-ingress, or publication surface in changed files"}]'
+  else
+    printf '[]\n'
+  fi
+}
+
+# Decision matrix rows 1–8 from the #54 spec.
+# Args: stage override_default override_force changed_paths_json supply_state
+#   override_force: "on" | "off" | ""
+#   override_default: "on" | ""  (repository default-on when no automatic match)
+#   supply_state: "supplied" | "absent" | "unreadable" | "oversized" | "incomplete" | "skipped"
+reviewer_durability_mode_resolve() {
+  local stage="${1:-}"
+  local override_default="${2:-}"
+  local override_force="${3:-}"
+  local changed_paths_json="${4:-[]}"
+  local supply_state="${5:-absent}"
+  local automatic_match=0
+  local families_in_scope='[]'
+  local families_na='[]'
+  local instructions_ok=0
+  local unavailable_reason=""
+
+  case "$supply_state" in
+    supplied) instructions_ok=1 ;;
+    absent) unavailable_reason="missing" ;;
+    unreadable) unavailable_reason="unreadable" ;;
+    oversized) unavailable_reason="oversized" ;;
+    incomplete) unavailable_reason="incomplete" ;;
+    skipped) unavailable_reason="" ;;
+    *) unavailable_reason="unreadable" ;;
+  esac
+
+  if [ "$stage" != "implementation" ]; then
+    jq -n \
+      --arg state "inactive" \
+      --arg activation_reason "" \
+      --arg unavailable_reason "" \
+      --argjson scenario_families_in_scope '[]' \
+      --argjson scenario_families_na '[]' \
+      '{
+        state: $state,
+        activation_reason: $activation_reason,
+        unavailable_reason: $unavailable_reason,
+        scenario_families_in_scope: $scenario_families_in_scope,
+        scenario_families_na: $scenario_families_na,
+        inactive_reason: "non_implementation_stage"
+      }'
+    return 0
+  fi
+
+  if reviewer_durability_paths_match "$changed_paths_json"; then
+    automatic_match=1
+  fi
+
+  # Row 4: force off
+  if [ "$override_force" = "off" ]; then
+    jq -n \
+      --arg state "inactive" \
+      --arg activation_reason "" \
+      --arg unavailable_reason "" \
+      --argjson scenario_families_in_scope '[]' \
+      --argjson scenario_families_na '[]' \
+      '{
+        state: $state,
+        activation_reason: $activation_reason,
+        unavailable_reason: $unavailable_reason,
+        scenario_families_in_scope: $scenario_families_in_scope,
+        scenario_families_na: $scenario_families_na,
+        inactive_reason: "operator_override"
+      }'
+    return 0
+  fi
+
+  # Rows 2–3: force on
+  if [ "$override_force" = "on" ]; then
+    if [ "$instructions_ok" -ne 1 ]; then
+      jq -n \
+        --arg state "unavailable" \
+        --arg activation_reason "" \
+        --arg unavailable_reason "$unavailable_reason" \
+        --argjson scenario_families_in_scope '[]' \
+        --argjson scenario_families_na '[]' \
+        '{
+          state: $state,
+          activation_reason: $activation_reason,
+          unavailable_reason: $unavailable_reason,
+          scenario_families_in_scope: $scenario_families_in_scope,
+          scenario_families_na: $scenario_families_na
+        }'
+      return 0
+    fi
+    families_na="$(reviewer_durability_families_na_for_paths "$changed_paths_json")"
+    families_in_scope="$(jq -n --argjson all "$REVIEW_DURABILITY_SCENARIO_FAMILIES" --argjson na "$families_na" \
+      '$all - [$na[].family]')"
+    jq -n \
+      --arg state "active" \
+      --arg activation_reason "operator_override" \
+      --arg unavailable_reason "" \
+      --argjson scenario_families_in_scope "$families_in_scope" \
+      --argjson scenario_families_na "$families_na" \
+      '{
+        state: $state,
+        activation_reason: $activation_reason,
+        unavailable_reason: $unavailable_reason,
+        scenario_families_in_scope: $scenario_families_in_scope,
+        scenario_families_na: $scenario_families_na
+      }'
+    return 0
+  fi
+
+  # Rows 5–6: automatic match
+  if [ "$automatic_match" -eq 1 ]; then
+    if [ "$instructions_ok" -ne 1 ]; then
+      jq -n \
+        --arg state "unavailable" \
+        --arg activation_reason "" \
+        --arg unavailable_reason "$unavailable_reason" \
+        --argjson scenario_families_in_scope '[]' \
+        --argjson scenario_families_na '[]' \
+        '{
+          state: $state,
+          activation_reason: $activation_reason,
+          unavailable_reason: $unavailable_reason,
+          scenario_families_in_scope: $scenario_families_in_scope,
+          scenario_families_na: $scenario_families_na
+        }'
+      return 0
+    fi
+    families_na="$(reviewer_durability_families_na_for_paths "$changed_paths_json")"
+    families_in_scope="$(jq -n --argjson all "$REVIEW_DURABILITY_SCENARIO_FAMILIES" --argjson na "$families_na" \
+      '$all - [$na[].family]')"
+    jq -n \
+      --arg state "active" \
+      --arg activation_reason "automatic_match" \
+      --arg unavailable_reason "" \
+      --argjson scenario_families_in_scope "$families_in_scope" \
+      --argjson scenario_families_na "$families_na" \
+      '{
+        state: $state,
+        activation_reason: $activation_reason,
+        unavailable_reason: $unavailable_reason,
+        scenario_families_in_scope: $scenario_families_in_scope,
+        scenario_families_na: $scenario_families_na
+      }'
+    return 0
+  fi
+
+  # Row 8: operator default on (no automatic match)
+  if [ "$override_default" = "on" ]; then
+    if [ "$instructions_ok" -ne 1 ]; then
+      jq -n \
+        --arg state "unavailable" \
+        --arg activation_reason "" \
+        --arg unavailable_reason "$unavailable_reason" \
+        --argjson scenario_families_in_scope '[]' \
+        --argjson scenario_families_na '[]' \
+        '{
+          state: $state,
+          activation_reason: $activation_reason,
+          unavailable_reason: $unavailable_reason,
+          scenario_families_in_scope: $scenario_families_in_scope,
+          scenario_families_na: $scenario_families_na
+        }'
+      return 0
+    fi
+    families_na="$(reviewer_durability_families_na_for_paths "$changed_paths_json")"
+    families_in_scope="$(jq -n --argjson all "$REVIEW_DURABILITY_SCENARIO_FAMILIES" --argjson na "$families_na" \
+      '$all - [$na[].family]')"
+    jq -n \
+      --arg state "active" \
+      --arg activation_reason "operator_default" \
+      --arg unavailable_reason "" \
+      --argjson scenario_families_in_scope "$families_in_scope" \
+      --argjson scenario_families_na "$families_na" \
+      '{
+        state: $state,
+        activation_reason: $activation_reason,
+        unavailable_reason: $unavailable_reason,
+        scenario_families_in_scope: $scenario_families_in_scope,
+        scenario_families_na: $scenario_families_na
+      }'
+    return 0
+  fi
+
+  # Row 7: inactive — automatic rules did not match
+  jq -n \
+    --arg state "inactive" \
+    --arg activation_reason "" \
+    --arg unavailable_reason "" \
+    --argjson scenario_families_in_scope '[]' \
+    --argjson scenario_families_na '[]' \
+    '{
+      state: $state,
+      activation_reason: $activation_reason,
+      unavailable_reason: $unavailable_reason,
+      scenario_families_in_scope: $scenario_families_in_scope,
+      scenario_families_na: $scenario_families_na,
+      inactive_reason: "automatic_rules_did_not_match"
+    }'
 }

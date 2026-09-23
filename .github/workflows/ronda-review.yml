@@ -20,6 +20,21 @@ on:
         type: number
         required: false
         default: 10
+      durability_mode:
+        description: >-
+          Force durability and idempotency review mode on or off for this run
+          (`on` / `off`). Leave empty to follow automatic path rules and any
+          `durability_mode_default` setting.
+        type: string
+        required: false
+        default: ""
+      durability_mode_default:
+        description: >-
+          When `on`, activate durability mode for every implementation-stage
+          review even when automatic path rules do not match.
+        type: string
+        required: false
+        default: ""
       ronda_ref:
         description: Ref of lhpaul/ronda to check out and run.
         type: string
@@ -126,4 +141,6 @@ jobs:
           RONDA_MODEL_BASE_URL: ${{ inputs.model_base_url }}
           RONDA_MODEL_NAME: ${{ inputs.model_name }}
           RONDA_PASS_TIMEOUT_MS: ${{ needs.setup.outputs.pass_timeout_ms }}
+          RONDA_DURABILITY_MODE: ${{ inputs.durability_mode }}
+          RONDA_DURABILITY_MODE_DEFAULT: ${{ inputs.durability_mode_default }}
         run: npm run review

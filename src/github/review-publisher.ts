@@ -34,22 +34,25 @@ export async function publishReview(
   try {
     await withAbortMapping(
       () =>
-        withRetry(() =>
-          octokit.pulls.createReview({
-            owner: input.owner,
-            repo: input.repo,
-            pull_number: input.pullNumber,
-            commit_id: input.headSha,
-            event: "COMMENT",
-            body: input.summaryBody,
-            comments: input.inlineComments.map((comment) => ({
-              path: comment.path,
-              line: comment.line,
-              side: "RIGHT" as const,
-              body: comment.body,
-            })),
-            request: { signal },
-          }),
+        withRetry(
+          () =>
+            octokit.pulls.createReview({
+              owner: input.owner,
+              repo: input.repo,
+              pull_number: input.pullNumber,
+              commit_id: input.headSha,
+              event: "COMMENT",
+              body: input.summaryBody,
+              comments: input.inlineComments.map((comment) => ({
+                path: comment.path,
+                line: comment.line,
+                side: "RIGHT" as const,
+                body: comment.body,
+              })),
+              request: { signal },
+            }),
+          undefined,
+          signal,
         ),
       signal,
     );
@@ -64,17 +67,20 @@ export async function publishReview(
   try {
     await withAbortMapping(
       () =>
-        withRetry(() =>
-          octokit.pulls.createReview({
-            owner: input.owner,
-            repo: input.repo,
-            pull_number: input.pullNumber,
-            commit_id: input.headSha,
-            event: "COMMENT",
-            body: input.fallbackSummaryBody,
-            comments: [],
-            request: { signal },
-          }),
+        withRetry(
+          () =>
+            octokit.pulls.createReview({
+              owner: input.owner,
+              repo: input.repo,
+              pull_number: input.pullNumber,
+              commit_id: input.headSha,
+              event: "COMMENT",
+              body: input.fallbackSummaryBody,
+              comments: [],
+              request: { signal },
+            }),
+          undefined,
+          signal,
         ),
       signal,
     );

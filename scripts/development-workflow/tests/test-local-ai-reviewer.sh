@@ -72,6 +72,11 @@ case "$*" in
     printf 'scripts/example.sh\nREVIEW.md\n'
     exit 0
     ;;
+  *"api"*"pulls/"*"/files"*)
+    # Empty rename metadata — enough for fail-closed rename lookup to succeed.
+    printf '[]\n'
+    exit 0
+    ;;
   *)
     exit 1
     ;;
@@ -128,6 +133,8 @@ init_repo_root_fixture() {
   git -C "$VALID_REPO_ROOT" add REVIEW.md
   git -C "$VALID_REPO_ROOT" commit -q -m "fixture"
   git -C "$VALID_REPO_ROOT" remote add origin "git@github.com:owner/repo.git"
+  # Provide origin/develop so rename-metadata git fallback can succeed when REST is unavailable.
+  git -C "$VALID_REPO_ROOT" update-ref refs/remotes/origin/develop HEAD
 }
 
 run_reviewer() {
@@ -253,6 +260,64 @@ set_mock_stdout '{"findings":[{"severity":"important","message":"fix before read
 export LOCAL_AI_REVIEWER_COMMAND MOCK_LOCAL_REVIEWER_STDOUT
 run_reviewer "$MOCK_BIN:$PATH"
 run_test "important_result" "RESULT=needs_fixes" "$(line_for RESULT)"
+
+reset_mocks
+LOCAL_AI_REVIEWER_COMMAND=local-reviewer-mock
+set_mock_stdout '{"result":"needs_fixes","findings":[]}'
+export LOCAL_AI_REVIEWER_COMMAND MOCK_LOCAL_REVIEWER_STDOUT
+run_reviewer "$MOCK_BIN:$PATH"
+run_test "unstructured_needs_fixes_result" "RESULT=escalate" "$(line_for RESULT)"
+run_test "unstructured_needs_fixes_reason" "REASON=malformed_output" "$(line_for REASON)"
+run_test "unstructured_needs_fixes_no_blocker" "BLOCKING_COUNT=0" "$(line_for BLOCKING_COUNT)"
+run_test "unstructured_needs_fixes_exit" "2" "$(exit_code)"
+
+reset_mocks
+LOCAL_AI_REVIEWER_COMMAND=local-reviewer-mock
+set_mock_stdout '{"result":"needs_fixes","findings":[{"severity":"important","path":"scripts/example.sh"}]}'
+export LOCAL_AI_REVIEWER_COMMAND MOCK_LOCAL_REVIEWER_STDOUT
+run_reviewer "$MOCK_BIN:$PATH"
+run_test "empty_blocker_text_result" "RESULT=escalate" "$(line_for RESULT)"
+run_test "empty_blocker_text_reason" "REASON=malformed_output" "$(line_for REASON)"
+run_test "empty_blocker_text_no_blocker" "BLOCKING_COUNT=0" "$(line_for BLOCKING_COUNT)"
+run_test "empty_blocker_text_exit" "2" "$(exit_code)"
+
+reset_mocks
+LOCAL_AI_REVIEWER_COMMAND=local-reviewer-mock
+set_mock_stdout '{"result":"needs_fixes","findings":[{"severity":"important","path":"scripts/example.sh","message":"   "}]}'
+export LOCAL_AI_REVIEWER_COMMAND MOCK_LOCAL_REVIEWER_STDOUT
+run_reviewer "$MOCK_BIN:$PATH"
+run_test "whitespace_blocker_text_result" "RESULT=escalate" "$(line_for RESULT)"
+run_test "whitespace_blocker_text_reason" "REASON=malformed_output" "$(line_for REASON)"
+run_test "whitespace_blocker_text_no_blocker" "BLOCKING_COUNT=0" "$(line_for BLOCKING_COUNT)"
+run_test "whitespace_blocker_text_exit" "2" "$(exit_code)"
+
+reset_mocks
+LOCAL_AI_REVIEWER_COMMAND=local-reviewer-mock
+set_mock_stdout '{"result":"needs_fixes","findings":[{"severity":"important","path":"scripts/example.sh","message":"\n"}]}'
+export LOCAL_AI_REVIEWER_COMMAND MOCK_LOCAL_REVIEWER_STDOUT
+run_reviewer "$MOCK_BIN:$PATH"
+run_test "newline_blocker_text_result" "RESULT=escalate" "$(line_for RESULT)"
+run_test "newline_blocker_text_reason" "REASON=malformed_output" "$(line_for REASON)"
+run_test "newline_blocker_text_no_blocker" "BLOCKING_COUNT=0" "$(line_for BLOCKING_COUNT)"
+run_test "newline_blocker_text_exit" "2" "$(exit_code)"
+
+reset_mocks
+LOCAL_AI_REVIEWER_COMMAND=local-reviewer-mock
+set_mock_stdout '{"result":"needs_fixes","findings":[{"severity":"important","path":"scripts/example.sh","body":"   ","message":"real fix"}]}'
+export LOCAL_AI_REVIEWER_COMMAND MOCK_LOCAL_REVIEWER_STDOUT
+run_reviewer "$MOCK_BIN:$PATH"
+run_test "whitespace_alias_fallback_result" "RESULT=needs_fixes" "$(line_for RESULT)"
+run_test "whitespace_alias_fallback_count" "BLOCKING_COUNT=1" "$(line_for BLOCKING_COUNT)"
+run_test "whitespace_alias_fallback_body" "BLOCKING_1_BODY=real fix" "$(line_for BLOCKING_1_BODY)"
+
+reset_mocks
+LOCAL_AI_REVIEWER_COMMAND=local-reviewer-mock
+set_mock_stdout '{"result":"needs_fixes","findings":[{"severity":"important","path":"scripts/example.sh","message":"=fix leading equals"}]}'
+export LOCAL_AI_REVIEWER_COMMAND MOCK_LOCAL_REVIEWER_STDOUT
+run_reviewer "$MOCK_BIN:$PATH"
+run_test "leading_equals_blocker_text_result" "RESULT=needs_fixes" "$(line_for RESULT)"
+run_test "leading_equals_blocker_text_count" "BLOCKING_COUNT=1" "$(line_for BLOCKING_COUNT)"
+run_test "leading_equals_blocker_text_body" "BLOCKING_1_BODY==fix leading equals" "$(line_for BLOCKING_1_BODY)"
 
 reset_mocks
 LOCAL_AI_REVIEWER_COMMAND=local-reviewer-mock
@@ -493,6 +558,10 @@ case "$*" in
     ;;
   *"pr diff 123"*"--name-only"*)
     printf 'scripts/example.sh\n'
+    exit 0
+    ;;
+  *"api"*"pulls/"*"/files"*)
+    printf '[]\n'
     exit 0
     ;;
   *) exit 1 ;;
@@ -1303,6 +1372,10 @@ case "\$*" in
     printf '%s\nREVIEW.md\n' "$changed_path"
     exit 0
     ;;
+  *"api"*"pulls/"*"/files"*)
+    printf '[]\n'
+    exit 0
+    ;;
   *) exit 1 ;;
 esac
 MOCK_GH
@@ -1394,6 +1467,10 @@ case "\$*" in
     ;;
   *"pr diff 123"*"--name-only"*)
     printf '%s\n%s\nREVIEW.md\n' "$PLAN_DOC_A" "$PLAN_DOC_B"
+    exit 0
+    ;;
+  *"api"*"pulls/"*"/files"*)
+    printf '[]\n'
     exit 0
     ;;
   *) exit 1 ;;
@@ -1525,6 +1602,10 @@ case "\$*" in
     printf 'M\t%s\n' "$PLAN_DOC"
     exit 0
     ;;
+  *"api"*"pulls/"*"/files"*)
+    printf '[]\n'
+    exit 0
+    ;;
   *) exit 1 ;;
 esac
 MOCK_GH
@@ -1586,6 +1667,10 @@ case "\$*" in
     ;;
   *"pr diff 123"*"--name-only"*)
     printf '%s\n%s\nREVIEW.md\n' "$PLAN_DOC_A" "$PLAN_DOC_B"
+    exit 0
+    ;;
+  *"api"*"pulls/"*"/files"*)
+    printf '[]\n'
     exit 0
     ;;
   *) exit 1 ;;
@@ -1800,6 +1885,10 @@ case "\$*" in
     printf '%s\nREVIEW.md\n' "$plan_file"
     exit 0
     ;;
+  *"api"*"pulls/"*"/files"*)
+    printf '[]\n'
+    exit 0
+    ;;
   *) exit 1 ;;
 esac
 MOCK_GH
@@ -1856,6 +1945,80 @@ export MOCK_PR_HEAD_BRANCH MOCK_PR_HEAD_SHA
 run_reviewer "$MOCK_BIN:$PATH" --repo-root "$VALID_REPO_ROOT"
 run_test "1655_s16_evidence_has_plan" "true" "$(jq -r 'has("strict_plan")' "$EVIDENCE_FILE")"
 run_test "1655_s16_evidence_plan_state" "not_applicable" "$(jq -r '.strict_plan.state' "$EVIDENCE_FILE")"
+
+
+# ---------------------------------------------------------------------------
+# #54 durability mode resolve / supply
+# ---------------------------------------------------------------------------
+# shellcheck disable=SC1091
+HARNESS_MODE=1 source "$REPO_ROOT/scripts/development-workflow/local-ai-reviewer.sh"
+
+_54_row1="$(reviewer_durability_mode_resolve "spec" "" "" '["src/webhook/a.ts"]' "supplied")"
+run_test "durability_mode_row1_spec_inactive" "inactive" "$(printf '%s' "$_54_row1" | jq -r '.state')"
+run_test "durability_mode_row1_inactive_reason" "non_implementation_stage" "$(printf '%s' "$_54_row1" | jq -r '.inactive_reason')"
+
+_54_row6="$(reviewer_durability_mode_resolve "implementation" "" "" '["src/webhook/a.ts"]' "supplied")"
+run_test "durability_mode_row6_auto_active" "active" "$(printf '%s' "$_54_row6" | jq -r '.state')"
+run_test "durability_mode_row6_reason" "automatic_match" "$(printf '%s' "$_54_row6" | jq -r '.activation_reason')"
+
+_54_row7="$(reviewer_durability_mode_resolve "implementation" "" "" '["docs/project/a.md"]' "supplied")"
+run_test "durability_mode_row7_inactive" "inactive" "$(printf '%s' "$_54_row7" | jq -r '.state')"
+
+_54_row2="$(reviewer_durability_mode_resolve "implementation" "" "on" '["docs/a.md"]' "absent")"
+run_test "durability_mode_row2_unavailable" "unavailable" "$(printf '%s' "$_54_row2" | jq -r '.state')"
+
+_54_row3="$(reviewer_durability_mode_resolve "implementation" "" "on" '["docs/a.md"]' "supplied")"
+run_test "durability_mode_row3_override" "operator_override" "$(printf '%s' "$_54_row3" | jq -r '.activation_reason')"
+
+_54_row5="$(reviewer_durability_mode_resolve "implementation" "" "" '["src/webhook/a.ts"]' "absent")"
+run_test "durability_mode_row5_unavailable" "unavailable" "$(printf '%s' "$_54_row5" | jq -r '.state')"
+
+_54_row8="$(reviewer_durability_mode_resolve "implementation" "on" "" '["docs/a.md"]' "supplied")"
+run_test "durability_mode_row8_default" "operator_default" "$(printf '%s' "$_54_row8" | jq -r '.activation_reason')"
+
+_54_supply_active="$(reviewer_durability_mode_supply "implementation" '["src/webhook/a.ts"]')"
+run_test "durability_supply_active" "active" "$(printf '%s' "$_54_supply_active" | jq -r '.state')"
+_54_text_len="$(printf '%s' "$_54_supply_active" | jq -r '.text | length')"
+if [ "$_54_text_len" -gt 100 ]; then
+  run_test "durability_supply_text_present" "1" "1"
+else
+  run_test "durability_supply_text_present" "1" "0"
+fi
+
+_54_supply_inactive="$(reviewer_durability_mode_supply "implementation" '["docs/project/a.md"]')"
+run_test "durability_supply_inactive_skipped" "skipped" "$(printf '%s' "$_54_supply_inactive" | jq -r '.supply_state')"
+
+_54_families_na="$(reviewer_durability_mode_supply "implementation" '["src/foo/retry-helper.ts"]')"
+_54_na_family="$(printf '%s' "$_54_families_na" | jq -r '.scenario_families_na[0].family // empty')"
+run_test "durability_families_na_without_delivery_surface" "duplicate_delivery" "$_54_na_family"
+
+_54_publisher="$(reviewer_durability_mode_resolve "implementation" "" "" '["src/github/review-publisher.ts"]' "supplied")"
+_54_publisher_na_count="$(printf '%s' "$_54_publisher" | jq -r '.scenario_families_na | length')"
+run_test "durability_publisher_keeps_duplicate_delivery" "0" "$_54_publisher_na_count"
+
+if reviewer_durability_path_is_sensitive "webhook/handler.ts"; then
+  run_test "durability_path_root_webhook_dir" "1" "1"
+else
+  run_test "durability_path_root_webhook_dir" "1" "0"
+fi
+
+_54_root_webhook="$(reviewer_durability_mode_resolve "implementation" "" "" '["webhook/handler.ts"]' "supplied")"
+run_test "durability_mode_root_webhook_active" "active" "$(printf '%s' "$_54_root_webhook" | jq -r '.state')"
+_54_root_na_count="$(printf '%s' "$_54_root_webhook" | jq -r '.scenario_families_na | length')"
+run_test "durability_mode_root_webhook_no_families_na" "0" "$_54_root_na_count"
+
+# Mixed-case OWNER/REPO must still count as self-review of lhpaul/ronda, so a
+# missing reviewed-head copy stays absent (no tool-checkout fallback).
+_54_self_review_root="$(mktemp -d)"
+_54_case_fold="$(
+  REPO_ROOT="$_54_self_review_root" \
+  HEAD_SHA="notarealsha" \
+  OWNER="LhPaul" \
+  REPO="Ronda" \
+  reviewer_durability_mode_raw_supply
+)"
+run_test "durability_self_review_case_fold_absent" "absent" "$(printf '%s' "$_54_case_fold" | jq -r '.state')"
+rm -rf "$_54_self_review_root"
 
 if [ "$FAIL_COUNT" -ne 0 ]; then
   echo "FAIL: $FAIL_COUNT test(s) failed"

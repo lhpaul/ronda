@@ -103,6 +103,10 @@ case "$*" in
     printf 'REVIEW.md\nscripts/example.sh\n'
     exit 0
     ;;
+  *"api repos/owner/repo/pulls/123/files"*)
+    printf '[]\n'
+    exit 0
+    ;;
   *)
     exit 1
     ;;

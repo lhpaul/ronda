@@ -65,14 +65,14 @@ in the ready phase:
 review:
   on_draft:
     github:
-      - pr-agent
+      - local-ai-reviewer
   on_ready:
     github:
       - copilot
 ```
 
 This configuration makes Copilot's net-new findings measurable independently of
-whether `pr-agent` already found issues.
+whether `local-ai-reviewer` already found issues.
 
 ### 3. (Optional) Override the Default Bot Login
 

@@ -1,0 +1,25 @@
+[
+  {
+    "id": "bugbot-clean-agreement",
+    "repository": "lhpaul/ronda",
+    "pullNumber": 26,
+    "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ronda": {
+      "result": "clean",
+      "reviewedHeadSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "findings": []
+    },
+    "otherReviewer": {
+      "name": "Cursor Bugbot",
+      "result": "clean",
+      "reviewedHeadSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "findings": []
+    },
+    "adjudications": [
+      {
+        "outcome": "clean_agreement",
+        "notes": "Both reviewers reported clean on the same head."
+      }
+    ]
+  }
+]

@@ -1,6 +1,6 @@
 {
   "name": "ronda",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Ronda — a comment-only GitHub pull-request review bot",
   "type": "module",
@@ -10,7 +10,14 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
     "review": "tsx src/cli/review-pr.ts",
-    "benchmark:recall": "tsx src/cli/recall-benchmark.ts"
+    "webhook": "tsx src/webhook/webhook-server.ts",
+    "benchmark:recall": "tsx src/cli/recall-benchmark.ts",
+    "benchmark:quality": "tsx src/cli/recall-benchmark.ts --quality",
+    "benchmark:durability": "tsx src/cli/durability-regression.ts",
+    "quality:comparison": "tsx src/cli/record-review-comparison.ts",
+    "quality:summary": "tsx src/cli/summarize-review-comparisons.ts",
+    "quality:misses": "tsx src/cli/capture-external-review-misses.ts",
+    "quality:report": "tsx src/cli/report-review-quality.ts"
   },
   "dependencies": {
     "@octokit/rest": "22.0.1"

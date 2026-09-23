@@ -89,22 +89,25 @@ review:
       # explicit LOCAL_AI_REVIEWER_COMMAND. Set LOCAL_AI_REVIEWER_DISABLED=1
       # or override this list locally to skip.
       - local-ai-reviewer
-      - pr-agent
-    # claude-code-action: own-key, own-CI reviewer with no per-hour vendor cap.
-    # Requires ANTHROPIC_API_KEY secret and .github/workflows/claude-code-review.yml.
-    # See integrations/claude-code-action.md for setup instructions.
-    # - claude-code-action
+      # claude-code-action: own-key, own-CI reviewer with no per-hour vendor cap.
+      # Requires ANTHROPIC_API_KEY secret and .github/workflows/claude-code-review.yml.
+      # See integrations/claude-code-action.md for setup instructions.
+      # - claude-code-action
   on_ready:
     github:
-      - bugbot
-    # CodeRabbit remains supported as an opt-in reviewer, but is intentionally
-    # not a default ready-phase gate because vendor rate limits/spending caps
-    # can block otherwise-clean PRs.
-    # - coderabbit
-    # coderabbit-cli: CodeRabbit CLI reviewer. Requires `cr` or `coderabbit`
-    # installed and authenticated locally. No GitHub App required. Missing CLI
-    # or auth emits RESULT=skipped, not clean review evidence.
-    # - coderabbit-cli
+      - codex-github
+      # Bugbot remains supported as an opt-in reviewer, but is intentionally not a
+      # default ready-phase gate because Cursor usage/spend limits can block
+      # otherwise-clean PRs.
+      # - bugbot
+      # CodeRabbit remains supported as an opt-in reviewer, but is intentionally
+      # not a default ready-phase gate because vendor rate limits/spending caps
+      # can block otherwise-clean PRs.
+      # - coderabbit
+      # coderabbit-cli: CodeRabbit CLI reviewer. Requires `cr` or `coderabbit`
+      # installed and authenticated locally. No GitHub App required. Missing CLI
+      # or auth emits RESULT=skipped, not clean review evidence.
+      # - coderabbit-cli
 ```
 
 The helper script reads this file automatically when no `--platform` flag is
@@ -151,6 +154,13 @@ The script emits:
 - Platform-specific counts and blocking summaries for the platform that stopped the loop
 - Platform-specific `REASON=` / `DISPLAY_RESULT=` records for skipped or
   escalated reviewer availability states when the platform emits them
+- `LOCAL_BLOCKER_CONFIRMATION=0|1` and
+  `LOCAL_BLOCKER_CONFIRMATION_REASON=<reason>` whenever the local reviewer is in
+  scope, plus `LOCAL_BLOCKER_CONFIRMATION_RESULT=<result>` when confirmation ran.
+  When `local-ai-reviewer` returns `needs_fixes`, the loop dispatches one
+  same-head confirmation pass before allowing that local finding to block; clean
+  or unavailable confirmation escalates as an unconfirmed local-review state
+  instead of a fixable blocker.
 
 ---
 

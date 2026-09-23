@@ -1,0 +1,19 @@
+{
+  "shape": "fatal_queue_drain",
+  "expectedKeywords": [
+    "fatal",
+    "queue",
+    "drain",
+    "discard"
+  ],
+  "severity": "blocking",
+  "changedFiles": [
+    {
+      "path": "src/queue/fatal_queue_drain.ts",
+      "status": "added",
+      "additions": 7,
+      "deletions": 0,
+      "patch": "@@ -0,0 +1 @@\n+export async function drain(queue) {\n+  for (const job of queue) {\n+    try { await job.run(); }\n+    catch (error) { console.error(error); /* continue draining */ }\n+  }\n+}\n+"
+    }
+  ]
+}

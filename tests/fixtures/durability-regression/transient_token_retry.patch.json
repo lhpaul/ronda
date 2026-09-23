@@ -1,0 +1,19 @@
+{
+  "shape": "transient_token_retry",
+  "expectedKeywords": [
+    "transient",
+    "token",
+    "retry",
+    "auth"
+  ],
+  "severity": "important",
+  "changedFiles": [
+    {
+      "path": "src/retry/transient_token_retry.ts",
+      "status": "added",
+      "additions": 8,
+      "deletions": 0,
+      "patch": "@@ -0,0 +1 @@\n+export async function withToken(fn) {\n+  try { return await fn(); }\n+  catch (error) {\n+    if (error.status === 401) process.exit(1); // tear down on transient auth\n+    throw error;\n+  }\n+}\n+"
+    }
+  ]
+}

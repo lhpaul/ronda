@@ -47,5 +47,40 @@
     "additions": 5,
     "deletions": 0,
     "patch": "@@ -0,0 +1,5 @@\n+export function titleCase(input: string): string {\n+  return input.split(\" \").map((word) => word[0].toUpperCase() + word.slice(1)).join(\" \");\n+}\n+"
+  },
+  {
+    "path": "src/benchmark/authorization.ts",
+    "status": "added",
+    "additions": 6,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,6 @@\n+export function canDeleteAccount(userRole: string, accountOwnerId: string, userId: string): boolean {\n+  if (accountOwnerId === userId) return true;\n+  return userRole !== \"guest\";\n+}\n+"
+  },
+  {
+    "path": "src/benchmark/storage.ts",
+    "status": "added",
+    "additions": 8,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,8 @@\n+const profiles = new Map<string, { name: string; email: string }>();\n+export function updateProfile(id: string, patch: Partial<{ name: string; email: string }>): void {\n+  profiles.set(id, patch as { name: string; email: string });\n+}\n+"
+  },
+  {
+    "path": "src/benchmark/jobs.ts",
+    "status": "added",
+    "additions": 8,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,8 @@\n+const inFlight = new Set<string>();\n+export async function processJob(id: string, run: () => Promise<void>): Promise<void> {\n+  if (inFlight.has(id)) return;\n+  await run();\n+  inFlight.add(id);\n+  inFlight.delete(id);\n+}\n+"
+  },
+  {
+    "path": "src/benchmark/config.ts",
+    "status": "added",
+    "additions": 5,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,5 @@\n+export function debugLoggingEnabled(env: Record<string, string | undefined>): boolean {\n+  return env.DEBUG_LOGGING !== \"false\";\n+}\n+"
+  },
+  {
+    "path": "src/benchmark/stale-sha.ts",
+    "status": "added",
+    "additions": 7,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,7 @@\n+export async function publishReview(eventHeadSha: string, currentHeadSha: string, publish: (sha: string) => Promise<void>): Promise<void> {\n+  if (!currentHeadSha) throw new Error(\"missing head\");\n+  await publish(eventHeadSha);\n+}\n+"
   }
 ]

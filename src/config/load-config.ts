@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { RondaConfig } from "./config.types.js";
+import type { DurabilityModeSetting, RondaConfig } from "./config.types.js";
 
 /** Ten minutes, per the constitution's "timeout in minutes, not hours" rule. */
 export const DEFAULT_PASS_TIMEOUT_MS = 600_000;
@@ -10,6 +10,8 @@ export const DEFAULT_MODEL_BASE_URL =
   "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
 export const DEFAULT_MODEL_NAME = "qwen-plus";
 export const DEFAULT_MAX_PATCH_CHARS = 400_000;
+export const DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT = 4;
+export const DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS = 120_000;
 
 /**
  * Thrown when the operator config file exists but cannot be read or parsed.
@@ -34,6 +36,10 @@ interface OperatorConfigFile {
   modelName?: string;
   passTimeoutMs?: number | string;
   maxPatchChars?: number | string;
+  maxAuthoritativeDocCount?: number | string;
+  maxAuthoritativeDocChars?: number | string;
+  durabilityMode?: string;
+  durabilityModeDefault?: boolean | string;
 }
 
 export interface LoadConfigOptions {
@@ -90,11 +96,31 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
     positiveInt(env.RONDA_MAX_PATCH_CHARS) ??
     positiveInt(fileConfig.maxPatchChars) ??
     DEFAULT_MAX_PATCH_CHARS;
+  const maxAuthoritativeDocCount =
+    positiveInt(env.RONDA_MAX_AUTHORITATIVE_DOC_COUNT) ??
+    positiveInt(fileConfig.maxAuthoritativeDocCount) ??
+    DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT;
+  const maxAuthoritativeDocChars =
+    positiveInt(env.RONDA_MAX_AUTHORITATIVE_DOC_CHARS) ??
+    positiveInt(fileConfig.maxAuthoritativeDocChars) ??
+    DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS;
+  const durabilityMode =
+    parseDurabilityMode(env.RONDA_DURABILITY_MODE) ??
+    parseDurabilityMode(fileConfig.durabilityMode) ??
+    "default";
+  const durabilityModeDefault =
+    parseBooleanFlag(env.RONDA_DURABILITY_MODE_DEFAULT) ??
+    parseBooleanFlag(fileConfig.durabilityModeDefault) ??
+    false;
 
   return {
     model: { apiKey, baseUrl, modelName },
     passTimeoutMs,
     maxPatchChars,
+    maxAuthoritativeDocCount,
+    maxAuthoritativeDocChars,
+    durabilityMode,
+    durabilityModeDefault,
   };
 }
 
@@ -112,4 +138,32 @@ function positiveInt(value: string | number | undefined | null): number | undefi
   }
   const parsed = typeof value === "number" ? value : parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parseDurabilityMode(value: string | undefined | null): DurabilityModeSetting | undefined {
+  const raw = nonBlank(value)?.toLowerCase();
+  if (raw === "on" || raw === "1" || raw === "true") {
+    return "on";
+  }
+  if (raw === "off" || raw === "0" || raw === "false") {
+    return "off";
+  }
+  if (raw === "default") {
+    return "default";
+  }
+  return undefined;
+}
+
+function parseBooleanFlag(value: string | boolean | undefined | null): boolean | undefined {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  const raw = nonBlank(value)?.toLowerCase();
+  if (raw === "on" || raw === "1" || raw === "true") {
+    return true;
+  }
+  if (raw === "off" || raw === "0" || raw === "false") {
+    return false;
+  }
+  return undefined;
 }
