@@ -5,8 +5,9 @@ rollup produced by `npm run quality:report` over all evidence present in the
 repository on 2026-09-23.
 
 **The rollup is near-empty, and that is the headline.** Zero miss records exist
-because Ronda has never posted a review on a pull request in this repository;
-see Deliverable 1 in
+because Ronda has never posted a review on a merged pull request in this
+repository — its only four published reviews are on two closed smoke-test PRs
+from 2026-09-10. See Deliverable 1 in
 [`quality-cost-baseline-2026-09-23.md`](quality-cost-baseline-2026-09-23.md).
 The six comparison records are all manual local-run records from 2026-09-10, of
 which five are `clean_agreement` and one is unadjudicated.
@@ -60,7 +61,7 @@ Generated: 2026-09-23T12:33:25.103Z
   repository (`lhpaul/ai-dev-framework-template#1729`), from 2026-09-10.
 - **`true_positive: 0` does not mean Ronda misses nothing.** It means no
   adjudicated miss has ever been recorded, because the capture path has never
-  had a Ronda result to compare against.
+  had a published Ronda result on a real pull request to compare against.
 - **`clean_agreement: 5` is not precision evidence.** All five are
   `bugbot-clean` records where both reviewers reported clean on PRs #30, #32,
   #36, #40, and #42, produced by manual local runs. A clean/clean pair on a

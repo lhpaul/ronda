@@ -115,7 +115,9 @@ the denominator for any later claim that a Ronda change made review cheaper.
 1. **`Ronda review` contributes zero Actions time because it never runs.**
    `.github/workflows/ronda-review.yml` is `on: workflow_call` only and no
    workflow in this repository calls it. The last runs of any kind were
-   2026-09-10 on `smoke/ronda-v0`, all `failure`. Ronda is not dogfooded. See
+   2026-09-10 on `smoke/ronda-v0`, all `failure`. The only four Ronda reviews
+   that exist anywhere in this repository are on two closed smoke-test PRs (#8,
+   #21), posted by manual local runs on 2026-09-10. Ronda is not dogfooded. See
    Deliverable 1 in the baseline document.
 
 2. **PR-Agent runs 80 times and publishes nothing.** Its run log shows

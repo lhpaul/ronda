@@ -3,9 +3,11 @@
 Backing evidence for the ranked category list in
 [`quality-cost-baseline-2026-09-23.md`](quality-cost-baseline-2026-09-23.md).
 
-This is **not** a set of Ronda miss records. Ronda has never reviewed a pull
-request in this repository (see the baseline document, Deliverable 1), so no
-`docs/testing/ronda/misses/` record can exist for these findings. What this
+This is **not** a set of Ronda miss records. Ronda has never reviewed a merged
+pull request in this repository — the only four Ronda reviews that exist are on
+two closed smoke-test PRs from 2026-09-10 (see the baseline document,
+Deliverable 1) — so no `docs/testing/ronda/misses/` record can exist for these
+findings. What this
 corpus does establish is the **defect-category distribution of a real Ronda PR**
 as observed by two independent reviewers, which is the input the
 category-forced prompt sweep actually needs.

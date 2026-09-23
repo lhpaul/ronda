@@ -18,13 +18,22 @@ Companion documents:
 
 ## Headline
 
-**Ronda has never reviewed a pull request in this repository.** Zero of #93–#100
-carry a Ronda review, so the external-review miss backfill that #101 asks for
-cannot be produced at all — not partially, not with some records stale, but not
-at all. The premise that "real adjudicated evidence can be produced from
-already-merged tooling" is false as of this date: the capture tooling shipped in
+**Ronda has never reviewed a merged pull request in this repository, and has
+never reviewed any pull request via automation.** Zero of #93–#100 carry a Ronda
+review, so the external-review miss backfill that #101 asks for cannot be
+produced at all — not partially, not with some records stale, but not at all.
+The premise that "real adjudicated evidence can be produced from already-merged
+tooling" is false as of this date: the capture tooling shipped in
 [#53](https://github.com/lhpaul/ronda/issues/53) works, but it has nothing to
 compare against.
+
+Four Ronda reviews do exist repository-wide, and they matter to the diagnosis.
+All four are on **closed, never-merged smoke-test sandbox PRs** — #8
+(`test: Ronda v0 smoke-test sandbox (do not merge)`) and #21
+(`test: smoke Ronda review on develop`), both on 2026-09-10 — and all four were
+posted by manual local `npm run review` invocations, authored by `lhpaul` rather
+than a bot identity. They prove the review-publish path works. The gap is
+entirely that nothing ever points it at a real pull request.
 
 The rest of the baseline is complete. The category ranking below is derived from
 a real PR's finding corpus rather than from Ronda misses, and is explicit about
@@ -61,6 +70,18 @@ for n in 93 94 95 96 97 98 99 100; do
 done
 ```
 
+Extended repository-wide: sweeping **every** pull request ever opened on
+`lhpaul/ronda` finds exactly **4** Ronda reviews — on PRs #8 (2) and #21 (2),
+both closed without merging. No merged pull request in this repository has ever
+carried a Ronda review.
+
+```bash
+for n in $(gh api "repos/lhpaul/ronda/pulls?state=all&per_page=100" --paginate --jq '.[].number'); do
+  gh api "repos/lhpaul/ronda/pulls/$n/reviews" --paginate \
+    --jq '[.[] | select(.body // "" | contains("## Ronda review"))] | length'
+done
+```
+
 ### Root cause
 
 [`.github/workflows/ronda-review.yml`](../../../.github/workflows/ronda-review.yml)
@@ -80,7 +101,12 @@ Two supporting facts:
 The six existing records in `docs/testing/ronda/comparisons/` were produced on
 2026-09-10 by **manual local runs** of `npm run review` plus
 `npm run quality:comparison`, not by an automated GitHub pass. That is the only
-pathway that has ever produced a Ronda result against a real PR.
+pathway that has ever produced a Ronda result at all, and the four published
+reviews it left behind are on the two closed smoke PRs. Note that the five
+`bugbot-clean` comparison records name PRs #30, #32, #36, #40 and #42, yet none
+of those five carries a published Ronda review — their Ronda side was captured
+from local output that was never posted, which is why the capture gate cannot
+see it.
 
 ### Why it was not worked around
 
@@ -326,7 +352,10 @@ What the comparison does support:
    category list.** `correctness` at 56% is not a target;
    `credential-pattern-gap`, `guard-fails-open`, `pr-head-push-order`,
    `external-output-parsing`, and `record-identity` are.
-4. **Add fixture seeds for the five unseeded real themes** before treating the
+4. **Add fixture seeds for the four unseeded real themes** —
+   `pr-head-push-order`, `external-output-parsing`, `guard-fails-open`, and
+   `record-identity` — and add harder `credential-pattern-gap` variants
+   alongside the existing `sensitive-value-exposure` seed, before treating the
    synthetic baseline as a regression gate again.
 5. **Adjudicate the template #1729 record.** It is the only existing
    Ronda-clean / other-reviewer-found case, and it points at `timeouts` and
@@ -340,22 +369,51 @@ What the comparison does support:
 
 ## Reproduction
 
+### Deliverable 1 — capture refusal for every PR in the window
+
+`quality:misses capture` **writes evidence records** when its gate admits a
+finding. On this repository as of 2026-09-23 every call refuses at Stage 1, so
+the loop below is read-only in practice — but that is a property of the current
+state, not of the command. If Ronda results later exist, re-running this will
+create records under `docs/testing/ronda/misses/`. Run it deliberately, and
+review `git status` afterwards.
+
+<!-- workflow-shell-contract: bash-zsh -->
 ```bash
-# Deliverable 1 — capture refusal for every PR in the window
+set -euo pipefail
 for n in 93 94 95 96 97 98 99 100; do
   npm run quality:misses -- capture --pr "$n" --reviewer codex-github --categories correctness
 done
+```
 
-# Deliverable 1 — independent confirmation that no Ronda review exists
+### Deliverable 1 — independent confirmation (read-only)
+
+<!-- workflow-shell-contract: bash-zsh -->
+```bash
+set -euo pipefail
 for n in 93 94 95 96 97 98 99 100; do
   gh api "repos/lhpaul/ronda/pulls/$n/reviews" --paginate \
     --jq '[.[] | select(.body // "" | contains("## Ronda review"))] | length'
 done
+```
 
-# Deliverable 2
+Repository-wide sweep (read-only):
+
+<!-- workflow-shell-contract: bash-zsh -->
+```bash
+set -euo pipefail
+for n in $(gh api "repos/lhpaul/ronda/pulls?state=all&per_page=100" --paginate --jq '.[].number'); do
+  gh api "repos/lhpaul/ronda/pulls/$n/reviews" --paginate \
+    --jq '[.[] | select(.body // "" | contains("## Ronda review"))] | length'
+done
+```
+
+### Deliverables 2 and 3 (read-only)
+
+<!-- workflow-shell-contract: bash-zsh -->
+```bash
+set -euo pipefail
 npm run quality:report -- --format markdown
-
-# Deliverable 3
 ./scripts/development-workflow/actions-cost-audit.sh \
   --limit 500 --since 2026-09-17T00:00:00Z --format markdown
 ```
