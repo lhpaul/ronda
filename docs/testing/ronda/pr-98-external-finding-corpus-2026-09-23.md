@@ -22,9 +22,19 @@ category-forced prompt sweep actually needs.
 ### Counting rule, and what it does and does not collapse
 
 Deduplication is at the **finding-instance** level: a row is emitted once per
-unique `(path, line, message-prefix)`, and the `Iter` column records the
-iteration of first appearance. A verbatim restatement at the same location is
-collapsed.
+unique `(path, line, message[:120])` — the first 120 characters of the
+reviewer's message, compared byte-for-byte with no normalisation — and the
+`Iter` column records the iteration of first appearance. A verbatim restatement
+at the same location is collapsed.
+
+The prefix length is a judgement call and is stated so it can be checked. It
+matters only for findings that share a path, a line **and** their first 120
+characters while diverging later; no pair in this corpus does, so every pair of
+distinct rows differs within the first 120 characters and the 74/79 counts do
+not depend on the exact cut-off. The tables below ellipsize messages at 200
+characters for width, so reproducing the counts requires the full messages from
+the `reviewer-loop-history:v1` payload rather than the rendered table — the
+first reproduction command retrieves exactly that.
 
 **It does not collapse restatements of the same underlying defect at a different
 location or with different wording**, and on this PR that matters a great deal.

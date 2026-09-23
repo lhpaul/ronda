@@ -396,9 +396,10 @@ for name, (count, raw, billed) in sorted(agg.items(), key=lambda kv: -kv[1][2]):
     print(f"{name:<46}{count:>6}{raw:>9.1f}{billed:>7}{billed / total * 100:>7.1f}%")
 ```
 
-The per-PR table above is **not** affected by the cap: each row was computed
-from a branch-scoped, fully paginated query bounded by that PR's own
-`createdAt`/`mergedAt`, with no run limit.
+The per-PR table's Actions columns come from the same frozen attempt snapshot,
+selected by `head_branch` and each PR's own `[createdAt, mergedAt]` — see the
+measurement notes and the reproduction snippet. No live runs query is involved
+anywhere in this document.
 
 ## Cost findings
 
