@@ -206,17 +206,21 @@ set -euo pipefail
 ```
 
 The script has no `--until`, so its totals include everything up to the moment
-it runs. The window-bounded table above (upper bound `2026-09-23T10:36:01Z`, the
-merge of #100) comes from the runs API directly:
+it runs and cannot reproduce a fixed window. The window-bounded table above is
+produced by a committed script that applies both bounds and performs the same
+grouping, duration aggregation, run counting, and share calculation:
 
 <!-- workflow-shell-contract: bash-zsh -->
 ```bash
 set -euo pipefail
-gh api "repos/lhpaul/ronda/actions/runs?per_page=100" --paginate \
-  --jq '.workflow_runs[] | select(.created_at >= "2026-09-17T00:00:00Z"
-        and .created_at <= "2026-09-23T10:36:01Z")
-        | [.name, .run_started_at, .updated_at] | @tsv'
+./docs/testing/ronda/scripts/actions-window-audit.sh
 ```
+
+It takes optional `[repo] [since] [until]` arguments; the defaults are
+`lhpaul/ronda`, `2026-09-17T00:00:00Z`, and `2026-09-23T10:36:01Z` (the merge of
+#100), and reproduce the table above verbatim — including the 887.9 m total and
+every share. It refuses rather than printing an empty table when no runs match
+the window.
 
 Per-PR figures:
 
