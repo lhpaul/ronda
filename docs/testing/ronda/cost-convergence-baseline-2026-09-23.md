@@ -287,9 +287,9 @@ from a branch-scoped, fully paginated query bounded by that PR's own
 Repository-wide audit. The committed table is regenerated from the frozen
 snapshot with the snippet in the audit section above — no network, no API.
 
-How the snapshot was collected, recorded here so it can be audited or redone for
-a different window. It is a one-off collection, not part of reproducing the
-table:
+How the snapshot was collected. This is the complete, executable collection —
+run it and diff against the committed file to re-derive the snapshot's
+completeness, which the file's internal checks cannot establish on their own:
 
 <!-- workflow-shell-contract: bash-zsh -->
 ```bash
@@ -297,30 +297,71 @@ set -euo pipefail
 repo=lhpaul/ronda
 since=2026-09-17T00:00:00Z
 until=2026-09-23T10:36:01Z
-# Each kept attempt is recorded with its run id and attempt number.
+out=/tmp/actions-window.csv
 
 # Candidate runs are selected by the UPPER bound only. A lower bound on
 # created_at would drop a run created before the window whose re-run attempt
 # started inside it, because GitHub does not update created_at on a re-run.
-gh api "repos/${repo}/actions/runs?per_page=100" --paginate \
+candidates="$(gh api "repos/${repo}/actions/runs?per_page=100" --paginate \
   | jq -r --arg until "$until" '
       .workflow_runs[]
       | select(.created_at <= $until)
       | [(.id | tostring), (.run_attempt | tostring), .name,
          .run_started_at, .updated_at]
-      | @tsv'
+      | @tsv')"
+
+printf 'run_id,attempt,workflow,attempt_started,attempt_ended\n' > "$out"
+
+# Expand each candidate into attempts and keep those that STARTED in the window.
+printf '%s\n' "$candidates" | while IFS=$'\t' read -r id attempts name started ended; do
+  [ -n "$id" ] || continue
+  if [ "$attempts" = "1" ]; then
+    if [ ! "$started" \< "$since" ] && [ ! "$started" \> "$until" ]; then
+      printf '%s,1,"%s",%s,%s\n' "$id" "$name" "$started" "$ended" >> "$out"
+    fi
+    continue
+  fi
+  n=1
+  while [ "$n" -le "$attempts" ]; do
+    row="$(gh api "repos/${repo}/actions/runs/${id}/attempts/${n}" \
+      --jq '[.run_started_at, .updated_at] | @tsv')"
+    a_started="$(printf '%s' "$row" | cut -f1)"
+    a_ended="$(printf '%s' "$row" | cut -f2)"
+    if [ -n "$a_started" ] && [ ! "$a_started" \< "$since" ] \
+        && [ ! "$a_started" \> "$until" ]; then
+      printf '%s,%s,"%s",%s,%s\n' "$id" "$n" "$name" "$a_started" "$a_ended" >> "$out"
+    fi
+    n=$((n + 1))
+  done
+done
+
+# One empty-column row per active workflow that contributed no attempts, so
+# zero-run workflows stay visible in the table.
+gh api "repos/${repo}/actions/workflows" --paginate \
+  --jq '.workflows[] | select(.state == "active") | .name' \
+| while IFS= read -r wf; do
+    if ! grep -q ",\"${wf}\"," "$out"; then
+      printf ',,"%s",,\n' "$wf" >> "$out"
+    fi
+  done
+
+# Compare against the committed snapshot. Sorting drops ordering differences;
+# any remaining diff is a real discrepancy.
+diff <(tail -n +2 "$out" | sed 's/"//g' | sort) \
+     <(tail -n +2 docs/testing/ronda/evidence/actions-window-2026-09-17_2026-09-23.csv \
+       | sed 's/"//g' | sort)
 ```
 
-Each candidate is then expanded into attempts, and an attempt is kept when its
-own `run_started_at` falls inside the window:
+A clean `diff` is the completeness evidence: it shows no attempt and no zero-run
+workflow was dropped during collection. It was executed against the committed
+snapshot while preparing this document and returned no differences. The assertions in the derivation above
+are a weaker, offline complement — they catch a duplicated or deleted row and a
+changed total, but cannot by themselves prove nothing was missed at collection
+time, because a uniformly incomplete file is internally consistent.
 
-- `run_attempt == 1` — the listing's timings are that attempt's; keep it if it
-  started in the window.
-- `run_attempt > 1` — read `/runs/<id>/attempts/<n>` for every `n` from 1 to
-  `run_attempt` and keep each attempt that started in the window.
-
-Finally, one row with empty timestamps is appended for each active workflow that
-contributed no attempts, so zero-run workflows appear in the table.
+Re-collection is only exact while GitHub retains these runs. Actions run and
+log retention is finite; once runs age out, the committed snapshot becomes the
+sole record, which is the other reason it is committed rather than re-derived.
 
 `scripts/development-workflow/actions-cost-audit.sh` is **not** the source of
 this table and cannot be. It has no `--until`, so its totals grow every time it
