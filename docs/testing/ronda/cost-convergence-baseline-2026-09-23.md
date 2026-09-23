@@ -130,12 +130,23 @@ undercount the cost. The script therefore enumerates every attempt of any run
 with `run_attempt > 1` and counts each one whose `run_started_at` falls inside
 the window, excluding attempts started after the cutoff.
 
+Candidate runs are selected by `created_at <= until` **only**. A lower bound on
+`created_at` would drop a run created *before* the window whose re-run attempt
+started *inside* it, since `created_at` is not updated by a re-run. Window
+membership is decided entirely by each attempt's own `run_started_at`.
+
 Exactly one run in this window is affected: `PR policy`, id `35218024569`,
 `run_attempt: 2`. Both attempts started inside the window — 8 s and 10 s — so it
-contributes 2 attempts and 18 s, and the run count is 1020 attempts across 1019
-distinct runs. Counting only the latest attempt would have given 1019 / 887.9 m
-with a drifting total; counting only the first, 1019 / 887.9 m with 10 s
-missing.
+contributes 2 attempts and 18 s, giving 1020 attempts across 1019 distinct runs.
+Counting only the latest attempt would have given 1019 / 887.9 m with a total
+that drifts on any future re-run; counting only the first, 1019 / 887.9 m with
+10 s missing.
+
+The repository has 8 multi-attempt runs created at or before the cutoff, 7 of
+them before the window opened. None of those 7 has an attempt inside the window,
+so dropping the `created_at` lower bound changes no number here — the hole it
+closes is latent on this data, not active. It is closed anyway because the
+correct result must not depend on that coincidence.
 
 888.1 m of Actions wall time across 1020 workflow-run attempts over six days.
 Per-workflow figures are rounded to one decimal, so the rows sum to 888.0 m and

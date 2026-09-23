@@ -25,15 +25,23 @@
 # Timestamps are ISO-8601 UTC (YYYY-MM-DDTHH:MM:SSZ) and are compared as
 # strings, which is why the trailing Z and zero padding are required.
 #
-# Re-run handling: GitHub keeps a re-run's original `created_at` but exposes only
-# the LATEST attempt's `run_started_at` and `updated_at`. Aggregating the listing
-# as-is would let a re-run performed after the cutoff silently change this fixed
-# historical window; attributing everything to attempt 1 instead would discard
-# re-runs that genuinely happened inside it. For any run with `run_attempt` > 1
-# this script therefore enumerates EVERY attempt and counts each one whose
-# `run_started_at` falls inside the window, so each execution that actually
-# consumed Actions minutes in the window contributes exactly once. Attempts
-# started after the cutoff are excluded.
+# Re-run handling. GitHub keeps a re-run's original `created_at` but exposes only
+# the LATEST attempt's `run_started_at` and `updated_at`. Three rules were tried;
+# only the third is correct:
+#
+#   latest attempt only  — a re-run performed after the cutoff silently rewrites
+#                          this fixed historical window.
+#   first attempt only   — discards re-runs that genuinely consumed minutes
+#                          inside the window, undercounting cost.
+#   every attempt (used) — enumerate all attempts of any run with
+#                          `run_attempt` > 1 and count each whose
+#                          `run_started_at` falls inside the window.
+#
+# Candidate runs are therefore selected by `created_at <= until` ONLY. A lower
+# bound on `created_at` would drop a run created BEFORE the window whose re-run
+# attempt started inside it — `created_at` is not updated by a re-run. The lower
+# bound is applied per attempt instead. Membership in the window is decided
+# entirely by each attempt's own `run_started_at`.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -86,9 +94,9 @@ runs_tsv="${work_dir}/runs.tsv"
 # --paginate emits one JSON document per page; jq consumes the stream. Window
 # bounds are passed as jq arguments, never interpolated into the program text.
 gh api "repos/${repo}/actions/runs?per_page=100" --paginate \
-| jq -r --arg since "$since" --arg until "$until_" '
+| jq -r --arg until "$until_" '
     .workflow_runs[]
-    | select(.created_at >= $since and .created_at <= $until)
+    | select(.created_at <= $until)
     | [(.id | tostring), (.run_attempt | tostring), .name,
        .run_started_at, .updated_at]
     | @tsv
@@ -113,7 +121,6 @@ gh api "repos/${repo}/actions/runs?per_page=100" --paginate \
     # window. Counting only the latest lets a post-cutoff re-run rewrite
     # history; counting only the first discards re-runs that really did consume
     # minutes inside the window.
-    attempt_kept=0
     attempt_number=1
     while [ "$attempt_number" -le "$run_attempt" ]; do
       attempt_row="$(gh api \
@@ -125,15 +132,9 @@ gh api "repos/${repo}/actions/runs?per_page=100" --paginate \
           && [ ! "$attempt_started" \< "$since" ] \
           && [ ! "$attempt_started" \> "$until_" ]; then
         printf 'RUN\t%s\t%s\t%s\n' "$name" "$attempt_started" "$attempt_updated"
-        attempt_kept=$((attempt_kept + 1))
       fi
       attempt_number=$((attempt_number + 1))
     done
-
-    if [ "$attempt_kept" -eq 0 ]; then
-      echo "refusing to report a result: run ${run_id} (${name}) was created inside the window but none of its ${run_attempt} attempts started inside [${since}, ${until_}]" >&2
-      exit 1
-    fi
   done < "$runs_tsv"
 } \
 | python3 -c '
