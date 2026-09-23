@@ -213,10 +213,33 @@ for name, (count, minutes) in sorted(agg.items(), key=lambda kv: (-kv[1][1], kv[
 print(f"| **Total** | **{runs}** | **{total:.1f} m** | |")
 ```
 
+### What this number is, and is not
+
+**This is workflow-run wall time, not billed runner minutes.** Treat it as a
+cost-risk proxy and a comparison denominator, not as a bill. Three reasons the
+two differ, all of which push real billing *upward*:
+
+- **Parallel jobs.** A run's wall time is measured once across the whole run,
+  but every job inside it is billed separately. A run with four parallel jobs
+  each taking 3 minutes shows as roughly 3 minutes here and bills as roughly 12.
+- **Billing granularity.** GitHub rounds each job up to the minute. Many short
+  jobs — `PR policy` averages 0.2 m across 296 attempts — bill far above their
+  measured time.
+- **Runner multipliers.** Larger or non-Linux runners bill at a multiple of
+  wall time. This repository uses standard `ubuntu-latest`, so the multiplier is
+  1x here, but a downstream adopter's may not be.
+
+Any exact-cost claim needs job-level timing or the account's billing data, not
+this table.
+
+What the number **is** good for: a stable denominator for "did this change make
+review cheaper", and a relative ranking of where the time goes. Both survive the
+caveats above, because the same measurement applies to every row.
+
 Repository visibility is public and the workflows use standard GitHub-hosted
-runners, so this window is expected to be zero-billable here. The number matters
-as the **downstream** cost a private adopting repository would inherit, and as
-the denominator for any later claim that a Ronda change made review cheaper.
+runners, so this window is expected to be zero-billable *here*. It matters as
+the **downstream** exposure a private adopting repository would inherit, where
+the same workflows consume included or paid minutes.
 
 The per-PR table above is **not** affected by the cap: each row was computed
 from a branch-scoped, fully paginated query bounded by that PR's own

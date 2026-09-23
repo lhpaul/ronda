@@ -192,9 +192,12 @@ Full tables in
 | Reviewer-loop iterations (recorded) | 9 | 3 (final run only) | 26 |
 | Declared escalations | 0 | 0 | 3 |
 
-Repository-wide, 888.1 m of Actions wall time across 1020 workflow-run attempts
-in the six-day window (bounded at #100's merge so the figure is stable).
-`Ronda review` accounts for 0 m of it.
+Repository-wide, 888.1 m of Actions **wall time** across 1020 workflow-run
+attempts in the six-day window (bounded at #100's merge so the figure is
+stable). `Ronda review` accounts for 0 m of it. Wall time is not billed runner
+minutes — parallel jobs, per-job minute rounding, and runner multipliers all
+push real billing higher — so treat it as a cost-risk proxy and a comparison
+denominator, not a bill.
 
 Headline cost findings:
 
