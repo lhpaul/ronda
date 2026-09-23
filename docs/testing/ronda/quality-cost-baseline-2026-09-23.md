@@ -75,8 +75,22 @@ Extended repository-wide: sweeping **every** pull request ever opened on
 both closed without merging. No merged pull request in this repository has ever
 carried a Ronda review.
 
+<!-- workflow-shell-contract: bash-zsh -->
 ```bash
-for n in $(gh api "repos/lhpaul/ronda/pulls?state=all&per_page=100" --paginate --jq '.[].number'); do
+set -euo pipefail
+# Capture and validate the PR list BEFORE looping. A bare
+# `for n in $(gh api ...)` fails open: if the API call errors inside command
+# substitution, the loop body simply never runs and the block still exits 0,
+# which would make "zero Ronda reviews" look reproduced when nothing was
+# actually checked.
+pr_numbers="$(gh api "repos/lhpaul/ronda/pulls?state=all&per_page=100" \
+  --paginate --jq '.[].number')"
+if [ -z "$pr_numbers" ]; then
+  echo "refusing to report a result: PR list lookup returned nothing" >&2
+  exit 1
+fi
+printf 'checking %s pull requests\n' "$(printf '%s\n' "$pr_numbers" | wc -l | tr -d ' ')"
+printf '%s\n' "$pr_numbers" | while read -r n; do
   gh api "repos/lhpaul/ronda/pulls/$n/reviews" --paginate \
     --jq '[.[] | select(.body // "" | contains("## Ronda review"))] | length'
 done
@@ -220,16 +234,22 @@ Three limits, stated up front:
   this repository contain, not what Ronda is blind to.
 - **Category assignment is manual.** The closed `AFFECTED_CATEGORIES` set was
   applied by hand from finding text; every row is listed so it can be disputed.
+- **These are finding *instances*, not distinct defects.** The same underlying
+  defect raised again at a different location after a failed fix counts again.
+  The 14 `pr-head-push-order` instances are one defect; collapsing just that
+  cluster takes the corpus from 79 to 66. See the counting rule in the corpus
+  document. Instance counts are the reproducible figure and are used
+  throughout; defect counts are a floor.
 
 ### Ranked list
 
 | Rank | Category | Findings | Share | Evidence strength |
 | ---: | --- | ---: | ---: | --- |
 | 1 | `correctness` | 44 | 55.7% | Strong, but too coarse to act on — see sub-themes |
-| 2 | `security` | 15 | 19.0% | Strong, and the only category both reviewers hit independently |
+| 2 | `security` | 15 | 19.0% | Strongest: both reviewers hit it independently, and it is 4 of Codex's 5 |
 | 3 | `other` | 11 | 13.9% | Mostly process evidence, not product defects |
 | 4 | `idempotency` | 6 | 7.6% | Moderate; all record-identity collisions |
-| 5 | `partial_success` | 3 | 3.8% | Weak, but both reviewers hit it |
+| 5 | `partial_success` | 3 | 3.8% | Weak on volume, but the other category both reviewers hit independently |
 | — | `durability` | 0 | 0% | No signal in this window |
 | — | `retries` | 0 | 0% | No signal in this window |
 | — | `timeouts` | 0 | 0% | No signal here; 1 external hit on template #1729 |
@@ -265,10 +285,12 @@ Codex. Total 79.)
 
 ### Reading
 
-1. **Security-guard completeness is the highest-confidence target.** It is the
-   only theme two independent reviewers found independently:
+1. **Security-guard completeness is the highest-confidence target.** Two
+   categories were hit independently by both reviewers — `security` and
+   `partial_success` — and `security` is by far the larger of the two:
    `credential-pattern-gap` (9) and `guard-fails-open` (5) together are 14 of
-   79 findings, and 4 of Codex's 5. The failure shape is consistent — a
+   79 findings and 4 of Codex's 5, against `partial_success`'s 3 total
+   (2 local + 1 Codex, all `per-finding-resolution`). The failure shape is consistent — a
    regex or guard that covers the canonical form and misses a qualified,
    camelCase, hyphenated, or wrapped variant, or that fails open when its input
    cannot be loaded.
@@ -397,12 +419,20 @@ for n in 93 94 95 96 97 98 99 100; do
 done
 ```
 
-Repository-wide sweep (read-only):
+Repository-wide sweep (read-only). The PR list is captured and checked for
+emptiness before the loop, so a failed lookup cannot be mistaken for a
+zero-review result:
 
 <!-- workflow-shell-contract: bash-zsh -->
 ```bash
 set -euo pipefail
-for n in $(gh api "repos/lhpaul/ronda/pulls?state=all&per_page=100" --paginate --jq '.[].number'); do
+pr_numbers="$(gh api "repos/lhpaul/ronda/pulls?state=all&per_page=100" \
+  --paginate --jq '.[].number')"
+if [ -z "$pr_numbers" ]; then
+  echo "refusing to report a result: PR list lookup returned nothing" >&2
+  exit 1
+fi
+printf '%s\n' "$pr_numbers" | while read -r n; do
   gh api "repos/lhpaul/ronda/pulls/$n/reviews" --paginate \
     --jq '[.[] | select(.body // "" | contains("## Ronda review"))] | length'
 done

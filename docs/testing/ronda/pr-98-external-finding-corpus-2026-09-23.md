@@ -19,10 +19,41 @@ category-forced prompt sweep actually needs.
 | `local-ai-reviewer` | 74 | `reviewer-loop-history:v1` JSON embedded in the "Automated Reviewer Loop Summary" comment on PR #98 (26 iterations) |
 | `codex-github` | 5 | GitHub review comments by `chatgpt-codex-connector[bot]` on heads `c59ad086` and `b9451f90` |
 
-Deduplication: a finding is counted once per unique
-`(path, line, message-prefix)`; the `Iter` column records the iteration of first
-appearance. Re-statements of the same defect at a later iteration after a failed
-fix are **not** counted again, so the counts below understate thrash.
+### Counting rule, and what it does and does not collapse
+
+Deduplication is at the **finding-instance** level: a row is emitted once per
+unique `(path, line, message-prefix)`, and the `Iter` column records the
+iteration of first appearance. A verbatim restatement at the same location is
+collapsed.
+
+**It does not collapse restatements of the same underlying defect at a different
+location or with different wording**, and on this PR that matters a great deal.
+The 14 `pr-head-push-order` rows (#7, #26, #29, #36, #39, #44, #46, #49, #53,
+#56, #61, #63, #70, #73) are 14 instances of **one** underlying defect —
+reconstructing PR head history from evidence that does not establish it — raised
+across iterations 1–22 as each attempted fix moved the code and the reviewer
+re-raised it against the new shape. Counting instances is the right unit for
+"how much reviewer effort did this PR consume"; it is the wrong unit for "how
+many distinct defects existed".
+
+Both numbers, stated plainly:
+
+| Unit | `local-ai-reviewer` | `codex-github` | Total |
+| --- | ---: | ---: | ---: |
+| Finding instances (the tables below) | 74 | 5 | 79 |
+| Distinct defects, if `pr-head-push-order` collapses to one | 61 | 5 | 66 |
+
+The second row collapses only the largest and most clearly-single cluster. Other
+sub-themes contain smaller repeats that are **not** collapsed in either number —
+for example `excerpt-sequence-boundaries` #17/#19/#41 are three raisings of the
+same blank-line-normalisation defect, `external-output-parsing` #18/#27 are two
+raisings of the same review-body-versus-inline-comment dedup mismatch, and
+`credential-pattern-gap` #28/#38 are two raisings of "only the first match is
+scanned". A full defect-level adjudication was not performed, so treat the
+instance counts as the reproducible figure and the defect counts as a floor.
+
+Every distribution table below uses **instance** counts. The ranked list in the
+baseline document does too, and says so.
 
 Category assignment uses the closed set in
 [`src/quality/miss-record.ts`](../../../src/quality/miss-record.ts)
@@ -171,13 +202,17 @@ heads, so these are **not** adjudicated local-reviewer misses.
 | 74 | 22 | `docs/testing/workflow/53-capture-external-review-misses-planted-proofs-record.md`:16 | `other` | `planted-proof-evidence` | The required planted-violation evidence is not demonstrated: the record states only an expected passing result and uses approximate/stale line ranges, without recorded failing and restored-passing... |
 ## Reproduction
 
+<!-- workflow-shell-contract: bash-zsh -->
 ```bash
+set -euo pipefail
 gh pr view 98 --json comments --jq '.comments[].body' \
   | python3 -c 'import sys,re,json; \
 print(json.dumps([json.loads(b) for b in re.findall(r"reviewer-loop-history:v1 -->\s*```json\s*(\{.*?\})\s*```", sys.stdin.read(), re.S)]))'
 ```
 
+<!-- workflow-shell-contract: bash-zsh -->
 ```bash
+set -euo pipefail
 gh api repos/lhpaul/ronda/pulls/98/comments --paginate \
   --jq '.[] | "\(.path):\(.line // .original_line) | \(.commit_id[0:8])\n\(.body)"'
 ```
