@@ -14,7 +14,9 @@ which five are `clean_agreement` and one is unadjudicated.
 
 ## Command
 
+<!-- workflow-shell-contract: bash-zsh -->
 ```bash
+set -euo pipefail
 npm run quality:report -- --format markdown
 ```
 

@@ -63,7 +63,9 @@ GitHub API — the number of reviews whose body contains the
 `## Ronda review` heading (`RONDA_REVIEW_HEADING`, the marker
 `readPullRequestEvidence` keys on) is **0** for every PR in the window:
 
+<!-- workflow-shell-contract: bash-zsh -->
 ```bash
+set -euo pipefail
 for n in 93 94 95 96 97 98 99 100; do
   gh api "repos/lhpaul/ronda/pulls/$n/reviews" --paginate \
     --jq '[.[] | select(.body // "" | contains("## Ronda review"))] | length'

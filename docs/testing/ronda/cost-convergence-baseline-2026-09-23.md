@@ -26,50 +26,22 @@ Measurement notes:
 
 - **Wall clock** is `mergedAt - createdAt` on the PR. It includes human idle
   time and is not an attempt at active-work time.
-- **Files, +/- and commits are not taken from `gh pr view`**, which silently
-  caps `commits` and `files` at 100. On PR #99 that cap reported
-  `100 commits / 100 files / +16223 / -819` against a true
-  `316 commits / 171 files / +30968 / -916` — a 3x understatement of commits and
-  a 1.9x understatement of added lines. The paginated
-  `pulls/{n}/commits` endpoint is not a fix either: it has its own documented
-  250-commit ceiling and reported 250. The figures above come from the
-  **merge-parent compare**, which is the only method that agrees with the diff:
+- **Files, +/- and commits come from the pull request object**
+  (`gh api repos/<owner>/<repo>/pulls/<n>`), whose `commits`, `changed_files`,
+  `additions` and `deletions` fields are authoritative totals with no item cap.
+  Two tempting alternatives are wrong and were both tried first:
 
-  ```bash
-  mc=$(gh pr view <n> --json mergeCommit --jq '.mergeCommit.oid')
-  read -r base head < <(gh api "repos/<owner>/<repo>/commits/$mc" \
-    --jq '[.parents[].sha] | @tsv')
-  gh api "repos/<owner>/<repo>/compare/$base...$head" \
-    --jq '{commits: .total_commits, files: (.files | length),
-           additions: ([.files[].additions] | add),
-           deletions: ([.files[].deletions] | add)}'
-  ```
+  - `gh pr view --json commits,files` silently caps each array at 100. On PR #99
+    that reported `100 commits / 100 files / +16223 / -819` against the true
+    `316 / 171 / +30968 / -916` — a 3x understatement of commits and 1.9x of
+    added lines. Every other PR here is under the cap and was unaffected.
+  - `compare/<base>...<head>` between the merge commit's parents resolves a
+    different merge base than the pull request's own, and reports
+    `+18437 / -902` for PR #99 against the same 171 files. It is also
+    inapplicable to the squash-merged PRs (#93, #96), whose merge commits have a
+    single parent.
 
-  Only PR #99 exceeded either cap — every other row reports well under 100
-  commits and 100 files, so truncation cannot have applied to them. The five
-  two-parent merges among them (#94, #95, #97, #98, #100) were re-verified under
-  the compare method and matched exactly. #93 and #96 were squash-merged, so
-  their merge commits have a single parent and the compare method does not
-  apply; both are far below the cap.
-- **Actions runs / wall time** counts every workflow run on the PR's head branch
-  between `createdAt` and `mergedAt`, summing `updated_at - run_started_at`. It
-  is run wall time, not billable minutes, and parallel jobs inside one run are
-  counted once. PRs #99 and #100 share the head branch `release/v0.2.0`, so
-  their run sets overlap and must not be added together.
-- **Loop summaries** counts issue comments whose body contains
-  `Automated Reviewer Loop`. **Declared escalations** counts issue comments
-  whose *first line* matches `escalat`. The heading test matters: a routine loop
-  summary can mention the word inside its embedded history payload without being
-  an escalation, which is true of one comment each on #94, #95 and #97 and two
-  on #98. A body-substring count would report 2 / 4 / 3 / 10 for those PRs
-  instead of 0 / 0 / 0 / 3.
-- Loop summaries are a lower bound on passes: the loop rewrites one summary
-  comment in place across iterations, so a single summary can represent many.
-  The authoritative per-iteration count is in the embedded
-  `reviewer-loop-history:v1` payload.
-- **PR #98 is the only PR in this window with any declared escalation.** Its
-  three are `escalation summary`, `escalated (low-value / thrashing)`, and
-  `escalated (AC31 thrashing)`.
+  All eight rows above were re-derived from the pull request object and match.
 
 ## Reviewer-loop iteration counts
 
@@ -247,9 +219,23 @@ change the output for this fixed historical window — the table would stop bein
 a reproducible record of 2026-09-17 → 2026-09-23. Regenerate the snapshot only
 when defining a new window; its header carries the command.
 
-Per-PR figures:
+Per-PR figures. Use the pull request object for commits, files and line
+counts — not `gh pr view` (caps at 100) and not `compare` (different merge
+base):
 
+<!-- workflow-shell-contract: bash-zsh -->
 ```bash
-gh pr view <n> --json number,createdAt,mergedAt,headRefName,commits,files
-gh api "repos/lhpaul/ronda/actions/runs?branch=<head>&per_page=100" --paginate
+set -euo pipefail
+repo=lhpaul/ronda
+for n in 93 94 95 96 97 98 99 100; do
+  gh api "repos/${repo}/pulls/${n}" --jq \
+    '[.number, .commits, .changed_files, .additions, .deletions,
+      .created_at, .merged_at] | @tsv'
+  head_ref="$(gh api "repos/${repo}/pulls/${n}" --jq '.head.ref')"
+  gh api "repos/${repo}/actions/runs?branch=${head_ref}&per_page=100" --paginate \
+    --jq '.workflow_runs[] | [.name, .run_started_at, .updated_at] | @tsv'
+done
 ```
+
+Actions runs per PR are additionally filtered to that PR's own
+`[created_at, merged_at]` window before summing.
