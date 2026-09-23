@@ -89,15 +89,21 @@ bound matters: without it the total keeps growing as later PRs (including the
 one carrying this baseline) run CI, and the denominator would not be stable
 enough to compare against later.
 
-An earlier draft of this table used
-`actions-cost-audit.sh --limit 500`, which returned **exactly** 500 runs — the
-cap — so its 580.3 m total was truncated and its percentages were wrong. The
-script's own "Data limitations" section warns about this. Re-running with
-`--limit 3000` returns 1056 runs, comfortably under the cap and therefore
-complete, but it has no `--until` flag, so it cannot be bounded at #100's
-merge. The table below is derived directly from the runs API with both bounds
-applied; the script command is given afterwards as the closest reproducible
-approximation.
+The table below is **derived from a committed snapshot**, not from a live query:
+[`evidence/actions-window-2026-09-17_2026-09-23.csv`](evidence/actions-window-2026-09-17_2026-09-23.csv).
+The snapshot holds one row per workflow-run attempt in the window
+(`workflow, attempt_started, attempt_ended`), plus one row with empty timestamps
+for each workflow that had no attempts at all, so zero-run workflows stay
+visible.
+
+Freezing the inputs is the point. An earlier revision of this document
+re-derived the table by re-querying the Actions API on every run, and each
+review round found a new way that query could disagree with itself over time: a
+truncating run limit, a workflow roster read from mutable current state, and
+three separate mistakes about which attempt of a re-run belongs to a historical
+window. A baseline whose inputs are committed has none of those failure modes —
+the numbers cannot move unless someone edits the data, and the edit shows up in
+review.
 
 | Workflow | Runs | Total wall time | Share |
 | --- | ---: | ---: | ---: |
@@ -156,6 +162,39 @@ The **Runs** column counts *attempts*, not distinct run records — a re-run
 consumed Actions minutes twice and is counted twice. Exactly one run in this
 window was re-run, so 1020 attempts come from 1019 distinct runs.
 
+Regenerate the table from the snapshot. No network and no API, so the same
+input always produces the same table:
+
+```python
+import csv, collections, datetime
+
+agg = collections.defaultdict(lambda: [0, 0.0])
+
+
+def parse(value):
+    return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+path = "docs/testing/ronda/evidence/actions-window-2026-09-17_2026-09-23.csv"
+with open(path) as handle:
+    for row in csv.DictReader(handle):
+        entry = agg[row["workflow"]]          # materialises zero-run workflows
+        if not row["attempt_started"]:
+            continue
+        entry[0] += 1
+        entry[1] += (parse(row["attempt_ended"])
+                     - parse(row["attempt_started"])).total_seconds() / 60
+
+total = sum(minutes for _, minutes in agg.values())
+runs = sum(count for count, _ in agg.values())
+
+print("| Workflow | Runs | Total wall time | Share |")
+print("| --- | ---: | ---: | ---: |")
+for name, (count, minutes) in sorted(agg.items(), key=lambda kv: (-kv[1][1], kv[0])):
+    print(f"| {name} | {count} | {minutes:.1f} m | {minutes / total * 100:.1f}% |")
+print(f"| **Total** | **{runs}** | **{total:.1f} m** | |")
+```
+
 Repository visibility is public and the workflows use standard GitHub-hosted
 runners, so this window is expected to be zero-billable here. The number matters
 as the **downstream** cost a private adopting repository would inherit, and as
@@ -204,9 +243,48 @@ from a branch-scoped, fully paginated query bounded by that PR's own
 
 ## Reproduction
 
-Repository-wide audit. Use a limit high enough that the reported run count is
-strictly below it — at `--limit 500` this repository returns exactly 500 runs,
-which means the result is truncated and every total derived from it is wrong:
+Repository-wide audit. The committed table is regenerated from the frozen
+snapshot with the snippet in the audit section above — no network, no API.
+
+How the snapshot was collected, recorded here so it can be audited or redone for
+a different window. It is a one-off collection, not part of reproducing the
+table:
+
+<!-- workflow-shell-contract: bash-zsh -->
+```bash
+set -euo pipefail
+repo=lhpaul/ronda
+since=2026-09-17T00:00:00Z
+until=2026-09-23T10:36:01Z
+
+# Candidate runs are selected by the UPPER bound only. A lower bound on
+# created_at would drop a run created before the window whose re-run attempt
+# started inside it, because GitHub does not update created_at on a re-run.
+gh api "repos/${repo}/actions/runs?per_page=100" --paginate \
+  | jq -r --arg until "$until" '
+      .workflow_runs[]
+      | select(.created_at <= $until)
+      | [(.id | tostring), (.run_attempt | tostring), .name,
+         .run_started_at, .updated_at]
+      | @tsv'
+```
+
+Each candidate is then expanded into attempts, and an attempt is kept when its
+own `run_started_at` falls inside the window:
+
+- `run_attempt == 1` — the listing's timings are that attempt's; keep it if it
+  started in the window.
+- `run_attempt > 1` — read `/runs/<id>/attempts/<n>` for every `n` from 1 to
+  `run_attempt` and keep each attempt that started in the window.
+
+Finally, one row with empty timestamps is appended for each active workflow that
+contributed no attempts, so zero-run workflows appear in the table.
+
+`scripts/development-workflow/actions-cost-audit.sh` is **not** the source of
+this table and cannot be. It has no `--until`, so its totals grow every time it
+runs, and at `--limit 500` this repository returns exactly 500 runs — a silently
+truncated result whose derived totals are all wrong. It remains useful for a
+rough current-state view:
 
 <!-- workflow-shell-contract: bash-zsh -->
 ```bash
@@ -214,32 +292,6 @@ set -euo pipefail
 ./scripts/development-workflow/actions-cost-audit.sh \
   --limit 3000 --since 2026-09-17T00:00:00Z --format markdown
 ```
-
-The script has no `--until`, so its totals include everything up to the moment
-it runs and cannot reproduce a fixed window. The window-bounded table above is
-produced by a committed script that applies both bounds and performs the same
-grouping, duration aggregation, run counting, and share calculation:
-
-<!-- workflow-shell-contract: bash-zsh -->
-```bash
-set -euo pipefail
-./docs/testing/ronda/scripts/actions-window-audit.sh
-```
-
-It takes optional `[repo] [since] [until] [workflows-file]` arguments; the
-defaults are `lhpaul/ronda`, `2026-09-17T00:00:00Z`, `2026-09-23T10:36:01Z` (the
-merge of #100), and `actions-window-audit.workflows` beside the script — and
-reproduce the table above verbatim, including the 888.1 m total and every
-share.
-It refuses rather than printing an empty table when no runs match the window or
-the workflow snapshot is empty or unreadable.
-
-The workflow roster is read from that **pinned snapshot** rather than from
-current repository state. Zero-run rows are part of the table, so querying live
-state would let a later workflow rename, addition, removal, or disablement
-change the output for this fixed historical window — the table would stop being
-a reproducible record of 2026-09-17 → 2026-09-23. Regenerate the snapshot only
-when defining a new window; its header carries the command.
 
 Per-PR figures. Use the pull request object for commits, files and line
 counts — not `gh pr view` (caps at 100) and not `compare` (different merge
