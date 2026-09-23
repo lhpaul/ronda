@@ -192,12 +192,16 @@ Full tables in
 | Reviewer-loop iterations (recorded) | 9 | 3 (final run only) | 26 |
 | Declared escalations | 0 | 0 | 3 |
 
-Repository-wide, 888.1 m of Actions **wall time** across 1020 workflow-run
-attempts in the six-day window (bounded at #100's merge so the figure is
-stable). `Ronda review` accounts for 0 m of it. Wall time is not billed runner
-minutes — parallel jobs, per-job minute rounding, and runner multipliers all
-push real billing higher — so treat it as a cost-risk proxy and a comparison
-denominator, not a bill.
+Repository-wide over the six-day window (bounded at #100's merge so the figures
+are stable): **4,775 billed job-minutes** across 4,182 jobs, against 888.1 m of
+run **wall time** across 1,020 attempts. `Ronda review` accounts for 0 of both.
+
+Wall time is elapsed latency, not compute: a run's wall time is counted once but
+each job in it bills separately. Ranking by wall time gets the answer wrong —
+ShellCheck and the workflow test harnesses look comparable at 35.1% and 37.3% of
+wall time, but in billed minutes they are 7.1% and 74.8%. Use job-minutes for
+cost, wall time for latency, and the account's billing data for an exact
+figure.
 
 Headline cost findings:
 
@@ -207,8 +211,9 @@ Headline cost findings:
    `OPENAI_KEY not set`.
 3. Codex GitHub was rate-limited on #93–#96 and never triggered on #97. Real
    external-reviewer coverage in this window is **1 of 6** reviewable PRs.
-4. ShellCheck plus the workflow test harnesses are 643.4 m of the 888.1 m
-   (72.4%).
+4. The workflow test harnesses alone are 3,573 of 4,775 billed job-minutes
+   (74.8%), from a `max-parallel: 8` matrix — the single highest-value cost
+   target.
 5. PR #98's convergence cost is dominated by re-finding one defect 14 times.
 
 ### Measurement gap

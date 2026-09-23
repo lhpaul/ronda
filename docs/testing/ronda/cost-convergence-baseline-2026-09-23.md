@@ -213,33 +213,88 @@ for name, (count, minutes) in sorted(agg.items(), key=lambda kv: (-kv[1][1], kv[
 print(f"| **Total** | **{runs}** | **{total:.1f} m** | |")
 ```
 
-### What this number is, and is not
+### Cost: job minutes, not run wall time
 
-**This is workflow-run wall time, not billed runner minutes.** Treat it as a
-cost-risk proxy and a comparison denominator, not as a bill. Three reasons the
-two differ, all of which push real billing *upward*:
+The table above measures **workflow-run wall time**, which is elapsed latency,
+not compute consumed. A run's wall time is measured once across the whole run,
+but every job inside it is billed separately — and the job counts here differ by
+three orders of magnitude:
 
-- **Parallel jobs.** A run's wall time is measured once across the whole run,
-  but every job inside it is billed separately. A run with four parallel jobs
-  each taking 3 minutes shows as roughly 3 minutes here and bills as roughly 12.
-- **Billing granularity.** GitHub rounds each job up to the minute. Many short
-  jobs — `PR policy` averages 0.2 m across 297 attempts — bill far above their
-  measured time.
-- **Runner multipliers.** Larger or non-Linux runners bill at a multiple of
-  wall time. This repository uses standard `ubuntu-latest`, so the multiplier is
-  1x here, but a downstream adopter's may not be.
+| Workflow | Jobs | Wall time | Share of wall | Billed minutes | Share of billed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| workflow test harnesses | 3,271 | 331.6 m | 37.3% | **3,573 m** | **74.8%** |
+| ShellCheck | 53 | 311.8 m | 35.1% | 338 m | 7.1% |
+| PR policy | 297 | 56.0 m | 6.3% | 302 m | 6.3% |
+| PR-Agent | 196 | 89.5 m | 10.1% | 197 m | 4.1% |
+| E2E / Regression (placeholder) | 145 | 6.4 m | 0.7% | 145 m | 3.0% |
+| Markdown Lint | 102 | 46.5 m | 5.2% | 102 m | 2.1% |
+| Node CI | 64 | 37.5 m | 4.2% | 64 m | 1.3% |
+| Update tracker on merge | 29 | 4.6 m | 0.5% | 29 m | 0.6% |
+| Workflow lint | 24 | 3.9 m | 0.4% | 24 m | 0.5% |
+| Auto-tag release | 1 | 0.2 m | 0.0% | 1 m | 0.0% |
+| **Ronda review** | **0** | **0.0 m** | **0%** | **0 m** | **0%** |
+| **Total** | **4,182** | **888.1 m** | | **4,775 m** | |
 
-Any exact-cost claim needs job-level timing or the account's billing data, not
-this table.
+`workflow-tests.yml` runs its suites as a `max-parallel: 8` matrix — one
+observed run expanded to 82 jobs — while ShellCheck runs a single job. **Ranking
+by wall time therefore gets the answer wrong, not merely imprecise**: ShellCheck
+and the harnesses look comparable at 35.1% and 37.3% of wall time, but in billed
+minutes the harnesses are 74.8% and ShellCheck is 7.1%, a 10x difference. Total
+billed minutes are 4,775 against 888.1 m of wall time, 5.4x.
 
-What the number **is** good for: a stable denominator for "did this change make
-review cheaper", and a relative ranking of where the time goes. Both survive the
-caveats above, because the same measurement applies to every row.
+Derived from
+[`evidence/actions-window-jobs-2026-09-17_2026-09-23.csv`](evidence/actions-window-jobs-2026-09-17_2026-09-23.csv),
+a frozen snapshot of all 4,182 jobs belonging to the 1,020 attempts above
+(`workflow, job, started_at, completed_at`), collected per attempt via
+`/actions/runs/<id>/jobs` and `/actions/runs/<id>/attempts/<n>/jobs`.
+
+**Billed minutes** applies GitHub's per-job round-up to the minute, which is the
+dominant effect for this repository: raw job time is 1,506.5 m, and rounding
+3,271 mostly-sub-minute harness jobs up to a minute each is what produces 4,775.
+149 jobs report `completed_at` before `started_at` — skipped or instantly
+cancelled matrix legs — and are clamped to zero before rounding.
+
+This is still not a bill. It assumes a 1x runner multiplier, true for this
+repository's `ubuntu-latest` but not necessarily for a downstream adopter, and
+GitHub's own accounting may differ in ways this cannot see. Use the account's
+billing data for an exact figure. What it is good for: ranking where compute
+actually goes, and serving as a denominator for "did this change make review
+cheaper" — both of which the wall-time table cannot do.
 
 Repository visibility is public and the workflows use standard GitHub-hosted
 runners, so this window is expected to be zero-billable *here*. It matters as
 the **downstream** exposure a private adopting repository would inherit, where
 the same workflows consume included or paid minutes.
+
+Regenerate this table from the job snapshot:
+
+```python
+import csv, collections, datetime
+
+agg = collections.defaultdict(lambda: [0, 0.0, 0])
+
+
+def parse(value):
+    return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+path = "docs/testing/ronda/evidence/actions-window-jobs-2026-09-17_2026-09-23.csv"
+with open(path) as handle:
+    for row in csv.DictReader(handle):
+        minutes = (parse(row["completed_at"])
+                   - parse(row["started_at"])).total_seconds() / 60
+        minutes = max(0.0, minutes)       # skipped/cancelled legs report negative
+        entry = agg[row["workflow"]]
+        entry[0] += 1
+        entry[1] += minutes
+        entry[2] += max(1, int(-(-minutes // 1)))    # GitHub rounds up per job
+
+billed_total = sum(billed for _, _, billed in agg.values())
+print(f"jobs={sum(c for c, _, _ in agg.values())} "
+      f"raw={sum(r for _, r, _ in agg.values()):.1f} m billed={billed_total} m")
+for name, (count, raw, billed) in sorted(agg.items(), key=lambda kv: -kv[1][2]):
+    print(f"{name:<46}{count:>6}{raw:>9.1f}{billed:>7}{billed / billed_total * 100:>7.1f}%")
+```
 
 The per-PR table above is **not** affected by the cap: each row was computed
 from a branch-scoped, fully paginated query bounded by that PR's own
@@ -277,10 +332,17 @@ from a branch-scoped, fully paginated query bounded by that PR's own
    PR was finally closed out under an explicit
    `Human product decision — waive local-ai AC31 tip finding`.
 
-5. **ShellCheck and the workflow test harnesses cost more than everything else
-   combined.** 643.4 m of 888.1 m (72.4%) across 162 attempts, both on
-   `pull_request`. Neither is review quality; both are candidates for path or
-   event narrowing if downstream Actions cost becomes a concern.
+5. **The workflow test harnesses alone are three quarters of compute cost.**
+   3,573 of 4,775 billed minutes (74.8%) across 3,271 jobs, from a
+   `max-parallel: 8` suite matrix on `pull_request`. It is the single highest-
+   value target for path or event narrowing if downstream Actions cost matters.
+
+   An earlier revision of this document ranked by wall time and reported
+   "ShellCheck and the workflow test harnesses are 72.4% combined". That was
+   **wrong, not merely imprecise**: by wall time the two look comparable (35.1%
+   and 37.3%), but ShellCheck runs one job per run and is only 7.1% of billed
+   minutes, while the harnesses are 74.8%. Wall time hid a 10x difference. The
+   corrected ranking is in the job-minutes table above.
 
 ## Reproduction
 
