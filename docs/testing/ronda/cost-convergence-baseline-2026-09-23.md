@@ -86,29 +86,49 @@ run sets overlap, so they cannot be added to this total.
 
 ## Repository-wide Actions audit
 
-`scripts/development-workflow/actions-cost-audit.sh --limit 500 --since 2026-09-17T00:00:00Z`
-(500 runs; 0 incomplete duration records):
+**Window**: runs created between `2026-09-17T00:00:00Z` and
+`2026-09-23T10:36:01Z` — the merge of #100, the last PR in scope. The upper
+bound matters: without it the total keeps growing as later PRs (including the
+one carrying this baseline) run CI, and the denominator would not be stable
+enough to compare against later.
 
-| Workflow | Runs | Total wall time | Avg | Dominant events |
-| --- | ---: | ---: | ---: | --- |
-| workflow test harnesses | 61 | 227.1 m | 3.7 m | `pull_request` (55), `schedule` (6) |
-| ShellCheck | 37 | 222.5 m | 6.0 m | `pull_request` (37) |
-| PR-Agent | 80 | 46.3 m | 0.6 m | `pull_request` (55), `issue_comment` (25) |
-| Node CI | 56 | 32.6 m | 0.6 m | `pull_request` (53), `push` (3) |
-| Markdown Lint | 55 | 26.1 m | 0.5 m | `pull_request` (55) |
-| PR policy | 118 | 18.7 m | 0.2 m | `issue_comment` (63), `pull_request_target` (55) |
-| Workflow lint | 24 | 3.9 m | 0.2 m | `pull_request` (23), `push` (1) |
-| E2E / Regression (placeholder) | 64 | 2.3 m | 0.0 m | `pull_request` (62) |
-| Update tracker on merge | 4 | 0.6 m | 0.2 m | `pull_request` (4) |
-| Auto-tag release | 1 | 0.2 m | 0.2 m | `pull_request` (1) |
-| **Ronda review** | **0** | **0 m** | — | **never triggered** |
+An earlier draft of this table used
+`actions-cost-audit.sh --limit 500`, which returned **exactly** 500 runs — the
+cap — so its 580.3 m total was truncated and its percentages were wrong. The
+script's own "Data limitations" section warns about this. Re-running with
+`--limit 3000` returns 1056 runs, comfortably under the cap and therefore
+complete, but it has no `--until` flag, so it cannot be bounded at #100's
+merge. The table below is derived directly from the runs API with both bounds
+applied; the script command is given afterwards as the closest reproducible
+approximation.
 
-Total: 580.3 m of Actions wall time over six days.
+| Workflow | Runs | Total wall time | Share |
+| --- | ---: | ---: | ---: |
+| workflow test harnesses | 109 | 331.6 m | 37.3% |
+| ShellCheck | 53 | 311.8 m | 35.1% |
+| PR-Agent | 196 | 89.5 m | 10.1% |
+| PR policy | 296 | 55.8 m | 6.3% |
+| Markdown Lint | 102 | 46.5 m | 5.2% |
+| Node CI | 64 | 37.5 m | 4.2% |
+| E2E / Regression (placeholder) | 145 | 6.4 m | 0.7% |
+| Update tracker on merge | 29 | 4.6 m | 0.5% |
+| Workflow lint | 24 | 3.9 m | 0.4% |
+| Auto-tag release | 1 | 0.2 m | 0.0% |
+| **Ronda review** | **0** | **0 m** | **0%** |
+| **Total** | **1019** | **887.9 m** | |
+
+887.9 m of Actions wall time across 1019 runs over six days. Per-workflow
+figures are rounded to one decimal, so the rows sum to 887.8 m and the shares to
+99.8%; the total is the unrounded sum.
 
 Repository visibility is public and the workflows use standard GitHub-hosted
 runners, so this window is expected to be zero-billable here. The number matters
 as the **downstream** cost a private adopting repository would inherit, and as
 the denominator for any later claim that a Ronda change made review cheaper.
+
+The per-PR table above is **not** affected by the cap: each row was computed
+from a branch-scoped, fully paginated query bounded by that PR's own
+`createdAt`/`mergedAt`, with no run limit.
 
 ## Cost findings
 
@@ -120,12 +140,12 @@ the denominator for any later claim that a Ronda change made review cheaper.
    #21), posted by manual local runs on 2026-09-10. Ronda is not dogfooded. See
    Deliverable 1 in the baseline document.
 
-2. **PR-Agent runs 80 times and publishes nothing.** Its run log shows
+2. **PR-Agent runs 196 times and publishes nothing.** Its run log shows
    `DEEPSEEK_API_KEY:` empty and `OPENAI_KEY not set`; the run reaches
    `Tokens: 79482, total tokens over limit: 32000, pruning diff.` and then ends
    without posting a review. No `PR Reviewer Guide` comment exists on any of
-   #93–#100. 46.3 m of Actions wall time in this window produced no review
-   signal. It is also the reason PR-Agent could not be used as a second
+   #93–#100. 89.5 m of Actions wall time in this window — 10.1% of the total —
+   produced no review signal. It is also the reason PR-Agent could not be used as a second
    external-reviewer source for the category ranking.
 
 3. **Codex GitHub was rate-limited on four of six reviewable PRs.** #93–#96 each
@@ -143,15 +163,34 @@ the denominator for any later claim that a Ronda change made review cheaper.
    `Human product decision — waive local-ai AC31 tip finding`.
 
 5. **ShellCheck and the workflow test harnesses cost more than everything else
-   combined.** 449.6 m of 580.3 m (77%) across 98 runs, both on `pull_request`.
-   Neither is review quality; both are candidates for path or event narrowing if
-   downstream Actions cost becomes a concern.
+   combined.** 643.4 m of 887.9 m (72.5%) across 162 runs, both on
+   `pull_request`. Neither is review quality; both are candidates for path or
+   event narrowing if downstream Actions cost becomes a concern.
 
 ## Reproduction
 
+Repository-wide audit. Use a limit high enough that the reported run count is
+strictly below it — at `--limit 500` this repository returns exactly 500 runs,
+which means the result is truncated and every total derived from it is wrong:
+
+<!-- workflow-shell-contract: bash-zsh -->
 ```bash
+set -euo pipefail
 ./scripts/development-workflow/actions-cost-audit.sh \
-  --limit 500 --since 2026-09-17T00:00:00Z --format markdown
+  --limit 3000 --since 2026-09-17T00:00:00Z --format markdown
+```
+
+The script has no `--until`, so its totals include everything up to the moment
+it runs. The window-bounded table above (upper bound `2026-09-23T10:36:01Z`, the
+merge of #100) comes from the runs API directly:
+
+<!-- workflow-shell-contract: bash-zsh -->
+```bash
+set -euo pipefail
+gh api "repos/lhpaul/ronda/actions/runs?per_page=100" --paginate \
+  --jq '.workflow_runs[] | select(.created_at >= "2026-09-17T00:00:00Z"
+        and .created_at <= "2026-09-23T10:36:01Z")
+        | [.name, .run_started_at, .updated_at] | @tsv'
 ```
 
 Per-PR figures:

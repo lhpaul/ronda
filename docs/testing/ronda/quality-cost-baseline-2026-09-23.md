@@ -190,17 +190,20 @@ Full tables in
 | Reviewer-loop iterations (recorded) | 9 | 3 (final run only) | 26 |
 | Declared escalations | 0 | 0 | 3 |
 
-Repository-wide, 580.3 m of Actions wall time over the six-day window across 500
-runs. `Ronda review` accounts for 0 m of it.
+Repository-wide, 887.9 m of Actions wall time across 1019 runs in the six-day
+window (bounded at #100's merge so the figure is stable). `Ronda review`
+accounts for 0 m of it.
 
 Headline cost findings:
 
 1. `Ronda review` never runs (Deliverable 1).
-2. PR-Agent ran 80 times for 46.3 m and published **no review at all** — its log
-   shows `DEEPSEEK_API_KEY:` empty and `OPENAI_KEY not set`.
+2. PR-Agent ran 196 times for 89.5 m — 10.1% of all Actions time — and
+   published **no review at all**; its log shows `DEEPSEEK_API_KEY:` empty and
+   `OPENAI_KEY not set`.
 3. Codex GitHub was rate-limited on #93–#96 and never triggered on #97. Real
    external-reviewer coverage in this window is **1 of 6** reviewable PRs.
-4. ShellCheck plus the workflow test harnesses are 449.6 m of the 580.3 m (77%).
+4. ShellCheck plus the workflow test harnesses are 643.4 m of the 887.9 m
+   (72.5%).
 5. PR #98's convergence cost is dominated by re-finding one defect 14 times.
 
 ### Measurement gap
@@ -383,7 +386,7 @@ What the comparison does support:
 5. **Adjudicate the template #1729 record.** It is the only existing
    Ronda-clean / other-reviewer-found case, and it points at `timeouts` and
    `concurrency`, which nothing else in the corpus touches.
-6. **Fix or remove PR-Agent.** 80 runs, 46.3 m, zero output. It is also a lost
+6. **Fix or remove PR-Agent.** 196 runs, 89.5 m, zero output. It is also a lost
    second external-reviewer source for exactly this kind of evidence.
 7. **Preserve reviewer-loop history across invocations.** #97's cost is
    unrecoverable because the history comment is rewritten in place.
@@ -445,6 +448,8 @@ done
 ```bash
 set -euo pipefail
 npm run quality:report -- --format markdown
+# Use a limit high enough that the reported run count is strictly below it;
+# --limit 500 returns exactly 500 here, i.e. a truncated and therefore wrong total.
 ./scripts/development-workflow/actions-cost-audit.sh \
-  --limit 500 --since 2026-09-17T00:00:00Z --format markdown
+  --limit 3000 --since 2026-09-17T00:00:00Z --format markdown
 ```
