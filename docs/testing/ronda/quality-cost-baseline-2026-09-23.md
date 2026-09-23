@@ -192,9 +192,9 @@ Full tables in
 | Reviewer-loop iterations (recorded) | 9 | 3 (final run only) | 26 |
 | Declared escalations | 0 | 0 | 3 |
 
-Repository-wide, 887.9 m of Actions wall time across 1019 runs in the six-day
-window (bounded at #100's merge so the figure is stable). `Ronda review`
-accounts for 0 m of it.
+Repository-wide, 888.1 m of Actions wall time across 1020 workflow-run attempts
+in the six-day window (bounded at #100's merge so the figure is stable).
+`Ronda review` accounts for 0 m of it.
 
 Headline cost findings:
 
@@ -204,8 +204,8 @@ Headline cost findings:
    `OPENAI_KEY not set`.
 3. Codex GitHub was rate-limited on #93–#96 and never triggered on #97. Real
    external-reviewer coverage in this window is **1 of 6** reviewable PRs.
-4. ShellCheck plus the workflow test harnesses are 643.4 m of the 887.9 m
-   (72.5%).
+4. ShellCheck plus the workflow test harnesses are 643.4 m of the 888.1 m
+   (72.4%).
 5. PR #98's convergence cost is dominated by re-finding one defect 14 times.
 
 ### Measurement gap

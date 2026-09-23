@@ -101,10 +101,10 @@ approximation.
 
 | Workflow | Runs | Total wall time | Share |
 | --- | ---: | ---: | ---: |
-| workflow test harnesses | 109 | 331.6 m | 37.4% |
+| workflow test harnesses | 109 | 331.6 m | 37.3% |
 | ShellCheck | 53 | 311.8 m | 35.1% |
 | PR-Agent | 196 | 89.5 m | 10.1% |
-| PR policy | 296 | 55.8 m | 6.3% |
+| PR policy | 297 | 56.0 m | 6.3% |
 | Markdown Lint | 102 | 46.5 m | 5.2% |
 | Node CI | 64 | 37.5 m | 4.2% |
 | E2E / Regression Tests (Template Placeholder) | 145 | 6.4 m | 0.7% |
@@ -114,26 +114,36 @@ approximation.
 | Claude Code Action PR Review | 0 | 0.0 m | 0.0% |
 | Deploy (Template Placeholder) | 0 | 0.0 m | 0.0% |
 | **Ronda review** | **0** | **0.0 m** | **0.0%** |
-| **Total** | **1019** | **887.9 m** | |
+| **Total** | **1020** | **888.1 m** | |
 
 All 13 active workflows are listed, including the three with no runs in the
 window. A workflow that never ran is reported as a zero row rather than omitted
 — "`Ronda review` has 0 runs" is the finding, and a table that simply left it
 out would hide it.
 
-Each run is attributed using its **first attempt**. GitHub keeps a re-run's
-original `created_at` but exposes the *latest* attempt's `run_started_at` and
-`updated_at`, so aggregating the listing as-is would let a re-run performed
-after the cutoff silently change this fixed historical window. One run in the
-window (`PR policy`, id `35218024569`) has `run_attempt: 2`; its first attempt
-ran 8 s against the latest attempt's 10 s. The difference is below the rounding
-of this table, but the hazard is structural rather than hypothetical, so the
-script re-reads `/attempts/1` for any run with `run_attempt > 1` and refuses
-outright if a first attempt falls outside the window.
+Re-runs are counted **per attempt**. GitHub keeps a re-run's original
+`created_at` but exposes only the *latest* attempt's `run_started_at` and
+`updated_at`. Aggregating the listing as-is would let a re-run performed after
+the cutoff silently rewrite this fixed historical window; attributing everything
+to attempt 1 instead would discard re-runs that genuinely happened inside it and
+undercount the cost. The script therefore enumerates every attempt of any run
+with `run_attempt > 1` and counts each one whose `run_started_at` falls inside
+the window, excluding attempts started after the cutoff.
 
-887.9 m of Actions wall time across 1019 runs over six days. Per-workflow
-figures are rounded to one decimal, so the rows sum to 887.8 m and the shares to
-99.9%; the total is the unrounded sum.
+Exactly one run in this window is affected: `PR policy`, id `35218024569`,
+`run_attempt: 2`. Both attempts started inside the window — 8 s and 10 s — so it
+contributes 2 attempts and 18 s, and the run count is 1020 attempts across 1019
+distinct runs. Counting only the latest attempt would have given 1019 / 887.9 m
+with a drifting total; counting only the first, 1019 / 887.9 m with 10 s
+missing.
+
+888.1 m of Actions wall time across 1020 workflow-run attempts over six days.
+Per-workflow figures are rounded to one decimal, so the rows sum to 888.0 m and
+the shares to 99.8%; the total is the unrounded sum.
+
+The **Runs** column counts *attempts*, not distinct run records — a re-run
+consumed Actions minutes twice and is counted twice. Exactly one run in this
+window was re-run, so 1020 attempts come from 1019 distinct runs.
 
 Repository visibility is public and the workflows use standard GitHub-hosted
 runners, so this window is expected to be zero-billable here. The number matters
@@ -177,7 +187,7 @@ from a branch-scoped, fully paginated query bounded by that PR's own
    `Human product decision — waive local-ai AC31 tip finding`.
 
 5. **ShellCheck and the workflow test harnesses cost more than everything else
-   combined.** 643.4 m of 887.9 m (72.5%) across 162 runs, both on
+   combined.** 643.4 m of 888.1 m (72.4%) across 162 attempts, both on
    `pull_request`. Neither is review quality; both are candidates for path or
    event narrowing if downstream Actions cost becomes a concern.
 
@@ -208,7 +218,8 @@ set -euo pipefail
 It takes optional `[repo] [since] [until] [workflows-file]` arguments; the
 defaults are `lhpaul/ronda`, `2026-09-17T00:00:00Z`, `2026-09-23T10:36:01Z` (the
 merge of #100), and `actions-window-audit.workflows` beside the script — and
-reproduce the table above verbatim, including the 887.9 m total and every share.
+reproduce the table above verbatim, including the 888.1 m total and every
+share.
 It refuses rather than printing an empty table when no runs match the window or
 the workflow snapshot is empty or unreadable.
 

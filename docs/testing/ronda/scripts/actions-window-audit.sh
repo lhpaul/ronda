@@ -25,12 +25,15 @@
 # Timestamps are ISO-8601 UTC (YYYY-MM-DDTHH:MM:SSZ) and are compared as
 # strings, which is why the trailing Z and zero padding are required.
 #
-# Re-run handling: GitHub keeps a re-run's original `created_at` but exposes the
-# LATEST attempt's `run_started_at` and `updated_at`. Aggregating those would let
-# a re-run performed after the cutoff silently change this fixed historical
-# window. Every run is therefore attributed using its FIRST attempt, fetched
-# from /attempts/1 when `run_attempt` > 1, and a first attempt falling outside
-# the window is refused rather than counted.
+# Re-run handling: GitHub keeps a re-run's original `created_at` but exposes only
+# the LATEST attempt's `run_started_at` and `updated_at`. Aggregating the listing
+# as-is would let a re-run performed after the cutoff silently change this fixed
+# historical window; attributing everything to attempt 1 instead would discard
+# re-runs that genuinely happened inside it. For any run with `run_attempt` > 1
+# this script therefore enumerates EVERY attempt and counts each one whose
+# `run_started_at` falls inside the window, so each execution that actually
+# consumed Actions minutes in the window contributes exactly once. Attempts
+# started after the cutoff are excluded.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -96,20 +99,41 @@ gh api "repos/${repo}/actions/runs?per_page=100" --paginate \
 
   while IFS=$'\t' read -r run_id run_attempt name started updated; do
     [ -n "$run_id" ] || continue
-    if [ "$run_attempt" != "1" ]; then
-      # Re-run: the listing carries the latest attempt's timings. Re-read the
-      # first attempt so this historical row cannot move when someone re-runs a
-      # job years later.
-      first_attempt="$(gh api "repos/${repo}/actions/runs/${run_id}/attempts/1" \
-        --jq '[.run_started_at, .updated_at] | @tsv')"
-      started="$(printf '%s' "$first_attempt" | cut -f1)"
-      updated="$(printf '%s' "$first_attempt" | cut -f2)"
+
+    if [ "$run_attempt" = "1" ]; then
+      # Single attempt: the listing's timings are that attempt's.
+      if [ "$started" \> "$until_" ] || [ "$started" \< "$since" ]; then
+        continue
+      fi
+      printf 'RUN\t%s\t%s\t%s\n' "$name" "$started" "$updated"
+      continue
     fi
-    if [ "$started" \< "$since" ] || [ "$started" \> "$until_" ]; then
-      echo "refusing to report a result: run ${run_id} (${name}) was created in the window but its first attempt started at ${started}, outside [${since}, ${until_}]" >&2
+
+    # Re-run: enumerate every attempt and keep each one that started inside the
+    # window. Counting only the latest lets a post-cutoff re-run rewrite
+    # history; counting only the first discards re-runs that really did consume
+    # minutes inside the window.
+    attempt_kept=0
+    attempt_number=1
+    while [ "$attempt_number" -le "$run_attempt" ]; do
+      attempt_row="$(gh api \
+        "repos/${repo}/actions/runs/${run_id}/attempts/${attempt_number}" \
+        --jq '[.run_started_at, .updated_at] | @tsv')"
+      attempt_started="$(printf '%s' "$attempt_row" | cut -f1)"
+      attempt_updated="$(printf '%s' "$attempt_row" | cut -f2)"
+      if [ -n "$attempt_started" ] \
+          && [ ! "$attempt_started" \< "$since" ] \
+          && [ ! "$attempt_started" \> "$until_" ]; then
+        printf 'RUN\t%s\t%s\t%s\n' "$name" "$attempt_started" "$attempt_updated"
+        attempt_kept=$((attempt_kept + 1))
+      fi
+      attempt_number=$((attempt_number + 1))
+    done
+
+    if [ "$attempt_kept" -eq 0 ]; then
+      echo "refusing to report a result: run ${run_id} (${name}) was created inside the window but none of its ${run_attempt} attempts started inside [${since}, ${until_}]" >&2
       exit 1
     fi
-    printf 'RUN\t%s\t%s\t%s\n' "$name" "$started" "$updated"
   done < "$runs_tsv"
 } \
 | python3 -c '
