@@ -213,87 +213,154 @@ for name, (count, minutes) in sorted(agg.items(), key=lambda kv: (-kv[1][1], kv[
 print(f"| **Total** | **{runs}** | **{total:.1f} m** | |")
 ```
 
-### Cost: job minutes, not run wall time
+### Cost: runner minutes, not run wall time
 
 The table above measures **workflow-run wall time**, which is elapsed latency,
-not compute consumed. A run's wall time is measured once across the whole run,
-but every job inside it is billed separately — and the job counts here differ by
-three orders of magnitude:
+not compute consumed. A run's wall time is counted once across the whole run,
+but every job inside it consumes runner time separately — and the job counts
+here differ by three orders of magnitude:
 
-| Workflow | Jobs | Wall time | Share of wall | Billed minutes | Share of billed |
+| Workflow | Jobs | Wall time | Share of wall | Runner minutes | Share of minutes |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| workflow test harnesses | 3,271 | 331.6 m | 37.3% | **3,573 m** | **74.8%** |
-| ShellCheck | 53 | 311.8 m | 35.1% | 338 m | 7.1% |
-| PR policy | 297 | 56.0 m | 6.3% | 302 m | 6.3% |
-| PR-Agent | 196 | 89.5 m | 10.1% | 197 m | 4.1% |
-| E2E / Regression (placeholder) | 145 | 6.4 m | 0.7% | 145 m | 3.0% |
-| Markdown Lint | 102 | 46.5 m | 5.2% | 102 m | 2.1% |
-| Node CI | 64 | 37.5 m | 4.2% | 64 m | 1.3% |
+| workflow test harnesses | 3,271 | 331.6 m | 37.3% | **3,546 m** | **78.6%** |
+| ShellCheck | 53 | 311.8 m | 35.1% | 338 m | 7.5% |
+| PR policy | 296 | 56.0 m | 6.3% | 299 m | 6.6% |
+| PR-Agent | 196 | 89.5 m | 10.1% | 110 m | 2.4% |
+| Markdown Lint | 102 | 46.5 m | 5.2% | 102 m | 2.3% |
+| Node CI | 64 | 37.5 m | 4.2% | 64 m | 1.4% |
 | Update tracker on merge | 29 | 4.6 m | 0.5% | 29 m | 0.6% |
 | Workflow lint | 24 | 3.9 m | 0.4% | 24 m | 0.5% |
 | Auto-tag release | 1 | 0.2 m | 0.0% | 1 m | 0.0% |
+| E2E / Regression (placeholder) | 145 | 6.4 m | 0.7% | 0 m | 0.0% |
 | **Ronda review** | **0** | **0.0 m** | **0%** | **0 m** | **0%** |
-| **Total** | **4,182** | **888.1 m** | | **4,775 m** | |
+| **Total** | **4,181** | **888.1 m** | | **4,513 m** | |
 
 `workflow-tests.yml` runs its suites as a `max-parallel: 8` matrix — one
 observed run expanded to 82 jobs — while ShellCheck runs a single job. **Ranking
-by wall time therefore gets the answer wrong, not merely imprecise**: ShellCheck
-and the harnesses look comparable at 35.1% and 37.3% of wall time, but in billed
-minutes the harnesses are 74.8% and ShellCheck is 7.1%, a 10x difference. Total
-billed minutes are 4,775 against 888.1 m of wall time, 5.4x.
+by wall time gets the answer wrong, not merely imprecise**: ShellCheck and the
+harnesses look comparable at 35.1% and 37.3% of wall time, but in runner minutes
+the harnesses are 78.6% and ShellCheck is 7.5%, a 10x difference. Total runner
+minutes are 4,513 against 888.1 m of wall time, 5.1x.
 
-Derived from
-[`evidence/actions-window-jobs-2026-09-17_2026-09-23.csv`](evidence/actions-window-jobs-2026-09-17_2026-09-23.csv),
-a frozen snapshot of all 4,182 jobs belonging to the 1,020 attempts above
-(`workflow, job, started_at, completed_at`), collected per attempt via
-`/actions/runs/<id>/jobs` and `/actions/runs/<id>/attempts/<n>/jobs`.
+#### What "runner minutes" means here
 
-**Billed minutes** applies GitHub's per-job round-up to the minute, which is the
-dominant effect for this repository: raw job time is 1,506.5 m, and rounding
-3,271 mostly-sub-minute harness jobs up to a minute each is what produces 4,775.
-149 jobs report `completed_at` before `started_at` — skipped or instantly
-cancelled matrix legs — and are clamped to zero before rounding.
+This is an **estimate of the rounded runner minutes a private repository would
+consume**, not a bill and not actual billed usage. This repository is public on
+standard GitHub-hosted runners, so its real billable total for this window is
+expected to be **zero**. The number exists to size downstream exposure and to
+rank where compute goes.
 
-This is still not a bill. It assumes a 1x runner multiplier, true for this
-repository's `ubuntu-latest` but not necessarily for a downstream adopter, and
-GitHub's own accounting may differ in ways this cannot see. Use the account's
-billing data for an exact figure. What it is good for: ranking where compute
-actually goes, and serving as a denominator for "did this change make review
-cheaper" — both of which the wall-time table cannot do.
+The estimate is built as follows, and each rule is visible in the derivation
+below:
 
-Repository visibility is public and the workflows use standard GitHub-hosted
-runners, so this window is expected to be zero-billable *here*. It matters as
-the **downstream** exposure a private adopting repository would inherit, where
-the same workflows consume included or paid minutes.
+- **Rounding dominates.** Raw job time is 1,506.4 m. GitHub rounds each job up
+  to the minute, and rounding 3,271 mostly-sub-minute harness jobs to a minute
+  each is what turns 1,506.4 into 4,513.
+- **Skipped jobs are not counted.** 261 jobs have `conclusion: skipped`; they
+  consume no runner and are charged 0. This is why the E2E placeholder shows 145
+  jobs and 0 m — every one of its jobs skips — and why PR-Agent's 110 m is well
+  below its 196 jobs.
+- **Negative durations are clamped to zero before rounding.** 149 rows report
+  `completed_at` before `started_at`; 147 are `skipped` and 2 `cancelled`.
+- **A 1x runner multiplier is assumed**, true for this repository's
+  `ubuntu-latest` but not necessarily for a downstream adopter. Larger or
+  non-Linux runners bill at a multiple.
 
-Regenerate this table from the job snapshot:
+Use the account's billing data for an exact figure.
+
+#### Provenance
+
+[`evidence/actions-window-jobs-2026-09-17_2026-09-23.csv`](evidence/actions-window-jobs-2026-09-17_2026-09-23.csv)
+is a frozen snapshot of every job belonging to the 1,020 attempts above, carrying
+`workflow, run_id, attempt, job_id, job, status, conclusion, started_at,
+completed_at`. The identity columns are what make the cost ranking auditable:
+`job_id` is unique across all 4,181 rows, and every `(run_id, attempt)` pair
+appears in the attempt snapshot. The derivation asserts both.
+
+Collected per attempt via `/actions/runs/<id>/jobs` and
+`/actions/runs/<id>/attempts/<n>/jobs`:
+
+<!-- workflow-shell-contract: bash-zsh -->
+```bash
+set -euo pipefail
+repo=lhpaul/ronda
+out=/tmp/actions-window-jobs.csv
+snapshot=docs/testing/ronda/evidence/actions-window-2026-09-17_2026-09-23.csv
+
+printf 'workflow,run_id,attempt,job_id,job,status,conclusion,started_at,completed_at\n' > "$out"
+tail -n +2 "$snapshot" | while IFS=, read -r run_id attempt workflow rest; do
+  [ -n "$run_id" ] || continue
+  if [ "$attempt" = "1" ]; then
+    path="repos/${repo}/actions/runs/${run_id}/jobs?per_page=100"
+  else
+    path="repos/${repo}/actions/runs/${run_id}/attempts/${attempt}/jobs?per_page=100"
+  fi
+  gh api "$path" --paginate --jq \
+    ".jobs[] | [\"${workflow}\", \"${run_id}\", \"${attempt}\", (.id|tostring),
+                .name, (.status // \"\"), (.conclusion // \"\"),
+                (.started_at // \"\"), (.completed_at // \"\")] | @csv" >> "$out"
+done
+```
+
+**One known limitation.** For the single re-run in this window
+(`PR policy`, run `35218024569`), `/attempts/1/jobs` and `/attempts/2/jobs`
+return the *same* `job_id` with identical timings — GitHub does not retain a
+distinct job record per attempt here. That job is therefore counted once, which
+is why the job total is 4,181 rather than 4,182. The run-level attempt table
+above still counts both attempts, so wall time and job minutes differ by one
+execution for this run. The effect is under a minute and is recorded rather than
+silently reconciled.
+
+#### Regenerating the runner-minutes table
 
 ```python
-import csv, collections, datetime
+import csv, collections, math, datetime
 
 agg = collections.defaultdict(lambda: [0, 0.0, 0])
+job_ids = set()
+attempts = set()
 
 
 def parse(value):
     return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-path = "docs/testing/ronda/evidence/actions-window-jobs-2026-09-17_2026-09-23.csv"
-with open(path) as handle:
+jobs_path = "docs/testing/ronda/evidence/actions-window-jobs-2026-09-17_2026-09-23.csv"
+runs_path = "docs/testing/ronda/evidence/actions-window-2026-09-17_2026-09-23.csv"
+
+known_attempts = {
+    (row["run_id"], row["attempt"])
+    for row in csv.DictReader(open(runs_path)) if row["run_id"]
+}
+
+with open(jobs_path) as handle:
     for row in csv.DictReader(handle):
-        minutes = (parse(row["completed_at"])
-                   - parse(row["started_at"])).total_seconds() / 60
-        minutes = max(0.0, minutes)       # skipped/cancelled legs report negative
+        assert row["job_id"] not in job_ids, f"duplicate job_id {row['job_id']}"
+        job_ids.add(row["job_id"])
+        attempts.add((row["run_id"], row["attempt"]))
+
+        minutes = 0.0
+        if row["started_at"] and row["completed_at"]:
+            minutes = (parse(row["completed_at"])
+                       - parse(row["started_at"])).total_seconds() / 60
+        minutes = max(0.0, minutes)          # skipped/cancelled report negative
+
+        # Skipped jobs consume no runner; everything else rounds up per job.
+        billed = 0 if row["conclusion"] == "skipped" else max(1, math.ceil(minutes))
+
         entry = agg[row["workflow"]]
         entry[0] += 1
         entry[1] += minutes
-        entry[2] += max(1, int(-(-minutes // 1)))    # GitHub rounds up per job
+        entry[2] += billed
 
-billed_total = sum(billed for _, _, billed in agg.values())
-print(f"jobs={sum(c for c, _, _ in agg.values())} "
-      f"raw={sum(r for _, r, _ in agg.values()):.1f} m billed={billed_total} m")
+assert attempts <= known_attempts, attempts - known_attempts
+assert len(job_ids) == 4181, len(job_ids)
+
+total = sum(billed for _, _, billed in agg.values())
+print(f"jobs={len(job_ids)} raw={sum(r for _, r, _ in agg.values()):.1f} m "
+      f"runner-minutes={total} m")
 for name, (count, raw, billed) in sorted(agg.items(), key=lambda kv: -kv[1][2]):
-    print(f"{name:<46}{count:>6}{raw:>9.1f}{billed:>7}{billed / billed_total * 100:>7.1f}%")
+    print(f"{name:<46}{count:>6}{raw:>9.1f}{billed:>7}{billed / total * 100:>7.1f}%")
 ```
 
 The per-PR table above is **not** affected by the cap: each row was computed
@@ -332,17 +399,18 @@ from a branch-scoped, fully paginated query bounded by that PR's own
    PR was finally closed out under an explicit
    `Human product decision — waive local-ai AC31 tip finding`.
 
-5. **The workflow test harnesses alone are three quarters of compute cost.**
-   3,573 of 4,775 billed minutes (74.8%) across 3,271 jobs, from a
-   `max-parallel: 8` suite matrix on `pull_request`. It is the single highest-
-   value target for path or event narrowing if downstream Actions cost matters.
+5. **The workflow test harnesses alone are four fifths of compute cost.**
+   3,546 of 4,513 runner minutes (78.6%) across 3,271 jobs, from a
+   `max-parallel: 8` suite matrix on `pull_request`. It is the single
+   highest-value target for path or event narrowing if downstream Actions cost
+   matters.
 
    An earlier revision of this document ranked by wall time and reported
    "ShellCheck and the workflow test harnesses are 72.4% combined". That was
    **wrong, not merely imprecise**: by wall time the two look comparable (35.1%
-   and 37.3%), but ShellCheck runs one job per run and is only 7.1% of billed
-   minutes, while the harnesses are 74.8%. Wall time hid a 10x difference. The
-   corrected ranking is in the job-minutes table above.
+   and 37.3%), but ShellCheck runs one job per run and is 7.5% of runner
+   minutes, while the harnesses are 78.6%. Wall time hid a 10x difference. The
+   corrected ranking is in the runner-minutes table above.
 
 ## Reproduction
 

@@ -193,15 +193,18 @@ Full tables in
 | Declared escalations | 0 | 0 | 3 |
 
 Repository-wide over the six-day window (bounded at #100's merge so the figures
-are stable): **4,775 billed job-minutes** across 4,182 jobs, against 888.1 m of
-run **wall time** across 1,020 attempts. `Ronda review` accounts for 0 of both.
+are stable): an estimated **4,513 runner minutes** across 4,181 jobs, against
+888.1 m of run **wall time** across 1,020 attempts. `Ronda review` accounts for
+0 of both.
 
-Wall time is elapsed latency, not compute: a run's wall time is counted once but
-each job in it bills separately. Ranking by wall time gets the answer wrong —
-ShellCheck and the workflow test harnesses look comparable at 35.1% and 37.3% of
-wall time, but in billed minutes they are 7.1% and 74.8%. Use job-minutes for
-cost, wall time for latency, and the account's billing data for an exact
-figure.
+This repository is public on standard runners, so its real billable total is
+expected to be **zero**; the estimate sizes what a private adopter would
+consume. Wall time is elapsed latency, not compute — a run's wall time is
+counted once but each job in it consumes a runner separately. Ranking by wall
+time gets the answer wrong: ShellCheck and the workflow test harnesses look
+comparable at 35.1% and 37.3% of wall time, but in runner minutes they are 7.5%
+and 78.6%. Use runner minutes for cost, wall time for latency, and the account's
+billing data for an exact figure.
 
 Headline cost findings:
 
@@ -211,9 +214,8 @@ Headline cost findings:
    `OPENAI_KEY not set`.
 3. Codex GitHub was rate-limited on #93–#96 and never triggered on #97. Real
    external-reviewer coverage in this window is **1 of 6** reviewable PRs.
-4. The workflow test harnesses alone are 3,573 of 4,775 billed job-minutes
-   (74.8%), from a `max-parallel: 8` matrix — the single highest-value cost
-   target.
+4. The workflow test harnesses alone are 3,546 of 4,513 runner minutes (78.6%),
+   from a `max-parallel: 8` matrix — the single highest-value cost target.
 5. PR #98's convergence cost is dominated by re-finding one defect 14 times.
 
 ### Measurement gap
