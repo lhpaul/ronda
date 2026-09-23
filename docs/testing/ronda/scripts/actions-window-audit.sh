@@ -42,15 +42,29 @@ if [ "$since" \> "$until_" ]; then
   exit 2
 fi
 
+# Every active workflow defined in the repository, so that a workflow with no
+# runs in the window is still reported as a zero row rather than silently
+# omitted. "Ronda review has 0 runs" is a finding, not an absence of data.
+workflow_names="$(gh api "repos/${repo}/actions/workflows" --paginate \
+  --jq '.workflows[] | select(.state == "active") | .name')"
+
+if [ -z "$workflow_names" ]; then
+  echo "refusing to report a result: no active workflows found in ${repo}" >&2
+  exit 1
+fi
+
 # --paginate emits one JSON document per page; jq consumes the stream. Window
 # bounds are passed as jq arguments, never interpolated into the program text.
-gh api "repos/${repo}/actions/runs?per_page=100" --paginate \
-| jq -r --arg since "$since" --arg until "$until_" '
-    .workflow_runs[]
-    | select(.created_at >= $since and .created_at <= $until)
-    | [.name, .run_started_at, .updated_at]
-    | @tsv
-  ' \
+{
+  printf '%s\n' "$workflow_names" | sed 's/^/DEFINED\t/'
+  gh api "repos/${repo}/actions/runs?per_page=100" --paginate \
+  | jq -r --arg since "$since" --arg until "$until_" '
+      .workflow_runs[]
+      | select(.created_at >= $since and .created_at <= $until)
+      | ["RUN", .name, .run_started_at, .updated_at]
+      | @tsv
+    '
+} \
 | python3 -c '
 import sys, collections, datetime
 
@@ -62,19 +76,24 @@ def parse(value):
 
 
 for line in sys.stdin:
-    name, started, updated = line.rstrip("\n").split("\t")
+    fields = line.rstrip("\n").split("\t")
+    if fields[0] == "DEFINED":
+        agg[fields[1]]          # materialise a zero row for this workflow
+        continue
+    _, name, started, updated = fields
     agg[name][0] += 1
     agg[name][1] += (parse(updated) - parse(started)).total_seconds() / 60
-
-if not agg:
-    sys.exit("refusing to report a result: no runs matched the window")
 
 total = sum(minutes for _, minutes in agg.values())
 runs = sum(count for count, _ in agg.values())
 
+if runs == 0:
+    sys.exit("refusing to report a result: no runs matched the window")
+
 print("| Workflow | Runs | Total wall time | Share |")
 print("| --- | ---: | ---: | ---: |")
-for name, (count, minutes) in sorted(agg.items(), key=lambda kv: -kv[1][1]):
-    print(f"| {name} | {count} | {minutes:.1f} m | {minutes / total * 100:.1f}% |")
+for name, (count, minutes) in sorted(agg.items(), key=lambda kv: (-kv[1][1], kv[0])):
+    share = minutes / total * 100 if total else 0.0
+    print(f"| {name} | {count} | {minutes:.1f} m | {share:.1f}% |")
 print(f"| **Total** | **{runs}** | **{total:.1f} m** | |")
 '

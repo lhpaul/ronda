@@ -135,12 +135,19 @@ approximation.
 | PR policy | 296 | 55.8 m | 6.3% |
 | Markdown Lint | 102 | 46.5 m | 5.2% |
 | Node CI | 64 | 37.5 m | 4.2% |
-| E2E / Regression (placeholder) | 145 | 6.4 m | 0.7% |
-| Update tracker on merge | 29 | 4.6 m | 0.5% |
+| E2E / Regression Tests (Template Placeholder) | 145 | 6.4 m | 0.7% |
+| Update tracker status on PR merge | 29 | 4.6 m | 0.5% |
 | Workflow lint | 24 | 3.9 m | 0.4% |
 | Auto-tag release | 1 | 0.2 m | 0.0% |
-| **Ronda review** | **0** | **0 m** | **0%** |
+| Claude Code Action PR Review | 0 | 0.0 m | 0.0% |
+| Deploy (Template Placeholder) | 0 | 0.0 m | 0.0% |
+| **Ronda review** | **0** | **0.0 m** | **0.0%** |
 | **Total** | **1019** | **887.9 m** | |
+
+All 13 active workflows are listed, including the three with no runs in the
+window. A workflow that never ran is reported as a zero row rather than omitted
+— "`Ronda review` has 0 runs" is the finding, and a table that simply left it
+out would hide it.
 
 887.9 m of Actions wall time across 1019 runs over six days. Per-workflow
 figures are rounded to one decimal, so the rows sum to 887.8 m and the shares to
