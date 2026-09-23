@@ -335,15 +335,31 @@ printf '%s\n' "$candidates" | while IFS=$'\t' read -r id attempts name started e
   done
 done
 
-# One empty-column row per active workflow that contributed no attempts, so
-# zero-run workflows stay visible in the table.
-gh api "repos/${repo}/actions/workflows" --paginate \
-  --jq '.workflows[] | select(.state == "active") | .name' \
-| while IFS= read -r wf; do
-    if ! grep -q ",\"${wf}\"," "$out"; then
-      printf ',,"%s",,\n' "$wf" >> "$out"
-    fi
-  done
+# One empty-column row per workflow that contributed no attempts, so zero-run
+# workflows stay visible in the table. The roster is PINNED to the 13 workflows
+# active at the cutoff. Querying /actions/workflows here would return the
+# CURRENT roster instead, so a workflow enabled, disabled, renamed, or deleted
+# after the window would change the generated rows and break this check even
+# with every run still retained.
+while IFS= read -r wf; do
+  if ! grep -q ",\"${wf}\"," "$out"; then
+    printf ',,"%s",,\n' "$wf" >> "$out"
+  fi
+done <<'ROSTER'
+Auto-tag release
+Claude Code Action PR Review
+Deploy (Template Placeholder)
+E2E / Regression Tests (Template Placeholder)
+Markdown Lint
+Node CI
+PR policy
+PR-Agent
+Ronda review
+ShellCheck
+Update tracker status on PR merge
+Workflow lint
+workflow test harnesses
+ROSTER
 
 # Compare against the committed snapshot. Sorting drops ordering differences;
 # any remaining diff is a real discrepancy.
@@ -352,9 +368,19 @@ diff <(tail -n +2 "$out" | sed 's/"//g' | sort) \
        | sed 's/"//g' | sort)
 ```
 
-A clean `diff` is the completeness evidence: it shows no attempt and no zero-run
-workflow was dropped during collection. It was executed against the committed
-snapshot while preparing this document and returned no differences. The assertions in the derivation above
+A clean `diff` is the completeness evidence for the **attempt** rows: it shows
+that no attempt was dropped during collection. It was executed against the
+committed snapshot while preparing this document and returned no differences.
+
+The **zero-run** rows are evidence of a weaker kind. Their roster is pinned to
+the 13 workflows active at the cutoff — the list is literal in the snippet above
+so it is auditable — which means the diff confirms the snapshot agrees with that
+recorded roster, not that the roster itself was complete at the time. Pinning is
+still necessary: reading `/actions/workflows` at re-collection time would return
+the *current* roster, so any workflow enabled, disabled, renamed, or deleted
+since the window would produce a spurious diff while every run was still
+retained. The roster's own provenance is the single `/actions/workflows` query
+run during collection, recorded here rather than re-derivable. The assertions in the derivation above
 are a weaker, offline complement — they catch a duplicated or deleted row and a
 changed total, but cannot by themselves prove nothing was missed at collection
 time, because a uniformly incomplete file is internally consistent.
