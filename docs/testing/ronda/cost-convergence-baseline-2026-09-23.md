@@ -11,7 +11,7 @@ Scope: every pull request merged in the #93–#100 window
 
 ## Per-PR convergence
 
-| PR | Kind | Files | +/- | Commits | Wall clock | Actions runs | Actions wall time | Loop summaries | Declared escalations |
+| PR | Kind | Files | +/- | Commits | Wall clock | Actions attempts | Actions wall time | Loop summaries | Declared escalations |
 | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | 93 | feature | 20 | +976 / -4 | 3 | 0.14 h | 20 | 9.3 m | 1 | 0 |
 | 94 | plan | 2 | +363 / -0 | 1 | 0.10 h | 6 | 1.9 m | 1 | 0 |
@@ -26,6 +26,19 @@ Measurement notes:
 
 - **Wall clock** is `mergedAt - createdAt` on the PR. It includes human idle
   time and is not an attempt at active-work time.
+- **Actions attempts / wall time** are derived from the same frozen snapshot as
+  the repository-wide table, selecting attempts whose `head_branch` matches the
+  PR and whose `attempt_started` falls within that PR's own
+  `[createdAt, mergedAt]`. Deriving them from the live runs listing instead
+  would reintroduce two faults the snapshot exists to avoid: the listing exposes
+  only the latest attempt's timestamps, so multiple in-window attempts collapse
+  into one, and a run re-run after its PR merged would fall outside a
+  `created_at` filter and vanish entirely. All eight rows were re-derived from
+  the snapshot and match.
+- These are **wall time**, not runner minutes; parallel jobs inside one run are
+  counted once. See the runner-minutes section for cost.
+- PRs #99 and #100 share the head branch `release/v0.2.0`, so their attempt sets
+  overlap and must not be added together.
 - **Files, +/- and commits come from the pull request object**
   (`gh api repos/<owner>/<repo>/pulls/<n>`), whose `commits`, `changed_files`,
   `additions` and `deletions` fields are authoritative totals with no item cap.
@@ -549,9 +562,9 @@ set -euo pipefail
   --limit 3000 --since 2026-09-17T00:00:00Z --format markdown
 ```
 
-Per-PR figures. Use the pull request object for commits, files and line
-counts — not `gh pr view` (caps at 100) and not `compare` (different merge
-base):
+Per-PR figures. Commits, files and line counts come from the pull request
+object — not `gh pr view` (caps at 100) and not `compare` (different merge
+base). Actions attempts come from the frozen snapshot, not a live query:
 
 <!-- workflow-shell-contract: bash-zsh -->
 ```bash
@@ -560,12 +573,48 @@ repo=lhpaul/ronda
 for n in 93 94 95 96 97 98 99 100; do
   gh api "repos/${repo}/pulls/${n}" --jq \
     '[.number, .commits, .changed_files, .additions, .deletions,
-      .created_at, .merged_at] | @tsv'
-  head_ref="$(gh api "repos/${repo}/pulls/${n}" --jq '.head.ref')"
-  gh api "repos/${repo}/actions/runs?branch=${head_ref}&per_page=100" --paginate \
-    --jq '.workflow_runs[] | [.name, .run_started_at, .updated_at] | @tsv'
+      .head.ref, .created_at, .merged_at] | @tsv'
 done
 ```
 
-Actions runs per PR are additionally filtered to that PR's own
-`[created_at, merged_at]` window before summing.
+```python
+import csv, datetime
+
+PULLS = {                      # number: (head_branch, created_at, merged_at)
+    93: ("feature/55-feed-architecture-docs-into-reviews",
+         "2026-09-17T12:35:32Z", "2026-09-17T12:43:44Z"),
+    94: ("implementation-plan/58-safely-auto-recover-in-progress-webhook-jobs",
+         "2026-09-17T12:35:49Z", "2026-09-17T12:41:35Z"),
+    95: ("feature/64-surface-local-ai-reviewer-findings",
+         "2026-09-17T12:43:58Z", "2026-09-17T12:54:09Z"),
+    96: ("feature/58-safely-auto-recover-in-progress-webhook-jobs",
+         "2026-09-17T12:46:51Z", "2026-09-17T12:53:10Z"),
+    97: ("feature/54-durability-idempotency-review-mode",
+         "2026-09-18T12:45:56Z", "2026-09-21T10:53:26Z"),
+    98: ("feature/53-capture-external-review-misses",
+         "2026-09-21T16:56:17Z", "2026-09-22T14:04:03Z"),
+    99: ("release/v0.2.0", "2026-09-23T10:23:49Z", "2026-09-23T10:35:52Z"),
+    100: ("release/v0.2.0", "2026-09-23T10:23:52Z", "2026-09-23T10:36:01Z"),
+}
+
+
+def parse(value):
+    return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+path = "docs/testing/ronda/evidence/actions-window-2026-09-17_2026-09-23.csv"
+attempts = [row for row in csv.DictReader(open(path)) if row["attempt_started"]]
+
+for number, (branch, created, merged) in PULLS.items():
+    lo, hi = parse(created), parse(merged)
+    selected = [row for row in attempts
+                if row["head_branch"] == branch
+                and lo <= parse(row["attempt_started"]) <= hi]
+    minutes = sum((parse(row["attempt_ended"])
+                   - parse(row["attempt_started"])).total_seconds() / 60
+                  for row in selected)
+    print(f"PR {number}: attempts={len(selected)} wall={minutes:.1f} m")
+```
+
+PRs #99 and #100 share a head branch, so the same attempts appear under both.
+Their rows must not be summed.
