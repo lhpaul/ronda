@@ -223,7 +223,7 @@ two differ, all of which push real billing *upward*:
   but every job inside it is billed separately. A run with four parallel jobs
   each taking 3 minutes shows as roughly 3 minutes here and bills as roughly 12.
 - **Billing granularity.** GitHub rounds each job up to the minute. Many short
-  jobs — `PR policy` averages 0.2 m across 296 attempts — bill far above their
+  jobs — `PR policy` averages 0.2 m across 297 attempts — bill far above their
   measured time.
 - **Runner multipliers.** Larger or non-Linux runners bill at a multiple of
   wall time. This repository uses standard `ubuntu-latest`, so the multiplier is
