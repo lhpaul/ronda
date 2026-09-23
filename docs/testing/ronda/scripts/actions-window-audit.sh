@@ -24,6 +24,13 @@
 #
 # Timestamps are ISO-8601 UTC (YYYY-MM-DDTHH:MM:SSZ) and are compared as
 # strings, which is why the trailing Z and zero padding are required.
+#
+# Re-run handling: GitHub keeps a re-run's original `created_at` but exposes the
+# LATEST attempt's `run_started_at` and `updated_at`. Aggregating those would let
+# a re-run performed after the cutoff silently change this fixed historical
+# window. Every run is therefore attributed using its FIRST attempt, fetched
+# from /attempts/1 when `run_attempt` > 1, and a first attempt falling outside
+# the window is refused rather than counted.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -32,11 +39,6 @@ repo="${1:-lhpaul/ronda}"
 since="${2:-2026-09-17T00:00:00Z}"
 until_="${3:-2026-09-23T10:36:01Z}"
 workflows_file="${4:-${script_dir}/actions-window-audit.workflows}"
-
-if [ ! -r "$workflows_file" ]; then
-  echo "workflow snapshot not readable: ${workflows_file}" >&2
-  exit 2
-fi
 
 if ! printf '%s' "$repo" | grep -Eq '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$'; then
   echo "invalid repository '${repo}'; expected <owner>/<name>" >&2
@@ -57,6 +59,11 @@ if [ "$since" \> "$until_" ]; then
   exit 2
 fi
 
+if [ ! -r "$workflows_file" ]; then
+  echo "workflow snapshot not readable: ${workflows_file}" >&2
+  exit 2
+fi
+
 # The workflow roster is read from a PINNED snapshot, not from current
 # repository state, so that a workflow with no runs in the window is reported as
 # a zero row ("Ronda review has 0 runs" is a finding, not an absence of data)
@@ -69,17 +76,41 @@ if [ -z "$workflow_names" ]; then
   exit 1
 fi
 
+work_dir="$(mktemp -d)"
+trap 'rm -rf "$work_dir"' EXIT
+runs_tsv="${work_dir}/runs.tsv"
+
 # --paginate emits one JSON document per page; jq consumes the stream. Window
 # bounds are passed as jq arguments, never interpolated into the program text.
+gh api "repos/${repo}/actions/runs?per_page=100" --paginate \
+| jq -r --arg since "$since" --arg until "$until_" '
+    .workflow_runs[]
+    | select(.created_at >= $since and .created_at <= $until)
+    | [(.id | tostring), (.run_attempt | tostring), .name,
+       .run_started_at, .updated_at]
+    | @tsv
+  ' > "$runs_tsv"
+
 {
   printf '%s\n' "$workflow_names" | sed 's/^/DEFINED\t/'
-  gh api "repos/${repo}/actions/runs?per_page=100" --paginate \
-  | jq -r --arg since "$since" --arg until "$until_" '
-      .workflow_runs[]
-      | select(.created_at >= $since and .created_at <= $until)
-      | ["RUN", .name, .run_started_at, .updated_at]
-      | @tsv
-    '
+
+  while IFS=$'\t' read -r run_id run_attempt name started updated; do
+    [ -n "$run_id" ] || continue
+    if [ "$run_attempt" != "1" ]; then
+      # Re-run: the listing carries the latest attempt's timings. Re-read the
+      # first attempt so this historical row cannot move when someone re-runs a
+      # job years later.
+      first_attempt="$(gh api "repos/${repo}/actions/runs/${run_id}/attempts/1" \
+        --jq '[.run_started_at, .updated_at] | @tsv')"
+      started="$(printf '%s' "$first_attempt" | cut -f1)"
+      updated="$(printf '%s' "$first_attempt" | cut -f2)"
+    fi
+    if [ "$started" \< "$since" ] || [ "$started" \> "$until_" ]; then
+      echo "refusing to report a result: run ${run_id} (${name}) was created in the window but its first attempt started at ${started}, outside [${since}, ${until_}]" >&2
+      exit 1
+    fi
+    printf 'RUN\t%s\t%s\t%s\n' "$name" "$started" "$updated"
+  done < "$runs_tsv"
 } \
 | python3 -c '
 import sys, collections, datetime

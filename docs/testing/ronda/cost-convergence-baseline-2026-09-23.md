@@ -129,7 +129,7 @@ approximation.
 
 | Workflow | Runs | Total wall time | Share |
 | --- | ---: | ---: | ---: |
-| workflow test harnesses | 109 | 331.6 m | 37.3% |
+| workflow test harnesses | 109 | 331.6 m | 37.4% |
 | ShellCheck | 53 | 311.8 m | 35.1% |
 | PR-Agent | 196 | 89.5 m | 10.1% |
 | PR policy | 296 | 55.8 m | 6.3% |
@@ -149,9 +149,19 @@ window. A workflow that never ran is reported as a zero row rather than omitted
 — "`Ronda review` has 0 runs" is the finding, and a table that simply left it
 out would hide it.
 
+Each run is attributed using its **first attempt**. GitHub keeps a re-run's
+original `created_at` but exposes the *latest* attempt's `run_started_at` and
+`updated_at`, so aggregating the listing as-is would let a re-run performed
+after the cutoff silently change this fixed historical window. One run in the
+window (`PR policy`, id `35218024569`) has `run_attempt: 2`; its first attempt
+ran 8 s against the latest attempt's 10 s. The difference is below the rounding
+of this table, but the hazard is structural rather than hypothetical, so the
+script re-reads `/attempts/1` for any run with `run_attempt > 1` and refuses
+outright if a first attempt falls outside the window.
+
 887.9 m of Actions wall time across 1019 runs over six days. Per-workflow
 figures are rounded to one decimal, so the rows sum to 887.8 m and the shares to
-99.8%; the total is the unrounded sum.
+99.9%; the total is the unrounded sum.
 
 Repository visibility is public and the workflows use standard GitHub-hosted
 runners, so this window is expected to be zero-billable here. The number matters
