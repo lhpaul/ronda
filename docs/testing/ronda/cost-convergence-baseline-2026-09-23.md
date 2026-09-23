@@ -309,8 +309,11 @@ snapshot=docs/testing/ronda/evidence/actions-window-2026-09-17_2026-09-23.csv
 
 printf 'workflow,run_id,attempt,job_id,job,status,conclusion,started_at,completed_at\n' > "$out"
 
-tail -n +2 "$snapshot" | while IFS=, read -r run_id attempt workflow rest; do
+# Schema: run_id,attempt,head_branch,workflow,attempt_started,attempt_ended
+tail -n +2 "$snapshot" \
+| while IFS=, read -r run_id attempt head_branch workflow rest; do
   [ -n "$run_id" ] || continue
+  workflow="${workflow%\"}"; workflow="${workflow#\"}"
   gh api "repos/${repo}/actions/runs/${run_id}/attempts/${attempt}/jobs?per_page=100" \
     --paginate --jq \
     ".jobs[] | [\"${workflow}\", \"${run_id}\", \"${attempt}\", (.id|tostring),
@@ -466,18 +469,19 @@ candidates="$(gh api "repos/${repo}/actions/runs?per_page=100" --paginate \
   | jq -r --arg until "$until" '
       .workflow_runs[]
       | select(.created_at <= $until)
-      | [(.id | tostring), (.run_attempt | tostring), .name,
-         .run_started_at, .updated_at]
+      | [(.id | tostring), (.run_attempt | tostring), (.head_branch // ""),
+         .name, .run_started_at, .updated_at]
       | @tsv')"
 
-printf 'run_id,attempt,workflow,attempt_started,attempt_ended\n' > "$out"
+printf 'run_id,attempt,head_branch,workflow,attempt_started,attempt_ended\n' > "$out"
 
 # Expand each candidate into attempts and keep those that STARTED in the window.
-printf '%s\n' "$candidates" | while IFS=$'\t' read -r id attempts name started ended; do
+printf '%s\n' "$candidates" \
+| while IFS=$'\t' read -r id attempts branch name started ended; do
   [ -n "$id" ] || continue
   if [ "$attempts" = "1" ]; then
     if [ ! "$started" \< "$since" ] && [ ! "$started" \> "$until" ]; then
-      printf '%s,1,"%s",%s,%s\n' "$id" "$name" "$started" "$ended" >> "$out"
+      printf '%s,1,"%s","%s",%s,%s\n' "$id" "$branch" "$name" "$started" "$ended" >> "$out"
     fi
     continue
   fi
@@ -489,7 +493,8 @@ printf '%s\n' "$candidates" | while IFS=$'\t' read -r id attempts name started e
     a_ended="$(printf '%s' "$row" | cut -f2)"
     if [ -n "$a_started" ] && [ ! "$a_started" \< "$since" ] \
         && [ ! "$a_started" \> "$until" ]; then
-      printf '%s,%s,"%s",%s,%s\n' "$id" "$n" "$name" "$a_started" "$a_ended" >> "$out"
+      printf '%s,%s,"%s","%s",%s,%s\n' \
+        "$id" "$n" "$branch" "$name" "$a_started" "$a_ended" >> "$out"
     fi
     n=$((n + 1))
   done
@@ -503,7 +508,7 @@ done
 # with every run still retained.
 while IFS= read -r wf; do
   if ! grep -q ",\"${wf}\"," "$out"; then
-    printf ',,"%s",,\n' "$wf" >> "$out"
+    printf ',,,"%s",,\n' "$wf" >> "$out"
   fi
 done <<'ROSTER'
 Auto-tag release
