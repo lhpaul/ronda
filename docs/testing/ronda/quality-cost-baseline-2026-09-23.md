@@ -193,7 +193,7 @@ Full tables in
 | Declared escalations | 0 | 0 | 3 |
 
 Repository-wide over the six-day window (bounded at #100's merge so the figures
-are stable): an estimated **4,513 runner minutes** across 4,181 jobs, against
+are stable): an estimated **4,514 runner minutes** across 4,182 jobs, against
 888.1 m of run **wall time** across 1,020 attempts. `Ronda review` accounts for
 0 of both.
 
@@ -214,7 +214,7 @@ Headline cost findings:
    `OPENAI_KEY not set`.
 3. Codex GitHub was rate-limited on #93–#96 and never triggered on #97. Real
    external-reviewer coverage in this window is **1 of 6** reviewable PRs.
-4. The workflow test harnesses alone are 3,546 of 4,513 runner minutes (78.6%),
+4. The workflow test harnesses alone are 3,546 of 4,514 runner minutes (78.6%),
    from a `max-parallel: 8` matrix — the single highest-value cost target.
 5. PR #98's convergence cost is dominated by re-finding one defect 14 times.
 

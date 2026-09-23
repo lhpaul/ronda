@@ -224,7 +224,7 @@ here differ by three orders of magnitude:
 | --- | ---: | ---: | ---: | ---: | ---: |
 | workflow test harnesses | 3,271 | 331.6 m | 37.3% | **3,546 m** | **78.6%** |
 | ShellCheck | 53 | 311.8 m | 35.1% | 338 m | 7.5% |
-| PR policy | 296 | 56.0 m | 6.3% | 299 m | 6.6% |
+| PR policy | 297 | 56.0 m | 6.3% | 300 m | 6.6% |
 | PR-Agent | 196 | 89.5 m | 10.1% | 110 m | 2.4% |
 | Markdown Lint | 102 | 46.5 m | 5.2% | 102 m | 2.3% |
 | Node CI | 64 | 37.5 m | 4.2% | 64 m | 1.4% |
@@ -233,14 +233,14 @@ here differ by three orders of magnitude:
 | Auto-tag release | 1 | 0.2 m | 0.0% | 1 m | 0.0% |
 | E2E / Regression (placeholder) | 145 | 6.4 m | 0.7% | 0 m | 0.0% |
 | **Ronda review** | **0** | **0.0 m** | **0%** | **0 m** | **0%** |
-| **Total** | **4,181** | **888.1 m** | | **4,513 m** | |
+| **Total** | **4,182** | **888.1 m** | | **4,514 m** | |
 
 `workflow-tests.yml` runs its suites as a `max-parallel: 8` matrix — one
 observed run expanded to 82 jobs — while ShellCheck runs a single job. **Ranking
 by wall time gets the answer wrong, not merely imprecise**: ShellCheck and the
 harnesses look comparable at 35.1% and 37.3% of wall time, but in runner minutes
 the harnesses are 78.6% and ShellCheck is 7.5%, a 10x difference. Total runner
-minutes are 4,513 against 888.1 m of wall time, 5.1x.
+minutes are 4,514 against 888.1 m of wall time, 5.1x.
 
 #### What "runner minutes" means here
 
@@ -255,7 +255,7 @@ below:
 
 - **Rounding dominates.** Raw job time is 1,506.4 m. GitHub rounds each job up
   to the minute, and rounding 3,271 mostly-sub-minute harness jobs to a minute
-  each is what turns 1,506.4 into 4,513.
+  each is what turns 1,506.4 into 4,514.
 - **Skipped jobs are not counted.** 261 jobs have `conclusion: skipped`; they
   consume no runner and are charged 0. This is why the E2E placeholder shows 145
   jobs and 0 m — every one of its jobs skips — and why PR-Agent's 110 m is well
@@ -274,11 +274,11 @@ Use the account's billing data for an exact figure.
 is a frozen snapshot of every job belonging to the 1,020 attempts above, carrying
 `workflow, run_id, attempt, job_id, job, status, conclusion, started_at,
 completed_at`. The identity columns are what make the cost ranking auditable:
-`job_id` is unique across all 4,181 rows, and every `(run_id, attempt)` pair
+`job_id` is unique across all 4,182 rows, and every `(run_id, attempt)` pair
 appears in the attempt snapshot. The derivation asserts both.
 
-Collected per attempt via `/actions/runs/<id>/jobs` and
-`/actions/runs/<id>/attempts/<n>/jobs`:
+Collected via `/actions/runs/<id>/attempts/<n>/jobs` for **every** attempt,
+including attempt 1:
 
 <!-- workflow-shell-contract: bash-zsh -->
 ```bash
@@ -288,28 +288,36 @@ out=/tmp/actions-window-jobs.csv
 snapshot=docs/testing/ronda/evidence/actions-window-2026-09-17_2026-09-23.csv
 
 printf 'workflow,run_id,attempt,job_id,job,status,conclusion,started_at,completed_at\n' > "$out"
+
 tail -n +2 "$snapshot" | while IFS=, read -r run_id attempt workflow rest; do
   [ -n "$run_id" ] || continue
-  if [ "$attempt" = "1" ]; then
-    path="repos/${repo}/actions/runs/${run_id}/jobs?per_page=100"
-  else
-    path="repos/${repo}/actions/runs/${run_id}/attempts/${attempt}/jobs?per_page=100"
-  fi
-  gh api "$path" --paginate --jq \
+  gh api "repos/${repo}/actions/runs/${run_id}/attempts/${attempt}/jobs?per_page=100" \
+    --paginate --jq \
     ".jobs[] | [\"${workflow}\", \"${run_id}\", \"${attempt}\", (.id|tostring),
                 .name, (.status // \"\"), (.conclusion // \"\"),
                 (.started_at // \"\"), (.completed_at // \"\")] | @csv" >> "$out"
 done
+
+diff <(tail -n +2 "$out" | sed 's/"//g' | sort) \
+     <(tail -n +2 docs/testing/ronda/evidence/actions-window-jobs-2026-09-17_2026-09-23.csv \
+       | sed 's/"//g' | sort)
 ```
 
-**One known limitation.** For the single re-run in this window
-(`PR policy`, run `35218024569`), `/attempts/1/jobs` and `/attempts/2/jobs`
-return the *same* `job_id` with identical timings — GitHub does not retain a
-distinct job record per attempt here. That job is therefore counted once, which
-is why the job total is 4,181 rather than 4,182. The run-level attempt table
-above still counts both attempts, so wall time and job minutes differ by one
-execution for this run. The effect is under a minute and is recorded rather than
-silently reconciled.
+A clean `diff` re-derives the snapshot's completeness: no job of any in-window
+attempt was dropped during collection. It was executed against the committed
+snapshot while preparing this document and returned no differences.
+
+**Use the per-attempt endpoint, not `/actions/runs/<id>/jobs`.** The generic
+endpoint returns the *latest* attempt's jobs whatever attempt you meant, so
+collecting attempt 1 through it silently records attempt 2's job id, timings and
+conclusion under `attempt,1`. An earlier revision of this snapshot did exactly
+that and, for the one re-run in this window (`PR policy`, run `35218024569`),
+recorded the same `job_id` twice — which looked like GitHub not retaining a job
+record per attempt, and was written up here as a limitation. It was not. The
+per-attempt endpoint returns two genuinely distinct jobs: `105191051145`
+(`failure`, 11:52:51) for attempt 1 and `105197350130` (`success`, 12:14:04) for
+attempt 2. All 4,182 `job_id` values are distinct and no deduplication is
+needed.
 
 #### Regenerating the runner-minutes table
 
@@ -354,7 +362,7 @@ with open(jobs_path) as handle:
         entry[2] += billed
 
 assert attempts <= known_attempts, attempts - known_attempts
-assert len(job_ids) == 4181, len(job_ids)
+assert len(job_ids) == 4182, len(job_ids)
 
 total = sum(billed for _, _, billed in agg.values())
 print(f"jobs={len(job_ids)} raw={sum(r for _, r, _ in agg.values()):.1f} m "
@@ -400,7 +408,7 @@ from a branch-scoped, fully paginated query bounded by that PR's own
    `Human product decision — waive local-ai AC31 tip finding`.
 
 5. **The workflow test harnesses alone are four fifths of compute cost.**
-   3,546 of 4,513 runner minutes (78.6%) across 3,271 jobs, from a
+   3,546 of 4,514 runner minutes (78.6%) across 3,271 jobs, from a
    `max-parallel: 8` suite matrix on `pull_request`. It is the single
    highest-value target for path or event narrowing if downstream Actions cost
    matters.
