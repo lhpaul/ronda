@@ -50,6 +50,41 @@ adopter snippet in [`ronda-review-adoption.md`](../../adoption/ronda-review-adop
    by reading the workflow semantics and `resolve-trigger.ts`, never observed
    live.
 
+## Secret exposure (open, needs the repository owner's decision)
+
+Codex flagged (P1) that a same-repository PR author can modify the caller or the
+locally referenced reusable workflow and run arbitrary steps while
+`RONDA_MODEL_API_KEY` and a write-capable token are in scope. The premise is
+correct, and pinning the reusable workflow does not remove it: GitHub makes
+repository secrets available to every workflow run triggered by a same-repository
+`pull_request`, and the caller file itself is PR-controlled, so an author can
+inline a step that reads `secrets.RONDA_MODEL_API_KEY` without touching Ronda at
+all. `uses: ./...` versus `lhpaul/ronda/...@<ref>` therefore changes what is
+tested, not who can reach the secret.
+
+What bounds it today:
+
+- Only accounts with write access can push a same-repository branch. Fork PRs get
+  no secrets, and the reusable workflow additionally skips them.
+- `pull_request_target`, which would run trusted YAML but is the unsafe pattern
+  for untrusted code, is deliberately not used.
+- The credential is a model-vendor key, so the loss is spend and quota on that
+  account, not repository write access beyond what the PR author already has.
+
+Controls that would close it, each with a cost, none applied here:
+
+- An Actions **environment** holding the secret with required reviewers. This
+  removes the automation the issue asks for, since every pass would wait for an
+  approval.
+- An environment restricted to protected branches. PR runs execute on a merge
+  ref, so this would also block the passes.
+- A spend cap or per-key quota on the vendor key. Not a repository setting, so it
+  is outside this PR, and it is the cheapest limit on the actual loss.
+
+This PR takes the same exposure every adopter of `ronda-review-adoption.md`
+takes. Whether that is acceptable for this repository is a security decision the
+author did not make on the owner's behalf.
+
 ## Planted-violation proofs (`REVIEW.md`, Verification Discipline)
 
 Each row is a run on this PR, addressed by workflow-run id. "Plant" is the
