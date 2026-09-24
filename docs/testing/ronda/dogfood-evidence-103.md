@@ -43,10 +43,34 @@ adopter snippet in [`ronda-review-adoption.md`](../../adoption/ronda-review-adop
 2. **Workflow-level `cancel-in-progress` is entered by every PR comment.** The
    snippet's concurrency group is evaluated before any job `if:`, so an
    unrelated comment cancels an in-flight pass and is then skipped by Ronda,
-   leaving no check run for that head SHA. The group is job-level here, with the
+   leaving no check run for that head SHA. Here the group is job-level, with the
    comment pre-filter (substring match plus collaborator association) in the
-   same `if:`. Not exercised live yet; verified by reading the workflow
-   semantics and `resolve-trigger.ts`, not by a comment-triggered run.
+   same `if:`, and `cancel-in-progress` is true only for `pull_request` runs. A
+   comment run waits its turn instead of cancelling, which closes the remaining
+   gap: a collaborator comment that merely quotes `/ronda review` passes the
+   substring match (expressions cannot match the first unquoted line) but can no
+   longer cancel a real pass. This path is not exercised live; see the proof
+   table below.
+
+## Planted-violation proofs (`REVIEW.md`, Verification Discipline)
+
+Each row is a run on this PR, addressed by workflow-run id. "Plant" is the
+violation; the check must reject it and admit the same event once it is removed.
+
+| Check | Plant | Fails with plant | Passes with plant removed |
+| --- | --- | --- | --- |
+| Draft pre-filter, `ronda-review-dogfood.yml` `jobs.ronda.if`, `pull_request` branch (`github.event.pull_request.draft != true`) | PR #107 opened as a draft | Runs 36036822400 and 36036974299: job `skipped`, no review, no check run | Run 36037017660 after `gh pr ready`: job executes |
+| Caller job name must not equal `Ronda review`, `jobs.ronda.name` | Job named `Ronda review` (commit `b22369c`) | Run 36037017660 at head `b22369c`: green, `pass_skipped` reason `already_reviewed_automatically`, no review posted | Run 36037217176 at head `20ef109` (the only change is the rename): review posted, check run `success` |
+| `on.pull_request.branches: [develop]` | not planted | Not demonstrated | Every PR to `develop`, including #107, is reviewed |
+| Comment pre-filter (`issue_comment` branch of `jobs.ronda.if`) and `cancel-in-progress` expression | not plantable before merge | Not demonstrated | Not demonstrated |
+
+Two rows are declared but unverified. `on.pull_request.branches` is a plain
+GitHub trigger filter and no plant was run against it. The comment path cannot
+be exercised in this PR at all: GitHub loads `issue_comment` workflows from the
+default branch, so the file on this branch is never the one that runs for a
+comment. Its first real exercise is the first comment posted after this PR
+merges to `develop`, which is a deferral of the same-PR proof `REVIEW.md`
+requires and needs a human decision.
 
 ## Live evidence (acceptance criteria 2 and 3)
 

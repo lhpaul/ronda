@@ -64,7 +64,13 @@ jobs:
           github.event.comment.author_association))
     concurrency:
       group: ronda-review-${{ github.event.pull_request.number || github.event.issue.number }}
-      cancel-in-progress: true
+      # Only a new push may cancel an in-flight pass. A comment run waits its
+      # turn instead: the `if:` above matches the command as a substring, so a
+      # collaborator comment that merely quotes `/ronda review` still joins this
+      # group, and cancelling a real pass for it would leave no check run once
+      # Ronda skips the comment. Expressions cannot match the first unquoted
+      # line, so the group is where that gap is closed.
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     # A called reusable workflow can only narrow the caller's token, never
     # widen it, and this repository's default is read-only. Required.
     permissions:
