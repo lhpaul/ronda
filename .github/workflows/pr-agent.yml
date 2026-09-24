@@ -24,6 +24,17 @@ jobs:
       contents: read
     name: PR-Agent review
     steps:
+      # Fail loudly when the model credential is missing. Without it PR-Agent
+      # runs to the point of calling the model, publishes nothing, and still
+      # reports `success` (#104: 196 silent no-op runs in six days).
+      - name: Require model credential
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          if [ -z "$DEEPSEEK_API_KEY" ]; then
+            echo "::error title=PR-Agent model credential missing::DEEPSEEK_API_KEY is not set, so PR-Agent cannot publish a review. Set the repository secret or remove .github/workflows/pr-agent.yml."
+            exit 1
+          fi
       - name: PR-Agent
         uses: the-pr-agent/pr-agent@0bd56c0508504c718cc03d504cd4ceb6725ba3c7 # v0.35.0
         env:
