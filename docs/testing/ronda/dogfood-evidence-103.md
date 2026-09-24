@@ -12,7 +12,7 @@ Ronda review.
 
 | Question | Decision | Knob |
 | --- | --- | --- |
-| Which PRs get a pass? | Every non-draft PR targeting `develop` (`opened`, `reopened`, `ready_for_review`, `synchronize`). Spec, plan and docs-only PRs are included so their review quality also produces evidence. | `on.pull_request.branches` in `ronda-review-dogfood.yml` |
+| Which PRs get a pass? | Every non-draft PR targeting `develop` (`opened`, `reopened`, `ready_for_review`, `synchronize`). Spec, plan and docs-only PRs are included so their review quality also produces evidence. **Known limitation:** a PR retargeted to `develop` after it was opened is not reviewed until its next push or a close and reopen. GitHub reports a base change as an `edited` activity, and `edited` is excluded because title and body edits would otherwise start a run each (proof pair below). Handling only base changes needs `edited` plus a `github.event.changes.base` check in the job `if:`, with its own proof; not done here. | `on.pull_request.branches` in `ronda-review-dogfood.yml` |
 | Cost cap per pass | Reusable-workflow default: `pass_timeout_minutes: 10` (job backstop 12). | `pass_timeout_minutes` input |
 | Manual rerun | Not in #107. The `/ronda review` comment trigger was requested but dropped from this PR: GitHub loads `issue_comment` workflows from the default branch, so it cannot be exercised, and so cannot carry the same-PR proof `REVIEW.md` requires, until the PR merges. Follow-up. | `on.issue_comment` (absent) |
 | Which Ronda reviews? | The reusable workflow's default `ronda_ref: main` (released v0.2.0). At the time of writing `develop` is 31 commits ahead, so this evidence describes the released reviewer, not unreleased work. | `ronda_ref` input |
