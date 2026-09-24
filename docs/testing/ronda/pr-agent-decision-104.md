@@ -50,10 +50,11 @@ image before the first step. A run that fails the guard therefore still spends
 the build time; the guard makes the failure visible, not cheaper.
 
 Not measured: DeepSeek API cost per PR. PR-Agent's `output_run_cost` is off and
-this repository has no provider billing access. It is bounded by
-`max_model_tokens = 32000` in `.pr_agent.toml` per call and at most three calls
-(`max_number_of_calls`). Read the actual figure from the DeepSeek usage
-dashboard after several PRs.
+this repository has no provider billing access. Per PR-Agent's upstream defaults,
+input is bounded by `max_model_tokens = 32000` per call, and PR-Agent makes at
+most three calls per review (PR Reviewer Guide, PR Description, and ancillary
+tasks). This repository does not override these defaults in `.pr_agent.toml`.
+Read the actual cost from the DeepSeek usage dashboard after several PRs.
 
 ## Follow-ups
 
