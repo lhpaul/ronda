@@ -56,6 +56,13 @@ smoke runbook as the second tier — see
 - **Smoke** (manual, against real GitHub): `docs/testing/ronda/ronda-v0-github-review.smoke-test.md`,
   covering the dogfood run against `lhpaul/ai-dev-framework-template` and
   cases impractical to stage in CI (missing credential, timeout, supersede).
+  **Scope change (#103, approved by the repository owner 2026-09-24):** dogfooding
+  is no longer limited to that one repository. `lhpaul/ronda` also runs its own
+  reusable workflow on its own pull requests through
+  `.github/workflows/ronda-review-dogfood.yml`, so real-PR miss evidence can
+  accumulate. The v0 spec, plan and `docs/constitution.md` are unchanged and still
+  describe the original single-repository v0 scope; evidence and decisions are in
+  `docs/testing/ronda/dogfood-evidence-103.md`.
 - **E2E/regression**: the repository's only committed suite is the `e2e/`
   Playwright placeholder, which exercises no product behavior and has no
   fixture data. Ronda has no browser surface, so that suite is not extended
