@@ -59,12 +59,12 @@ violation; the check must reject it and admit the same event once it is removed.
 | --- | --- | --- | --- |
 | Draft pre-filter, `ronda-review-dogfood.yml` `jobs.ronda.if`, `pull_request` branch (`github.event.pull_request.draft != true`) | PR #107 opened as a draft | Runs 36036822400 and 36036974299: job `skipped`, no review, no check run | Run 36037017660 after `gh pr ready`: job executes |
 | Caller job name must not equal `Ronda review`, `jobs.ronda.name` | Job named `Ronda review` (commit `b22369c`) | Run 36037017660 at head `b22369c`: green, `pass_skipped` reason `already_reviewed_automatically`, no review posted | Run 36037217176 at head `20ef109` (the only change is the rename): review posted, check run `success` |
-| `on.pull_request.branches: [develop]` | not planted | Not demonstrated | Every PR to `develop`, including #107, is reviewed |
+| `on.pull_request.branches: [develop]`, `ronda-review-dogfood.yml` line 29 | Throwaway PR #108, non-draft, same tree as #107 (head `3d25631`) but base `tmp/103-branch-filter-base` instead of `develop` | #108: `PR-Agent`, `PR policy` and `Workflow lint` ran; no `Ronda review (dogfood)` run exists for its head branch | #107, same tree, base `develop`: run 36038367104 executed and succeeded |
 
-`on.pull_request.branches` is a plain GitHub trigger filter and no plant was run
-against it, so that row is declared but unverified. `pull_request` runs on every
-non-draft PR to `develop` are shown by #107 itself. The `issue_comment` path is
-out of scope for this PR for the reason given above.
+#108 was closed and both of its throwaway branches were deleted immediately
+after the observation. `pull_request` runs on every non-draft PR to `develop` are
+shown by #107 itself. The `issue_comment` path is out of scope for this PR for the
+reason given above.
 
 ## Live evidence (acceptance criteria 2 and 3)
 
