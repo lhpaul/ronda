@@ -28,7 +28,7 @@ on:
   pull_request:
     branches:
       - develop
-    types: [opened, reopened, ready_for_review, synchronize, edited]
+    types: [opened, reopened, ready_for_review, synchronize]
 
 permissions:
   contents: read
