@@ -35,7 +35,13 @@ permissions:
 
 concurrency:
   group: ronda-review-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  # Only a push, which introduces a new head SHA, may cancel an in-flight pass.
+  # `reopened` and `ready_for_review` keep the same SHA, and a run cancelled
+  # after the review is published but before the terminal check run is created
+  # would let its replacement publish a second review for that SHA: the Actions
+  # path has no review-level dedup, only the check-run lookup. Those events
+  # queue behind the running pass instead and then skip on its check run.
+  cancel-in-progress: ${{ github.event.action == 'synchronize' }}
 
 jobs:
   ronda:
