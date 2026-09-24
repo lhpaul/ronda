@@ -41,13 +41,21 @@ jobs:
     # Caller-side pre-filter, not load-bearing for correctness: Ronda re-checks
     # the draft state, the exact comment text and the commenter's association
     # itself. It exists so requests Ronda would skip cost no runner minutes and,
-    # more importantly, never join the concurrency group below.
+    # more importantly, never join the concurrency group below. The comment
+    # branch is a strict superset of what Ronda accepts (same association set as
+    # MANUAL_TRIGGER_AUTHOR_ASSOCIATIONS in src/cli/resolve-trigger.ts, and a
+    # substring match where Ronda requires the first unquoted line to equal the
+    # command), so it can never drop a request Ronda would run. The association
+    # check matters because this repository is public: without it any user could
+    # post `/ronda review` to cancel an in-flight pass that Ronda would then skip.
     if: >-
       (github.event_name == 'pull_request' &&
         github.event.pull_request.draft != true) ||
       (github.event_name == 'issue_comment' &&
         github.event.issue.pull_request != null &&
-        contains(github.event.comment.body, '/ronda review'))
+        contains(github.event.comment.body, '/ronda review') &&
+        contains(fromJSON('["COLLABORATOR","MEMBER","OWNER"]'),
+          github.event.comment.author_association))
     concurrency:
       group: ronda-review-${{ github.event.pull_request.number || github.event.issue.number }}
       cancel-in-progress: true
