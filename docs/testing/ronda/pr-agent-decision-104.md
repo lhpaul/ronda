@@ -24,8 +24,8 @@ and make the job fail when the credential is missing.
 | Check | Result |
 | --- | --- |
 | A real pull request carries a PR-Agent review comment | Yes. [#110](https://github.com/lhpaul/ronda/pull/110) received a `PR Reviewer Guide` comment on its first push (run `36067989986`). |
-| The credential guard fails with the secret empty | Yes. The script from `.github/workflows/pr-agent.yml` lines 36-39 (commit `3f15b5c`) was executed with `DEEPSEEK_API_KEY=` (empty): exits 1 and prints the `::error` annotation. |
-| The credential guard passes with the secret set | Yes. The same script executed with `DEEPSEEK_API_KEY=test_key`: exits 0 and prints "Guard passed". |
+| The credential guard fails with the secret empty | Yes. Script from `.github/workflows/pr-agent.yml` lines 36-39 (commit `9b45c9f`) extracted and executed with `DEEPSEEK_API_KEY=` (empty): the condition `[ -z "$DEEPSEEK_API_KEY" ]` is true, so it echoes `::error title=PR-Agent model credential missing::DEEPSEEK_API_KEY is not set...` and exits 1. |
+| The credential guard passes with the secret set | Yes. Same script executed with `DEEPSEEK_API_KEY=test_key`: the condition `[ -z "$DEEPSEEK_API_KEY" ]` is false, so the script produces no output and exits 0 silently. |
 
 ## Added per-PR Actions time
 
