@@ -50,7 +50,7 @@ adopter snippet in [`ronda-review-adoption.md`](../../adoption/ronda-review-adop
    by reading the workflow semantics and `resolve-trigger.ts`, never observed
    live.
 
-## Secret exposure (open, needs the repository owner's decision)
+## Secret exposure (accepted by the repository owner)
 
 Codex flagged (P1) that a same-repository PR author can modify the caller or the
 locally referenced reusable workflow and run arbitrary steps while
@@ -82,8 +82,13 @@ Controls that would close it, each with a cost, none applied here:
   is outside this PR, and it is the cheapest limit on the actual loss.
 
 This PR takes the same exposure every adopter of `ronda-review-adoption.md`
-takes. Whether that is acceptable for this repository is a security decision the
-author did not make on the owner's behalf.
+takes.
+
+**Decision (repository owner, 2026-09-24):** accept the residual exposure, and
+limit the loss with a spend cap or quota on the vendor key. The two are not
+exclusive. No environment gate is added, so passes stay automatic. The cap is
+set by the owner in the vendor console; this repository cannot verify it, and it
+is not evidence of anything until the owner confirms it is in place.
 
 ## Planted-violation proofs (`REVIEW.md`, Verification Discipline)
 
