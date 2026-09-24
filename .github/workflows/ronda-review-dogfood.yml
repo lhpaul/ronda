@@ -37,7 +37,13 @@ permissions:
 
 jobs:
   ronda:
-    name: Ronda review
+    # Must NOT be named "Ronda review". That is the constant name of the check
+    # run Ronda publishes (docs/adoption/ronda-review-adoption.md, section 4),
+    # and an automatic pass skips itself with `already_reviewed_automatically`
+    # when any check run of that name already exists on the head SHA. A caller
+    # job with that name (including the skipped one a draft PR produces) trips
+    # that guard, so the pass would skip itself and publish nothing.
+    name: Ronda dogfood
     # Caller-side pre-filter, not load-bearing for correctness: Ronda re-checks
     # the draft state, the exact comment text and the commenter's association
     # itself. It exists so requests Ronda would skip cost no runner minutes and,
