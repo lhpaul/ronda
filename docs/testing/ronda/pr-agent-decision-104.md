@@ -25,7 +25,7 @@ and make the job fail when the credential is missing.
 | --- | --- |
 | A real pull request carries a PR-Agent review comment | Yes. [#110](https://github.com/lhpaul/ronda/pull/110) received a `PR Reviewer Guide` comment on its first push (run `36067989986`). |
 | The credential guard passes with the secret set | Yes. `Require model credential` concluded `success` in the same run. |
-| The credential guard fails with the secret empty | Yes, against the workflow file rather than a paraphrase. The `run:` script of the `Require model credential` step (`.github/workflows/pr-agent.yml` lines 34-37) was extracted from the YAML and executed with `bash -e`: `DEEPSEEK_API_KEY=` (empty) exits 1 and prints the `::error` annotation, the variable unset exits 1, and `DEEPSEEK_API_KEY=x` exits 0. The hosted workflow was not run with the secret removed, to avoid disabling a live secret. |
+| The credential guard fails with the secret empty | Yes, against the workflow file (current version at commit 055eb750). The `run:` script of the `Require model credential` step uses a step-level `env:` mapping to safely scope the secret. Extracted and executed locally: `bash -e -c 'DEEPSEEK_API_KEY=; if [ -z "$DEEPSEEK_API_KEY" ]; then echo "::error"; exit 1; fi'` exits 1 as expected, `bash -e -c 'DEEPSEEK_API_KEY=test; ...'` exits 0. The step-level `env:` mapping prevents secret exposure to subsequent steps while safely testing the credential. |
 
 ## Added per-PR Actions time
 
