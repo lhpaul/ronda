@@ -100,6 +100,15 @@ violation; the check must reject it and admit the same event once it is removed.
 | Draft pre-filter, `ronda-review-dogfood.yml` `jobs.ronda.if`, `pull_request` branch (`github.event.pull_request.draft != true`) | PR #107 opened as a draft | Runs 36036822400 and 36036974299: job `skipped`, no review, no check run | Run 36037017660 after `gh pr ready`: job executes |
 | Caller job name must not equal `Ronda review`, `jobs.ronda.name` | Job named `Ronda review` (commit `b22369c`) | Run 36037017660 at head `b22369c`: green, `pass_skipped` reason `already_reviewed_automatically`, no review posted | Run 36037217176 at head `20ef109` (the only change is the rename): review posted, check run `success` |
 | `on.pull_request.branches: [develop]`, `ronda-review-dogfood.yml` line 29 | Throwaway PR #108, non-draft, same tree as #107 (head `3d25631`) but base `tmp/103-branch-filter-base` instead of `develop` | #108: `PR-Agent`, `PR policy` and `Workflow lint` ran; no `Ronda review (dogfood)` run exists for its head branch | #107, same tree, base `develop`: run 36038367104 executed and succeeded |
+| Only a push may cancel a pass, `ronda-review-dogfood.yml` `concurrency.cancel-in-progress` (`github.event.action == 'synchronize'`) | Close and reopen #107 twice within 8 s while a same-head pass is running (head `456dfeb`, `cancel-in-progress: true`) | Run 36051192522 (`reopened`) `cancelled` by run 36051214648, the same head SHA | Push `c579f0f`, then reopen 14 s later while its pass (run 36051360798, 19:55:03 to 19:55:31) is still running: the `reopened` run 36051387856 (started 19:55:17) queued, the first pass completed `success`, and exactly one `## Ronda review` exists for `c579f0f` |
+
+The caller's concurrency group was changed after Codex reported (P2) that a
+`reopened` run, which shares its head SHA with the run it cancels, can leave two
+reviews for one SHA when the cancel lands between publishing the review and
+creating the check run. The Actions path has no review-level dedup
+(`findExistingRondaReview` is used only by webhook queue recovery), so the race
+is real. The window is narrow and the proof shows cancellation stops and the
+one-review-per-SHA count holds; it does not reproduce the double review itself.
 
 #108 was closed and both of its throwaway branches were deleted immediately
 after the observation. `pull_request` runs on every non-draft PR to `develop` are
