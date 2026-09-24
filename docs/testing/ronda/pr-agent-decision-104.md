@@ -26,7 +26,7 @@ and make the job fail when the credential is missing.
 | A real pull request carries a PR-Agent review comment | Yes. [#110](https://github.com/lhpaul/ronda/pull/110) received a `PR Reviewer Guide` comment on its first push (run `36067989986`). |
 | The credential guard fails with the secret empty | Yes. Script from `.github/workflows/pr-agent.yml` lines 36-39 (commit `44791e1`) extracted and executed with `DEEPSEEK_API_KEY=` (empty): the condition `[ -z "$DEEPSEEK_API_KEY" ]` is true, so it echoes the error annotation and exits 1. |
 | The credential guard passes with the secret set | Yes. Same script executed with `DEEPSEEK_API_KEY=test_key`: the condition `[ -z "$DEEPSEEK_API_KEY" ]` is false, so the script exits 0 silently. |
-| Dependabot-authored PRs are skipped | The workflow's job condition (line 21, commit `44791e1`) checks `github.event.pull_request.user.login != 'dependabot[bot]'` for `pull_request` events. A Dependabot PR has `user.login == 'dependabot[bot]'`, so the entire job is skipped. A human-authored PR on the same repository has a different `user.login`, so the condition is true and the job runs. |
+| Dependabot-authored PRs are skipped | Verified by condition evaluation (commit `8b721d0`, line 21). The job's `if:` condition includes `github.event.pull_request.user.login != 'dependabot[bot]'`. Test case: when `user.login='dependabot[bot]'`, the condition evaluates to false and the job is skipped; when `user.login='alice'` (any human author), the condition is true and the job runs (assuming same-repository check also passes). No host-level test runs for bot events; job skipping is GitHub's native behavior when the `if:` condition is false. |
 
 ## Added per-PR Actions time
 
