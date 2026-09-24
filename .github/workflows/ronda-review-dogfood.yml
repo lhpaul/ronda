@@ -1,0 +1,62 @@
+name: Ronda review (dogfood)
+
+# Runs Ronda's own reusable review workflow against this repository's pull
+# requests, so miss evidence can accumulate on real PRs (issue #103). This is
+# the adopter caller from docs/adoption/ronda-review-adoption.md, with three
+# deliberate differences:
+#
+# - `uses: ./...` instead of `lhpaul/ronda/...@main`. On `pull_request` the
+#   called workflow is the one at the PR's merge commit, so a change to
+#   `ronda-review.yml` is exercised by its own PR. The Ronda code that actually
+#   reviews is still checked out from `ronda_ref` (the reusable workflow's
+#   default, `main`), never from the PR under review.
+# - `branches: [develop]`, so only PRs targeting the integration branch are
+#   reviewed. The manual `/ronda review` comment path is not branch-scoped;
+#   Ronda resolves the PR itself.
+# - The concurrency group is job-level, not workflow-level, and the comment
+#   pre-filter sits in the same `if:`. A workflow-level `cancel-in-progress`
+#   group is entered by *every* PR comment before any job `if:` is evaluated,
+#   so an unrelated comment (this repository's review-loop automation posts
+#   several per PR) would cancel an in-flight pass and then be skipped by
+#   Ronda, leaving no check run at all. At job level a skipped job never
+#   enters the group.
+#
+# Uses `pull_request`, never `pull_request_target`: the reusable workflow's
+# fork guard assumes a fork PR carries a read-only token and no secrets.
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types: [opened, reopened, ready_for_review, synchronize]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  ronda:
+    name: Ronda review
+    # Caller-side pre-filter, not load-bearing for correctness: Ronda re-checks
+    # the draft state, the exact comment text and the commenter's association
+    # itself. It exists so requests Ronda would skip cost no runner minutes and,
+    # more importantly, never join the concurrency group below.
+    if: >-
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.draft != true) ||
+      (github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request != null &&
+        contains(github.event.comment.body, '/ronda review'))
+    concurrency:
+      group: ronda-review-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: true
+    # A called reusable workflow can only narrow the caller's token, never
+    # widen it, and this repository's default is read-only. Required.
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    uses: ./.github/workflows/ronda-review.yml
+    secrets:
+      model_api_key: ${{ secrets.RONDA_MODEL_API_KEY }}
