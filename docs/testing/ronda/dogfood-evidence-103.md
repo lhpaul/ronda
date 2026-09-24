@@ -86,9 +86,10 @@ takes.
 
 **Decision (repository owner, 2026-09-24):** accept the residual exposure, and
 limit the loss with a spend cap or quota on the vendor key. The two are not
-exclusive. No environment gate is added, so passes stay automatic. The cap is
-set by the owner in the vendor console; this repository cannot verify it, and it
-is not evidence of anything until the owner confirms it is in place.
+exclusive. No environment gate is added, so passes stay automatic. The owner
+reports (2026-09-24) that a budget is set on the key. It is configured in the
+vendor console, so this repository cannot verify it; the figure is not recorded
+here.
 
 ## Planted-violation proofs (`REVIEW.md`, Verification Discipline)
 
