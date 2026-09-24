@@ -14,7 +14,7 @@ Ronda review.
 | --- | --- | --- |
 | Which PRs get a pass? | Every non-draft PR targeting `develop` (`opened`, `reopened`, `ready_for_review`, `synchronize`). Spec, plan and docs-only PRs are included so their review quality also produces evidence. | `on.pull_request.branches` in `ronda-review-dogfood.yml` |
 | Cost cap per pass | Reusable-workflow default: `pass_timeout_minutes: 10` (job backstop 12). | `pass_timeout_minutes` input |
-| Manual rerun | `/ronda review` comment, collaborators only. | `on.issue_comment` |
+| Manual rerun | Not in #107. The `/ronda review` comment trigger was requested but dropped from this PR: GitHub loads `issue_comment` workflows from the default branch, so it cannot be exercised, and so cannot carry the same-PR proof `REVIEW.md` requires, until the PR merges. Follow-up. | `on.issue_comment` (absent) |
 | Which Ronda reviews? | The reusable workflow's default `ronda_ref: main` (released v0.2.0). At the time of writing `develop` is 31 commits ahead, so this evidence describes the released reviewer, not unreleased work. | `ronda_ref` input |
 | Trigger safety | `pull_request`, never `pull_request_target`. Fork PRs get no secrets and are skipped by the reusable workflow's fork guard. | |
 
@@ -40,17 +40,15 @@ adopter snippet in [`ronda-review-adoption.md`](../../adoption/ronda-review-adop
    Run 36037017660 succeeded green while posting no review. The caller job is
    now named `Ronda dogfood`. The adoption doc's snippet leaves the job unnamed,
    which avoids this by accident; it is not documented as a requirement.
-2. **Workflow-level `cancel-in-progress` is entered by every PR comment.** The
-   snippet's concurrency group is evaluated before any job `if:`, so an
-   unrelated comment cancels an in-flight pass and is then skipped by Ronda,
-   leaving no check run for that head SHA. Here the group is job-level, with the
-   comment pre-filter (substring match plus collaborator association) in the
-   same `if:`, and `cancel-in-progress` is true only for `pull_request` runs. A
-   comment run waits its turn instead of cancelling, which closes the remaining
-   gap: a collaborator comment that merely quotes `/ronda review` passes the
-   substring match (expressions cannot match the first unquoted line) but can no
-   longer cancel a real pass. This path is not exercised live; see the proof
-   table below.
+2. **Workflow-level `cancel-in-progress` is entered by every PR comment.**
+   Applies to the adoption snippet and to the follow-up that adds the comment
+   trigger here, not to #107 itself, which has no comment trigger. The snippet's
+   concurrency group is evaluated before any job `if:`, so an unrelated comment
+   cancels an in-flight pass and is then skipped by Ronda, leaving no check run
+   for that head SHA. The follow-up must not let a comment run cancel a pass
+   (for example `cancel-in-progress` true only for `pull_request` runs). Found
+   by reading the workflow semantics and `resolve-trigger.ts`, never observed
+   live.
 
 ## Planted-violation proofs (`REVIEW.md`, Verification Discipline)
 
@@ -62,15 +60,11 @@ violation; the check must reject it and admit the same event once it is removed.
 | Draft pre-filter, `ronda-review-dogfood.yml` `jobs.ronda.if`, `pull_request` branch (`github.event.pull_request.draft != true`) | PR #107 opened as a draft | Runs 36036822400 and 36036974299: job `skipped`, no review, no check run | Run 36037017660 after `gh pr ready`: job executes |
 | Caller job name must not equal `Ronda review`, `jobs.ronda.name` | Job named `Ronda review` (commit `b22369c`) | Run 36037017660 at head `b22369c`: green, `pass_skipped` reason `already_reviewed_automatically`, no review posted | Run 36037217176 at head `20ef109` (the only change is the rename): review posted, check run `success` |
 | `on.pull_request.branches: [develop]` | not planted | Not demonstrated | Every PR to `develop`, including #107, is reviewed |
-| Comment pre-filter (`issue_comment` branch of `jobs.ronda.if`) and `cancel-in-progress` expression | not plantable before merge | Not demonstrated | Not demonstrated |
 
-Two rows are declared but unverified. `on.pull_request.branches` is a plain
-GitHub trigger filter and no plant was run against it. The comment path cannot
-be exercised in this PR at all: GitHub loads `issue_comment` workflows from the
-default branch, so the file on this branch is never the one that runs for a
-comment. Its first real exercise is the first comment posted after this PR
-merges to `develop`, which is a deferral of the same-PR proof `REVIEW.md`
-requires and needs a human decision.
+`on.pull_request.branches` is a plain GitHub trigger filter and no plant was run
+against it, so that row is declared but unverified. `pull_request` runs on every
+non-draft PR to `develop` are shown by #107 itself. The `issue_comment` path is
+out of scope for this PR for the reason given above.
 
 ## Live evidence (acceptance criteria 2 and 3)
 
@@ -84,12 +78,18 @@ Pull request [#107](https://github.com/lhpaul/ronda/pull/107), head
 - The pass did not fail with `Review failed — model credential missing` or
   `... invalid`; `RONDA_MODEL_API_KEY` reached the pass.
 
-The review's one finding (Blocking, "insecure comment text matching") is, in my
-assessment, a false positive: the substring match is a deliberate, documented
-superset pre-filter, Ronda re-checks the exact command and commenter itself, and
-GitHub expressions cannot express first-line matching. It is a precision data
-point for the eventual miss-evidence report, not a defect in the PR. That
-judgement is the author's and has not been adjudicated independently.
+The review's one finding (Blocking, "insecure comment text matching") was
+directed at the substring match in the comment pre-filter. Its stated
+consequence, "command injection", was overstated: Ronda re-checks the exact
+command and the commenter's association itself, so nothing untrusted runs. But
+the finding pointed at a real residual gap that the author had initially
+dismissed and two other reviewers (the internal code reviewer and
+`local-ai-reviewer`) independently reached: a comment that merely contains the
+command can enter the concurrency group and cancel an in-flight pass, which
+Ronda then skips. The comment trigger has since been removed from #107 (see
+Decisions), so the finding is resolved by removal. Classification of this
+finding as a true or false positive has not been independently adjudicated;
+treat it as partially valid, mis-rated on impact.
 
 ## Miss capture (acceptance criterion 4)
 
