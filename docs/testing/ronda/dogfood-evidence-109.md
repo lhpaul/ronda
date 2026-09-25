@@ -637,6 +637,17 @@ run ids:
 2. **a fixture repository** whose default branch already carries the same
    workflow, commented on after the same edits — real runs, different repo.
 
+**Disposition (operator decision, 2026-09-25).** These rows are deferred to a
+merge-time obligation on issue [#109](https://github.com/lhpaul/ronda/issues/109)
+rather than filled in this PR. The fixture route would mean creating a public
+repository, installing `RONDA_MODEL_API_KEY` into it and commenting there — an
+outward-facing action with a real credential — and the operator chose the merge
+route (option 1) instead. This is a deliberate deferral, not an unmet gate: the
+`pull_request` arm is proven live above, the expressions are decided in the
+tables above, and what remains is scheduling behaviour that only a run in this
+repository's default branch can show. It is recorded here so a reviewer reads
+the `_pending_` cells as a scheduled obligation with a named owner and issue.
+
 The scheduling semantics this table asserts — that a job-level `concurrency`
 group is acquired only after the job `if:` passes, that a sibling run waits, and
 that `cancel-in-progress` decides which events displace — are GitHub's scheduler
