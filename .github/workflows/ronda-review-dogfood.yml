@@ -38,37 +38,32 @@ concurrency:
   # Three kinds of run, three placements (issue #109):
   #
   # - `pull_request` passes share one group per PR.
-  # - A valid review request (a PR comment starting with the command, from an
-  #   OWNER/MEMBER/COLLABORATOR) joins that same group, so a manual pass is
-  #   serialized with the automatic ones: two passes on one head SHA never run
-  #   together, which would let both find no check run and publish two, or let
-  #   an older pass finish last and overwrite the newer result. It never
-  #   cancels (below), so it waits behind an in-flight pass. The only thing it
-  #   can displace is a queued run, and a queued run in this group is either a
-  #   `reopened` / `ready_for_review` pass, which reviews the same head this
-  #   request will, or an earlier request with the same intent.
+  # - A comment that the job below would run (on a PR, containing the command,
+  #   from an OWNER/MEMBER/COLLABORATOR) joins that same group, so a manual pass
+  #   is serialized with the automatic ones: two passes on one head SHA never
+  #   run together, which would let both find no check run and publish two, or
+  #   let an older pass finish last and overwrite the newer result. It never
+  #   cancels (below), so it waits behind an in-flight pass.
   # - Every other comment gets a group of its own, keyed on the run id. Every PR
   #   comment enters a workflow-level group before any job `if:` is evaluated,
   #   so an unrelated comment in the PR's group would cancel an in-flight pass
   #   (`cancel-in-progress: true`) or displace a queued one (`false`) and then
   #   be skipped by the job `if:`, leaving no check run for that head SHA.
   #
-  # The routing test is deliberately stricter than the job `if:` below: it
-  # admits only a comment whose FIRST LINE is exactly the command, the one shape
-  # Ronda is certain to act on (src/cli/resolve-trigger.ts). `/ronda review
-  # later`, `/ronda reviewer` and a command after a blank or quoted line are not
-  # admitted: a comment Ronda would skip must not enter the shared group and
-  # displace a queued pass. Those that Ronda would accept (leading whitespace, a
-  # quoted line first) still run, in a group of their own, and are not
-  # serialized. `fromJSON('"...\n"')` is how an expression spells a newline.
+  # The routing test is the job `if:`'s comment test, so every command form
+  # Ronda accepts (after leading whitespace, after a blank or quoted line) is
+  # serialized. It is not exact: `/ronda review later` also enters the group and
+  # Ronda then skips it. That costs nothing, because `cancel-in-progress` is true
+  # only for `synchronize`, so a queued run in this group is only ever a
+  # `reopened` / `ready_for_review` pass on the same head SHA, which would have
+  # skipped on the running pass's check run (a push cancels and replaces the
+  # queue itself), or an earlier request that the newer one replaces.
   group: >-
     ${{ github.event_name == 'pull_request'
     && format('ronda-review-{0}', github.event.pull_request.number)
     || (github.event_name == 'issue_comment'
     && github.event.issue.pull_request != null
-    && (github.event.comment.body == '/ronda review'
-    || startsWith(github.event.comment.body, fromJSON('"/ronda review\n"'))
-    || startsWith(github.event.comment.body, fromJSON('"/ronda review\r\n"')))
+    && contains(github.event.comment.body, '/ronda review')
     && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     && format('ronda-review-{0}', github.event.issue.number)
     || format('ronda-review-comment-{0}', github.run_id) }}
