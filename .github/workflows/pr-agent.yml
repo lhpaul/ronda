@@ -53,8 +53,9 @@ jobs:
           # through one provider.
           config.model_weak: "deepseek/deepseek-chat"
           # --- Alternative: Kimi K2.6 (Moonshot AI) ---
-          # Comment out the DeepSeek vars above, uncomment below, and set
-          # MOONSHOT_API_KEY in GitHub secrets.
+          # Comment out the DeepSeek vars above, uncomment below, set
+          # MOONSHOT_API_KEY in GitHub secrets, and point the "Require model
+          # credential" step at MOONSHOT_API_KEY too, or it fails the job.
           # MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
           # config.model: "moonshot/kimi-k2.6"
           # config.fallback_models: '["moonshot/kimi-k2.6"]'
