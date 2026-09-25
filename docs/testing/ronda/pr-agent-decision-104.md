@@ -24,10 +24,8 @@ and make the job fail when the credential is missing.
 | Check | Result |
 | --- | --- |
 | A real pull request carries a PR-Agent review comment | Yes. [#110](https://github.com/lhpaul/ronda/pull/110) received a `PR Reviewer Guide` comment on its first push (run `36067989986`). |
-| The credential guard fails with the secret empty | Yes. Script from `.github/workflows/pr-agent.yml` lines 36-39 (commit `44791e1`) extracted and executed with `DEEPSEEK_API_KEY=` (empty): the condition `[ -z "$DEEPSEEK_API_KEY" ]` is true, so it echoes the error annotation and exits 1. |
-| The credential guard passes with the secret set | Yes. Same script executed with `DEEPSEEK_API_KEY=test_key`: the condition `[ -z "$DEEPSEEK_API_KEY" ]` is false, so the script exits 0 silently. |
-| `/review` command restricted to maintainers | Verified by condition inspection (commit `e9ecb3d`, line 21). The issue_comment trigger requires `github.event.comment.author_association == 'OWNER' or 'COLLABORATOR'`. This restricts the credential-backed workflow to repository owners and collaborators; other commenters' `/review` commands are rejected by the `if:` condition. |
-| Dependabot-authored PRs are skipped | Verified by condition evaluation (commit `e9ecb3d`, line 21). The job's `if:` condition includes `github.event.pull_request.user.login != 'dependabot[bot]'`. When a Dependabot PR event occurs: `user.login='dependabot[bot]'`, so the expression evaluates to false and the job is skipped. Skipped jobs produce no runs or artifacts; verification is via GitHub's native job-skip behavior. |
+| The credential guard passes with the secret set | Yes. `Require model credential` concluded `success` in the same run. |
+| The credential guard fails with the secret empty | Yes, against the workflow file rather than a paraphrase. The `run:` script of the `Require model credential` step (`.github/workflows/pr-agent.yml` lines 34-37) was extracted from the YAML and executed with `bash -e`: `DEEPSEEK_API_KEY=` (empty) exits 1 and prints the `::error` annotation, the variable unset exits 1, and `DEEPSEEK_API_KEY=x` exits 0. The hosted workflow was not run with the secret removed, to avoid disabling a live secret. |
 
 ## Added per-PR Actions time
 
@@ -52,11 +50,10 @@ image before the first step. A run that fails the guard therefore still spends
 the build time; the guard makes the failure visible, not cheaper.
 
 Not measured: DeepSeek API cost per PR. PR-Agent's `output_run_cost` is off and
-this repository has no provider billing access. Per PR-Agent's upstream defaults,
-input is bounded by `max_model_tokens = 32000` per call, and PR-Agent makes at
-most three calls per review (PR Reviewer Guide, PR Description, and ancillary
-tasks). This repository does not override these defaults in `.pr_agent.toml`.
-Read the actual cost from the DeepSeek usage dashboard after several PRs.
+this repository has no provider billing access. It is bounded by
+`max_model_tokens = 32000` in `.pr_agent.toml` per call and at most three calls
+(`max_number_of_calls`). Read the actual figure from the DeepSeek usage
+dashboard after several PRs.
 
 ## Follow-ups
 

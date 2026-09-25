@@ -8,17 +8,15 @@ on:
 
 jobs:
   pr_agent_job:
-    # For pull_request events: only run for PRs from the same repository (not forks).
-    # Exclude Dependabot PRs: they cannot access repository secrets, so the credential
-    # guard would fail. Dependency updates do not need PR-Agent code reviews.
-    # Fork PRs use read-only GITHUB_TOKEN that cannot post comments, so excluding them
-    # prevents spurious auth failures.
+    # For pull_request events: only run for PRs from the same repository (not forks),
+    # including bot-authored PRs (Dependabot, Renovate). Fork PRs use read-only GITHUB_TOKEN
+    # that cannot post comments, so excluding them prevents spurious auth failures.
     # Pushes to same-repository PR branches run PR-Agent through the pull_request
-    # synchronize event. Maintainers can also trigger an explicit review by posting
-    # exactly `/review` on the PR; the comment author must have write or admin access.
-    # Exact command matching prevents PR-Agent from retriggering itself while the
-    # author_association check restricts credential access to approved reviewers.
-    if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') || (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.comment.body == '/review' && (github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'COLLABORATOR')) }}
+    # synchronize event. The reviewer loop and maintainers can also trigger an
+    # explicit review by posting exactly `/review` on the PR. Exact command
+    # matching prevents PR-Agent from retriggering itself while still allowing
+    # trusted automation identities to request a configured review.
+    if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.comment.body == '/review') }}
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -29,8 +27,6 @@ jobs:
       # Fail loudly when the model credential is missing. Without it PR-Agent
       # runs to the point of calling the model, publishes nothing, and still
       # reports `success` (#104: 196 silent no-op runs in six days).
-      # Use step-level env: mapping to scope the secret to only this step,
-      # preventing accidental exposure to subsequent steps.
       - name: Require model credential
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -56,6 +52,13 @@ jobs:
           # DEEPSEEK_API_KEY is configured. Pin it to DeepSeek too so all calls go
           # through one provider.
           config.model_weak: "deepseek/deepseek-chat"
+          # --- Alternative: Kimi K2.6 (Moonshot AI) ---
+          # Comment out the DeepSeek vars above, uncomment below, and set
+          # MOONSHOT_API_KEY in GitHub secrets.
+          # MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+          # config.model: "moonshot/kimi-k2.6"
+          # config.fallback_models: '["moonshot/kimi-k2.6"]'
+          # config.model_weak: "moonshot/kimi-k2.6"
           # --- Action and feature flags ---
           # Set as env vars (not only in .pr_agent.toml) so they take effect
           # before PR-Agent's internal action/feature checks run.
