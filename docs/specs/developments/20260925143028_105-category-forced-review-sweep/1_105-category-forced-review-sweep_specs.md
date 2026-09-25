@@ -452,8 +452,9 @@ findings in that one review.
   four real themes that currently have no representation and harder
   credential-pattern variants.
 - Real-pull-request effect of the sweep may not be claimed until at least ten
-  pull requests have carried a Ronda review under the current category list
-  version and their external-finding evidence has been adjudicated. Revising the
+  pull requests (threshold subject to Open Question 4) have carried a Ronda
+  review under the current category list version and their external-finding
+  evidence has been adjudicated. Revising the
   list restarts that count. Even at that minimum, only a descriptive
   sweep-enabled miss record may be claimed; a comparative claim additionally
   requires a matched sweep-off control on the same pull request heads (Open
@@ -509,8 +510,10 @@ corpus, kept so every category is traceable to its source rows.
   Codex, the theme behind the `partial_success` category that both reviewers
   hit) — to be swept, or excluded with a rationale (Open Question 8).
 
-Until both decisions are made, the recorded list is not a complete AC6 record
-and may not be marked current. This spec deliberately does not pick either
+Exactly one recorded category list version is current. Every candidate is
+either swept (currently in use) or explicitly excluded with a recorded
+rationale. While Open Questions 1 and 8 are unresolved, the recorded list is not
+a complete AC6 record and cannot be marked current. This spec deliberately does not pick either
 outcome; when decided, each candidate moves into the swept table or the
 excluded list above with its rationale.
 
@@ -520,7 +523,7 @@ excluded list above with its rationale.
 | --- | --- | --- |
 | `fixture_only` | Fixture evidence only | Evidence comes from the seeded benchmark and precision fixtures. It may support claims about seeded recall, variance, precision, and cost; it may not support claims about real-pull-request effect. |
 | `real_pr_provisional` | Real-PR evidence (provisional) | Fewer than ten pull requests reviewed under the current category list version have accumulated, or their evidence is not yet adjudicated. Findings are indicative only and are labeled as such. |
-| `real_pr_measured` | Real-PR evidence (measured) | At least ten pull requests reviewed under the current category list version have accumulated and their external-finding evidence is adjudicated. Descriptive real-pull-request claims are permitted, with the independence caveat. Comparative effect claims additionally require a matched sweep-off control (Open Question 9). |
+| `real_pr_measured` | Real-PR evidence (measured) | At least ten (threshold subject to Open Question 4) pull requests reviewed under the current category list version have accumulated and their external-finding evidence is adjudicated. Descriptive real-pull-request claims are permitted, with the independence caveat. Comparative effect claims additionally require a matched sweep-off control (Open Question 9). |
 
 **Valid transitions**:
 
@@ -581,9 +584,10 @@ excluded list above with its rationale.
       each is either on the swept list or named as excluded with its exclusion
       rationale. This includes the seeded benchmark's four never-found kinds,
       the planted-proof evidence theme, spec-AC-compliance, and per-finding
-      resolution. No candidate may be left undecided in a list marked current;
-      the spec-AC-compliance and per-finding-resolution outcomes are human
-      decisions (Open Questions 1 and 8).
+      resolution. Exactly one recorded list version is current, and no
+      candidate may be left undecided in it; while the spec-AC-compliance and
+      per-finding-resolution outcomes (human decisions, Open Questions 1 and 8)
+      are unresolved, the recorded list cannot be marked current.
 - [ ] AC7: The recorded list carries a version and a revision history entry for
       each change, naming the evidence that motivated it.
 - [ ] AC8: Committed benchmark evidence reports, for sweep-off and sweep-on
@@ -609,8 +613,20 @@ excluded list above with its rationale.
       reconstruction from API evidence, external output parsing, guard fails
       open, and record identity.
 - [ ] AC13: The seeded benchmark fixture contains at least one credential-pattern
-      case that is harder than the existing always-found sensitive-value case
-      (for example, a qualified, camelCase, hyphenated, or prefixed variant).
+      case that is harder than the existing always-found sensitive-value case.
+      "Harder" is defined by a testable rule: a credential-pattern case is
+      harder than baseline when the sensitive name or value it plants is not
+      matched by the exact canonical form the existing case uses, so that a
+      guard recognizing only that canonical form would miss it. A case is
+      harder when it differs from the canonical form in at least one of these
+      ways: a qualifier or prefix added to the name, a different letter-case
+      convention (for example camelCase), a different word separator (for
+      example hyphenated), or the name or value wrapped in another construct.
+      These four ways are the exhaustive set that AC13 counts; a variant that
+      differs in none of them is not harder for AC13 purposes, however
+      unusual it looks. The fixture records, for each harder case, which of the
+      four ways it differs by and the canonical baseline form it is compared
+      against, so the rule can be checked without judgment.
 - [ ] AC14: Quality evidence produced by this feature contains no credential
       values, tokens, or authorization values.
 - [ ] AC15: Recorded evidence carries exactly one of the three evidence tier
@@ -618,13 +634,16 @@ excluded list above with its rationale.
       (a) no real-pull-request effect claim appears under a tier below Real-PR
       evidence (measured);
       (b) the label Real-PR evidence (measured) is assigned only when at least
-      ten pull requests reviewed with the sweep enabled under the current
-      category list version are counted and their external-finding evidence has
+      ten pull requests under the current recorded category list version have
+      been sweep-enabled and reviewed, and their external-finding evidence has
       been adjudicated; a record with nine or fewer counted pull requests, or
       with any counted pull request's evidence not yet adjudicated, is labeled
       Real-PR evidence (provisional), and one with no sweep-enabled real pull
-      request review recorded is labeled Fixture evidence only (Open Question 4
-      may change only the adjudication condition in this clause);
+      request review recorded is labeled Fixture evidence only. (The threshold
+      of ten and the adjudication condition are both subject to confirmation
+      per Open Question 4; until it is answered, ten and adjudication are the
+      working values, and a decision changing either updates this clause, the
+      Evidence tier section, and the Business Rules together.)
       (c) when the recorded category list version changes, evidence previously
       labeled Real-PR evidence (measured) is relabeled Real-PR evidence
       (provisional), and the counted pull requests restart at zero, so pull
@@ -767,7 +786,7 @@ worded so it stays valid either way, and the affected decision is named:
    example, a maximum number of model calls per pass, or a maximum elapsed time
    per pass?
 4. The issue says measurement should wait for "roughly 10" dogfooded pull
-   requests. This spec adopts ten as a hard minimum. Confirm that ten is the
+   requests. This spec uses ten as the working minimum (AC15). Confirm that ten is the
    gate, and confirm whether the count requires adjudicated external-finding
    evidence on those pull requests or only that Ronda reviewed them.
 5. Evidence from Ronda's own repository is not independent of Ronda's tuning.
