@@ -245,15 +245,17 @@ process.exit(failed ? 1 : 0);```
 
 ### Result on the workflow as committed
 
-34 of 34 assertions pass on the workflow, and 16 of
-16 more on doc parity with `--doc`. The last column lists the plants
-(next section) under which each assertion fails, so every assertion is shown
-able to fail.
+34 of the 34 workflow assertions pass, and the `--doc` run adds
+16 doc-parity assertions — 16 of 16 pass,
+50 of 50 in that run. The count is cumulative, not additive:
+`--doc` is the 34 above plus 16. The last column lists the
+plants (next section) under which each assertion fails, so every assertion is
+shown able to fail.
 
 | Id | Assertion | Fails under plant |
 | --- | --- | --- |
 | S1 | no workflow-level `concurrency` key exists | 15, 16 |
-| S2 | the job carries its own `group` | 16, 22 |
+| S2 | the job carries its own `group` | 22 |
 | S3 | the job carries its own `cancel-in-progress` | 16, 18, 19, 22 |
 | S4 | `queue` is absent (pinned actionlint rejects it) | 17 |
 | S5 | the caller job is not named `Ronda review` | 21 |
@@ -270,7 +272,7 @@ able to fail.
 | A7 | quoted-then-command comment is not filtered out (never stricter than Ronda) | 7, 8, 9 |
 | A8 | non-draft pull_request runs | 10 |
 | A9 | draft pull_request does not run | 4, 22 |
-| B1 | a valid review request reaches the PR's group | 5, 8, 11, 12, 13 |
+| B1 | a valid review request reaches the PR's group | 5, 8, 11, 12, 13, 16 |
 | B2 | an automatic pass reaches the PR's group | 10 |
 | B3 | a comment on another PR does not reach this PR's group | 14, 22 |
 | B4 | a comment Ronda rejects does not reach the PR's group | 1, 22 |
@@ -278,11 +280,11 @@ able to fail.
 | B6 | a synchronize push cancels an in-flight pass | 19, 22 |
 | B7 | reopened does not cancel (same head SHA) | 18, 20, 22 |
 | B8 | ready_for_review does not cancel (same head SHA) | 18, 20, 22 |
-| B9 | a command after a quoted line reaches the PR's group | 7, 8, 9, 11, 12, 13 |
-| B10 | a command after leading whitespace reaches the PR's group | 5, 8, 9, 11, 12, 13 |
-| B11 | the command followed by more lines reaches the PR's group | 5, 8, 11, 12, 13 |
-| B12 | the command in any case with a CRLF ending reaches the PR's group | 5, 8, 11, 12, 13 |
-| B13 | a phrase-only comment reaches the PR's group (documented residual) | 5, 8, 11, 12, 13 |
+| B9 | a command after a quoted line reaches the PR's group | 7, 8, 9, 11, 12, 13, 16 |
+| B10 | a command after leading whitespace reaches the PR's group | 5, 8, 9, 11, 12, 13, 16 |
+| B11 | the command followed by more lines reaches the PR's group | 5, 8, 11, 12, 13, 16 |
+| B12 | the command in any case with a CRLF ending reaches the PR's group | 5, 8, 11, 12, 13, 16 |
+| B13 | a phrase-only comment reaches the PR's group (documented residual) | 5, 8, 11, 12, 13, 16 |
 | C1 | the workflow subscribes to issue_comment `created` | 26, 27 |
 | C2 | pull_request still targets only develop | 28 |
 | C3 | pull_request still starts on opened, reopened, ready_for_review, synchronize | 29 |
@@ -311,31 +313,31 @@ those of the committed workflow.
 
 | Plant | Violation | Edit | Fails |
 | --- | --- | --- | --- |
-| 1 | Job `if:`: command phrase dropped | line 57: the command `contains(...)` term becomes `true` | A3, B4 |
-| 2 | Job `if:`: association check dropped | line 58: the association `contains(...)` term becomes `true` | A4, A5 |
-| 3 | Job `if:`: pull-request-only gate dropped | line 56: `issue.pull_request != null &&` becomes `true &&` | A6 |
-| 4 | Job `if:`: draft gate dropped (existing behaviour, re-asserted) | line 54: `draft != true` becomes `true` | A9 |
-| 5 | Job `if:`: COLLABORATOR rejected | line 58: the association list loses `COLLABORATOR` | A1, B1, B10, B11, B12, B13 |
-| 6 | Job `if:`: OWNER rejected | line 58: the association list loses `OWNER` | A2 |
-| 7 | Job `if:`: MEMBER rejected | line 58: the association list loses `MEMBER` | A7, B9 |
-| 8 | Job `if:`: wrong command literal | line 57: `'/ronda review'` becomes `'/ronda-review'` | A1, A2, A7, B1, B9, B10, B11, B12, B13 |
-| 9 | Job `if:`: `startsWith` instead of `contains` | line 57: `contains(body, ...)` becomes `startsWith(body, ...)` | A7, B9, B10 |
-| 10 | Job `if:`: pull_request never runs | line 54: `draft != true` becomes `false` | A8, B2 |
-| 11 | Group routing: pull_request arm dropped | line 93: `event_name == 'pull_request'` becomes `false` | B1, B9, B10, B11, B12, B13 |
-| 12 | Group routing: comments get their own per-run group (the pre-serialization design) | line 95: the comments' group becomes a per-run one | B1, B9, B10, B11, B12, B13 |
-| 13 | Group routing: comments share one repo-wide group (the old snippet) | line 95: the comments' group becomes a constant | B1, B9, B10, B11, B12, B13 |
-| 14 | Group routing: one repo-wide group for both arms | line 94: both arms' groups become one constant | B3 |
+| 1 | Job `if:`: command phrase dropped | line 60: the command `contains(...)` term becomes `true` | A3, B4 |
+| 2 | Job `if:`: association check dropped | line 61: the association `contains(...)` term becomes `true` | A4, A5 |
+| 3 | Job `if:`: pull-request-only gate dropped | line 59: `issue.pull_request != null &&` becomes `true &&` | A6 |
+| 4 | Job `if:`: draft gate dropped (existing behaviour, re-asserted) | line 57: `draft != true` becomes `true` | A9 |
+| 5 | Job `if:`: COLLABORATOR rejected | line 61: the association list loses `COLLABORATOR` | A1, B1, B10, B11, B12, B13 |
+| 6 | Job `if:`: OWNER rejected | line 61: the association list loses `OWNER` | A2 |
+| 7 | Job `if:`: MEMBER rejected | line 61: the association list loses `MEMBER` | A7, B9 |
+| 8 | Job `if:`: wrong command literal | line 60: `'/ronda review'` becomes `'/ronda-review'` | A1, A2, A7, B1, B9, B10, B11, B12, B13 |
+| 9 | Job `if:`: `startsWith` instead of `contains` | line 60: `contains(body, ...)` becomes `startsWith(body, ...)` | A7, B9, B10 |
+| 10 | Job `if:`: pull_request never runs | line 57: `draft != true` becomes `false` | A8, B2 |
+| 11 | Group routing: pull_request arm dropped | line 96: `event_name == 'pull_request'` becomes `false` | B1, B9, B10, B11, B12, B13 |
+| 12 | Group routing: comments get their own per-run group (the pre-serialization design) | line 98: the comments' group becomes a per-run one | B1, B9, B10, B11, B12, B13 |
+| 13 | Group routing: comments share one repo-wide group (the old snippet) | line 98: the comments' group becomes a constant | B1, B9, B10, B11, B12, B13 |
+| 14 | Group routing: one repo-wide group for both arms | line 97: both arms' groups become one constant | B3 |
 | 15 | Placement: workflow-level `concurrency` re-added alongside the job-level one | line 37: a workflow-level `concurrency` block is added above `jobs:` | S1 |
-| 16 | Placement: `concurrency` moved back to the workflow level | lines 91-103: the job-level block is deleted and an equivalent workflow-level one added | S1, S2, S3 |
-| 17 | Placement: `queue: max` added to the job's group | line 96: `queue: max` is added to the job `concurrency` (actionlint rejects it) | S4 |
-| 18 | Cancellation: everything cancels | line 103: the expression becomes `true` | S3, B5, B7, B8 |
-| 19 | Cancellation: nothing cancels | line 103: the expression becomes `false` | S3, B6 |
-| 20 | Cancellation: reopened and ready_for_review cancel | line 103: `action == 'synchronize'` becomes `action != 'opened'` | B7, B8 |
+| 16 | Placement: `concurrency` moved back to the workflow level | lines 97-106: the job-level block is deleted and an equivalent workflow-level one added | S1, S3, B1, B9, B10, B11, B12, B13 |
+| 17 | Placement: `queue: max` added to the job's group | line 99: `queue: max` is added to the job `concurrency` (actionlint rejects it) | S4 |
+| 18 | Cancellation: everything cancels | line 106: the expression becomes `true` | S3, B5, B7, B8 |
+| 19 | Cancellation: nothing cancels | line 106: the expression becomes `false` | S3, B6 |
+| 20 | Cancellation: reopened and ready_for_review cancel | line 106: `action == 'synchronize'` becomes `action != 'opened'` | B7, B8 |
 | 21 | Naming: the caller job is named `Ronda review` | line 45: the job `name:` becomes `Ronda review` | S5 |
 | 22 | Naming: the caller job id is renamed | line 38: the job id becomes `ronda-job` | S2, S3, S6, S7, S8, S9, A3, A4, A5, A6, A9, B3, B4, B5, B6, B7, B8 |
-| 23 | Permissions: `checks: write` dropped | lines 109-109: deleted | S8 |
-| 24 | Permissions: `pull-requests: write` dropped | lines 108-108: deleted | S7 |
-| 25 | Reusable workflow: the caller points elsewhere | line 110: the `uses:` path changes | S9 |
+| 23 | Permissions: `checks: write` dropped | lines 112-112: deleted | S8 |
+| 24 | Permissions: `pull-requests: write` dropped | lines 111-111: deleted | S7 |
+| 25 | Reusable workflow: the caller points elsewhere | line 113: the `uses:` path changes | S9 |
 | 26 | Wiring: `issue_comment` subscription removed | lines 31-32: deleted | C1 |
 | 27 | Wiring: wrong comment action | line 32: `types: [created]` becomes `types: [edited]` | C1 |
 | 28 | Wiring: automatic passes retargeted | line 29: `- develop` becomes `- main` | C2 |
@@ -374,7 +376,7 @@ plant 12: FAIL B1, B9, B10, B11, B12, B13 28/34 pass
 plant 13: FAIL B1, B9, B10, B11, B12, B13 28/34 pass
 plant 14: FAIL B3                 33/34 pass
 plant 15: FAIL S1                 33/34 pass
-plant 16: FAIL S1, S2, S3         31/34 pass
+plant 16: FAIL S1, S3, B1, B9, B10, B11, B12, B13 26/34 pass
 plant 17: FAIL S4                 33/34 pass
 plant 18: FAIL S3, B5, B7, B8     30/34 pass
 plant 19: FAIL S3, B6             32/34 pass
@@ -583,12 +585,12 @@ workflow-run ids once this PR is on `develop`:
 | Assertion | Plant (violation present) | Run id | Without the plant | Run id |
 | --- | --- | --- | --- | --- |
 | Collaborator `/ronda review` produces a pass on the current head | not applicable (positive case) | _pending_ | | |
-| Unrelated comment does not start a pass | | _pending_ | | |
-| Non-collaborator `/ronda review` does not start a pass | | _pending_ | | |
-| Comment on a plain issue does not start a pass | | _pending_ | | |
-| Unrelated comment during an in-flight `pull_request` pass does not cancel or displace it | plant 14 (one repo-wide group for both arms) | _pending_ | committed group | _pending_ |
-| Valid request during an in-flight pass waits for it, then publishes one `Ronda review` check run | plant 13 (comments share one repo-wide group) | _pending_ | committed group | _pending_ |
-| Comment containing the phrase but not a command (`/ronda review later`) displaces nothing but adds no pass | plant 12 (comments get their own per-run group) | _pending_ | committed group | _pending_ |
+| Unrelated comment does not start a pass | plant 1 (job `if:` command test becomes `true`, so every comment is admitted) | _pending_ | committed `if:` | _pending_ |
+| Non-collaborator `/ronda review` does not start a pass | plant 2 (association test becomes `true`) | _pending_ | committed `if:` | _pending_ |
+| Comment on a plain issue does not start a pass | plant 3 (`issue.pull_request != null` becomes `true`) | _pending_ | committed `if:` | _pending_ |
+| Unrelated comment during an in-flight `pull_request` pass does not cancel or displace it | plant 1 (every comment admitted, so an unrelated one enters the PR's group) | _pending_ | committed `if:` | _pending_ |
+| Valid request during an in-flight pass waits for it, then publishes one `Ronda review` check run | plant 12 (comments get their own per-run group, so the request stops waiting) | _pending_ | committed group | _pending_ |
+| Comment containing the phrase but not a command (`/ronda review later`) is admitted to the PR's group and can displace a queued run, then adds no pass | doc plant D7 (predicate matches the whole body exactly, so the phrase-only comment is admitted nowhere) | _pending_ | committed `contains`: admitted (assertion B13) | _pending_ |
 
 The stale statements in [`dogfood-evidence-103.md`](dogfood-evidence-103.md)
 (the "Manual rerun" row, and wiring defects 1 and 2) were corrected in this PR.

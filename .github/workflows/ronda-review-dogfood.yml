@@ -50,6 +50,9 @@ jobs:
     # Hence `contains` (case-insensitive) rather than `startsWith`: Ronda
     # accepts the command after blank or quoted lines, and an expression cannot
     # tell the first unquoted line. The association list mirrors Ronda's.
+    # A `/ronda review` comment is honoured on any pull request, not only one
+    # targeting `develop`: the comment is the explicit request, and the
+    # `branches:` filter above constrains `pull_request` runs alone.
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request.draft != true) ||
       (github.event_name == 'issue_comment' &&
