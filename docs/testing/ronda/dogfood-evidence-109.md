@@ -106,6 +106,12 @@ check("B4 a synchronize push still cancels an in-flight pass", cancel(pr()), "tr
 check("B5 reopened does not cancel", cancel(pr({ top: { event: { action: "reopened", pull_request: { number: 42, draft: false } } } })), "false");
 check("B6 ready_for_review does not cancel", cancel(pr({ top: { event: { action: "ready_for_review", pull_request: { number: 42, draft: false } } } })), "false");
 
+// Trigger wiring.
+const on = wf.on ?? wf[true];
+check("C1 the workflow subscribes to issue_comment `created`", String(JSON.stringify(on.issue_comment?.types) === '["created"]'), "true");
+check("C2 pull_request still targets only develop", String(JSON.stringify(on.pull_request?.branches) === '["develop"]'), "true");
+check("C3 pull_request still starts on opened, reopened, ready_for_review, synchronize", String(JSON.stringify(on.pull_request?.types) === '["opened","reopened","ready_for_review","synchronize"]'), "true");
+
 let failed = 0;
 console.log(`file: ${file}`);
 for (const c of checks) {
@@ -120,7 +126,7 @@ process.exit(failed ? 1 : 0);
 
 ### Result on the workflow as committed
 
-15 of 15 assertions pass.
+18 of 18 assertions pass.
 
 | Id | Assertion | Expression under test |
 | --- | --- | --- |
@@ -134,6 +140,8 @@ process.exit(failed ? 1 : 0);
 | B3 | A comment run cannot cancel in progress | `cancel-in-progress`, line 58 |
 | B4 | A `synchronize` push still cancels an in-flight pass | line 58 |
 | B5, B6 | `reopened` and `ready_for_review` do not cancel | line 58 |
+| C1 | The workflow subscribes to `issue_comment` `created` | `on.issue_comment`, lines 31-32 |
+| C2, C3 | `pull_request` still targets only `develop` and the same four actions | `on.pull_request`, lines 27-30 |
 
 ### Planted violations, one per new assertion
 
@@ -149,16 +157,20 @@ file (the baseline above). Line numbers are those of the committed workflow.
 | 4. Draft gate (existing behaviour, re-asserted) | line 77: `github.event.pull_request.draft != true` becomes `true` | A9 only | passes |
 | 5. Concurrency: group split | lines 50-51: both branches become `format('ronda-review-{0}', pull_request.number \|\| issue.number)` (the shared group the old snippet used) | B1, B2 | passes |
 | 6. Concurrency: comment cannot cancel | line 58: expression becomes `true` | B3, B5, B6 | passes |
+| 7. Trigger wiring: subscription removed | lines 31-32: the `issue_comment` key and its `types` are deleted | C1 only | passes |
+| 8. Trigger wiring: wrong action | line 32: `types: [created]` becomes `types: [edited]` | C1 only | passes |
 
 Harness output for each plant (`FAIL` lines only; every other assertion passes):
 
 ```text
-plant 1: FAIL A3 (got true, want false)                          14/15
-plant 2: FAIL A4, A5 (got true, want false)                      13/15
-plant 3: FAIL A6 (got true, want false)                          14/15
-plant 4: FAIL A9 (got true, want false)                          14/15
-plant 5: FAIL B1, B2 (got true, want false)                      13/15
-plant 6: FAIL B3, B5, B6 (got true, want false)                  12/15
+plant 1: FAIL A3 (got true, want false)                          17/18
+plant 2: FAIL A4, A5 (got true, want false)                      16/18
+plant 3: FAIL A6 (got true, want false)                          17/18
+plant 4: FAIL A9 (got true, want false)                          17/18
+plant 5: FAIL B1, B2 (got true, want false)                      16/18
+plant 6: FAIL B3, B5, B6 (got true, want false)                  15/18
+plant 7: FAIL C1 (got false, want true)                          17/18
+plant 8: FAIL C1 (got false, want true)                          17/18
 ```
 
 Not isolated, and stated rather than hidden: the `github.event_name ==
@@ -181,7 +193,5 @@ runs, recorded here as workflow-run ids once this PR is on `develop`:
 | Comment on a plain issue does not start a pass | | _pending_ | | |
 | Comment during an in-flight `pull_request` pass does not cancel it | shared group (plant 5) | _pending_ | committed group | _pending_ |
 
-When filled, also correct the two now-stale statements in
-[`dogfood-evidence-103.md`](dogfood-evidence-103.md): the "Manual rerun" row
-that calls the comment trigger a follow-up, and wiring defect 1's remark that the
-adoption snippet does not document the job-name requirement.
+The stale statements in [`dogfood-evidence-103.md`](dogfood-evidence-103.md)
+(the "Manual rerun" row, and wiring defects 1 and 2) were corrected in this PR.
