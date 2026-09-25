@@ -17,20 +17,6 @@ on:
     types: [opened, reopened, ready_for_review, synchronize]
   issue_comment:
     types: [created]
-concurrency:
-  # Comments the job below would run share the PR's group; every other comment
-  # gets a group of its own. See "Why the concurrency group is routed".
-  group: >-
-    ${{ github.event_name == 'pull_request'
-    && format('ronda-review-{0}', github.event.pull_request.number)
-    || (github.event_name == 'issue_comment'
-    && github.event.issue.pull_request != null
-    && contains(github.event.comment.body, '/ronda review')
-    && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
-    && format('ronda-review-{0}', github.event.issue.number)
-    || format('ronda-review-comment-{0}', github.run_id) }}
-  # Only a push, which introduces a new head SHA, may cancel an in-flight pass.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
 jobs:
   ronda:
     # Do NOT add `name: Ronda review` (or rename this job id to it). See
@@ -51,53 +37,84 @@ jobs:
        github.event.issue.pull_request != null &&
        contains(github.event.comment.body, '/ronda review') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    # Job-level, not workflow-level. See "Why the concurrency group is job-level".
+    concurrency:
+      group: >-
+        ${{ github.event_name == 'pull_request'
+        && format('ronda-review-{0}', github.event.pull_request.number)
+        || format('ronda-review-{0}', github.event.issue.number) }}
+      # Only a push, which introduces a new head SHA, may cancel an in-flight pass.
+      cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
     uses: lhpaul/ronda/.github/workflows/ronda-review.yml@main
     secrets:
       model_api_key: ${{ secrets.RONDA_MODEL_API_KEY }}
 ```
 
-### Why the concurrency group is routed
+### Why the concurrency group is job-level
 
-Every pull-request comment starts this workflow, and GitHub evaluates the
-workflow-level `concurrency` group **before** any job `if:`. A single group
-shared with the pull-request runs, for example
-`ronda-review-${{ github.event.pull_request.number || github.event.issue.number }}`
-with `cancel-in-progress: true`, therefore lets an unrelated comment cancel an
-in-flight pass. Ronda then skips that comment run, so no check run is ever
-published for the head SHA.
+Put `concurrency` on the job, not on the workflow. GitHub evaluates a
+workflow-level `concurrency` group for the whole run **before** any job `if:`,
+so every pull-request comment enters the group. That makes two hazards, and
+neither is fixed by the `cancel-in-progress` setting:
 
-Turning cancellation off does not fix it. With `cancel-in-progress: false` the
-comment run queues behind the running pass and replaces any run already queued
-in the group, such as a `reopened` or `ready_for_review` pass, and the job `if:`
-then skips the comment run. The pass is still lost. Neither ordering has been
-observed live; both follow from GitHub's documented concurrency semantics (a
-newly queued run cancels any pending run in the same group) and from Ronda
-skipping a comment that is not a valid review request.
+- With `cancel-in-progress: true`, an unrelated comment cancels an in-flight
+  pass, then the job `if:` skips the comment run: no check run is published for
+  that head SHA.
+- With `cancel-in-progress: false`, the comment run queues instead and replaces
+  any run already pending in the group — "any existing `pending` job or workflow
+  in the same concurrency group will be canceled and the new queued job or
+  workflow will take its place" — so it can displace a queued `reopened` or
+  `ready_for_review` pass, and then skip. That pass is lost too.
 
-The snippet therefore routes each run to one of three places:
+A job-level `concurrency` group is acquired only **after** the job's `if:`
+passes, so a comment the `if:` rejects never enters a group at all and cannot
+cancel or displace anything.
 
-- **`pull_request` passes** share one group per PR, and only a `synchronize`
-  push, which brings a new head SHA, cancels.
-- **A comment the job would run** (on a PR, containing the command, from an
-  `OWNER`, `MEMBER` or `COLLABORATOR`) joins the same group without ever
-  cancelling. It waits behind an in-flight pass, so a manual and an automatic
-  pass never run together on one head SHA: they could otherwise both find no
-  check run and publish two, or an older pass could finish last and overwrite
-  the newer result.
-- **Every other comment** gets a group of its own, keyed on `github.run_id`, so
-  it cannot cancel, queue behind or displace anything before the job `if:`
-  skips it.
+One group per pull request:
 
-The routing test is the job `if:`'s comment test, so every command form Ronda
-accepts, including one after leading whitespace or a quoted line, is serialized.
-It is not exact: a comment that merely contains the phrase, such as
-`/ronda review later`, also enters the group and Ronda then skips it. That costs
-nothing. Only a `synchronize` push cancels, and it replaces the queue itself, so
-a queued run in the group is only ever a `reopened` or `ready_for_review` pass
-on the same head SHA, which would have skipped on the running pass's check run,
-or an earlier request that the newer one replaces with the same intent. Do not narrow the test to an
-exact match: the accepted forms it excludes would run unserialized. A head SHA
-superseded by a newer push before publication still publishes nothing.
+- **`pull_request` passes** share the PR's group, and only a `synchronize` push,
+  which brings a new head SHA, cancels.
+- **A comment the job runs** — on a PR, containing the command, from an
+  `OWNER`, `MEMBER` or `COLLABORATOR` — joins the same group and never
+  cancels. It waits behind an in-flight pass, so a manual and an automatic pass
+  never run together on one head SHA: two passes that run together can both
+  find no check run and publish one each, and section 4 promises one per head
+  SHA.
+
+The `cancel-in-progress` expression is deliberately narrow: only a push may
+cancel. `reopened` and `ready_for_review` keep the same head SHA, and a run
+cancelled after the review is published but before the terminal check run is
+created would let its replacement publish a second review for that SHA — the
+Actions path has no review-level dedup, only the check-run lookup. Those events
+queue behind the running pass instead and then skip on its check run.
+
+#### The pre-filter is wider than Ronda's parser, deliberately
+
+The job `if:` above tests `contains(comment.body, '/ronda review')` — the whole
+body, not the first meaningful line. It therefore admits a comment that only
+mentions the phrase, such as `/ronda review later`, which Ronda itself rejects
+(`matchesReviewCommand`, in `src/cli/resolve-trigger.ts`) and runs no pass for.
+Such a comment joins the PR's group and can displace a queued manual run before
+it exits, so that queued request is lost and the head SHA keeps the review it
+already had.
+
+This cannot be closed, and the wider predicate is the safer side of it:
+
+- **No expression can match Ronda's rule.** GitHub expressions have no regex and
+  cannot select the first non-quoted line, so no predicate accepts exactly the
+  forms Ronda accepts. An exact test (`body == '/ronda review'`) or a prefix
+  test (`startsWith`) drops accepted forms: a command after leading whitespace is
+  valid to Ronda and would then join no group, so a manual and an automatic pass
+  could run at once and publish two check runs for one head SHA.
+- **The `queue` property does not help.** `queue: max` stops a queued run from
+  replacing a pending one, which is exactly the displacement above, but it cannot
+  be combined with `cancel-in-progress: true` — the combination is a workflow
+  validation error — and the pinned actionlint in this repository's
+  `.github/workflows/actionlint.yml` rejects `queue` as an unexpected key.
+
+A displaced manual re-request costs a second comment; two check runs for one
+head SHA break the contract in section 4. Keep the pre-filter no stricter than
+Ronda.
 
 ### The caller job must not be named `Ronda review`
 

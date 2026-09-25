@@ -34,47 +34,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  # Three kinds of run, three placements (issue #109):
-  #
-  # - `pull_request` passes share one group per PR.
-  # - A comment that the job below would run (on a PR, containing the command,
-  #   from an OWNER/MEMBER/COLLABORATOR) joins that same group, so a manual pass
-  #   is serialized with the automatic ones: two passes on one head SHA never
-  #   run together, which would let both find no check run and publish two, or
-  #   let an older pass finish last and overwrite the newer result. It never
-  #   cancels (below), so it waits behind an in-flight pass.
-  # - Every other comment gets a group of its own, keyed on the run id. Every PR
-  #   comment enters a workflow-level group before any job `if:` is evaluated,
-  #   so an unrelated comment in the PR's group would cancel an in-flight pass
-  #   (`cancel-in-progress: true`) or displace a queued one (`false`) and then
-  #   be skipped by the job `if:`, leaving no check run for that head SHA.
-  #
-  # The routing test is the job `if:`'s comment test, so every command form
-  # Ronda accepts (after leading whitespace, after a blank or quoted line) is
-  # serialized. It is not exact: `/ronda review later` also enters the group and
-  # Ronda then skips it. That costs nothing, because `cancel-in-progress` is true
-  # only for `synchronize`, so a queued run in this group is only ever a
-  # `reopened` / `ready_for_review` pass on the same head SHA, which would have
-  # skipped on the running pass's check run (a push cancels and replaces the
-  # queue itself), or an earlier request that the newer one replaces.
-  group: >-
-    ${{ github.event_name == 'pull_request'
-    && format('ronda-review-{0}', github.event.pull_request.number)
-    || (github.event_name == 'issue_comment'
-    && github.event.issue.pull_request != null
-    && contains(github.event.comment.body, '/ronda review')
-    && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
-    && format('ronda-review-{0}', github.event.issue.number)
-    || format('ronda-review-comment-{0}', github.run_id) }}
-  # Only a push, which introduces a new head SHA, may cancel an in-flight pass.
-  # `reopened` and `ready_for_review` keep the same SHA, and a run cancelled
-  # after the review is published but before the terminal check run is created
-  # would let its replacement publish a second review for that SHA: the Actions
-  # path has no review-level dedup, only the check-run lookup. Those events
-  # queue behind the running pass instead and then skip on its check run.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
-
 jobs:
   ronda:
     # Must NOT be named "Ronda review". That is the constant name of the check
@@ -97,6 +56,51 @@ jobs:
        github.event.issue.pull_request != null &&
        contains(github.event.comment.body, '/ronda review') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    # Job-level, not workflow-level (issue #109). Workflow-level `concurrency` is
+    # evaluated for the whole run before any job `if:`, so every PR comment would
+    # enter a group there — including ones the `if:` above rejects. A concurrency
+    # group keeps at most one run `pending` by default, and a newly queued run
+    # replaces it ("any existing pending job or workflow in the same concurrency
+    # group will be canceled and the new queued job or workflow will take its
+    # place"), so such a comment could displace a queued pass and then skip on
+    # its own `if:`, leaving that head SHA unreviewed. Job-level `concurrency` is
+    # acquired only after this job's `if:` passes, so a run the `if:` rejects
+    # never enters a group at all.
+    #
+    # One group per PR, so a manual pass on a PR is serialized with the
+    # automatic ones: two passes on one head SHA never run together, which would
+    # let both find no check run and publish two, breaking the one-check-run-
+    # per-head-SHA contract (docs/adoption/ronda-review-adoption.md, section 4).
+    #
+    # `pull_request` is the only automatic trigger, so the `issue_comment` arm
+    # never dereferences a null `issue.pull_request`.
+    #
+    # Residual: `contains` is the widest predicate available — GitHub expressions
+    # have no regex and cannot select the first unquoted line, so none can mirror
+    # `matchesReviewCommand` (src/cli/resolve-trigger.ts). A comment that contains
+    # the phrase without being a well-formed command (`/ronda review later`)
+    # passes this `if:`, joins the PR's group, and can displace a queued manual
+    # run before Ronda rejects it and publishes nothing. Narrowing the predicate
+    # cannot close it — the accepted forms dropped (a command after leading
+    # whitespace) would then run unserialized, and two check runs for one head SHA
+    # break the contract above — and `queue: max`, which would stop a pending run
+    # from being replaced, is rejected by the pinned actionlint in
+    # .github/workflows/actionlint.yml. The wider predicate is deliberate: a lost
+    # manual re-request leaves the head SHA with the review it already had, an
+    # unserialized accepted pass does not.
+    concurrency:
+      group: >-
+        ${{ github.event_name == 'pull_request'
+        && format('ronda-review-{0}', github.event.pull_request.number)
+        || format('ronda-review-{0}', github.event.issue.number) }}
+      # Only a push, which introduces a new head SHA, may cancel an in-flight
+      # pass. `reopened` and `ready_for_review` keep the same SHA, and a run
+      # cancelled after the review is published but before the terminal check
+      # run is created would let its replacement publish a second review for
+      # that SHA: the Actions path has no review-level dedup, only the
+      # check-run lookup. Those events queue behind the running pass instead
+      # and then skip on its check run.
+      cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
     # A called reusable workflow can only narrow the caller's token, never
     # widen it, and this repository's default is read-only. Required.
     permissions:

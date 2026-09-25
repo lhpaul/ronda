@@ -48,8 +48,10 @@ adopter snippet in [`ronda-review-adoption.md`](../../adoption/ronda-review-adop
    for that head SHA. The follow-up must not let a comment run cancel a pass
    (for example `cancel-in-progress` true only for `pull_request` runs). Found
    by reading the workflow semantics and `resolve-trigger.ts`, never observed
-   live. Resolved in #109: a valid review request joins the PR's group without
-   cancelling and every other comment gets a group of its own (see
+   live. Resolved in #109 by moving `concurrency` to the job, where it is
+   acquired only after the job `if:` passes: a comment the `if:` rejects never
+   enters a group at all, and a valid review request joins the PR's group
+   without cancelling (see
    [`dogfood-evidence-109.md`](dogfood-evidence-109.md)).
 
 ## Secret exposure (accepted by the repository owner)
