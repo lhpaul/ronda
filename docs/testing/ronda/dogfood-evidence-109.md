@@ -13,10 +13,13 @@ Two kinds of proof, kept apart because they prove different things:
    against synthetic event payloads, each assertion with an isolating planted
    violation. It proves the expressions decide as intended. It does **not** prove
    how GitHub schedules, queues or displaces runs.
-2. **Runtime proof (after merge, still owed).** Real workflow runs from real
-   comments. `issue_comment` workflows load from the default branch (`develop`),
-   so the PR that adds the trigger cannot exercise it. Issue #109 stays open
-   until the "Runtime proof" table below is filled with run ids.
+2. **Runtime proof.** Real workflow runs, in two parts, because the two arms
+   have different reach. The `pull_request` arm is live in this PR — the dogfood
+   workflow runs at the PR's merge commit — so its runs are cited below by run
+   id. The `issue_comment` arm is **post-merge only**: GitHub loads
+   `issue_comment` workflows from the default branch (`develop`), so no comment
+   can start one until this file is merged. That half of the table stays
+   `_pending_`, and issue #109 stays open until it is filled.
 
 ## Design being proven
 
@@ -574,13 +577,52 @@ P1, P2 and P3 hold for every body
 
 ```
 
-## Runtime proof (after merge, still owed)
+## Runtime proof
 
-The expression proof cannot show that GitHub queues a valid request behind an
-in-flight pass, keeps an unrelated comment from cancelling or displacing one,
-starts the `issue_comment` workflow from a collaborator's comment at all, or that
-Ronda publishes on the current head. These need real runs, recorded here as
-workflow-run ids once this PR is on `develop`:
+The expression proof decides the expressions; it cannot show what GitHub does
+with the runs those expressions produce. Real runs answer that, and they split
+by arm, because the arms have different reach.
+
+### `pull_request` arm — live in this PR
+
+A `pull_request` workflow runs from the PR's merge commit, so this PR's own runs
+already exercise this arm. Three results, each recorded as a workflow-run id:
+
+**1. The job `if:` gates a run (fail then pass, one head SHA).** PR #111 was a
+draft when run [36120399653](https://github.com/lhpaul/ronda/actions/runs/36120399653)
+was created at `2026-09-25T09:47:25Z`, and the job skipped. Marking it ready at
+`09:49:58Z` started run
+[36120638228](https://github.com/lhpaul/ronda/actions/runs/36120638228), which
+succeeded — **same head SHA `05260c2`**, so the only thing that changed is the
+condition the `if:` reads. That is the REVIEW.md fail/pass shape applied to the
+draft gate (plant 4 isolates the same term at the expression level).
+
+**2. Repeated runs at one head SHA still leave one `Ronda review` check run.**
+`05260c2` ran twice (skipped, then success) and carries **one** `Ronda review`
+check run. The same is true at `77a5f7d`, `b12e822` and `ecbd514` — one each,
+none with a duplicate. The check run is what the one-per-head-SHA contract in
+section 4 of the adoption doc is about, and the skipped run published none.
+
+**3. Nothing cancelled a pass.** The workflow's entire history contains exactly
+one `cancelled` run,
+[36051192522](https://github.com/lhpaul/ronda/actions/runs/36051192522), and it
+belongs to PR #107, not this one. No event in this PR has cancelled a pass.
+
+| Assertion | Evidence | Runs |
+| --- | --- | --- |
+| A `pull_request` run is gated by the job `if:` (draft suppresses, ready admits) | skipped then success at one head SHA `05260c2` | 36120399653 (skipped), 36120638228 (success) |
+| Repeated runs at one head SHA publish one `Ronda review` check run | 2 runs at `05260c2`, 1 check run; 1 check run each at `77a5f7d`, `b12e822`, `ecbd514` | 36120399653, 36120638228 (+ the `gh api .../check-runs` ids) |
+| No pass in this PR was cancelled or displaced | the workflow's only `cancelled` run is PR #107's | — |
+
+### `issue_comment` arm — post-merge, owed
+
+GitHub loads every `issue_comment` workflow from the **default branch**, so the
+file that adds the trigger cannot start a run from a comment until it is on
+`develop`. This is a platform rule, not an untested assumption about the
+expressions; the expressions below are already decided above. Capturing it needs
+either this repo's default branch after merge or a separate fixture repository
+with the same workflow on its default branch — the #108 throwaway-PR pattern.
+Issue #109 stays open until these run ids are recorded.
 
 | Assertion | Plant (violation present) | Run id | Without the plant | Run id |
 | --- | --- | --- | --- | --- |
