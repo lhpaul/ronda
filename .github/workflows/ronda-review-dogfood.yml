@@ -1,47 +1,61 @@
 name: Ronda review (dogfood)
 
 # Runs Ronda's own reusable review workflow against this repository's pull
-# requests, so miss evidence can accumulate on real PRs (issue #103). This is
-# the adopter caller from docs/adoption/ronda-review-adoption.md, with these
-# deliberate differences:
+# requests, so miss evidence can accumulate on real PRs (issues #103, #109).
+# This is the adopter caller from docs/adoption/ronda-review-adoption.md, with
+# these deliberate differences:
 #
 # - `uses: ./...` instead of `lhpaul/ronda/...@main`. On `pull_request` the
 #   called workflow is the one at the PR's merge commit, so a change to
 #   `ronda-review.yml` is exercised by its own PR. The Ronda code that actually
 #   reviews is still checked out from `ronda_ref` (the reusable workflow's
 #   default, `main`), never from the PR under review.
-# - `branches: [develop]`, so only PRs targeting the integration branch are
-#   reviewed.
-# - No `issue_comment` trigger. GitHub loads `issue_comment` workflows from the
-#   default branch, so the manual `/ronda review` path cannot be exercised by
-#   the PR that adds it, and REVIEW.md requires same-PR proof for a new check.
-#   It is a follow-up. When it is added, its concurrency group must not let a
-#   comment cancel an in-flight pass: a workflow-level `cancel-in-progress`
-#   group is entered by every PR comment before any job `if:` is evaluated, so
-#   an unrelated comment would cancel a real pass and then be skipped by
-#   Ronda, leaving no check run for that head SHA.
+# - `branches: [develop]` on `pull_request`, so only PRs targeting the
+#   integration branch are reviewed automatically. A `/ronda review` comment is
+#   an explicit request and is honoured on any pull request.
+#
+# `issue_comment` workflows are loaded from the default branch, so the comment
+# path is only live once this file is on `develop`; the PR that changes it
+# cannot exercise it. Its proof is recorded after merge (issue #109).
 #
 # Uses `pull_request`, never `pull_request_target`: the reusable workflow's
-# fork guard assumes a fork PR carries a read-only token and no secrets.
+# fork guard assumes a fork PR carries a read-only token and no secrets. The
+# comment path does not check out or run anything from the PR: Ronda is checked
+# out from `ronda_ref`, and it reads the PR through the API.
 
 on:
   pull_request:
     branches:
       - develop
     types: [opened, reopened, ready_for_review, synchronize]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ronda-review-${{ github.event.pull_request.number }}
+  # A comment run must never share a group with a pull-request pass. Every PR
+  # comment enters a workflow-level group before any job `if:` is evaluated, so
+  # in a shared group an unrelated comment would either cancel an in-flight
+  # pass (`cancel-in-progress: true`) or, with `false`, queue behind it and
+  # displace a queued `reopened` / `ready_for_review` pass, and then be skipped
+  # by the job `if:`. Either way no check run would be published for that head
+  # SHA. Giving each comment run its own group means it cannot cancel, queue
+  # behind or displace anything. The cost: a `/ronda review` comment can run
+  # alongside an in-flight pass and publish a second review for that SHA, which
+  # is what a manual re-review asks for.
+  group: >-
+    ${{ github.event_name == 'pull_request'
+    && format('ronda-review-{0}', github.event.pull_request.number)
+    || format('ronda-review-comment-{0}', github.run_id) }}
   # Only a push, which introduces a new head SHA, may cancel an in-flight pass.
   # `reopened` and `ready_for_review` keep the same SHA, and a run cancelled
   # after the review is published but before the terminal check run is created
   # would let its replacement publish a second review for that SHA: the Actions
   # path has no review-level dedup, only the check-run lookup. Those events
   # queue behind the running pass instead and then skip on its check run.
-  cancel-in-progress: ${{ github.event.action == 'synchronize' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
 
 jobs:
   ronda:
@@ -52,9 +66,19 @@ jobs:
     # job with that name (including the skipped one a draft PR produces) trips
     # that guard, so the pass would skip itself and publish nothing.
     name: Ronda dogfood
-    # Caller-side pre-filter, not load-bearing for correctness: Ronda re-checks
-    # the draft state itself. It exists so draft pushes cost no runner minutes.
-    if: github.event.pull_request.draft != true
+    # Caller-side pre-filter. It only saves runner minutes and keeps the model
+    # secret away from runs that cannot be a review request; Ronda re-checks
+    # the draft state, the exact command line and the author association itself
+    # (src/cli/resolve-trigger.ts), so this must never be stricter than Ronda.
+    # Hence `contains` (case-insensitive) rather than `startsWith`: Ronda
+    # accepts the command after blank or quoted lines, and an expression cannot
+    # tell the first unquoted line. The association list mirrors Ronda's.
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft != true) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, '/ronda review') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     # A called reusable workflow can only narrow the caller's token, never
     # widen it, and this repository's default is read-only. Required.
     permissions:

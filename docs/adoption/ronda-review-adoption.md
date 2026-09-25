@@ -18,24 +18,74 @@ on:
   issue_comment:
     types: [created]
 concurrency:
-  group: ronda-review-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
+  # A comment run gets its own group so it can never cancel, queue behind or
+  # displace a pull-request pass. See "Why the concurrency group is split".
+  group: >-
+    ${{ github.event_name == 'pull_request'
+    && format('ronda-review-{0}', github.event.pull_request.number)
+    || format('ronda-review-comment-{0}', github.run_id) }}
+  # Only a push, which introduces a new head SHA, may cancel an in-flight pass.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
 jobs:
   ronda:
+    # Do NOT add `name: Ronda review` (or rename this job id to it). See
+    # "The caller job must not be named `Ronda review`".
     permissions:
       contents: read
       pull-requests: write
       checks: write
-    # Cheap caller-side pre-filter. Not load-bearing for correctness — Ronda
-    # re-checks the draft state and the exact comment text itself, so this
-    # only saves CI minutes on requests Ronda would immediately skip anyway.
+    # Cheap caller-side pre-filter. Not load-bearing for correctness: Ronda
+    # re-checks the draft state, the exact comment text and the author
+    # association itself, so this only saves CI minutes and keeps the secret
+    # away from runs that cannot be a review request. Keep it no stricter than
+    # Ronda: an expression cannot find the first unquoted line, so use
+    # `contains`, not `startsWith`.
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request.draft != true) ||
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null)
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, '/ronda review') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     uses: lhpaul/ronda/.github/workflows/ronda-review.yml@main
     secrets:
       model_api_key: ${{ secrets.RONDA_MODEL_API_KEY }}
 ```
+
+### Why the concurrency group is split
+
+Every pull-request comment starts this workflow, and GitHub evaluates the
+workflow-level `concurrency` group **before** any job `if:`. A single group
+shared with the pull-request runs, for example
+`ronda-review-${{ github.event.pull_request.number || github.event.issue.number }}`
+with `cancel-in-progress: true`, therefore lets an unrelated comment cancel an
+in-flight pass. Ronda then skips that comment run, so no check run is ever
+published for the head SHA.
+
+Turning cancellation off does not fix it. With `cancel-in-progress: false` the
+comment run queues behind the running pass and replaces any run already queued
+in the group, such as a `reopened` or `ready_for_review` pass, and the job `if:`
+then skips the comment run. The pass is still lost.
+
+The snippet therefore keys comment runs on `github.run_id`, one group each, and
+lets only a `synchronize` push cancel a pass. The trade-off is that a
+`/ronda review` comment posted while a pass is in flight runs alongside it and
+can publish a second review for that head SHA, which is what a manual re-review
+asks for. A head SHA superseded by a newer push before publication still
+publishes nothing.
+
+### The caller job must not be named `Ronda review`
+
+`Ronda review` is the constant name of the check run Ronda publishes (see
+section 4). An automatic pass looks up existing check runs on the head SHA **by
+name only** and skips itself as `already_reviewed_automatically` when it finds
+one. A caller job named `Ronda review` produces a check run with that exact
+name, including the `skipped` one GitHub records when the job `if:` is false (a
+draft pull request), so the pass finds its own caller and skips itself while the
+run stays green and nothing is posted. Observed live on `lhpaul/ronda` run
+36037017660.
+
+Leave the job unnamed under an id such as `ronda`, as above, or give it any
+other name. The workflow's own `name:` is unaffected: it is not a check run.
 
 The `permissions:` block on the caller job above is **required, not
 optional**. A called reusable workflow can only **narrow** the caller's
