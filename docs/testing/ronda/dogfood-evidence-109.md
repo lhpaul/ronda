@@ -45,8 +45,11 @@ test**, so a plant is an edit to that file.
 
 Reproduce, from an empty scratch directory:
 
+<!-- workflow-shell-contract: bash-zsh -->
 ```bash
-npm init -y && npm i @actions/expressions@0.3.61 yaml
+set -euo pipefail
+npm init -y
+npm i @actions/expressions@0.3.61 yaml
 # save the harness below as check.mjs, then:
 node check.mjs /path/to/.github/workflows/ronda-review-dogfood.yml
 ```
@@ -279,8 +282,11 @@ whitespace or a quoted line runs in a group of its own (assertion B16, B11).
 
 Run from the scratch directory above with the repository's `tsx`:
 
+<!-- workflow-shell-contract: bash-zsh -->
 ```bash
-/path/to/ronda/node_modules/.bin/tsx cross.mts /path/to/.github/workflows/ronda-review-dogfood.yml
+set -euo pipefail
+RONDA=/path/to/ronda   # your checkout, after `npm ci`
+"$RONDA/node_modules/.bin/tsx" cross.mts "$RONDA/.github/workflows/ronda-review-dogfood.yml" "$RONDA"
 ```
 
 <details>
@@ -292,8 +298,13 @@ Run from the scratch directory above with the repository's `tsx`:
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 import { Parser, Lexer, Evaluator, data } from "@actions/expressions";
-import { matchesReviewCommand } from "/Users/lhpaul/Git/ronda/src/cli/resolve-trigger.ts";
-const wf = parse(readFileSync(process.argv[2], "utf8"));
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+// Usage: tsx cross.mts <workflow.yml> <path to the ronda checkout>
+const [workflowPath, repoRoot] = process.argv.slice(2);
+if (!workflowPath || !repoRoot) throw new Error("usage: tsx cross.mts <workflow.yml> <ronda checkout>");
+const { matchesReviewCommand } = await import(pathToFileURL(resolve(repoRoot, "src/cli/resolve-trigger.ts")).href);
+const wf = parse(readFileSync(workflowPath, "utf8"));
 const expr = String(wf.concurrency.group).trim().replace(/^\$\{\{\s*/, "").replace(/\s*\}\}$/, "");
 const tree = new Parser(new Lexer(expr).lex().tokens, ["github"], []).parse();
 const S = (v: string) => new data.StringData(v);
