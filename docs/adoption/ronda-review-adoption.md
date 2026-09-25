@@ -17,25 +17,135 @@ on:
     types: [opened, reopened, ready_for_review, synchronize]
   issue_comment:
     types: [created]
-concurrency:
-  group: ronda-review-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
 jobs:
   ronda:
+    # Do NOT add `name: Ronda review` (or rename this job id to it). See
+    # "The caller job must not be named `Ronda review`".
     permissions:
       contents: read
       pull-requests: write
       checks: write
-    # Cheap caller-side pre-filter. Not load-bearing for correctness — Ronda
-    # re-checks the draft state and the exact comment text itself, so this
-    # only saves CI minutes on requests Ronda would immediately skip anyway.
+    # Cheap caller-side pre-filter. Not load-bearing for correctness: Ronda
+    # re-checks the draft state, the exact comment text and the author
+    # association itself, so this only saves CI minutes and keeps the secret
+    # away from runs that cannot be a review request. Keep it no stricter than
+    # Ronda: an expression cannot find the first unquoted line, so use
+    # `contains`, not `startsWith`.
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request.draft != true) ||
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null)
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, '/ronda review') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    # Job-level, not workflow-level. See "Why the concurrency group is job-level".
+    concurrency:
+      group: >-
+        ${{ github.event_name == 'pull_request'
+        && format('ronda-review-{0}', github.event.pull_request.number)
+        || format('ronda-review-{0}', github.event.issue.number) }}
+      # Only a push, which introduces a new head SHA, may cancel an in-flight pass.
+      cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
     uses: lhpaul/ronda/.github/workflows/ronda-review.yml@main
     secrets:
       model_api_key: ${{ secrets.RONDA_MODEL_API_KEY }}
 ```
+
+### Why the concurrency group is job-level
+
+Put `concurrency` on the job, not on the workflow. GitHub evaluates a
+workflow-level `concurrency` group for the whole run **before** any job `if:`,
+so every pull-request comment enters the group. That makes two hazards, and
+neither is fixed by the `cancel-in-progress` setting:
+
+- With `cancel-in-progress: true`, an unrelated comment cancels an in-flight
+  pass, then the job `if:` skips the comment run: no check run is published for
+  that head SHA.
+- With `cancel-in-progress: false`, the comment run queues instead and replaces
+  any run already pending in the group — "any existing `pending` job or workflow
+  in the same concurrency group will be canceled and the new queued job or
+  workflow will take its place" — so it can displace a queued `reopened` or
+  `ready_for_review` pass, and then skip. That pass is lost too.
+
+A job-level `concurrency` group is acquired only **after** the job's `if:`
+passes, so a comment the `if:` rejects never enters a group at all and cannot
+cancel or displace anything.
+
+One group per pull request:
+
+- **`pull_request` passes** share the PR's group, and only a `synchronize` push,
+  which brings a new head SHA, cancels.
+- **A comment the job runs** — on a PR, containing the command, from an
+  `OWNER`, `MEMBER` or `COLLABORATOR` — joins the same group and never
+  cancels. It waits behind an in-flight pass, so a manual and an automatic pass
+  never run together on one head SHA: two passes that run together can both
+  find no check run and publish one each, and section 4 promises one per head
+  SHA.
+
+The `cancel-in-progress` expression is deliberately narrow: only a push may
+cancel. `reopened` and `ready_for_review` keep the same head SHA, and a run
+cancelled after the review is published but before the terminal check run is
+created would let its replacement publish a second review for that SHA — the
+Actions path has no review-level dedup, only the check-run lookup. Those events
+queue behind the running pass instead and then skip on its check run.
+
+#### The pre-filter is wider than Ronda's parser, deliberately
+
+The job `if:` above tests `contains(comment.body, '/ronda review')` — the whole
+body, not the first meaningful line. It therefore admits a comment that only
+mentions the phrase, such as `/ronda review later`, which Ronda itself rejects
+(`matchesReviewCommand`, in `src/cli/resolve-trigger.ts`) and runs no pass for.
+Such a comment joins the PR's group and — since a newly queued run replaces an
+existing `pending` one — can displace a queued run of **either** arm before it
+exits and Ronda rejects the comment. If the displaced run was a `synchronize`
+pass queued for a new head SHA, that head has no published review until a later
+comment or push; if it was a manual re-request, the request is lost and one more
+comment restores it. An in-flight pass is never affected: the comment arm does
+not cancel in progress.
+
+No `if:` expression closes it, and the wider predicate is the safer side of it:
+
+- **No expression can match Ronda's rule.** GitHub expressions have no regex and
+  cannot select the first non-quoted line, so no predicate accepts exactly the
+  forms Ronda accepts. An exact test (`body == '/ronda review'`) or a prefix
+  test (`startsWith`) drops accepted forms: a command after leading whitespace is
+  valid to Ronda and would then join no group, so a manual and an automatic pass
+  could run at once and publish two check runs for one head SHA.
+- **The `queue` property does not help.** `queue: max` stops a queued run from
+  replacing a pending one, which is exactly the displacement above, but it cannot
+  be combined with `cancel-in-progress: true` — the combination is a workflow
+  validation error — and the pinned actionlint in this repository's
+  `.github/workflows/actionlint.yml` rejects `queue` as an unexpected key.
+- **A preflight job could close it, and this snippet deliberately does not add
+  one.** Nothing stops a caller declaring a second, secretless job that runs
+  Ronda's real parser and gates the job above on its output: the phrase-only
+  comment then fails that gate and joins no group, so the displacement cannot
+  happen at all. It is left out because this snippet is copy-paste for adopters
+  with their own review loop. Such a job carries a reimplementation of
+  `matchesReviewCommand`, and its semantics have to track that function in
+  `src/cli/resolve-trigger.ts` for the life of the caller — a copy that drifts
+  fails silently, and it fails in the direction that produces two check runs for
+  one head SHA. Weighed against a residual that costs one more comment or push,
+  the drift is not worth it here. A caller that wants the hole shut should call
+  the parser rather than reimplement it.
+
+A displaced run costs one more comment or push — recoverable, and the displaced
+form is the one Ronda would have rejected anyway. Two check runs for one head SHA
+break the contract in section 4 and no later pass repairs them. Keep the
+pre-filter no stricter than Ronda.
+
+### The caller job must not be named `Ronda review`
+
+`Ronda review` is the constant name of the check run Ronda publishes (see
+section 4). An automatic pass looks up existing check runs on the head SHA **by
+name only** and skips itself as `already_reviewed_automatically` when it finds
+one. A caller job named `Ronda review` produces a check run with that exact
+name, including the `skipped` one GitHub records when the job `if:` is false (a
+draft pull request), so the pass finds its own caller and skips itself while the
+run stays green and nothing is posted. Observed live on `lhpaul/ronda` run
+36037017660.
+
+Leave the job unnamed under an id such as `ronda`, as above, or give it any
+other name. The workflow's own `name:` is unaffected: it is not a check run.
 
 The `permissions:` block on the caller job above is **required, not
 optional**. A called reusable workflow can only **narrow** the caller's

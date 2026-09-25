@@ -14,7 +14,7 @@ Ronda review.
 | --- | --- | --- |
 | Which PRs get a pass? | Every non-draft PR targeting `develop` (`opened`, `reopened`, `ready_for_review`, `synchronize`). Spec, plan and docs-only PRs are included so their review quality also produces evidence. **Known limitation:** a PR retargeted to `develop` after it was opened is not reviewed until its next push or a close and reopen. GitHub reports a base change as an `edited` activity, and `edited` is excluded because title and body edits would otherwise start a run each (proof pair below). Handling only base changes needs `edited` plus a `github.event.changes.base` check in the job `if:`, with its own proof; not done here. | `on.pull_request.branches` in `ronda-review-dogfood.yml` |
 | Cost cap per pass | Reusable-workflow default: `pass_timeout_minutes: 10` (job backstop 12). | `pass_timeout_minutes` input |
-| Manual rerun | Not in #107. The `/ronda review` comment trigger was requested but dropped from this PR: GitHub loads `issue_comment` workflows from the default branch, so it cannot be exercised, and so cannot carry the same-PR proof `REVIEW.md` requires, until the PR merges. Follow-up. | `on.issue_comment` (absent) |
+| Manual rerun | Not in #107. The `/ronda review` comment trigger was requested but dropped from this PR: GitHub loads `issue_comment` workflows from the default branch, so it cannot be exercised, and so cannot carry the same-PR proof `REVIEW.md` requires, until the PR merges. **Added in #109**; see [`dogfood-evidence-109.md`](dogfood-evidence-109.md). | `on.issue_comment` (added in #109) |
 | Which Ronda reviews? | The reusable workflow's default `ronda_ref: main` (released v0.2.0). At the time of writing `develop` is 31 commits ahead, so this evidence describes the released reviewer, not unreleased work. | `ronda_ref` input |
 | Trigger safety | `pull_request`, never `pull_request_target`. Fork PRs get no secrets and are skipped by the reusable workflow's fork guard. | |
 
@@ -39,7 +39,7 @@ adopter snippet in [`ronda-review-adoption.md`](../../adoption/ronda-review-adop
    automatic pass exit `already_reviewed_automatically` and publish nothing.
    Run 36037017660 succeeded green while posting no review. The caller job is
    now named `Ronda dogfood`. The adoption doc's snippet leaves the job unnamed,
-   which avoids this by accident; it is not documented as a requirement.
+   which avoided this by accident; #109 documents it as a requirement.
 2. **Workflow-level `cancel-in-progress` is entered by every PR comment.**
    Applies to the adoption snippet and to the follow-up that adds the comment
    trigger here, not to #107 itself, which has no comment trigger. The snippet's
@@ -48,7 +48,11 @@ adopter snippet in [`ronda-review-adoption.md`](../../adoption/ronda-review-adop
    for that head SHA. The follow-up must not let a comment run cancel a pass
    (for example `cancel-in-progress` true only for `pull_request` runs). Found
    by reading the workflow semantics and `resolve-trigger.ts`, never observed
-   live.
+   live. Resolved in #109 by moving `concurrency` to the job, where it is
+   acquired only after the job `if:` passes: a comment the `if:` rejects never
+   enters a group at all, and a valid review request joins the PR's group
+   without cancelling (see
+   [`dogfood-evidence-109.md`](dogfood-evidence-109.md)).
 
 ## Secret exposure (accepted by the repository owner)
 
