@@ -64,7 +64,10 @@ published for the head SHA.
 Turning cancellation off does not fix it. With `cancel-in-progress: false` the
 comment run queues behind the running pass and replaces any run already queued
 in the group, such as a `reopened` or `ready_for_review` pass, and the job `if:`
-then skips the comment run. The pass is still lost.
+then skips the comment run. The pass is still lost. Neither ordering has been
+observed live; both follow from GitHub's documented concurrency semantics (a
+newly queued run cancels any pending run in the same group) and from Ronda
+skipping a comment that is not a valid review request.
 
 The snippet therefore keys comment runs on `github.run_id`, one group each, and
 lets only a `synchronize` push cancel a pass. The trade-off is that a
