@@ -222,28 +222,42 @@ findings in that one review.
 
 **Steps**:
 
-1. The operator runs the precision fixtures with the sweep on, for the same
-   number of samples as the recall runs.
-2. The operator reads how many unexpected findings were produced, and in which
-   categories.
-3. The operator reads the cost figures for the sweep-on and sweep-off passes:
+1. The operator runs the precision fixtures with the sweep off, keeping target,
+   model, configuration, and fixture version fixed, for the same number of
+   samples as the recall runs.
+2. The operator runs the precision fixtures the same number of times with the
+   sweep on, under the same fixed target, model, configuration, and fixture
+   version.
+3. The operator reads how many unexpected findings each configuration produced.
+   For the sweep-on runs the operator also reads which categories they came
+   from; for the sweep-off runs no category attribution exists (see
+   Considerations).
+4. The operator reads the cost figures for the sweep-on and sweep-off passes:
    model calls per pass, and elapsed time per pass.
-4. The operator records the precision and cost results alongside the recall and
+5. The operator records the precision and cost results alongside the recall and
    variance evidence.
 
 **Postconditions**:
 
-- Any new unexpected finding is visible, attributable to a category, and can be
-  judged as noise or as a real finding.
+- Any unexpected finding is visible and can be judged as noise or as a real
+  finding. A sweep-on unexpected finding is also attributed to the category (or
+  categories, or uncategorized) recorded for it in the per-category pass record.
+  A sweep-off unexpected finding is reported as unattributed, because a
+  sweep-off pass has no per-category pass record.
+- Whether precision regressed is decided by a stated test (see Considerations),
+  not by impression.
 - The cost effect of the sweep per pass is recorded, including whether the sweep
   multiplies model calls, and is placed against the recorded per-pull-request
   convergence figures from the 2026-09-23 cost baseline.
 
 **Information shown**:
 
-- Unexpected finding count per configuration, with the category each one came
-  from.
-- Whether each precision fixture stayed clean.
+- Unexpected finding count per configuration. Sweep-on findings are listed with
+  the category each one came from; sweep-off findings are listed as unattributed
+  (sweep off).
+- Whether each precision fixture stayed clean, per configuration.
+- The precision regression result: regressed or not regressed, with the counts
+  that decided it.
 - Model calls per pass and elapsed time per pass, sweep-off and sweep-on.
 - The comparison against the recorded per-pull-request cost figures.
 
@@ -254,6 +268,18 @@ findings in that one review.
 
 **Considerations**:
 
+- Category attribution exists only for sweep-on runs, because the
+  per-category pass record is produced only by a sweep pass. Sweep-off findings
+  are counted and located but never attributed to a category, and the operator
+  is not required to derive a category for them. Cross-configuration
+  comparison is therefore made on unexpected-finding counts and on per-fixture
+  clean/not-clean status, not on categories.
+- Precision regression test: precision has regressed if the sweep-on runs
+  produced more unexpected findings in total than the sweep-off runs across the
+  same precision fixtures and sample count, or if any precision fixture that
+  stayed clean in every sweep-off run was not clean in at least one sweep-on run.
+  The test has no tolerance. Accepting any tolerance is a human decision that
+  is recorded with the evidence, not an automatic outcome.
 - Losing precision is the obvious failure mode of this change: a list of
   categories invites the model to produce a finding for each one. Precision
   evidence is therefore mandatory, not optional.
@@ -330,12 +356,16 @@ findings in that one review.
    real-pull-request effect may be claimed.
 3. The operator labels the current evidence with the tier it qualifies for.
 4. When the minimum is reached, the operator adjudicates the accumulated miss
-   evidence and measures the sweep's real-pull-request effect.
+   evidence and reports the sweep-enabled real-pull-request miss record.
 
 **Postconditions**:
 
 - Evidence carries a tier label that says how far it can be read.
 - No real-pull-request effect claim is published below the minimum count.
+- Real-pull-request evidence is read only as a descriptive record of what
+  sweep-enabled reviews caught and missed. It is not read as a comparative
+  effect (that the sweep improved or worsened anything) unless a matched
+  sweep-off control exists for the same pull request heads (see Considerations).
 
 **Information shown**:
 
@@ -359,6 +389,17 @@ findings in that one review.
   tuning, and every claim built on it must carry that caveat.
 - This gate delays measurement claims only. Building and shipping the sweep,
   its recorded list, and its fixture-level evidence is not blocked by it.
+- The count in this gate counts sweep-enabled reviews only. It defines no
+  sweep-off baseline, and pull requests reviewed before the sweep existed are
+  not a matched control: different pull requests, different content, and
+  different model runs. A comparative real-pull-request claim (the sweep raised
+  or lowered real-pull-request recall, variance, or cost) is therefore not
+  permitted by this feature's evidence alone. It requires a matched control:
+  a sweep-off review of the same pull request heads, with the same model and
+  configuration, recorded but not published. Whether that control is required
+  is a human decision (Open Question 9); until it is made and the control
+  exists, the strongest permitted real-pull-request claim is the descriptive
+  one above.
 
 ---
 
@@ -393,7 +434,10 @@ findings in that one review.
   admissible evidence. Results are reported for the extended fixture and, as a
   separate subset, for the original thirteen seeded defects.
 - Precision evidence is mandatory for every recall claim: the same comparison
-  must report unexpected findings for both configurations.
+  must report unexpected findings for both configurations. Category attribution
+  is reported for sweep-on findings only; sweep-off findings are reported as
+  unattributed. Precision regression is decided by the strict test in Use
+  Case 4, with no tolerance unless a human records one.
 - Cost evidence is mandatory and must state model calls per pass and elapsed
   time per pass for both configurations, and place them against the recorded
   per-pull-request convergence figures.
@@ -403,15 +447,25 @@ findings in that one review.
 - Real-pull-request effect of the sweep may not be claimed until at least ten
   pull requests have carried a Ronda review under the current category list
   version and their external-finding evidence has been adjudicated. Revising the
-  list restarts that count.
+  list restarts that count. Even at that minimum, only a descriptive
+  sweep-enabled miss record may be claimed; a comparative claim additionally
+  requires a matched sweep-off control on the same pull request heads (Open
+  Question 9).
 - Evidence drawn from Ronda's own repository carries the independence caveat and
   is read as regression evidence for this repository, not as generalization to
   others.
 - Changing the sweep category list is a human decision; no automated process may
   add or remove a category on its own.
-- The sweep is not made the default review behavior for adopting repositories
-  until recall, variance, precision, and cost evidence has been recorded and
-  precision has not regressed against the sweep-off control.
+- This feature ships the sweep off unless a repository enables it (AC18).
+  Making it the default for adopting repositories is a separate human decision.
+  Of the evidence this feature produces, only two tests are gating for that
+  decision: recall, variance, precision, and cost evidence must all have been
+  recorded, and precision must not have regressed under the strict test in Use
+  Case 4. No recall-improvement target, variance ceiling, or cost ceiling is
+  defined (Open Questions 2 and 3), so recall, variance, and cost results are
+  reported evidence that the human decision reads; they do not pass or fail a
+  default-enablement gate. If the human decision sets thresholds for them, those
+  thresholds are recorded here before the default is changed.
 - Quality evidence produced by this feature stores no credential values, tokens,
   or authorization values, as with existing quality evidence.
 
@@ -440,13 +494,26 @@ corpus, kept so every category is traceable to its source rows.
 - The seeded benchmark's four never-found kinds — unconfirmed by real-PR
   evidence.
 
+**Candidates awaiting a human decision** (neither swept nor excluded yet):
+
+- Spec-AC-compliance (7 instances, tied fifth in the sub-theme ranking) — to be
+  swept, or excluded as a workflow-gate artifact (Open Question 1).
+- Per-finding resolution (4 instances: 3 from the local reviewer and 1 from
+  Codex, the theme behind the `partial_success` category that both reviewers
+  hit) — to be swept, or excluded with a rationale (Open Question 8).
+
+Until both decisions are made, the recorded list is not a complete AC6 record
+and may not be marked current. This spec deliberately does not pick either
+outcome; when decided, each candidate moves into the swept table or the
+excluded list above with its rationale.
+
 ### Evidence tier
 
 | Code value | Display label | Description |
 | --- | --- | --- |
 | `fixture_only` | Fixture evidence only | Evidence comes from the seeded benchmark and precision fixtures. It may support claims about seeded recall, variance, precision, and cost; it may not support claims about real-pull-request effect. |
 | `real_pr_provisional` | Real-PR evidence (provisional) | Fewer than ten pull requests reviewed under the current category list version have accumulated, or their evidence is not yet adjudicated. Findings are indicative only and are labeled as such. |
-| `real_pr_measured` | Real-PR evidence (measured) | At least ten pull requests reviewed under the current category list version have accumulated and their external-finding evidence is adjudicated. Real-pull-request effect claims are permitted, with the independence caveat. |
+| `real_pr_measured` | Real-PR evidence (measured) | At least ten pull requests reviewed under the current category list version have accumulated and their external-finding evidence is adjudicated. Descriptive real-pull-request claims are permitted, with the independence caveat. Comparative effect claims additionally require a matched sweep-off control (Open Question 9). |
 
 **Valid transitions**:
 
@@ -503,9 +570,13 @@ corpus, kept so every category is traceable to its source rows.
       source, and finding-instance count.
 - [ ] AC5: The recorded list states that its counts are finding instances rather
       than distinct defects.
-- [ ] AC6: The recorded list names the candidate categories that were considered
-      and excluded, each with its exclusion rationale, including the seeded
-      benchmark's four never-found kinds and the planted-proof evidence theme.
+- [ ] AC6: The recorded list accounts for every candidate category considered:
+      each is either on the swept list or named as excluded with its exclusion
+      rationale. This includes the seeded benchmark's four never-found kinds,
+      the planted-proof evidence theme, spec-AC-compliance, and per-finding
+      resolution. No candidate may be left undecided in a list marked current;
+      the spec-AC-compliance and per-finding-resolution outcomes are human
+      decisions (Open Questions 1 and 8).
 - [ ] AC7: The recorded list carries a version and a revision history entry for
       each change, naming the evidence that motivated it.
 - [ ] AC8: Committed benchmark evidence reports, for sweep-off and sweep-on
@@ -514,9 +585,14 @@ corpus, kept so every category is traceable to its source rows.
       version — with a sample count at least as large as the 2026-09-10
       baseline's, and with the original thirteen seeded defects reported as a
       separate subset alongside the extended fixture.
-- [ ] AC9: The same committed evidence reports unexpected findings per
-      configuration, attributes each unexpected finding to the category that
-      produced it, and reports whether each precision fixture stayed clean.
+- [ ] AC9: The same committed evidence covers both sweep-off and sweep-on
+      precision runs on the same target, model, configuration, fixture version,
+      and sample count. It reports unexpected findings per configuration,
+      attributes each sweep-on unexpected finding to the category (or
+      categories, or uncategorized) recorded for it, reports each sweep-off
+      unexpected finding as unattributed, reports whether each precision fixture
+      stayed clean in each configuration, and states the precision regression
+      result under the strict test in Use Case 4.
 - [ ] AC10: A review pass that finds nothing for every swept category publishes
       a clean result, and produces no manufactured finding for any category.
 - [ ] AC11: The same committed evidence reports model calls per pass and elapsed
@@ -585,7 +661,7 @@ corpus, kept so every category is traceable to its source rows.
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds are recorded as excluded. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target. |
 | O5: Variance evidence | AC8 | Lowest, highest, and sample count reported; sample count at least the 2026-09-10 baseline's. |
-| O6: Precision evidence | AC9, AC10 | Unexpected findings are counted and attributed per category; a clean pass stays clean. |
+| O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean. |
 | O7: Cost evidence | AC11 | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures. |
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
 | O9: Harder credential-pattern variants | AC13 | At least one variant harder than the existing sensitive-value case. |
@@ -633,6 +709,19 @@ corpus, kept so every category is traceable to its source rows.
 
 ## Open Questions
 
+These are product decisions awaiting human input. This spec does not resolve
+them. Where a decision changes what a criterion can test, the criterion is
+worded so it stays valid either way, and the affected decision is named:
+
+| Question | What it blocks until decided |
+| --- | --- |
+| 1, 8 | Marking the recorded category list current (AC4, AC6). |
+| 2, 3 | Nothing in this feature; they block only making the sweep the default. Until decided, recall, variance, and cost results are reported evidence, not pass/fail gates. |
+| 4 | The measured evidence tier (AC15). |
+| 5, 9 | Any generalized or comparative real-pull-request claim. |
+| 6 | Changing the default for adopting repositories. |
+| 7 | The concrete surface for the per-category pass record (AC1, AC20). |
+
 1. Spec-AC-compliance findings (7 instances, tied fifth in the sub-theme
    ranking) are absent from the issue's five-category list, but unlike the
    planted-proof evidence theme no exclusion rationale is recorded for them.
@@ -660,8 +749,12 @@ corpus, kept so every category is traceable to its source rows.
    AC20): the check-run output, logs, the benchmark output, or more than one?
    The spec requires only that it be readable by an operator and absent from the
    published review body.
-8. Per-finding resolution (3 instances, the theme behind the `partial_success`
-   category that both independent reviewers hit) is neither on the issue's
-   five-category list nor recorded as an excluded candidate. Should it be a
-   sweep category, or recorded as excluded with a rationale (small count, one
-   PR)?
+8. Per-finding resolution (4 instances: 3 from the local reviewer and 1 from
+   Codex, the theme behind the `partial_success` category that both independent
+   reviewers hit) is neither on the issue's five-category list nor recorded as
+   an excluded candidate. Should it be a sweep category, or recorded as excluded
+   with a rationale (small count, one PR)?
+9. Should a comparative real-pull-request claim (the sweep changed real-PR
+   recall, variance, or cost) require a matched sweep-off control on the same
+   pull request heads, or is the descriptive sweep-enabled miss record the most
+   this item claims?
