@@ -143,35 +143,64 @@ process.exit(failed ? 1 : 0);
 | C1 | The workflow subscribes to `issue_comment` `created` | `on.issue_comment`, lines 31-32 |
 | C2, C3 | `pull_request` still targets only `develop` and the same four actions | `on.pull_request`, lines 27-30 |
 
-### Planted violations, one per new assertion
+### Planted violations, one per assertion
 
-Each plant is a single edit to a copy of the workflow; the harness then fails
-exactly the assertion the edited line guards, and passes again on the committed
-file (the baseline above). Line numbers are those of the committed workflow.
+Each plant is a single edit to a copy of the workflow. On the committed file all
+18 assertions pass (the baseline above); with a plant applied, the assertions in
+the last column fail and the rest still pass. Together the plants make every
+assertion fail at least once, so none is vacuous. Line numbers are those of the
+committed workflow.
 
-| Plant | Edit | Assertions that fail | Result on the committed line |
+| Plant | Violation | Edit | Fails |
 | --- | --- | --- | --- |
-| 1. Comment pre-filter | line 80: `contains(github.event.comment.body, '/ronda review') &&` becomes `true &&` | A3 only | passes |
-| 2. Association check | line 81: the `contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), ...)` term becomes `true)` | A4, A5 | passes |
-| 3. Pull-request-only gate | line 79: `github.event.issue.pull_request != null &&` becomes `true &&` | A6 only | passes |
-| 4. Draft gate (existing behaviour, re-asserted) | line 77: `github.event.pull_request.draft != true` becomes `true` | A9 only | passes |
-| 5. Concurrency: group split | lines 50-51: both branches become `format('ronda-review-{0}', pull_request.number \|\| issue.number)` (the shared group the old snippet used) | B1, B2 | passes |
-| 6. Concurrency: comment cannot cancel | line 58: expression becomes `true` | B3, B5, B6 | passes |
-| 7. Trigger wiring: subscription removed | lines 31-32: the `issue_comment` key and its `types` are deleted | C1 only | passes |
-| 8. Trigger wiring: wrong action | line 32: `types: [created]` becomes `types: [edited]` | C1 only | passes |
+| 1 | Comment pre-filter dropped | line 80: `contains(github.event.comment.body, '/ronda review') &&` becomes `true &&` | A3 |
+| 2 | Association check dropped | line 81: the `contains(fromJSON('[...]'), ...author_association)` term becomes `true)` | A4, A5 |
+| 3 | Pull-request-only gate dropped | line 79: `github.event.issue.pull_request != null &&` becomes `true &&` | A6 |
+| 4 | Draft gate dropped (existing behaviour, re-asserted) | line 77: `github.event.pull_request.draft != true` becomes `true` | A9 |
+| 5 | Shared concurrency group | lines 50-51: both branches become `format('ronda-review-{0}', pull_request.number || issue.number)`, the group the old snippet used | B1, B2 |
+| 6 | A comment run may cancel | line 58: the expression becomes `true` | B3, B5, B6 |
+| 7 | Trigger subscription removed | lines 31-32: the `issue_comment` key and its `types` are deleted | C1 |
+| 8 | Wrong comment action | line 32: `types: [created]` becomes `types: [edited]` | C1 |
+| 9 | Over-restrictive: COLLABORATOR rejected | line 81: the list `["OWNER","MEMBER","COLLABORATOR"]` loses `COLLABORATOR` | A1 |
+| 10 | Over-restrictive: wrong command literal | line 80: `'/ronda review'` becomes `'/ronda-review'` | A1, A2, A7 |
+| 11 | Over-restrictive: `startsWith` instead of `contains` | line 80: `contains(body, ...)` becomes `startsWith(body, ...)` | A7 |
+| 12 | Over-restrictive: nothing ever cancels | line 58: the expression becomes `false` | B4 |
+| 13 | Over-restrictive: pull_request never runs | line 77: `github.event.pull_request.draft != true` becomes `false` | A8 |
+| 14 | Over-restrictive: OWNER rejected | line 81: the list loses `OWNER` | A2 |
+| 15 | Over-cancelling: reopened and ready_for_review cancel | line 58: the expression becomes `event_name == 'pull_request' && action != 'opened'` | B5, B6 |
+| 16 | Automatic passes retargeted | line 29: `- develop` becomes `- main` | C2 |
+| 17 | Automatic passes lose actions | line 30: the `types` list becomes `[opened, synchronize]` | C3 |
 
-Harness output for each plant (`FAIL` lines only; every other assertion passes):
+Coverage by assertion: A1 plants 9, 10; A2 plant 14; A3 plant 1; A4 and A5
+plant 2; A6 plant 3; A7 plants 10, 11; A8 plant 13; A9 plant 4; B1 and B2
+plant 5; B3 plant 6; B4 plant 12; B5 and B6 plants 6, 15; C1 plants 7, 8; C2
+plant 16; C3 plant 17.
+
+Harness output for each plant (`FAIL` ids and the pass count):
 
 ```text
-plant 1: FAIL A3 (got true, want false)                          17/18
-plant 2: FAIL A4, A5 (got true, want false)                      16/18
-plant 3: FAIL A6 (got true, want false)                          17/18
-plant 4: FAIL A9 (got true, want false)                          17/18
-plant 5: FAIL B1, B2 (got true, want false)                      16/18
-plant 6: FAIL B3, B5, B6 (got true, want false)                  15/18
-plant 7: FAIL C1 (got false, want true)                          17/18
-plant 8: FAIL C1 (got false, want true)                          17/18
+plant  1: FAIL A3         17/18 pass
+plant  2: FAIL A4, A5     16/18 pass
+plant  3: FAIL A6         17/18 pass
+plant  4: FAIL A9         17/18 pass
+plant  5: FAIL B1, B2     16/18 pass
+plant  6: FAIL B3, B5, B6 15/18 pass
+plant  7: FAIL C1         17/18 pass
+plant  8: FAIL C1         17/18 pass
+plant  9: FAIL A1         17/18 pass
+plant 10: FAIL A1, A2, A7 15/18 pass
+plant 11: FAIL A7         17/18 pass
+plant 12: FAIL B4         17/18 pass
+plant 13: FAIL A8         17/18 pass
+plant 14: FAIL A2         17/18 pass
+plant 15: FAIL B5, B6     16/18 pass
+plant 16: FAIL C2         17/18 pass
+plant 17: FAIL C3         17/18 pass
 ```
+
+The case-insensitivity in A2 is a property of the Actions evaluator (`contains`
+and `==` ignore case), not of a line in the workflow, so plant 14 isolates the
+`OWNER` acceptance that A2 exercises rather than the casing.
 
 Not isolated, and stated rather than hidden: the `github.event_name ==
 'pull_request'` conjunct in line 58 is defence in depth. A comment run's
