@@ -18,8 +18,9 @@ Two kinds of proof, kept apart because they prove different things:
    workflow runs at the PR's merge commit — so its runs are cited below by run
    id. The `issue_comment` arm is **post-merge only**: GitHub loads
    `issue_comment` workflows from the default branch (`develop`), so no comment
-   can start one until this file is merged. That half of the table stays
-   `_pending_`, and issue #109 stays open until it is filled.
+   could start one until this file was merged. It was exercised after the merge
+   (below); the committed-workflow half is filled with run ids, and the plant
+   half and one association row are waived by operator decision.
 
 ## Design being proven
 
@@ -630,54 +631,56 @@ belongs to PR #107, not this one. No event in this PR has cancelled a pass.
 | Repeated runs at one head SHA publish one `Ronda review` check run | 2 runs at `05260c2`, 1 check run; 1 check run each at `77a5f7d`, `b12e822`, `ecbd514` | 36120399653, 36120638228 (+ the `gh api .../check-runs` ids) |
 | No pass in this PR was cancelled or displaced | the workflow's only `cancelled` run is PR #107's | — |
 
-### `issue_comment` arm — cannot run before merge
+### `issue_comment` arm — exercised after merge
 
 GitHub's trigger reference for `issue_comment`: *"This event will only trigger a
 workflow run if the workflow file exists on the default branch."* The default
-branch here is `develop`, so no comment — from any account, on any pull request
-in this repository — can start this workflow until this PR is merged. That is
-the whole reason every cell below is `_pending_`; it is not a claim about the
-expressions, which are decided in the tables above, and it is not a scheduling
-claim the harness declined to make.
+branch here is `develop`, so no comment could start this workflow until the PR
+that added it merged. That is why this half was not in the PR that added the
+trigger; it says nothing about the expressions, which are decided in the tables
+above.
 
-No in-PR mechanism reaches it. A throwaway PR is the #108 pattern, and it worked
-there because a `pull_request` workflow loads from the PR's merge commit; it
-does nothing for an `issue_comment` workflow, which loads from the default
-branch and therefore ignores the PR entirely. Only two things can produce these
-run ids:
+**Run on 2026-09-25, on `develop` at `e62202c`.** The committed workflow was
+exercised on throwaway PR #112 and throwaway issue #113, both since closed
+unmerged with their branches deleted. #112 was based on a scratch branch rather
+than `develop`, so the `pull_request` arm (which only fires for PRs targeting
+`develop`) never started: before the first comment the PR had no automatic run and
+no `Ronda review` check run. Every run id below is an `issue_comment` run of
+[`ronda-review-dogfood.yml`](https://github.com/lhpaul/ronda/actions/workflows/ronda-review-dogfood.yml),
+posted by the repository owner. The results are also recorded on
+[#109](https://github.com/lhpaul/ronda/issues/109).
 
-1. **merge this PR**, then comment on a pull request — the runs land in this
-   repository, and this table is filled here. Issue #109 stays open until then.
-2. **a fixture repository** whose default branch already carries the same
-   workflow, commented on after the same edits — real runs, different repo.
+**Disposition (operator decision, 2026-09-25).** Two things could not be run and
+are **waived**, not passed:
 
-**Disposition (operator decision, 2026-09-25).** These rows are deferred to a
-merge-time obligation on issue [#109](https://github.com/lhpaul/ronda/issues/109)
-rather than filled in this PR. The fixture route would mean creating a public
-repository, installing `RONDA_MODEL_API_KEY` into it and commenting there — an
-outward-facing action with a real credential — and the operator chose the merge
-route (option 1) instead. This is a deliberate deferral, not an unmet gate: the
-`pull_request` arm is proven live above, the expressions are decided in the
-tables above, and what remains is scheduling behaviour that only a run in this
-repository's default branch can show. It is recorded here so a reviewer reads
-the `_pending_` cells as a scheduled obligation with a named owner and issue.
+- **The plant column.** A plant is an edited workflow, and `issue_comment` loads
+  only from the default branch, so running one means either pushing a
+  deliberately broken workflow to `develop` or using a fixture repository. The
+  fixture route means creating a public repository and installing
+  `RONDA_MODEL_API_KEY` into it, which the operator declined; a broken workflow on
+  `develop` is not acceptable. The fail half of each fail/pass pair is therefore
+  not shown at runtime. What stands in for it is the expression proof above: each
+  plant there breaks the assertion it isolates.
+- **Non-collaborator `/ronda review`.** It needs a second GitHub account with no
+  owner, member or collaborator association, which was not available. The
+  association gate is decided at the expression level (assertions A4 and A5, plant
+  2) and again by Ronda itself, which re-checks the author association.
 
-The scheduling semantics this table asserts — that a job-level `concurrency`
-group is acquired only after the job `if:` passes, that a sibling run waits, and
-that `cancel-in-progress` decides which events displace — are GitHub's scheduler
-behavior, not properties of the workflow file. No edit to this repository's
-files can make them observable before merge, so no in-PR test, plant or harness
-can stand in for them.
+Scheduling was observed on the committed workflow only. The in-flight pass in
+the two scheduling rows was itself started by a comment, not by a `pull_request` event, so a pass started
+by the `pull_request` arm being unaffected by an unrelated comment is not shown
+here; the `pull_request` arm's runs are in the section above. A phrase-only
+comment displacing a queued `synchronize` pass was likewise not exercised.
 
 | Assertion | Plant (violation present) | Run id | Without the plant | Run id |
 | --- | --- | --- | --- | --- |
-| Collaborator `/ronda review` produces a pass on the current head | not applicable (positive case) | _pending_ | | |
-| Unrelated comment does not start a pass | plant 1 (job `if:` command test becomes `true`, so every comment is admitted) | _pending_ | committed `if:` | _pending_ |
-| Non-collaborator `/ronda review` does not start a pass | plant 2 (association test becomes `true`) | _pending_ | committed `if:` | _pending_ |
-| Comment on a plain issue does not start a pass | plant 3 (`issue.pull_request != null` becomes `true`) | _pending_ | committed `if:` | _pending_ |
-| Unrelated comment during an in-flight `pull_request` pass does not cancel or displace it | plant 1 (every comment admitted, so an unrelated one enters the PR's group) | _pending_ | committed `if:` | _pending_ |
-| Valid request during an in-flight pass waits for it, then publishes one `Ronda review` check run | plant 12 (comments get their own per-run group, so the request stops waiting) | _pending_ | committed group | _pending_ |
-| Comment containing the phrase but not a command (`/ronda review later`) is admitted to the PR's group and can displace a queued run, then adds no pass | doc plant D7 (predicate matches the whole body exactly, so the phrase-only comment is admitted nowhere) | _pending_ | committed `contains`: admitted (assertion B13) | _pending_ |
+| Collaborator `/ronda review` produces a pass on the current head | not applicable (positive case) | n/a | success; 1 `Ronda review` check run and 1 review at the head | [36153262660](https://github.com/lhpaul/ronda/actions/runs/36153262660) |
+| Unrelated comment does not start a pass | plant 1 (job `if:` command test becomes `true`, so every comment is admitted): waived | waived | committed `if:`: job skipped, no pass | [36153206764](https://github.com/lhpaul/ronda/actions/runs/36153206764) |
+| Non-collaborator `/ronda review` does not start a pass | plant 2 (association test becomes `true`): waived | waived | not run: no non-collaborator account; waived | waived |
+| Comment on a plain issue does not start a pass | plant 3 (`issue.pull_request != null` becomes `true`): waived | waived | committed `if:`: a valid `/ronda review` from the owner on issue #113, job skipped | [36153742227](https://github.com/lhpaul/ronda/actions/runs/36153742227) |
+| Unrelated comment during an in-flight pass does not cancel or displace it | plant 1 (every comment admitted, so an unrelated one enters the PR's group): waived | waived | committed `if:`: in-flight pass A succeeded, the unrelated comment's job was skipped, and the valid request B queued behind A still ran | A [36153362421](https://github.com/lhpaul/ronda/actions/runs/36153362421), unrelated [36153378421](https://github.com/lhpaul/ronda/actions/runs/36153378421), B [36153382915](https://github.com/lhpaul/ronda/actions/runs/36153382915) |
+| Valid request during an in-flight pass waits for it, then publishes one `Ronda review` check run | plant 12 (comments get their own per-run group, so the request stops waiting): waived | waived | committed group: B was created 15:19:26 and started 15:19:42, after A's pass completed 15:19:40; the head still has 1 `Ronda review` check run | [36153362421](https://github.com/lhpaul/ronda/actions/runs/36153362421), [36153382915](https://github.com/lhpaul/ronda/actions/runs/36153382915) |
+| Comment containing the phrase but not a command (`/ronda review later`) is admitted to the PR's group and can displace a queued run, then adds no pass | doc plant D7 (predicate matches the whole body exactly, so the phrase-only comment is admitted nowhere): waived | waived | committed `contains`: admitted (assertion B13). With pass 36153519465 in flight and valid request 36153539295 pending, the phrase-only comment's run 36153552120 cancelled 36153539295 and published no review | [36153552120](https://github.com/lhpaul/ronda/actions/runs/36153552120), cancelled [36153539295](https://github.com/lhpaul/ronda/actions/runs/36153539295) |
 
 The stale statements in [`dogfood-evidence-103.md`](dogfood-evidence-103.md)
-(the "Manual rerun" row, and wiring defects 1 and 2) were corrected in this PR.
+(the "Manual rerun" row, and wiring defects 1 and 2) were corrected in PR #111.
