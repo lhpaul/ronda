@@ -8,22 +8,38 @@ caller snippet in
 
 Two kinds of proof, kept apart because they prove different things:
 
-1. **Expression proof (this PR).** The workflow's job `if:`, `concurrency.group`
-   and `cancel-in-progress` expressions, evaluated with GitHub's own evaluator
-   against synthetic event payloads, each with an isolating planted violation.
-   It proves the expressions decide as intended. It does **not** prove how GitHub
-   schedules runs.
+1. **Expression proof (this PR).** The workflow's job `if:`, `concurrency.group`,
+   `cancel-in-progress` and `on:` triggers, evaluated with GitHub's own evaluator
+   against synthetic event payloads, each assertion with an isolating planted
+   violation. It proves the expressions decide as intended. It does **not** prove
+   how GitHub schedules, queues or displaces runs.
 2. **Runtime proof (after merge, still owed).** Real workflow runs from real
    comments. `issue_comment` workflows load from the default branch (`develop`),
    so the PR that adds the trigger cannot exercise it. Issue #109 stays open
-   until section "Runtime proof" is filled with run ids.
+   until the "Runtime proof" table below is filled with run ids.
+
+## Design being proven
+
+A run is placed in one of three concurrency groups:
+
+- a `pull_request` pass: the PR's group, and only a `synchronize` push cancels;
+- a **valid review request** (a PR comment that starts with `/ronda review`, from
+  an `OWNER`, `MEMBER` or `COLLABORATOR`): the same PR group, never cancelling.
+  It queues behind an in-flight pass, so two passes on one head SHA never run
+  together and an older pass cannot finish last and overwrite a newer result;
+- **any other comment**: a group of its own, so it cannot cancel, queue behind or
+  displace anything before the job `if:` skips it.
+
+A first version gave every comment its own group. The local reviewer rejected it:
+a manual pass could then run alongside an automatic one on the same head SHA.
+Plant 13 below restores that version, and assertion B5 fails.
 
 ## Expression proof
 
 Evaluator: `@actions/expressions` 0.3.61 (GitHub's published implementation of
 the Actions expression language), run outside the repository so no dependency is
-added to it. The harness reads the three expressions **from the workflow file
-under test**, so a plant is an edit to that file.
+added to it. The harness reads the expressions **from the workflow file under
+test**, so a plant is an edit to that file.
 
 Reproduce, from an empty scratch directory:
 
@@ -94,17 +110,24 @@ check("A7 quoted-then-command comment is not filtered out (never stricter than R
 check("A8 non-draft pull_request runs", runs(pr()), "true");
 check("A9 draft pull_request does not run", runs(pr({ pull_request: { draft: true } })), "false");
 
-// Concurrency.
+// Concurrency. A comment run is placed in one of three ways: the PR's own group
+// (valid request: serialized with automatic passes), or a group of its own.
 const group = (gh) => evaluate(raw.group, gh);
 const cancel = (gh) => evaluate(raw.cancel, gh);
 const prGroup = group(pr());
-const commentGroup = group(comment("/ronda review", "OWNER"));
-check("B1 comment run never shares a group with the pull_request pass for the same PR", String(commentGroup === prGroup), "false");
-check("B2 two comment runs on one PR never share a group", String(group(comment("/ronda review", "OWNER")) === group({ ...comment("/ronda review", "OWNER"), run_id: 2003 })), "false");
-check("B3 a comment run cannot cancel in progress", cancel(comment("/ronda review", "OWNER")), "false");
-check("B4 a synchronize push still cancels an in-flight pass", cancel(pr()), "true");
-check("B5 reopened does not cancel", cancel(pr({ top: { event: { action: "reopened", pull_request: { number: 42, draft: false } } } })), "false");
-check("B6 ready_for_review does not cancel", cancel(pr({ top: { event: { action: "ready_for_review", pull_request: { number: 42, draft: false } } } })), "false");
+const inPrGroup = (gh) => String(group(gh) === prGroup);
+const valid = comment("/ronda review", "COLLABORATOR");
+check("B1 an unrelated comment is not in the PR's group", inPrGroup(comment("looks good to me", "COLLABORATOR")), "false");
+check("B2 the command from a non-collaborator is not in the PR's group", inPrGroup(comment("/ronda review", "NONE")), "false");
+check("B3 the command on a plain issue is not in the PR's group", inPrGroup(comment("/ronda review", "COLLABORATOR", { issue: { pull_request: null } })), "false");
+check("B4 two unrelated comments on one PR never share a group", String(group(comment("hello", "OWNER")) === group({ ...comment("hello", "OWNER"), run_id: 2003 })), "false");
+check("B5 a valid review request joins the PR's group (serialized with automatic passes)", inPrGroup(valid), "true");
+check("B6 a valid review request cannot cancel in progress", cancel(valid), "false");
+check("B7 an unrelated comment cannot cancel in progress", cancel(comment("hello", "OWNER")), "false");
+check("B8 a synchronize push still cancels an in-flight pass", cancel(pr()), "true");
+check("B9 reopened does not cancel", cancel(pr({ top: { event: { action: "reopened", pull_request: { number: 42, draft: false } } } })), "false");
+check("B10 ready_for_review does not cancel", cancel(pr({ top: { event: { action: "ready_for_review", pull_request: { number: 42, draft: false } } } })), "false");
+check("B11 a command that does not begin the comment runs in its own group", inPrGroup(comment("> earlier\n/ronda review", "MEMBER")), "false");
 
 // Trigger wiring.
 const on = wf.on ?? wf[true];
@@ -126,93 +149,110 @@ process.exit(failed ? 1 : 0);
 
 ### Result on the workflow as committed
 
-18 of 18 assertions pass.
+23 of 23 assertions pass. The last column lists the plants (next
+section) under which each assertion fails, so every assertion is shown able to
+fail.
 
-| Id | Assertion | Expression under test |
+| Id | Assertion | Fails under plant |
 | --- | --- | --- |
-| A1, A2 | A collaborator's `/ronda review` (any case) on a PR runs | job `if:`, lines 76-81 |
-| A3 | An unrelated comment by a collaborator does not run | line 80 |
-| A4, A5 | The command from a non-collaborator or a contributor does not run | line 81 |
-| A6 | The command on a plain issue (not a PR) does not run | line 79 |
-| A7 | A quoted line before the command is not filtered out (the pre-filter is never stricter than `resolve-trigger.ts`) | line 80 |
-| A8, A9 | A non-draft `pull_request` runs, a draft does not | line 77 |
-| B1, B2 | A comment run never shares a concurrency group with the PR pass, nor with another comment run | `group`, lines 48-51 |
-| B3 | A comment run cannot cancel in progress | `cancel-in-progress`, line 58 |
-| B4 | A `synchronize` push still cancels an in-flight pass | line 58 |
-| B5, B6 | `reopened` and `ready_for_review` do not cancel | line 58 |
-| C1 | The workflow subscribes to `issue_comment` `created` | `on.issue_comment`, lines 31-32 |
-| C2, C3 | `pull_request` still targets only `develop` and the same four actions | `on.pull_request`, lines 27-30 |
+| A1 | collaborator '/ronda review' on a PR runs | 5, 6 |
+| A2 | owner '/RONDA REVIEW' (case-insensitive) runs | 6, 9 |
+| A3 | unrelated comment by a collaborator does not run | 1 |
+| A4 | '/ronda review' by a non-collaborator does not run | 2 |
+| A5 | '/ronda review' by a contributor does not run | 2 |
+| A6 | '/ronda review' on a plain issue does not run | 3 |
+| A7 | quoted-then-command comment is not filtered out (never stricter than Ronda) | 6, 7 |
+| A8 | non-draft pull_request runs | 8 |
+| A9 | draft pull_request does not run | 4 |
+| B1 | an unrelated comment is not in the PR's group | 10, 14 |
+| B2 | the command from a non-collaborator is not in the PR's group | 11, 14 |
+| B3 | the command on a plain issue is not in the PR's group | 12, 14 |
+| B4 | two unrelated comments on one PR never share a group | 10, 14 |
+| B5 | a valid review request joins the PR's group (serialized with automatic passes) | 13 |
+| B6 | a valid review request cannot cancel in progress | 16 |
+| B7 | an unrelated comment cannot cancel in progress | 16 |
+| B8 | a synchronize push still cancels an in-flight pass | 17 |
+| B9 | reopened does not cancel | 16, 18 |
+| B10 | ready_for_review does not cancel | 16, 18 |
+| B11 | a command that does not begin the comment runs in its own group | 10, 14, 15 |
+| C1 | the workflow subscribes to issue_comment `created` | 19, 20 |
+| C2 | pull_request still targets only develop | 21 |
+| C3 | pull_request still starts on opened, reopened, ready_for_review, synchronize | 22 |
 
-### Planted violations, one per assertion
+### Planted violations
 
-Each plant is a single edit to a copy of the workflow. On the committed file all
-18 assertions pass (the baseline above); with a plant applied, the assertions in
-the last column fail and the rest still pass. Together the plants make every
-assertion fail at least once, so none is vacuous. Line numbers are those of the
-committed workflow.
+Each plant is a single edit to a copy of the workflow; with it applied the
+assertions in the last column fail and the rest still pass. Line numbers are
+those of the committed workflow.
 
 | Plant | Violation | Edit | Fails |
 | --- | --- | --- | --- |
-| 1 | Comment pre-filter dropped | line 80: `contains(github.event.comment.body, '/ronda review') &&` becomes `true &&` | A3 |
-| 2 | Association check dropped | line 81: the `contains(fromJSON('[...]'), ...author_association)` term becomes `true)` | A4, A5 |
-| 3 | Pull-request-only gate dropped | line 79: `github.event.issue.pull_request != null &&` becomes `true &&` | A6 |
-| 4 | Draft gate dropped (existing behaviour, re-asserted) | line 77: `github.event.pull_request.draft != true` becomes `true` | A9 |
-| 5 | Shared concurrency group | lines 50-51: both branches become `format('ronda-review-{0}', pull_request.number || issue.number)`, the group the old snippet used | B1, B2 |
-| 6 | A comment run may cancel | line 58: the expression becomes `true` | B3, B5, B6 |
-| 7 | Trigger subscription removed | lines 31-32: the `issue_comment` key and its `types` are deleted | C1 |
-| 8 | Wrong comment action | line 32: `types: [created]` becomes `types: [edited]` | C1 |
-| 9 | Over-restrictive: COLLABORATOR rejected | line 81: the list `["OWNER","MEMBER","COLLABORATOR"]` loses `COLLABORATOR` | A1 |
-| 10 | Over-restrictive: wrong command literal | line 80: `'/ronda review'` becomes `'/ronda-review'` | A1, A2, A7 |
-| 11 | Over-restrictive: `startsWith` instead of `contains` | line 80: `contains(body, ...)` becomes `startsWith(body, ...)` | A7 |
-| 12 | Over-restrictive: nothing ever cancels | line 58: the expression becomes `false` | B4 |
-| 13 | Over-restrictive: pull_request never runs | line 77: `github.event.pull_request.draft != true` becomes `false` | A8 |
-| 14 | Over-restrictive: OWNER rejected | line 81: the list loses `OWNER` | A2 |
-| 15 | Over-cancelling: reopened and ready_for_review cancel | line 58: the expression becomes `event_name == 'pull_request' && action != 'opened'` | B5, B6 |
-| 16 | Automatic passes retargeted | line 29: `- develop` becomes `- main` | C2 |
-| 17 | Automatic passes lose actions | line 30: the `types` list becomes `[opened, synchronize]` | C3 |
-
-Coverage by assertion: A1 plants 9, 10; A2 plant 14; A3 plant 1; A4 and A5
-plant 2; A6 plant 3; A7 plants 10, 11; A8 plant 13; A9 plant 4; B1 and B2
-plant 5; B3 plant 6; B4 plant 12; B5 and B6 plants 6, 15; C1 plants 7, 8; C2
-plant 16; C3 plant 17.
+| 1 | Job `if:`: comment filter dropped | line 97: `contains(body, '/ronda review') &&` becomes `true &&` | A3 |
+| 2 | Job `if:`: association check dropped | line 98: the association `contains(...)` term becomes `true` | A4, A5 |
+| 3 | Job `if:`: pull-request-only gate dropped | line 96: `issue.pull_request != null &&` becomes `true &&` | A6 |
+| 4 | Job `if:`: draft gate dropped (existing behaviour, re-asserted) | line 94: `draft != true` becomes `true` | A9 |
+| 5 | Job `if:`: COLLABORATOR rejected | line 98: the association list loses `COLLABORATOR` | A1 |
+| 6 | Job `if:`: wrong command literal | line 97: `'/ronda review'` becomes `'/ronda-review'` | A1, A2, A7 |
+| 7 | Job `if:`: `startsWith` instead of `contains` | line 97: `contains(body, ...)` becomes `startsWith(body, ...)` | A7 |
+| 8 | Job `if:`: pull_request never runs | line 94: `draft != true` becomes `false` | A8 |
+| 9 | Job `if:`: OWNER rejected | line 98: the association list loses `OWNER` | A2 |
+| 10 | Group routing: command test dropped | line 65: `startsWith(body, ...)` becomes `true` | B1, B4, B11 |
+| 11 | Group routing: association test dropped | line 66: the association `contains(...)` term becomes `true` | B2 |
+| 12 | Group routing: pull-request-only gate dropped | line 64: `issue.pull_request != null` becomes `true` | B3 |
+| 13 | Group routing: valid requests get their own group (the pre-serialization design) | line 67: the shared-group `format(...)` becomes the per-run one | B5 |
+| 14 | Group routing: every comment shares the PR's group (the old snippet) | line 68: the fallback per-run group becomes the PR's group | B1, B2, B3, B4, B11 |
+| 15 | Group routing: `contains` instead of `startsWith` | line 65: `startsWith(body, ...)` becomes `contains(body, ...)` | B11 |
+| 16 | Cancellation: everything cancels | line 75: the expression becomes `true` | B6, B7, B9, B10 |
+| 17 | Cancellation: nothing cancels | line 75: the expression becomes `false` | B8 |
+| 18 | Cancellation: reopened and ready_for_review cancel | line 75: `action == 'synchronize'` becomes `action != 'opened'` | B9, B10 |
+| 19 | Wiring: `issue_comment` subscription removed | lines 31-32: lines 31-32 deleted | C1 |
+| 20 | Wiring: wrong comment action | line 32: `types: [created]` becomes `types: [edited]` | C1 |
+| 21 | Wiring: automatic passes retargeted | line 29: `- develop` becomes `- main` | C2 |
+| 22 | Wiring: automatic passes lose actions | line 30: the `types` list becomes `[opened, synchronize]` | C3 |
 
 Harness output for each plant (`FAIL` ids and the pass count):
 
 ```text
-plant  1: FAIL A3         17/18 pass
-plant  2: FAIL A4, A5     16/18 pass
-plant  3: FAIL A6         17/18 pass
-plant  4: FAIL A9         17/18 pass
-plant  5: FAIL B1, B2     16/18 pass
-plant  6: FAIL B3, B5, B6 15/18 pass
-plant  7: FAIL C1         17/18 pass
-plant  8: FAIL C1         17/18 pass
-plant  9: FAIL A1         17/18 pass
-plant 10: FAIL A1, A2, A7 15/18 pass
-plant 11: FAIL A7         17/18 pass
-plant 12: FAIL B4         17/18 pass
-plant 13: FAIL A8         17/18 pass
-plant 14: FAIL A2         17/18 pass
-plant 15: FAIL B5, B6     16/18 pass
-plant 16: FAIL C2         17/18 pass
-plant 17: FAIL C3         17/18 pass
+plant  1: FAIL A3                 22/23 pass
+plant  2: FAIL A4, A5             21/23 pass
+plant  3: FAIL A6                 22/23 pass
+plant  4: FAIL A9                 22/23 pass
+plant  5: FAIL A1                 22/23 pass
+plant  6: FAIL A1, A2, A7         20/23 pass
+plant  7: FAIL A7                 22/23 pass
+plant  8: FAIL A8                 22/23 pass
+plant  9: FAIL A2                 22/23 pass
+plant 10: FAIL B1, B4, B11        20/23 pass
+plant 11: FAIL B2                 22/23 pass
+plant 12: FAIL B3                 22/23 pass
+plant 13: FAIL B5                 22/23 pass
+plant 14: FAIL B1, B2, B3, B4, B11 18/23 pass
+plant 15: FAIL B11                22/23 pass
+plant 16: FAIL B6, B7, B9, B10    19/23 pass
+plant 17: FAIL B8                 22/23 pass
+plant 18: FAIL B9, B10            21/23 pass
+plant 19: FAIL C1                 22/23 pass
+plant 20: FAIL C1                 22/23 pass
+plant 21: FAIL C2                 22/23 pass
+plant 22: FAIL C3                 22/23 pass
 ```
 
 The case-insensitivity in A2 is a property of the Actions evaluator (`contains`
-and `==` ignore case), not of a line in the workflow, so plant 14 isolates the
+and `==` ignore case), not of a line in the workflow, so plant 9 isolates the
 `OWNER` acceptance that A2 exercises rather than the casing.
 
 Not isolated, and stated rather than hidden: the `github.event_name ==
-'pull_request'` conjunct in line 58 is defence in depth. A comment run's
+'pull_request'` conjunct in line 75 is defence in depth. A comment run's
 `github.event.action` is `created`, never `synchronize`, so removing that
 conjunct changes no result and no plant can isolate it.
 
 ## Runtime proof (after merge, still owed)
 
-The expression proof cannot show that GitHub keeps a comment run from cancelling
-or displacing a pass, that the `issue_comment` workflow starts from a collaborator's
-comment at all, or that Ronda publishes on the current head. These need real
-runs, recorded here as workflow-run ids once this PR is on `develop`:
+The expression proof cannot show that GitHub queues a valid request behind an
+in-flight pass, keeps an unrelated comment from cancelling or displacing one,
+starts the `issue_comment` workflow from a collaborator's comment at all, or that
+Ronda publishes on the current head. These need real runs, recorded here as
+workflow-run ids once this PR is on `develop`:
 
 | Assertion | Plant (violation present) | Run id | Without the plant | Run id |
 | --- | --- | --- | --- | --- |
@@ -220,7 +260,8 @@ runs, recorded here as workflow-run ids once this PR is on `develop`:
 | Unrelated comment does not start a pass | | _pending_ | | |
 | Non-collaborator `/ronda review` does not start a pass | | _pending_ | | |
 | Comment on a plain issue does not start a pass | | _pending_ | | |
-| Comment during an in-flight `pull_request` pass does not cancel it | shared group (plant 5) | _pending_ | committed group | _pending_ |
+| Unrelated comment during an in-flight `pull_request` pass does not cancel or displace it | plant 14 (every comment in the PR's group) | _pending_ | committed group | _pending_ |
+| Valid request during an in-flight pass waits for it, then publishes one `Ronda review` check run | plant 13 (own group, runs alongside) | _pending_ | committed group | _pending_ |
 
 The stale statements in [`dogfood-evidence-103.md`](dogfood-evidence-103.md)
 (the "Manual rerun" row, and wiring defects 1 and 2) were corrected in this PR.

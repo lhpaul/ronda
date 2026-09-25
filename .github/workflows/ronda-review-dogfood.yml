@@ -35,19 +35,36 @@ permissions:
   contents: read
 
 concurrency:
-  # A comment run must never share a group with a pull-request pass. Every PR
-  # comment enters a workflow-level group before any job `if:` is evaluated, so
-  # in a shared group an unrelated comment would either cancel an in-flight
-  # pass (`cancel-in-progress: true`) or, with `false`, queue behind it and
-  # displace a queued `reopened` / `ready_for_review` pass, and then be skipped
-  # by the job `if:`. Either way no check run would be published for that head
-  # SHA. Giving each comment run its own group means it cannot cancel, queue
-  # behind or displace anything. The cost: a `/ronda review` comment can run
-  # alongside an in-flight pass and publish a second review for that SHA, which
-  # is what a manual re-review asks for.
+  # Three kinds of run, three placements (issue #109):
+  #
+  # - `pull_request` passes share one group per PR.
+  # - A valid review request (a PR comment starting with the command, from an
+  #   OWNER/MEMBER/COLLABORATOR) joins that same group, so a manual pass is
+  #   serialized with the automatic ones: two passes on one head SHA never run
+  #   together, which would let both find no check run and publish two, or let
+  #   an older pass finish last and overwrite the newer result. It never
+  #   cancels (below), so it waits behind an in-flight pass. The only thing it
+  #   can displace is a queued run, and a queued run in this group is either a
+  #   `reopened` / `ready_for_review` pass, which reviews the same head this
+  #   request will, or an earlier request with the same intent.
+  # - Every other comment gets a group of its own, keyed on the run id. Every PR
+  #   comment enters a workflow-level group before any job `if:` is evaluated,
+  #   so an unrelated comment in the PR's group would cancel an in-flight pass
+  #   (`cancel-in-progress: true`) or displace a queued one (`false`) and then
+  #   be skipped by the job `if:`, leaving no check run for that head SHA.
+  #
+  # The routing test is deliberately stricter than the job `if:` below: only a
+  # comment that will start a real pass may enter the shared group. A valid
+  # command that does not begin the comment (after a blank or quoted line) still
+  # runs, in its own group, and is not serialized.
   group: >-
     ${{ github.event_name == 'pull_request'
     && format('ronda-review-{0}', github.event.pull_request.number)
+    || (github.event_name == 'issue_comment'
+    && github.event.issue.pull_request != null
+    && startsWith(github.event.comment.body, '/ronda review')
+    && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    && format('ronda-review-{0}', github.event.issue.number)
     || format('ronda-review-comment-{0}', github.run_id) }}
   # Only a push, which introduces a new head SHA, may cancel an in-flight pass.
   # `reopened` and `ready_for_review` keep the same SHA, and a run cancelled

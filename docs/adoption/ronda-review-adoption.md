@@ -18,11 +18,16 @@ on:
   issue_comment:
     types: [created]
 concurrency:
-  # A comment run gets its own group so it can never cancel, queue behind or
-  # displace a pull-request pass. See "Why the concurrency group is split".
+  # Valid review requests share the PR's group; every other comment gets a
+  # group of its own. See "Why the concurrency group is routed".
   group: >-
     ${{ github.event_name == 'pull_request'
     && format('ronda-review-{0}', github.event.pull_request.number)
+    || (github.event_name == 'issue_comment'
+    && github.event.issue.pull_request != null
+    && startsWith(github.event.comment.body, '/ronda review')
+    && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    && format('ronda-review-{0}', github.event.issue.number)
     || format('ronda-review-comment-{0}', github.run_id) }}
   # Only a push, which introduces a new head SHA, may cancel an in-flight pass.
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
@@ -51,7 +56,7 @@ jobs:
       model_api_key: ${{ secrets.RONDA_MODEL_API_KEY }}
 ```
 
-### Why the concurrency group is split
+### Why the concurrency group is routed
 
 Every pull-request comment starts this workflow, and GitHub evaluates the
 workflow-level `concurrency` group **before** any job `if:`. A single group
@@ -69,12 +74,27 @@ observed live; both follow from GitHub's documented concurrency semantics (a
 newly queued run cancels any pending run in the same group) and from Ronda
 skipping a comment that is not a valid review request.
 
-The snippet therefore keys comment runs on `github.run_id`, one group each, and
-lets only a `synchronize` push cancel a pass. The trade-off is that a
-`/ronda review` comment posted while a pass is in flight runs alongside it and
-can publish a second review for that head SHA, which is what a manual re-review
-asks for. A head SHA superseded by a newer push before publication still
-publishes nothing.
+The snippet therefore routes each run to one of three places:
+
+- **`pull_request` passes** share one group per PR, and only a `synchronize`
+  push, which brings a new head SHA, cancels.
+- **A valid review request** (a comment that starts with the command, from an
+  `OWNER`, `MEMBER` or `COLLABORATOR`) joins the same group without ever
+  cancelling. It waits behind an in-flight pass, so a manual and an automatic
+  pass never run together on one head SHA: they could otherwise both find no
+  check run and publish two, or an older pass could finish last and overwrite
+  the newer result. The only run it can displace is a queued one, which is a
+  `reopened` / `ready_for_review` pass reviewing the same head or an earlier
+  request with the same intent.
+- **Every other comment** gets a group of its own, keyed on `github.run_id`, so
+  it cannot cancel, queue behind or displace anything before the job `if:`
+  skips it.
+
+The routing test is stricter than the job `if:` on purpose: only a comment that
+will start a real pass may enter the shared group. A valid command that does not
+begin the comment, for example after a quoted line, still runs but in its own
+group, so it is not serialized with the automatic pass. A head SHA superseded by
+a newer push before publication still publishes nothing.
 
 ### The caller job must not be named `Ronda review`
 
