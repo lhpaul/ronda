@@ -61,7 +61,7 @@ findings in that one review.
 
 **Information shown**:
 
-- The published review: findings with their locations and severities, as today.
+- The published review: findings with their locations and severities, as in a non-sweep review.
 - The review summary: that the category-forced sweep was active and which
   category list version was used.
 - The operator-facing evidence surface: which categories produced findings for
@@ -69,7 +69,7 @@ findings in that one review.
 
 **Actions available**:
 
-- Read the review on GitHub, as today.
+- Read the review on GitHub, as for a non-sweep review.
 - Disable the sweep for the repository; passes for later heads then run
   without it. A head that already has its one review is not reviewed a second
   time because the sweep was toggled.
@@ -84,7 +84,7 @@ findings in that one review.
   not an error.
 - Existing review behavior is unchanged in every other respect: comment-only, no
   branch or pull request mutation, one review per head SHA, draft-skip and
-  supersede behavior as today.
+  supersede behavior as in a non-sweep review.
 - Findings stay on the ordinary severity channel; the sweep does not create a
   separate class of finding.
 - A finding that fits none of the swept categories is still published, and is
@@ -93,6 +93,13 @@ findings in that one review.
 - When another review mode is already active for the same pass, the sweep adds
   its categories to that pass; it never turns one pass into two published
   reviews.
+- Whether the sweep is enabled is read from the effective operator
+  configuration value for the run (AC18). An absent value means off. An empty
+  or unrecognized value also means off: the pass runs as an ordinary non-sweep
+  review, records that the enablement value was unrecognized, and never treats
+  an unparseable value as a request to enable. "Non-sweep review" throughout
+  this spec means the review Ronda publishes for the same head with the sweep
+  off, under the existing review contract.
 - If the current category list cannot be read when a pass starts, or is empty or
   malformed, the pass continues as an ordinary non-sweep review and records that
   the sweep did not run. A missing list degrades coverage; it never fails the pass and never
@@ -145,7 +152,7 @@ findings in that one review.
 - The list is scoped on real-pull-request evidence. The seeded benchmark's four
   never-found kinds (authorization bypass, data-loss overwrite, configuration
   debug default, invalid range parsing) are not confirmed by any real-pull-request
-  evidence available today, so they must not be the basis for the list.
+  evidence in the 2026-09-23 corpus, so they must not be the basis for the list.
 - A list revision is a human decision. Evidence can recommend a change; it
   cannot apply one on its own.
 - Counts in the list are finding **instances**, not distinct defects — the same
@@ -535,7 +542,7 @@ excluded list above with its rationale.
 - **Review summary**: states that the category-forced sweep was active for the
   pass and which category list version was used, in the same way existing
   review-mode activation is recorded. Findings themselves are published exactly
-  as today.
+  as in a non-sweep review.
 - **Per-category pass record**: for each sweep pass, which categories produced
   findings and which produced none, on the operator-facing evidence surface. It
   is not published in the review body, so reviewers of the pull request do not
@@ -606,17 +613,42 @@ excluded list above with its rationale.
       (for example, a qualified, camelCase, hyphenated, or prefixed variant).
 - [ ] AC14: Quality evidence produced by this feature contains no credential
       values, tokens, or authorization values.
-- [ ] AC15: Recorded evidence carries one of the three evidence tier labels, and
-      no real-pull-request effect claim appears under a tier below Real-PR
-      evidence (measured).
+- [ ] AC15: Recorded evidence carries exactly one of the three evidence tier
+      labels, and:
+      (a) no real-pull-request effect claim appears under a tier below Real-PR
+      evidence (measured);
+      (b) the label Real-PR evidence (measured) is assigned only when at least
+      ten pull requests reviewed with the sweep enabled under the current
+      category list version are counted and their external-finding evidence has
+      been adjudicated; a record with nine or fewer counted pull requests, or
+      with any counted pull request's evidence not yet adjudicated, is labeled
+      Real-PR evidence (provisional), and one with no sweep-enabled real pull
+      request review recorded is labeled Fixture evidence only (Open Question 4
+      may change only the adjudication condition in this clause);
+      (c) when the recorded category list version changes, evidence previously
+      labeled Real-PR evidence (measured) is relabeled Real-PR evidence
+      (provisional), and the counted pull requests restart at zero, so pull
+      requests reviewed under an earlier list version do not count toward the
+      revised version's ten.
 - [ ] AC16: Evidence drawn from Ronda's own repository states the independence
       caveat.
 - [ ] AC17: Documentation states that the seeded benchmark is not a regression
       gate until the fixture cases required by AC12 and AC13 exist, and that the
       gate is restored once they do.
-- [ ] AC18: An operator can enable and disable the sweep for a repository, the
-      sweep is off for a repository that has not enabled it, and a disabled
-      sweep reproduces today's review behavior.
+- [ ] AC18: An operator can enable and disable the sweep for a repository. The
+      authoritative source for that choice is the effective operator
+      configuration value for the run, resolved through Ronda's existing
+      operator-configuration precedence (environment or workflow input over the
+      operator config file over the built-in default, the same surface that
+      already carries the durability-mode switch); the concrete key name is a
+      planning decision. The sweep is off when the value is absent. It is also
+      off, and never on, when the value is empty or is not a recognized on or
+      off value; in that case the pass still publishes its normal review and
+      records, without exposing the raw value, that the enablement value was
+      unrecognized. A disabled sweep reproduces the non-sweep review behavior
+      (Ronda's review behavior for the same head with no sweep feature present:
+      same findings channel, same single review per head SHA, no sweep
+      statement in the summary, no per-category pass record).
 - [ ] AC19: When the sweep is enabled but the current category list cannot be
       read, or is empty or malformed, the pass still publishes its normal review
       for that head and records that the sweep did not run.
@@ -656,7 +688,7 @@ excluded list above with its rationale.
 
 | Brief objective | Acceptance criteria / disposition | Notes |
 | --- | --- | --- |
-| O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19, AC20 | The sweep runs inside the existing one-review-per-head contract, is operator-controllable, and degrades to today's behavior when its list is unreadable. |
+| O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19, AC20 | The sweep runs inside the existing one-review-per-head contract, is operator-controllable, and degrades to the non-sweep review behavior when its list is unreadable or its enablement value is unrecognized. |
 | O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts, counting unit, version, and revisions. |
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds are recorded as excluded. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target. |
