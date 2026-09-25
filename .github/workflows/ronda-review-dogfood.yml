@@ -53,16 +53,22 @@ concurrency:
   #   (`cancel-in-progress: true`) or displace a queued one (`false`) and then
   #   be skipped by the job `if:`, leaving no check run for that head SHA.
   #
-  # The routing test is deliberately stricter than the job `if:` below: only a
-  # comment that will start a real pass may enter the shared group. A valid
-  # command that does not begin the comment (after a blank or quoted line) still
-  # runs, in its own group, and is not serialized.
+  # The routing test is deliberately stricter than the job `if:` below: it
+  # admits only a comment whose FIRST LINE is exactly the command, the one shape
+  # Ronda is certain to act on (src/cli/resolve-trigger.ts). `/ronda review
+  # later`, `/ronda reviewer` and a command after a blank or quoted line are not
+  # admitted: a comment Ronda would skip must not enter the shared group and
+  # displace a queued pass. Those that Ronda would accept (leading whitespace, a
+  # quoted line first) still run, in a group of their own, and are not
+  # serialized. `fromJSON('"...\n"')` is how an expression spells a newline.
   group: >-
     ${{ github.event_name == 'pull_request'
     && format('ronda-review-{0}', github.event.pull_request.number)
     || (github.event_name == 'issue_comment'
     && github.event.issue.pull_request != null
-    && startsWith(github.event.comment.body, '/ronda review')
+    && (github.event.comment.body == '/ronda review'
+    || startsWith(github.event.comment.body, fromJSON('"/ronda review\n"'))
+    || startsWith(github.event.comment.body, fromJSON('"/ronda review\r\n"')))
     && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     && format('ronda-review-{0}', github.event.issue.number)
     || format('ronda-review-comment-{0}', github.run_id) }}

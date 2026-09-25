@@ -25,7 +25,9 @@ concurrency:
     && format('ronda-review-{0}', github.event.pull_request.number)
     || (github.event_name == 'issue_comment'
     && github.event.issue.pull_request != null
-    && startsWith(github.event.comment.body, '/ronda review')
+    && (github.event.comment.body == '/ronda review'
+    || startsWith(github.event.comment.body, fromJSON('"/ronda review\n"'))
+    || startsWith(github.event.comment.body, fromJSON('"/ronda review\r\n"')))
     && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     && format('ronda-review-{0}', github.event.issue.number)
     || format('ronda-review-comment-{0}', github.run_id) }}
@@ -78,8 +80,8 @@ The snippet therefore routes each run to one of three places:
 
 - **`pull_request` passes** share one group per PR, and only a `synchronize`
   push, which brings a new head SHA, cancels.
-- **A valid review request** (a comment that starts with the command, from an
-  `OWNER`, `MEMBER` or `COLLABORATOR`) joins the same group without ever
+- **A valid review request** (a comment whose first line is exactly the command,
+  from an `OWNER`, `MEMBER` or `COLLABORATOR`) joins the same group without ever
   cancelling. It waits behind an in-flight pass, so a manual and an automatic
   pass never run together on one head SHA: they could otherwise both find no
   check run and publish two, or an older pass could finish last and overwrite
@@ -90,11 +92,15 @@ The snippet therefore routes each run to one of three places:
   it cannot cancel, queue behind or displace anything before the job `if:`
   skips it.
 
-The routing test is stricter than the job `if:` on purpose: only a comment that
-will start a real pass may enter the shared group. A valid command that does not
-begin the comment, for example after a quoted line, still runs but in its own
-group, so it is not serialized with the automatic pass. A head SHA superseded by
-a newer push before publication still publishes nothing.
+The routing test is stricter than the job `if:` on purpose: it admits only a
+comment whose first line is exactly the command, the one shape Ronda is certain
+to act on. `/ronda review later`, `/ronda reviewer` and a command after a blank
+or quoted line are not admitted, because a comment Ronda skips must not enter
+the shared group and displace a queued pass. A valid command Ronda would accept
+but the routing does not admit, for example after leading whitespace or a quoted
+line, still runs, but in its own group, so it is not serialized with the
+automatic pass. An expression spells a newline as `fromJSON('"...\n"')`. A head
+SHA superseded by a newer push before publication still publishes nothing.
 
 ### The caller job must not be named `Ronda review`
 
