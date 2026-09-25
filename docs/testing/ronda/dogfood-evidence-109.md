@@ -258,7 +258,7 @@ shown able to fail.
 | Id | Assertion | Fails under plant |
 | --- | --- | --- |
 | S1 | no workflow-level `concurrency` key exists | 15, 16 |
-| S2 | the job carries its own `group` | 22 |
+| S2 | the job carries its own `group` | 22, 30 |
 | S3 | the job carries its own `cancel-in-progress` | 16, 18, 19, 22 |
 | S4 | `queue` is absent (pinned actionlint rejects it) | 17 |
 | S5 | the caller job is not named `Ronda review` | 21 |
@@ -277,7 +277,7 @@ shown able to fail.
 | A9 | draft pull_request does not run | 4, 22 |
 | B1 | a valid review request reaches the PR's group | 5, 8, 11, 12, 13, 16 |
 | B2 | an automatic pass reaches the PR's group | 10 |
-| B3 | a comment on another PR does not reach this PR's group | 14, 22 |
+| B3 | a comment on another PR does not reach this PR's group | 14, 22, 30 |
 | B4 | a comment Ronda rejects does not reach the PR's group | 1, 22 |
 | B5 | a valid review request cannot cancel in progress | 18, 22 |
 | B6 | a synchronize push cancels an in-flight pass | 19, 22 |
@@ -345,6 +345,7 @@ those of the committed workflow.
 | 27 | Wiring: wrong comment action | line 32: `types: [created]` becomes `types: [edited]` | C1 |
 | 28 | Wiring: automatic passes retargeted | line 29: `- develop` becomes `- main` | C2 |
 | 29 | Wiring: automatic passes lose actions | line 30: the `types` list becomes `[opened, synchronize]` | C3 |
+| 30 | Placement: the job's `group` key is deleted, `cancel-in-progress` kept | lines 95-98: the job's `group:` key is removed, leaving `cancel-in-progress` and the `ronda` id | S2, B3 |
 
 Each doc plant is a single edit to the adoption doc's snippet, run in `--doc`
 parity mode; it must break parity for at least one context.
@@ -393,6 +394,7 @@ plant 26: FAIL C1                 33/34 pass
 plant 27: FAIL C1                 33/34 pass
 plant 28: FAIL C2                 33/34 pass
 plant 29: FAIL C3                 33/34 pass
+plant 30: FAIL S2, B3             32/34 pass
 doc plant D1: FAIL D1                 49/50 pass
 doc plant D2: FAIL D2.indented, D2.quoted 48/50 pass
 doc plant D3: FAIL D3.valid, D3.indented, D3.quoted, D3.phrase-only 46/50 pass
@@ -614,15 +616,33 @@ belongs to PR #107, not this one. No event in this PR has cancelled a pass.
 | Repeated runs at one head SHA publish one `Ronda review` check run | 2 runs at `05260c2`, 1 check run; 1 check run each at `77a5f7d`, `b12e822`, `ecbd514` | 36120399653, 36120638228 (+ the `gh api .../check-runs` ids) |
 | No pass in this PR was cancelled or displaced | the workflow's only `cancelled` run is PR #107's | — |
 
-### `issue_comment` arm — post-merge, owed
+### `issue_comment` arm — cannot run before merge
 
-GitHub loads every `issue_comment` workflow from the **default branch**, so the
-file that adds the trigger cannot start a run from a comment until it is on
-`develop`. This is a platform rule, not an untested assumption about the
-expressions; the expressions below are already decided above. Capturing it needs
-either this repo's default branch after merge or a separate fixture repository
-with the same workflow on its default branch — the #108 throwaway-PR pattern.
-Issue #109 stays open until these run ids are recorded.
+GitHub's trigger reference for `issue_comment`: *"This event will only trigger a
+workflow run if the workflow file exists on the default branch."* The default
+branch here is `develop`, so no comment — from any account, on any pull request
+in this repository — can start this workflow until this PR is merged. That is
+the whole reason every cell below is `_pending_`; it is not a claim about the
+expressions, which are decided in the tables above, and it is not a scheduling
+claim the harness declined to make.
+
+No in-PR mechanism reaches it. A throwaway PR is the #108 pattern, and it worked
+there because a `pull_request` workflow loads from the PR's merge commit; it
+does nothing for an `issue_comment` workflow, which loads from the default
+branch and therefore ignores the PR entirely. Only two things can produce these
+run ids:
+
+1. **merge this PR**, then comment on a pull request — the runs land in this
+   repository, and this table is filled here. Issue #109 stays open until then.
+2. **a fixture repository** whose default branch already carries the same
+   workflow, commented on after the same edits — real runs, different repo.
+
+The scheduling semantics this table asserts — that a job-level `concurrency`
+group is acquired only after the job `if:` passes, that a sibling run waits, and
+that `cancel-in-progress` decides which events displace — are GitHub's scheduler
+behavior, not properties of the workflow file. No edit to this repository's
+files can make them observable before merge, so no in-PR test, plant or harness
+can stand in for them.
 
 | Assertion | Plant (violation present) | Run id | Without the plant | Run id |
 | --- | --- | --- | --- | --- |
