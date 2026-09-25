@@ -790,3 +790,21 @@ worded so it stays valid either way, and the affected decision is named:
    recall, variance, or cost) require a matched sweep-off control on the same
    pull request heads, or is the descriptive sweep-enabled miss record the most
    this item claims?
+
+---
+
+## AWAITING HUMAN PRODUCT DECISIONS
+
+The following review findings each point to an intentionally documented open
+question above, not to a missing or defective spec section. Each requires a
+human product decision before implementation can proceed.
+
+| Finding | Open Question | Decision required |
+| --- | --- | --- |
+| Open Questions 1 and 8 unresolved (recorded category list currency, AC4, AC6) | 1, 8 | Are spec-AC-compliance findings (OQ 1) and per-finding-resolution findings (OQ 8) each swept as a category, or excluded with a recorded rationale like planted-proof evidence? |
+| Open Question 4 unresolved (measured evidence tier, AC15) | 4 | Is ten dogfooded pull requests the measured-evidence gate, and does that count require adjudicated external-finding evidence on those pull requests or only that Ronda reviewed them? |
+| Open Question 7 unresolved (per-category pass record, AC1, AC20) | 7 | Which operator-facing surface carries the per-category pass record: the check-run output, logs, the benchmark output, or more than one? |
+
+This spec is complete and documented. All blocking findings identify known
+product decisions awaiting human input. These decisions must be made before
+implementation can proceed.
