@@ -65,6 +65,16 @@ rejected as an unexpected key by the pinned actionlint in
 `.github/workflows/actionlint.yml`, which is a required CI gate. Plants 12, 13
 and 14 keep the rejected routings as falsifiable violations.
 
+A caller-side **preflight job** running `matchesReviewCommand` and gating the
+concurrency-bearing job on its output would close the hole exactly, because a
+job applies the real parser where an expression cannot. It is deliberately not
+adopted: the caller would carry a copy of `matchesReviewCommand` that has to
+track `src/cli/resolve-trigger.ts` for the life of the caller, and a copy that
+drifts fails silently toward publishing two check runs for one head SHA — the
+failure the contract forbids — so it is a worse trade than a residual that costs
+one more comment or push. A caller that wants it shut should call the parser,
+not reimplement it.
+
 ## Expression proof
 
 Evaluator: `@actions/expressions` 0.3.61 (GitHub's published implementation of
@@ -330,26 +340,26 @@ those of the committed workflow.
 | 8 | Job `if:`: wrong command literal | line 60: `'/ronda review'` becomes `'/ronda-review'` | A1, A2, A7, B1, B9, B10, B11, B12, B13 |
 | 9 | Job `if:`: `startsWith` instead of `contains` | line 60: `contains(body, ...)` becomes `startsWith(body, ...)` | A7, B9, B10 |
 | 10 | Job `if:`: pull_request never runs | line 57: `draft != true` becomes `false` | A8, B2 |
-| 11 | Group routing: pull_request arm dropped | line 109: `event_name == 'pull_request'` becomes `false` | B1, B9, B10, B11, B12, B13 |
-| 12 | Group routing: comments get their own per-run group (the pre-serialization design) | line 111: the comments' group becomes a per-run one | B1, B9, B10, B11, B12, B13 |
-| 13 | Group routing: comments share one repo-wide group (the old snippet) | line 111: the comments' group becomes a constant | B1, B9, B10, B11, B12, B13 |
-| 14 | Group routing: one repo-wide group for both arms | line 110: both arms' groups become one constant | B3 |
+| 11 | Group routing: pull_request arm dropped | line 117: `event_name == 'pull_request'` becomes `false` | B1, B9, B10, B11, B12, B13 |
+| 12 | Group routing: comments get their own per-run group (the pre-serialization design) | line 119: the comments' group becomes a per-run one | B1, B9, B10, B11, B12, B13 |
+| 13 | Group routing: comments share one repo-wide group (the old snippet) | line 119: the comments' group becomes a constant | B1, B9, B10, B11, B12, B13 |
+| 14 | Group routing: one repo-wide group for both arms | line 118: both arms' groups become one constant | B3 |
 | 15 | Placement: workflow-level `concurrency` re-added alongside the job-level one | line 37: a workflow-level `concurrency` block is added above `jobs:` | S1 |
-| 16 | Placement: `concurrency` moved back to the workflow level | lines 107-119: the job-level block is deleted and an equivalent workflow-level one added | S1, S2, S3 |
-| 17 | Placement: `queue: max` added to the job's group | line 112: `queue: max` is added to the job `concurrency` (actionlint rejects it) | S4 |
-| 18 | Cancellation: everything cancels | line 119: the expression becomes `true` | S3, B5, B7, B8 |
-| 19 | Cancellation: nothing cancels | line 119: the expression becomes `false` | S3, B6 |
-| 20 | Cancellation: reopened and ready_for_review cancel | line 119: `action == 'synchronize'` becomes `action != 'opened'` | B7, B8 |
+| 16 | Placement: `concurrency` moved back to the workflow level | lines 115-127: the job-level block is deleted and an equivalent workflow-level one added | S1, S2, S3 |
+| 17 | Placement: `queue: max` added to the job's group | line 120: `queue: max` is added to the job `concurrency` (actionlint rejects it) | S4 |
+| 18 | Cancellation: everything cancels | line 127: the expression becomes `true` | S3, B5, B7, B8 |
+| 19 | Cancellation: nothing cancels | line 127: the expression becomes `false` | S3, B6 |
+| 20 | Cancellation: reopened and ready_for_review cancel | line 127: `action == 'synchronize'` becomes `action != 'opened'` | B7, B8 |
 | 21 | Naming: the caller job is named `Ronda review` | line 45: the job `name:` becomes `Ronda review` | S5 |
 | 22 | Naming: the caller job id is renamed | line 38: the job id becomes `ronda-job` | S2, S3, S6, S7, S8, S9, A3, A4, A5, A6, A9, B3, B4, B5, B6, B7, B8 |
-| 23 | Permissions: `checks: write` dropped | lines 125-125: deleted | S8 |
-| 24 | Permissions: `pull-requests: write` dropped | lines 124-124: deleted | S7 |
-| 25 | Reusable workflow: the caller points elsewhere | line 126: the `uses:` path changes | S9 |
+| 23 | Permissions: `checks: write` dropped | lines 133-133: deleted | S8 |
+| 24 | Permissions: `pull-requests: write` dropped | lines 132-132: deleted | S7 |
+| 25 | Reusable workflow: the caller points elsewhere | line 134: the `uses:` path changes | S9 |
 | 26 | Wiring: `issue_comment` subscription removed | lines 31-32: deleted | C1 |
 | 27 | Wiring: wrong comment action | line 32: `types: [created]` becomes `types: [edited]` | C1 |
 | 28 | Wiring: automatic passes retargeted | line 29: `- develop` becomes `- main` | C2 |
 | 29 | Wiring: automatic passes lose actions | line 30: the `types` list becomes `[opened, synchronize]` | C3 |
-| 30 | Placement: the job's `group` key is deleted, `cancel-in-progress` kept | lines 108-111: the job's `group:` key is removed, leaving `cancel-in-progress` and the `ronda` id | S2, B3 |
+| 30 | Placement: the job's `group` key is deleted, `cancel-in-progress` kept | lines 116-119: the job's `group:` key is removed, leaving `cancel-in-progress` and the `ronda` id | S2, B3 |
 
 Each doc plant is a single edit to the adoption doc's snippet, run in `--doc`
 parity mode; it must break parity for at least one context.

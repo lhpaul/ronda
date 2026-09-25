@@ -102,7 +102,7 @@ comment or push; if it was a manual re-request, the request is lost and one more
 comment restores it. An in-flight pass is never affected: the comment arm does
 not cancel in progress.
 
-This cannot be closed, and the wider predicate is the safer side of it:
+No `if:` expression closes it, and the wider predicate is the safer side of it:
 
 - **No expression can match Ronda's rule.** GitHub expressions have no regex and
   cannot select the first non-quoted line, so no predicate accepts exactly the
@@ -115,6 +115,18 @@ This cannot be closed, and the wider predicate is the safer side of it:
   be combined with `cancel-in-progress: true` — the combination is a workflow
   validation error — and the pinned actionlint in this repository's
   `.github/workflows/actionlint.yml` rejects `queue` as an unexpected key.
+- **A preflight job could close it, and this snippet deliberately does not add
+  one.** Nothing stops a caller declaring a second, secretless job that runs
+  Ronda's real parser and gates the job above on its output: the phrase-only
+  comment then fails that gate and joins no group, so the displacement cannot
+  happen at all. It is left out because this snippet is copy-paste for adopters
+  with their own review loop. Such a job carries a reimplementation of
+  `matchesReviewCommand`, and its semantics have to track that function in
+  `src/cli/resolve-trigger.ts` for the life of the caller — a copy that drifts
+  fails silently, and it fails in the direction that produces two check runs for
+  one head SHA. Weighed against a residual that costs one more comment or push,
+  the drift is not worth it here. A caller that wants the hole shut should call
+  the parser rather than reimplement it.
 
 A displaced run costs one more comment or push — recoverable, and the displaced
 form is the one Ronda would have rejected anyway. Two check runs for one head SHA

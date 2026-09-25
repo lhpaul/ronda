@@ -104,6 +104,14 @@ jobs:
     # The wider predicate is the recoverable side of the trade: a displaced run
     # costs one more comment or push, while two check runs for one head SHA
     # break the contract above and no later pass repairs them.
+    #
+    # A secretless preflight job running `matchesReviewCommand` and gating this
+    # job on its output would close the hole exactly — unlike an expression, a
+    # job applies the real parser. It is not done here because a caller-side
+    # copy of the parser must track src/cli/resolve-trigger.ts for the life of
+    # this file, and a copy that drifts fails silently in the direction that
+    # publishes two check runs for one head SHA. Call the parser rather than
+    # reimplement it if you need the hole shut.
     concurrency:
       group: >-
         ${{ github.event_name == 'pull_request'
