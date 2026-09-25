@@ -82,19 +82,28 @@ jobs:
     # have no regex and cannot select the first unquoted line, so none can mirror
     # `matchesReviewCommand` (src/cli/resolve-trigger.ts). A comment that contains
     # the phrase without being a well-formed command (`/ronda review later`)
-    # passes this `if:`, joins the PR's group, and can displace a queued manual
-    # run before Ronda rejects it and publishes nothing. Narrowing does close
-    # that hole — the phrase-only comment then fails this `if:`, the job is
-    # skipped, and it joins no group at all — but it opens a worse one: an exact
-    # or prefix test (`body == '/ronda review'`, `startsWith`) drops forms Ronda
-    # accepts, namely a command after a quoted, blank or whitespace-led first
-    # line. Those forms then join no group either, so a manual and an automatic
-    # pass on one head SHA can run together, both find no check run, and publish
-    # two — breaking the contract above. `queue: max`, which would stop a queued
-    # run from being replaced, is rejected by the pinned actionlint in
-    # .github/workflows/actionlint.yml. The wider predicate is deliberate: a lost
-    # manual re-request leaves the head SHA with the review it already had; two
-    # check runs for one head SHA do not.
+    # passes this `if:`, joins the PR's group, and — since a newly queued run
+    # replaces an existing `pending` one — can displace a queued run of either
+    # arm before Ronda rejects it and publishes nothing. If the displaced run
+    # was a `synchronize` pass queued for a new head SHA, that head then has no
+    # published review until a later comment or push; if it was a manual
+    # re-request, the request is lost and one more comment restores it. An
+    # in-flight pass is never affected: this arm does not cancel in progress.
+    #
+    # Narrowing closes that hole — the phrase-only comment then fails this `if:`,
+    # the job is skipped, and it joins no group at all — but it opens a worse
+    # one: an exact or prefix test (`body == '/ronda review'`, `startsWith`)
+    # drops forms Ronda accepts, namely a command after a quoted, blank or
+    # whitespace-led first line. Those forms then join no group either, so a
+    # manual and an automatic pass on one head SHA can run together, both find
+    # no check run, and publish two — breaking the contract above. `queue: max`,
+    # which would keep a queued run from being replaced, cannot be combined with
+    # `cancel-in-progress: true` and is rejected by the pinned actionlint in
+    # .github/workflows/actionlint.yml.
+    #
+    # The wider predicate is the recoverable side of the trade: a displaced run
+    # costs one more comment or push, while two check runs for one head SHA
+    # break the contract above and no later pass repairs them.
     concurrency:
       group: >-
         ${{ github.event_name == 'pull_request'

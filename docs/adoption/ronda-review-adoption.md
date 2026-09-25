@@ -94,9 +94,13 @@ The job `if:` above tests `contains(comment.body, '/ronda review')` — the whol
 body, not the first meaningful line. It therefore admits a comment that only
 mentions the phrase, such as `/ronda review later`, which Ronda itself rejects
 (`matchesReviewCommand`, in `src/cli/resolve-trigger.ts`) and runs no pass for.
-Such a comment joins the PR's group and can displace a queued manual run before
-it exits, so that queued request is lost and the head SHA keeps the review it
-already had.
+Such a comment joins the PR's group and — since a newly queued run replaces an
+existing `pending` one — can displace a queued run of **either** arm before it
+exits and Ronda rejects the comment. If the displaced run was a `synchronize`
+pass queued for a new head SHA, that head has no published review until a later
+comment or push; if it was a manual re-request, the request is lost and one more
+comment restores it. An in-flight pass is never affected: the comment arm does
+not cancel in progress.
 
 This cannot be closed, and the wider predicate is the safer side of it:
 
@@ -112,9 +116,10 @@ This cannot be closed, and the wider predicate is the safer side of it:
   validation error — and the pinned actionlint in this repository's
   `.github/workflows/actionlint.yml` rejects `queue` as an unexpected key.
 
-A displaced manual re-request costs a second comment; two check runs for one
-head SHA break the contract in section 4. Keep the pre-filter no stricter than
-Ronda.
+A displaced run costs one more comment or push — recoverable, and the displaced
+form is the one Ronda would have rejected anyway. Two check runs for one head SHA
+break the contract in section 4 and no later pass repairs them. Keep the
+pre-filter no stricter than Ronda.
 
 ### The caller job must not be named `Ronda review`
 
