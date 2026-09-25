@@ -83,14 +83,18 @@ jobs:
     # `matchesReviewCommand` (src/cli/resolve-trigger.ts). A comment that contains
     # the phrase without being a well-formed command (`/ronda review later`)
     # passes this `if:`, joins the PR's group, and can displace a queued manual
-    # run before Ronda rejects it and publishes nothing. Narrowing the predicate
-    # cannot close it — the accepted forms dropped (a command after leading
-    # whitespace) would then run unserialized, and two check runs for one head SHA
-    # break the contract above — and `queue: max`, which would stop a pending run
-    # from being replaced, is rejected by the pinned actionlint in
+    # run before Ronda rejects it and publishes nothing. Narrowing does close
+    # that hole — the phrase-only comment then fails this `if:`, the job is
+    # skipped, and it joins no group at all — but it opens a worse one: an exact
+    # or prefix test (`body == '/ronda review'`, `startsWith`) drops forms Ronda
+    # accepts, namely a command after a quoted, blank or whitespace-led first
+    # line. Those forms then join no group either, so a manual and an automatic
+    # pass on one head SHA can run together, both find no check run, and publish
+    # two — breaking the contract above. `queue: max`, which would stop a queued
+    # run from being replaced, is rejected by the pinned actionlint in
     # .github/workflows/actionlint.yml. The wider predicate is deliberate: a lost
-    # manual re-request leaves the head SHA with the review it already had, an
-    # unserialized accepted pass does not.
+    # manual re-request leaves the head SHA with the review it already had; two
+    # check runs for one head SHA do not.
     concurrency:
       group: >-
         ${{ github.event_name == 'pull_request'
