@@ -70,7 +70,9 @@ findings in that one review.
 **Actions available**:
 
 - Read the review on GitHub, as today.
-- Disable the sweep for the repository and review again without it.
+- Disable the sweep for the repository; passes for later heads then run
+  without it. A head that already has its one review is not reviewed a second
+  time because the sweep was toggled.
 
 **Considerations**:
 
@@ -85,12 +87,15 @@ findings in that one review.
   supersede behavior as today.
 - Findings stay on the ordinary severity channel; the sweep does not create a
   separate class of finding.
+- A finding that fits none of the swept categories is still published, and is
+  recorded in the per-category pass record as uncategorized. A finding that fits
+  more than one category is recorded against each category it fits.
 - When another review mode is already active for the same pass, the sweep adds
   its categories to that pass; it never turns one pass into two published
   reviews.
-- If the current category list cannot be read when a pass starts, the pass
-  continues as an ordinary non-sweep review and records that the sweep did not
-  run. A missing list degrades coverage; it never fails the pass and never
+- If the current category list cannot be read when a pass starts, or is empty or
+  malformed, the pass continues as an ordinary non-sweep review and records that
+  the sweep did not run. A missing list degrades coverage; it never fails the pass and never
   leaves the head without a result.
 
 ---
@@ -197,6 +202,12 @@ findings in that one review.
   the two are comparable.
 - Model and configuration must be identical across the compared runs; otherwise
   the comparison measures something else.
+- Use Case 5 adds seeds and so changes the fixture's denominator. Sweep-off and
+  sweep-on runs must use the same fixture version, and the fixture version is
+  recorded with the results. The sweep is aimed at themes the 2026-09-10 fixture
+  does not seed, so the comparison is reported on the extended fixture, with the
+  original thirteen seeded defects also reported as their own subset so the
+  2026-09-10 baseline remains comparable.
 
 ---
 
@@ -361,10 +372,10 @@ findings in that one review.
 - Exactly one sweep category list is current at any time, and it is recorded
   where operators read Ronda's other quality evidence. A list with no categories
   is not a valid current list.
-- When the current category list cannot be read at the start of a pass, the pass
-  proceeds as an ordinary non-sweep review and records that the sweep did not
-  run. A missing or unreadable list never fails the pass and never suppresses the
-  review for that head.
+- When the current category list cannot be read, or is empty or malformed, at the
+  start of a pass, the pass proceeds as an ordinary non-sweep review and records
+  that the sweep did not run. A missing, unreadable, empty, or malformed list
+  never fails the pass and never suppresses the review for that head.
 - Every category on the current list cites its supporting real-pull-request
   evidence and the finding-instance count behind it.
 - The seeded benchmark's four never-found kinds are not, on their own, a valid
@@ -377,8 +388,10 @@ findings in that one review.
 - Recall evidence for the sweep is invalid unless it reports every individual
   run and the spread across identical runs, with a sample count at least as
   large as the 2026-09-10 baseline's.
-- Sweep-on and sweep-off comparison runs must use the same target, model, and
-  configuration; otherwise the comparison is not admissible evidence.
+- Sweep-on and sweep-off comparison runs must use the same target, model,
+  configuration, and fixture version; otherwise the comparison is not
+  admissible evidence. Results are reported for the extended fixture and, as a
+  separate subset, for the original thirteen seeded defects.
 - Precision evidence is mandatory for every recall claim: the same comparison
   must report unexpected findings for both configurations.
 - Cost evidence is mandatory and must state model calls per pass and elapsed
@@ -445,6 +458,8 @@ corpus, kept so every category is traceable to its source rows.
 - Real-PR evidence (measured) → Real-PR evidence (provisional) when the category
   list is revised, until ten pull requests have accumulated under the revised
   list.
+- A revision made while the tier is Real-PR evidence (provisional) leaves the
+  tier at Real-PR evidence (provisional) and restarts the pull-request count.
 
 ---
 
@@ -457,7 +472,9 @@ corpus, kept so every category is traceable to its source rows.
 - **Per-category pass record**: for each sweep pass, which categories produced
   findings and which produced none, on the operator-facing evidence surface. It
   is not published in the review body, so reviewers of the pull request do not
-  read a list of empty categories.
+  read a list of empty categories. Which operator-facing surface carries it is
+  an open question (see Open Questions); until settled, it must be readable by
+  an operator without being part of the published review body.
 - **Recorded category list**: the operator-readable artifact holding the current
   categories, their evidence, the excluded candidates, and the revision history.
 - **Quality evidence**: recall per run, spread across runs, precision results,
@@ -493,8 +510,10 @@ corpus, kept so every category is traceable to its source rows.
       each change, naming the evidence that motivated it.
 - [ ] AC8: Committed benchmark evidence reports, for sweep-off and sweep-on
       configurations against the same target, model, and configuration: per-run
-      recall, the lowest and highest recall, and the sample count — with a
-      sample count at least as large as the 2026-09-10 baseline's.
+      recall, the lowest and highest recall, the sample count, and the fixture
+      version — with a sample count at least as large as the 2026-09-10
+      baseline's, and with the original thirteen seeded defects reported as a
+      separate subset alongside the extended fixture.
 - [ ] AC9: The same committed evidence reports unexpected findings per
       configuration, attributes each unexpected finding to the category that
       produced it, and reports whether each precision fixture stayed clean.
@@ -519,11 +538,15 @@ corpus, kept so every category is traceable to its source rows.
 - [ ] AC17: Documentation states that the seeded benchmark is not a regression
       gate until the fixture cases required by AC12 and AC13 exist, and that the
       gate is restored once they do.
-- [ ] AC18: An operator can enable and disable the sweep for a repository, and a
-      disabled sweep reproduces today's review behavior.
+- [ ] AC18: An operator can enable and disable the sweep for a repository, the
+      sweep is off for a repository that has not enabled it, and a disabled
+      sweep reproduces today's review behavior.
 - [ ] AC19: When the sweep is enabled but the current category list cannot be
-      read, the pass still publishes its normal review for that head and records
-      that the sweep did not run.
+      read, or is empty or malformed, the pass still publishes its normal review
+      for that head and records that the sweep did not run.
+- [ ] AC20: Every finding published by a sweep pass appears in the per-category
+      pass record, either against one or more swept categories or as
+      uncategorized.
 
 ---
 
@@ -557,7 +580,7 @@ corpus, kept so every category is traceable to its source rows.
 
 | Brief objective | Acceptance criteria / disposition | Notes |
 | --- | --- | --- |
-| O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19 | The sweep runs inside the existing one-review-per-head contract, is operator-controllable, and degrades to today's behavior when its list is unreadable. |
+| O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19, AC20 | The sweep runs inside the existing one-review-per-head contract, is operator-controllable, and degrades to today's behavior when its list is unreadable. |
 | O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts, counting unit, version, and revisions. |
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds are recorded as excluded. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target. |
@@ -633,3 +656,12 @@ corpus, kept so every category is traceable to its source rows.
 6. Should the sweep default to on or off for adopting repositories once the
    evidence is in, and does that decision need a release note for existing
    adopters?
+7. Which operator-facing surface carries the per-category pass record (AC1,
+   AC20): the check-run output, logs, the benchmark output, or more than one?
+   The spec requires only that it be readable by an operator and absent from the
+   published review body.
+8. Per-finding resolution (3 instances, the theme behind the `partial_success`
+   category that both independent reviewers hit) is neither on the issue's
+   five-category list nor recorded as an excluded candidate. Should it be a
+   sweep category, or recorded as excluded with a rationale (small count, one
+   PR)?
