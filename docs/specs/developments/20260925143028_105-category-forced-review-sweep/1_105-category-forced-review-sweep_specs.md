@@ -94,10 +94,12 @@ findings in that one review.
   its categories to that pass; it never turns one pass into two published
   reviews.
 - Whether the sweep is enabled is read from the effective operator
-  configuration value for the run (AC18). An absent value means off. An empty
-  or unrecognized value also means off: the pass runs as an ordinary non-sweep
-  review, records that the enablement value was unrecognized, and never treats
-  an unparseable value as a request to enable. "Non-sweep review" throughout
+  configuration value for the run (AC18). An absent or empty value means off,
+  with no record (an omitted setting and an empty one cannot be told apart on
+  every configuration surface, so they are one case). A non-empty value that is
+  not recognized also means off: the pass runs as an ordinary non-sweep review,
+  records that the enablement value was unrecognized, and never treats an
+  unparseable value as a request to enable. "Non-sweep review" throughout
   this spec means the review Ronda publishes for the same head with the sweep
   off, under the existing review contract.
 - If the current category list cannot be read when a pass starts, or is empty or
@@ -750,11 +752,12 @@ record and can be marked current.
       operator switches (the durability-mode switch) already accept, so
       operators learn one convention; the plan states the exact values, and an
       operator setting any of them gets the matching on or off result. The
-      sweep is off when the value is absent. It is also off, and never on, when
-      the value is empty or is not a recognized on or off value; in that case
-      the pass still publishes its normal review and records, without exposing
-      the raw value, that the enablement value was unrecognized (on the
-      check-run output where the pass publishes a check run, and in the logs).
+      sweep is off when the value is absent or empty, which are one case with
+      no record. It is also off, and never on, when the value is non-empty and
+      is not a recognized on or off value; in that case the pass still
+      publishes its normal review and records, without exposing the raw value,
+      that the enablement value was unrecognized (on the check-run output where
+      the pass publishes a check run, and in the logs).
       A disabled sweep reproduces the non-sweep review behavior (Ronda's review
       behavior for the same head with no sweep feature present: same findings
       channel, same single review per head SHA, no sweep statement in the
@@ -799,8 +802,9 @@ record and can be marked current.
 - O9: Add harder credential-pattern-gap fixture variants.
 - O10: Do not treat the seeded benchmark as a regression gate again until those
   seeds exist.
-- O11: Do not measure real-pull-request effect until roughly ten dogfooded pull
-  requests have accumulated.
+- O11: Do not measure real-pull-request effect until the minimum number of
+  dogfooded pull requests fixed in AC15 (ten, with adjudicated evidence) have
+  accumulated.
 - O12: Account for the fixture over-weighting single-line algorithmic defects
   that nothing in the real corpus resembles.
 
