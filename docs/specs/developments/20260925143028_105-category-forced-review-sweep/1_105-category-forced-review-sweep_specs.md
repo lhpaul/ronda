@@ -48,8 +48,9 @@ findings in that one review.
 3. Ronda records, for each category, whether it produced findings or explicitly
    produced none, on the check-run output and in the logs for that pass —
    never in the published review body.
-4. Ronda publishes one review for that head SHA containing every finding from
-   the pass.
+4. When that pass reaches publication, Ronda publishes one review for that head
+   SHA containing every finding from the pass; a pass the existing flow does not
+   publish publishes no review.
 
 **Postconditions**:
 
@@ -691,9 +692,14 @@ record and can be marked current.
       run, which publishes no check run, shows the same per-category record in
       the benchmark output and its logs. No per-category record appears in the
       published review body.
-- [ ] AC2: With the sweep enabled, Ronda still publishes exactly one review per
+- [ ] AC2: With the sweep enabled, whenever the existing review flow reaches
+      publication for that head SHA, Ronda publishes exactly one review per
       head SHA containing all findings from the pass, and still makes no push,
-      merge, or other change to the pull request.
+      merge, or other change to the pull request. The sweep adds no second
+      publication path: draft-skip and supersede behavior are unchanged, so a
+      pass that the existing flow would not have published (a skipped draft
+      pass, or a pass superseded before publication) publishes no review, in a
+      sweep-enabled run as in a non-sweep one.
 - [ ] AC3: The review summary for a sweep pass states that the sweep was active
       and which category list version was used; a non-sweep pass says neither.
 - [ ] AC4: A recorded sweep category list exists and, for each category, states
