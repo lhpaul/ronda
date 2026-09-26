@@ -533,9 +533,13 @@ findings in that one review.
   pass publishes a check run whose outcome is a review) and in the logs for
   every sweep pass, and additionally in the benchmark output for benchmark runs,
   so per-category recall can be attributed. A pass that reaches review execution
-  and then fails terminally is the one exception: its check run is the existing
-  failure check run, which states the failure rather than a category breakdown,
-  so its per-category record is in the logs only (AC1). A benchmark run
+  and then fails terminally is the one exception, and its surface follows which
+  side of publication the failure falls on: a failure before the review is
+  public leaves the existing failure check run, which states the failure rather
+  than a category breakdown, so the record is in the logs only, while a failure
+  after the review is public synthesizes no failure check run and leaves the
+  record in the logs together with whatever per-category surface the pass's own
+  check-run write produced (AC1). A benchmark run
   publishes nothing to GitHub, so for it the benchmark output and the logs are
   the record surfaces. The record never appears in the published review body.
 - A benchmark run publishes nothing to GitHub. Wherever this spec requires a
@@ -733,10 +737,13 @@ record and can be marked current.
   value was unrecognized (AC18); neither record appears in the review body.
   Both records are emitted only by a pass that reaches review execution; a
   pre-review skip (AC1) and a pass that ends in a terminal failure before
-  review execution (AC1) each emit neither. The per-category record for a
-  pass that reached review execution and then failed terminally is on the
-  logs only (AC1), since that pass's check run is the existing failure check
-  run and states the failure rather than a category breakdown.
+  review execution (AC1) each emit neither. A pass that reaches review
+  execution and then fails terminally keeps its per-category record on the logs
+  (AC1): before the review is public, on the logs only, since that pass's check
+  run is the existing failure check run and states the failure rather than a
+  category breakdown; after the review is public, on the logs and on whatever
+  per-category surface its own check-run write produced, since such a pass
+  synthesizes no failure check run.
 - **Recorded category list**: the operator-readable artifact holding the current
   categories, their evidence, the excluded candidates, and the revision history.
 - **Quality evidence**: recall per run, spread across runs (including the standard deviation of
@@ -787,12 +794,25 @@ record and can be marked current.
       files are read, including one during publication — is the case the
       every-category guarantee above does not cover: it need not have considered
       every category, and its logs carry the per-category record for the
-      categories it reached, and it records the failure exactly as the existing
-      flow does. Because its check run is the existing failure check run, whose output
-      states the failure rather than a category breakdown, the per-category
-      record for this outcome is on the logs only and not on that check run;
-      the pass publishes no review, and no per-category record is fabricated
-      for a category the pass did not reach.
+      categories it reached. Such a terminal failure has two shapes, and it
+      records each exactly as the existing flow does. **Before the review is
+      public** — a model error, or a GitHub error raised after the changed files
+      are read but before the review is published, including a failure of the
+      review publication call itself — it publishes no review, and its outcome
+      is the existing failure check run, whose output states the failure rather
+      than a category breakdown, so its per-category record is on the logs only
+      and not on that check run. **After the review is public** — a failure
+      persisting the check-run recovery state, or a success check-run write that
+      fails after its bounded retry — the review it already published stands,
+      and the existing flow's rule governs: because the review is public and
+      correct, the pass synthesizes no failure check run, since that would
+      contradict what a reader can already see, and the failure surfaces through
+      a non-zero process exit instead. Its check run is therefore the success
+      outcome the pass reached, or none at all where the write never landed, and
+      in either case its per-category record is on the logs, with whatever
+      per-category surface its own check-run write actually produced. In both
+      shapes the pass publishes no second review, and no per-category record is
+      fabricated for a category the pass did not reach.
 - [ ] AC2: With the sweep enabled, whenever the existing review flow reaches
       publication for that head SHA, Ronda publishes exactly one review per
       head SHA containing all findings from the pass, and still makes no push,
@@ -803,9 +823,11 @@ record and can be marked current.
       sweep-enabled run as in a non-sweep one.
 - [ ] AC3: The review summary for a sweep pass that publishes a review states
       that the sweep was active and which category list version was used; a
-      non-sweep pass says neither. A sweep pass that reaches review execution
-      and then fails terminally (AC1) publishes no review, so it has no review
-      summary and owes none.
+      non-sweep pass says neither. A sweep pass whose terminal failure precedes
+      the review becoming public (AC1) publishes no review, so it has no review
+      summary and owes none; a sweep pass that fails after the review is public
+      has already published the review and its summary, which states both as
+      this criterion requires.
 - [ ] AC4: A recorded sweep category list exists and, for each category, states
       its identifier, display label, description, supporting real-pull-request
       evidence source, and finding-instance count.
@@ -1097,7 +1119,7 @@ record and can be marked current.
 
 | Brief objective | Acceptance criteria / disposition | Notes |
 | --- | --- | --- |
-| O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19, AC20 | The sweep runs inside the existing one-review-per-head contract for passes that reach review execution (the pass reads the changed files and runs the review); a pass that ends earlier — a pre-review skip (draft, or an automatic run finding the head's check run) or a terminal failure before review execution (missing or invalid credential, config load error, or a deadline abort or model or GitHub error raised before the changed files are read) — emits no sweep metadata and is indistinguishable from the same outcome without the sweep, while a pass that reaches review execution and then fails terminally keeps its per-category record on the logs (its check run is the existing failure check run), and the review summary statement (AC3) belongs only to a sweep pass that publishes a review. It is operator-controllable and off by default, records per-category results on the check-run output and the logs (and in the benchmark output for benchmark runs), and degrades to the non-sweep review behavior when its list is unreadable or its enablement value is unrecognized, preserving the ordinary publication eligibility (AC2) in every degraded case. |
+| O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19, AC20 | The sweep runs inside the existing one-review-per-head contract for passes that reach review execution (the pass reads the changed files and runs the review); a pass that ends earlier — a pre-review skip (draft, or an automatic run finding the head's check run) or a terminal failure before review execution (missing or invalid credential, config load error, or a deadline abort or model or GitHub error raised before the changed files are read) — emits no sweep metadata and is indistinguishable from the same outcome without the sweep, while a pass that reaches review execution and then fails terminally keeps its per-category record on the logs — before the review is public on the logs only (its check run is the existing failure check run), after the review is public on the logs with whatever per-category surface its own check-run write produced (such a pass synthesizes no failure check run) — and the review summary statement (AC3) belongs only to a sweep pass that publishes a review. It is operator-controllable and off by default, records per-category results on the check-run output and the logs (and in the benchmark output for benchmark runs), and degrades to the non-sweep review behavior when its list is unreadable or its enablement value is unrecognized, preserving the ordinary publication eligibility (AC2) in every degraded case. |
 | O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts (positive finding-instance counts, zero not allowed), counting unit, version, and revisions, each revision dated and the current version's activation date recorded. |
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales, and the seven sub-themes below the candidate boundary are named. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
