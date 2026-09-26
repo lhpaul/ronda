@@ -120,8 +120,9 @@ findings in that one review.
 **Steps**:
 
 1. The operator opens the recorded category list.
-2. The operator reads, for each category, its display label, its description,
-   the evidence behind it, and the finding count that justified it.
+2. The operator reads, for each category, its identifier, display label,
+   description (including the failure shape it targets), the evidence behind
+   it, and the finding count that justified it.
 3. The operator reads which candidate categories were considered and excluded,
    and why.
 4. When new evidence arrives, the operator proposes a revision: adding,
@@ -138,8 +139,8 @@ findings in that one review.
 **Information shown**:
 
 - The current list version and the date it became current.
-- Each category: display label, description, the failure shape it targets, the
-  supporting evidence source, and the finding count.
+- Each category: identifier, display label, description (including the failure
+  shape it targets), the supporting evidence source, and the finding count.
 - Excluded candidates with their exclusion rationale.
 - Revision history.
 
@@ -346,7 +347,9 @@ findings in that one review.
 **Actions available**:
 
 - Add further seeds as new real themes appear.
-- Record that the fixture is, or is not, usable as a regression gate.
+- Record that the fixture is, or is not, ready to serve as the basis of a
+  regression gate. Ready means the seeds required by AC12 and AC13 exist; it
+  does not define what the gate rejects (see Deferred Decisions).
 
 **Considerations**:
 
@@ -562,8 +565,9 @@ record and can be marked current.
 
 **Valid transitions**:
 
-- Fixture evidence only → Real-PR evidence (provisional) when the first pull
-  request carrying a Ronda review with the sweep enabled is recorded.
+- Fixture evidence only → Real-PR evidence (provisional) when the first
+  sweep-enabled real pull request review (one whose pass actually ran the
+  sweep, as the business rules define) is recorded.
 - Real-PR evidence (provisional) → Real-PR evidence (measured) when at least ten
   counted pull requests (sweep-enabled under the current category list version,
   with adjudicated external-finding evidence) have accumulated. Pull requests
@@ -636,8 +640,9 @@ record and can be marked current.
       each change, naming the evidence that motivated it.
 - [ ] AC8: Committed benchmark evidence reports, for sweep-off and sweep-on
       configurations against the same target, model, and configuration: per-run
-      recall, the lowest and highest recall, the sample count, and the fixture
-      version — with a sample count at least as large as the 2026-09-10
+      recall, the lowest and highest recall, per-defect found and missed counts
+      across runs, the sample count, the model identity, the reviewed target,
+      the run timestamps, and the fixture version — with a sample count at least as large as the 2026-09-10
       baseline's, and with the original thirteen seeded defects reported as a
       separate subset alongside the extended fixture. The record states that no
       recall target and no variance ceiling are defined for this feature, so the
@@ -727,11 +732,14 @@ record and can be marked current.
       operator setting any of them gets the matching on or off result. The
       sweep is off when the value is absent. It is also off, and never on, when
       the value is empty or is not a recognized on or off value; in that case
-      the pass still publishes its normal review and records, without exposing the raw value, that the enablement value was
-      unrecognized. A disabled sweep reproduces the non-sweep review behavior
-      (Ronda's review behavior for the same head with no sweep feature present:
-      same findings channel, same single review per head SHA, no sweep
-      statement in the summary, no per-category pass record). The built-in
+      the pass still publishes its normal review and records, without exposing
+      the raw value, that the enablement value was unrecognized (on the
+      check-run output where the pass publishes a check run, and in the logs).
+      A disabled sweep reproduces the non-sweep review behavior (Ronda's review
+      behavior for the same head with no sweep feature present: same findings
+      channel, same single review per head SHA, no sweep statement in the
+      summary, no per-category pass record); the unrecognized-value record is
+      the only addition, and it is made only in the unrecognized case. The built-in
       default is off for every adopting repository; changing that default is
       not part of this feature.
 - [ ] AC19: When the sweep is enabled but the current category list cannot be
@@ -791,7 +799,7 @@ record and can be marked current.
 | O7: Cost evidence | AC11 | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied. |
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
 | O9: Harder credential-pattern variants | AC13 | At least one variant harder than the existing sensitive-value case. |
-| O10: No regression gate until seeds exist | AC17 | Stated in documentation and tied to AC12 and AC13. |
+| O10: No regression gate until seeds exist | AC17 | Stated in documentation and tied to AC12 and AC13. Once they exist the extended fixture may be declared ready as a gate basis; the gate's pass/fail contract is a Deferred Decision, so the declaration makes no benchmark result pass or fail. |
 | O11: No real-PR measurement before ~10 dogfooded PRs | AC15, AC16, plus the evidence tier enum | Ten is the confirmed minimum and the count requires adjudicated external-finding evidence; the tier labels enforce what each evidence set may claim, including that a comparative claim needs a matched sweep-off control. |
 | O12: Fixture over-weights single-line algorithmic defects | Out of Scope (MVP) — see Deferral Note D1 | Recorded as a known fixture bias; rebalancing is deferred. |
 
@@ -840,6 +848,8 @@ record and can be marked current.
 - Setting a recall target or a variance ceiling for the sweep (see Deferred
   Decisions).
 - Setting a cost ceiling for a sweep pass (see Deferred Decisions).
+- Defining the pass/fail contract of a restored benchmark regression gate, that
+  is, what result the gate rejects (see Deferred Decisions).
 - Making the sweep the default for adopting repositories (see Deferred
   Decisions).
 
