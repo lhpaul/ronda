@@ -198,6 +198,9 @@ findings in that one review.
   standard deviation of per-run recall are reported for both configurations.
   One observation is one run, and a run's recall is its defect-weighted recall
   across its whole head set (AC15(d)), not an average of per-head recalls.
+  Where the head set carries no confirmed external defect, both the recall and
+  the variance result are reported as not applicable and neither supports a
+  claim.
 - A reader can tell whether the sweep changed recall, changed variance, changed
   both, or changed neither; the variance claim is read off the standard
   deviation, not the range width.
@@ -466,7 +469,9 @@ findings in that one review.
   defects with no counterpart in either configuration are reported as missed by
   both. A zero denominator — ten counted pull requests whose external reviews
   were all confirmed clean — makes recall not applicable: that measurement
-  supports no recall claim. A cost claim is stated over one named metric: the
+  supports no recall claim, and it makes the variance result not applicable
+  too, since the standard deviation of per-run recall is undefined without a
+  confirmed external defect, so no variance direction is claimed either. A cost claim is stated over one named metric: the
   paired per-head difference in model calls per pass (sweep-on minus sweep-off
   on the same head) averaged across those heads, and the paired per-head
   difference in elapsed time per pass averaged across those heads, each with
@@ -563,8 +568,9 @@ findings in that one review.
   configuration's review reported, matched on the same head and the same defect
   as the adjudication records it, with a defect reported by either
   configuration matched to the same confirmed defect rather than counted twice,
-  with a zero denominator reported as recall not applicable and supporting no
-  recall claim, since ten counted pull requests may all carry confirmed-clean
+  with a zero denominator reported as recall not applicable and the variance
+  result not applicable, both supporting no claim, since ten counted pull
+  requests may all carry confirmed-clean
   external reviews); a cost comparative claim is stated over the paired
   per-head differences in model calls per pass and in elapsed time per pass,
   each averaged across those heads, with both configurations' figures
@@ -873,7 +879,13 @@ record and can be marked current.
       denominator is zero (no confirmed external defect on those heads)
       reports its recall as not applicable and supports no recall claim for
       that measurement, because ten counted pull requests may all carry
-      confirmed-clean external reviews; a comparative cost claim is likewise
+      confirmed-clean external reviews; the same zero denominator makes the
+      variance result not applicable as well and supports no comparative
+      variance claim, since per-run recall — and therefore its standard
+      deviation — is undefined when no confirmed external defect exists on
+      those heads, so the not-applicable result is recorded for the variance
+      figure and no variance direction is claimed; a comparative cost claim is
+      likewise
       stated over one named metric: the paired per-head difference in model
       calls per pass (sweep-on minus sweep-off on the same head) and the paired
       per-head difference in elapsed time per pass, each reported as its mean
@@ -930,7 +942,13 @@ record and can be marked current.
       did not run. A category list is
       malformed when any of these holds: it cannot be read as a list of
       categories at all; any category lacks a display label, a description, an
-      evidence source, an identifier, or a finding-instance count (AC4); two
+      evidence source, an identifier, or a finding-instance count (AC4), or
+      supplies any of those as a value outside its allowed domain — the
+      allowed domain is: identifiers, display labels, descriptions, and
+      evidence sources are each a non-empty string that is not blank
+      (whitespace-only counts as blank), and a finding-instance count is a
+      non-negative integer, so a blank string or a count that is not a
+      non-negative integer is malformed rather than valid; two
       categories share an identifier; it contains no categories; or it carries
       no list version, or no single
       current list version can be identified. In each of these cases the pass
@@ -979,7 +997,7 @@ record and can be marked current.
 | O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts, counting unit, version, and revisions. |
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales, and the seven sub-themes below the candidate boundary are named. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
-| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; one observation is one run, read as that run's defect-weighted recall over its whole head set; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
+| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; one observation is one run, read as that run's defect-weighted recall over its whole head set; a head set with no confirmed external defect makes the variance result not applicable, supporting no claim; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
 | O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean. |
 | O7: Cost evidence | AC11, AC15(d) | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied; a comparative cost claim is read off the paired per-head differences AC15(d) names, not the standalone figures. |
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
