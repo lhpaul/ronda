@@ -63,10 +63,15 @@ findings in that one review.
   and is outside this postcondition (AC1).
 - All findings, whatever category prompted them, appear in one review for that
   head SHA, where the pass publishes a review at all (AC1).
-- The pass records that the sweep ran and which version of the category list it
-  used, as the review summary for a pass that publishes a review and as the
-  per-category pass record for a sweep pass (AC1, AC3); a pass that publishes
-  neither records no such statement, and owes none.
+- The pass's review summary, where the pass publishes a review, states that the
+  sweep was active and which category list version was used (AC3). A pass that
+  publishes no review has no review summary and owes no activation statement or
+  list version, whichever surface it otherwise writes.
+- Every sweep pass that reaches review execution records, per category, which
+  categories produced findings and which produced none, on the surfaces AC1
+  assigns to the pass's outcome (AC1). This per-category record is owed by such
+  a pass even where it is superseded before publication; it then carries the
+  record on the logs, as AC1 assigns.
 
 **Information shown**:
 
