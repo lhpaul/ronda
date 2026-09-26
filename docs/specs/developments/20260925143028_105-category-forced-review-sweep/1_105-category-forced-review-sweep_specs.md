@@ -438,10 +438,15 @@ findings in that one review.
    clean result, and a rejection or out-of-scope outcome is terminal too. The
    operator then counts the cohort's pull requests that carried a sweep-enabled
    review under the current category list version and whose compared findings
-   have been adjudicated. A pull request whose external review reported no
-   findings is adjudicated, and counts, once that clean result is confirmed by
-   the recorded same-head external review; a pull request with no external
-   review recorded is not adjudicated, whether or not it carried findings.
+   have been adjudicated. A pull request whose every compared reviewer — the
+   external reviewer and both Ronda configurations — reported no findings is
+   adjudicated, and counts, once that clean result is confirmed by the recorded
+   same-head external review; a pull request whose external review alone was
+   clean while either Ronda configuration reported a finding is not adjudicated
+   until those findings receive terminal outcomes too, so a Ronda-only finding
+   is never left unresolved behind a clean external review; a pull request with
+   no external review recorded is not adjudicated, whether or not it carried
+   findings.
 2. The operator compares that count against the minimum of ten required before
    real-pull-request effect may be claimed.
 3. The operator labels the current evidence with the tier it qualifies for.
@@ -632,9 +637,12 @@ findings in that one review.
   the ten; an adjudication is terminal when it records an outcome for every
   compared finding or confirms a clean result, a rejection or out-of-scope
   outcome being terminal too. Under that closed cohort, a pull request whose
-  external review reported no findings is adjudicated, and counts, once that
+  every compared reviewer — the external reviewer and both Ronda
+  configurations — reported no findings is adjudicated, and counts, once that
   clean result is confirmed by the recorded same-head external review, while a
-  pull request with no external review recorded is not adjudicated whether or
+  pull request whose external review alone was clean but which carried a Ronda
+  finding is not adjudicated until those findings receive terminal outcomes too;
+  a pull request with no external review recorded is not adjudicated whether or
   not it carried findings. Revising the list restarts that count. Even at
   that minimum, only a descriptive sweep-enabled miss record may be claimed; a
   comparative claim (the sweep changed real-pull-request recall, variance, or
@@ -755,7 +763,7 @@ record and can be marked current.
 | Code value | Display label | Description |
 | --- | --- | --- |
 | `fixture_only` | Fixture evidence only | Evidence comes from the seeded benchmark and precision fixtures. It may support claims about seeded recall, variance, precision, and cost; it may not support claims about real-pull-request effect. |
-| `real_pr_provisional` | Real-PR evidence (provisional) | At least one sweep-enabled real pull request review has been recorded, but fewer than ten counted pull requests have accumulated under the current category list version (a pull request counts only if it carried a sweep-enabled review under that version and its compared-finding evidence has been adjudicated; a clean external review counts once confirmed by the recorded same-head external review, and one with no external review recorded is not adjudicated; the eligible cohort is closed before adjudication and every pull request in it must be terminally adjudicated before the count is read). Findings are indicative only, support no effect claim, and are labeled as such. |
+| `real_pr_provisional` | Real-PR evidence (provisional) | At least one sweep-enabled real pull request review has been recorded, but fewer than ten counted pull requests have accumulated under the current category list version (a pull request counts only if it carried a sweep-enabled review under that version and its compared-finding evidence — a finding from the external reviewer or from either Ronda configuration — has been adjudicated; a clean result counts once every compared reviewer is clean and it is confirmed by the recorded same-head external review, while a Ronda-only finding behind a clean external review is not adjudicated until it receives a terminal outcome; one with no external review recorded is not adjudicated; the eligible cohort is closed before adjudication and every pull request in it must be terminally adjudicated before the count is read). Findings are indicative only, support no effect claim, and are labeled as such. |
 | `real_pr_measured` | Real-PR evidence (measured) | At least ten counted pull requests (sweep-enabled under the current category list version, with adjudicated compared-finding evidence, the eligible cohort closed before adjudication and every pull request in it terminally adjudicated) have accumulated. Descriptive real-pull-request claims are permitted, with the independence caveat and the "own-repository" label. Comparative effect claims additionally require a matched sweep-off control on the same pull request heads; a recall claim is stated over the recorded denominator, numerator, and matching rule AC15(d) defines and requires the paired precision evidence AC9 defines on the same category-list version and effective sweep configuration; a cost claim over the paired per-head differences AC15(d) names; a variance claim over the population standard deviation of per-run recall across the whole reported run set. |
 
 **Valid transitions**:
@@ -770,9 +778,13 @@ record and can be marked current.
   a terminal adjudication before the transition is made, so a reviewed but
   unadjudicated eligible pull request blocks the transition rather than merely
   not counting. In a fully adjudicated cohort, a pull request
-  whose external review reported no findings counts once its clean result is
-  confirmed by the recorded same-head external review; one with no external
-  review recorded is not adjudicated, whether or not it carried findings.
+  whose every compared reviewer — the external reviewer and both Ronda
+  configurations — reported no findings counts once its clean result is
+  confirmed by the recorded same-head external review; a pull request whose
+  external review alone was clean but which carried a Ronda finding is not
+  adjudicated until those findings receive terminal outcomes too; one with no
+  external review recorded is not adjudicated, whether or not it carried
+  findings.
 - Real-PR evidence (measured) → Real-PR evidence (provisional) when the category
   list is revised, until ten pull requests have accumulated under the revised
   list.
@@ -966,6 +978,10 @@ surfaces** state the same rule and must not contradict this table.
       no uncategorized finding publishes a clean result, and produces no
       manufactured finding for any category. A pass whose only findings are
       uncategorized publishes those findings under AC20 and is not clean.
+      This applies to a pass that reaches publication (AC2): a pass the
+      existing review flow would not have published — a skipped draft pass, or
+      a pass superseded before publication — publishes no result at all, clean
+      or otherwise, and owes none.
 - [ ] AC11: The same committed evidence reports model calls per pass and elapsed
       time per pass for both configurations and compares them against the
       recorded per-pull-request convergence figures. The record states that no
@@ -1018,9 +1034,14 @@ surfaces** state the same rule and must not contradict this table.
       unresolved does not reach the ten; a pull request counts only if it
       carried a sweep-enabled review under that version and its
       compared-finding evidence has been adjudicated (a finding from the
-      external reviewer or from either Ronda configuration); a pull request whose external review
-      reported no findings is adjudicated, and counts, once that clean result
-      is confirmed by the recorded same-head external review — a pull request
+      external reviewer or from either Ronda configuration); a pull request
+      whose every compared reviewer — the external reviewer and both Ronda
+      configurations — reported no findings is adjudicated, and counts, once
+      that clean result is confirmed by the recorded same-head external review,
+      while a pull request whose external review alone was clean but which
+      carried a Ronda finding is not adjudicated until those findings receive
+      terminal outcomes too, so a Ronda-only finding is never left unresolved
+      behind a clean external review; a pull request
       with no external review recorded is not adjudicated, whether or not it
       carried findings; a record with at least one sweep-enabled real
       pull request review recorded under any list version but nine or fewer
@@ -1252,7 +1273,7 @@ surfaces** state the same rule and must not contradict this table.
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
 | O9: Harder credential-pattern variant | AC13 | At least one variant harder than the existing sensitive-value case. |
 | O10: No regression gate until seeds exist | AC17 | Stated in documentation and tied to AC12 and AC13. Once they exist the extended fixture may be declared ready as a gate basis; the gate's pass/fail contract is a Deferred Decision, so the declaration makes no benchmark result pass or fail. |
-| O11: No real-PR measurement before ten adjudicated dogfooded PRs | AC15, AC16, plus the evidence tier enum | Ten is the confirmed minimum and the count requires adjudicated compared-finding evidence, counting a clean external review once its same-head confirmation is recorded, with the eligible cohort closed before adjudication and every pull request in it terminally adjudicated so only favorable-case adjudication cannot reach the ten; the tier labels enforce what each evidence set may claim, including that a comparative claim needs a matched sweep-off control, with repeated runs for variance (read off the standard deviation of per-run recall), a comparative recall claim additionally needing the paired precision evidence AC9 defines — on the same category-list version and effective sweep configuration as the claim's heads — and its recorded regression result (precision evidence is mandatory for every recall claim), and a recorded recall metric whose denominator is the confirmed defects found by any compared reviewer — Ronda's sweep-enabled review, Ronda's sweep-off control, or the external reviewer alike, since the external reviewer is a second opinion rather than truth (rejected and out-of-scope adjudications excluded; a `duplicate` outcome counted once as a valid defect both reviewers found; duplicates of one defect collapsed by underlying identity), with the recall figure being the mean of the per-run recalls where a configuration was run more than once — and requiring both configurations to carry the same run count, so an asymmetric evidence set where only one configuration was repeated supports no comparative claim. |
+| O11: No real-PR measurement before ten adjudicated dogfooded PRs | AC15, AC16, plus the evidence tier enum | Ten is the confirmed minimum and the count requires adjudicated compared-finding evidence, counting a pull request whose every compared reviewer is clean once its same-head confirmation is recorded and requiring a Ronda-only finding behind a clean external review to be terminally adjudicated too, with the eligible cohort closed before adjudication and every pull request in it terminally adjudicated so only favorable-case adjudication cannot reach the ten; the tier labels enforce what each evidence set may claim, including that a comparative claim needs a matched sweep-off control, with repeated runs for variance (read off the standard deviation of per-run recall), a comparative recall claim additionally needing the paired precision evidence AC9 defines — on the same category-list version and effective sweep configuration as the claim's heads — and its recorded regression result (precision evidence is mandatory for every recall claim), and a recorded recall metric whose denominator is the confirmed defects found by any compared reviewer — Ronda's sweep-enabled review, Ronda's sweep-off control, or the external reviewer alike, since the external reviewer is a second opinion rather than truth (rejected and out-of-scope adjudications excluded; a `duplicate` outcome counted once as a valid defect both reviewers found; duplicates of one defect collapsed by underlying identity), with the recall figure being the mean of the per-run recalls where a configuration was run more than once — and requiring both configurations to carry the same run count, so an asymmetric evidence set where only one configuration was repeated supports no comparative claim. |
 | O12: Fixture over-weights single-line algorithmic defects | Out of Scope (MVP) — see Deferral Note D1 | Recorded as a known fixture bias; rebalancing is deferred. |
 
 ### Deferral Notes
