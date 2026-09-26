@@ -1,0 +1,1417 @@
+# Category-Forced Review Sweep, Scoped On Real-PR Evidence - Spec
+
+**Depends on**: 24-review-quality-benchmark-suite, 53-capture-external-review-misses
+
+---
+
+## Overview
+
+Ronda reviews a pull request with a single open-ended pass: nothing obliges the
+reviewer to consider a fixed set of defect kinds, so what it looks for changes
+between runs. On the seeded benchmark of 2026-09-10 the same fixture produced
+between 6 and 8 of 13 seeded defects across five identical runs, and four seeded
+kinds were missed in every run.
+
+This feature makes Ronda sweep each review across an explicit, recorded list of
+defect categories instead of leaving coverage to chance, with the expectation
+that recall rises and run-to-run variance falls. The category list is a product
+artifact in its own right: it must be justified by what real pull requests
+actually contain, recorded where an operator can read it, and revisable when
+better evidence arrives.
+
+The feature also covers the evidence that makes the change judgeable — recall,
+run-to-run variance, precision, and cost — and the benchmark fixture work needed
+before the seeded benchmark can be trusted as a regression gate again. Ronda's
+review contract is unchanged: comment-only, one review per head SHA, all
+findings in that one review.
+
+---
+
+## Use Cases
+
+### Use Case 1: Ronda Sweeps A Pull Request Across The Recorded Category List
+
+**Actor**: Ronda (acting for the operator who enabled the sweep)
+
+**Preconditions**:
+
+- A recorded sweep category list exists and is marked current.
+- The sweep is enabled for the review pass: per repository where the ingress
+  supplies repository identity (the Actions workflow input), and
+  deployment-wide where the ingress resolves one process-wide operator
+  configuration for every repository it serves (the webhook) (AC18).
+- Ronda has been asked to review a pull request head, through any of its normal
+  review triggers.
+
+**Steps**:
+
+1. Ronda starts a review pass for the pull request head.
+2. Ronda considers the changed content against every category on the current
+   sweep category list, in addition to anything else it would otherwise report.
+   This is what a pass that completes review execution does; a pass that reaches
+   review execution and then fails terminally records the categories it reached
+   and no more (AC1).
+3. Ronda records, for each category, whether it produced findings or explicitly
+   produced none — never in the published review body, and on the surfaces AC1
+   assigns to the pass's outcome.
+4. When that pass reaches publication, Ronda publishes one review for that head
+   SHA containing every finding from the pass; a pass the existing flow does not
+   publish publishes no review.
+
+**Postconditions**:
+
+- Every category on the current list was considered for that head. A pass that
+  completes review execution satisfies this in full; a pass that reaches review
+  execution and then fails terminally considers only the categories it reached
+  and is outside this postcondition (AC1).
+- All findings, whatever category prompted them, appear in one review for that
+  head SHA, where the pass publishes a review at all (AC1).
+- The pass's review summary, where the pass publishes a review, states that the
+  sweep was active and which category list version was used (AC3). A pass that
+  publishes no review has no review summary and owes no activation statement or
+  list version, whichever surface it otherwise writes.
+- Every sweep pass that reaches review execution records, per category, which
+  categories produced findings and which produced none, on the surfaces AC1
+  assigns to the pass's outcome (AC1). This per-category record is owed by such
+  a pass even where it is superseded before publication; it then carries the
+  record on the logs, as AC1 assigns.
+
+**Information shown**:
+
+- The published review: findings with their locations and severities, as in a non-sweep review.
+- The review summary: that the category-forced sweep was active and which
+  category list version was used.
+- The check-run output and the logs: which categories produced findings for
+  that pass and which produced none, on the surfaces AC1 assigns to the
+  pass's outcome.
+
+**Actions available**:
+
+- Read the review on GitHub, as for a non-sweep review.
+- Disable the sweep for the scope that ingress supplies — per repository for
+  the Actions ingress, deployment-wide for the webhook (AC18); passes for later
+  heads in that scope then run without it. A head that already has its one
+  review is not reviewed a second time because the sweep was toggled.
+
+**Considerations**:
+
+- "No finding for this category" is a normal, expected result for most
+  categories on most pull requests. The sweep must never push Ronda toward
+  producing one finding per category.
+- A category that does not apply to the changed content at all (for example, a
+  documentation-only change) is simply reported as producing no findings; it is
+  not an error.
+- Existing review behavior is unchanged in every other respect: comment-only, no
+  branch or pull request mutation, one review per head SHA, draft-skip and
+  supersede behavior as in a non-sweep review.
+- Findings stay on the ordinary severity channel; the sweep does not create a
+  separate class of finding.
+- A finding that fits none of the swept categories is still published, and is
+  recorded in the per-category pass record as uncategorized. A finding that fits
+  more than one category is recorded against each category it fits.
+- When another review mode is already active for the same pass, the sweep adds
+  its categories to that pass; it never turns one pass into two published
+  reviews.
+- Whether the sweep is enabled is read from the effective operator
+  configuration value for the run (AC18): the value from the
+  highest-precedence source that supplies a non-empty value. An absent, empty,
+  or whitespace-only value means off, with no record, and counts as not
+  supplied (an omitted setting and an empty one cannot be told apart on every
+  configuration surface, so they are one case). A non-empty value that is
+  not recognized also means off: a pass that reaches review execution runs as an
+  ordinary non-sweep review,
+  records that the enablement value was unrecognized, and never treats an
+  unparseable value as a request to enable. A pass the existing flow ends before
+  review execution (a draft pull request, or an existing-check automatic skip)
+  emits no such record. "Non-sweep review" throughout
+  this spec means the review Ronda publishes for the same head with the sweep
+  off, under the existing review contract.
+- If the current category list cannot be read when an enabled pass that reaches
+  review execution starts, or is
+  empty or
+  malformed (as AC19 defines), the pass continues as an ordinary non-sweep review,
+  records that the sweep did not run, and reports no list version as used. A
+  missing list degrades coverage; it never fails the pass and never suppresses
+  the review the existing flow would otherwise publish for that head. A pass the
+  existing flow ends before review
+  execution (a draft pull request, or an existing-check automatic skip, AC1)
+  never reads the list and emits no such record. A disabled sweep never reaches
+  this path.
+
+---
+
+### Use Case 2: Operator Reads And Revises The Sweep Category List
+
+**Actor**: Ronda operator
+
+**Preconditions**:
+
+- The recorded sweep category list is committed with the rest of Ronda's quality
+  evidence.
+
+**Steps**:
+
+1. The operator opens the recorded category list.
+2. The operator reads, for each category, its identifier, display label,
+   description (including the failure shape it targets), the evidence behind
+   it, and the finding count that justified it.
+3. The operator reads which candidate categories were considered and excluded,
+   and why.
+4. When new evidence arrives, the operator proposes a revision: adding,
+   removing, or reordering categories.
+5. The operator records the revision with its date, the evidence that motivated
+   it, and a new list version.
+
+**Postconditions**:
+
+- Any reader can tell why each category is on the list and what evidence would
+  justify changing it.
+- Every revision is traceable to the evidence that motivated it.
+
+**Information shown**:
+
+- The current list version and the date it became current.
+- Each category: identifier, display label, description (including the failure
+  shape it targets), the supporting evidence source, and the finding count.
+- Excluded candidates with their exclusion rationale, and the sub-themes named as
+  below the candidate boundary.
+- Revision history.
+
+**Actions available**:
+
+- Propose a revision with supporting evidence.
+- Keep the list unchanged and record that the new evidence did not move it.
+
+**Considerations**:
+
+- The list is scoped on real-pull-request evidence. The seeded benchmark's four
+  never-found kinds (authorization bypass, data-loss overwrite, configuration
+  debug default, invalid range parsing) are not confirmed by any real-pull-request
+  evidence in the 2026-09-23 corpus, so they must not be the basis for the list.
+- A list revision is a human decision. Evidence can recommend a change; it
+  cannot apply one on its own.
+- Counts in the list are finding **instances**, not distinct defects — the same
+  defect re-raised at a new location after a failed fix counts again. The list
+  must say so, so nobody reads 14 instances as 14 defects.
+
+---
+
+### Use Case 3: Operator Measures Recall And Run-To-Run Variance
+
+**Actor**: Ronda operator
+
+**Preconditions**:
+
+- The seeded benchmark and a configured model credential are available.
+- Both a sweep-off and a sweep-on configuration can be run against the same
+  benchmark target.
+
+**Steps**:
+
+1. The operator runs the benchmark repeatedly against the same target with the
+   sweep off, keeping model and configuration fixed apart from the sweep
+   setting.
+2. The operator runs the benchmark the same number of times with the sweep on,
+   keeping model and configuration fixed apart from the sweep setting.
+3. The operator reads recall for every run and the spread across runs in each
+   configuration.
+4. The operator records both sets of results as committed quality evidence.
+
+**Postconditions**:
+
+- Recall is reported per run, not only as an average.
+- The spread across identical runs (lowest, highest, number of runs) and the
+  standard deviation of per-run recall are reported for both configurations.
+  One observation is one run, and a run's recall is its defect-weighted recall
+  across its whole head set, not an average of per-head recalls (the
+  aggregation rule AC15(d) states). A benchmark denominator is the fixture's
+  **seeded defects**, not the confirmed defects AC15(d)'s real-PR
+  denominator uses: a fixture has no compared reviewers, so that denominator
+  does not exist on one by design, and importing it would make every fixture
+  comparison not applicable even though AC8 requires per-seeded-defect recall.
+  Only AC15 real-PR evidence uses the confirmed-defect denominator and its
+  zero-denominator handling.
+- A reader can tell whether the sweep changed recall, changed variance, changed
+  both, or changed neither; the variance claim is read off the standard
+  deviation, not the range width.
+
+**Information shown**:
+
+- Sample count, model identity, reviewed target, fixture version, and run
+  timestamps.
+- Per-run found and missed seeded defects for each configuration.
+- Lowest and highest recall per configuration.
+- Per-defect found/missed counts across runs.
+
+**Actions available**:
+
+- Run additional samples.
+- Record the comparison as evidence for or against the sweep.
+
+**Considerations**:
+
+- A single sweep-on run that beats a single sweep-off run proves nothing: the
+  2026-09-10 baseline varied by two defects across identical runs on its own.
+- The sample count must be at least as large as the 2026-09-10 baseline's, so
+  the two are comparable.
+- Model and configuration must be identical across the compared runs; otherwise
+  the comparison measures something else.
+- No recall target and no variance ceiling exist yet, so a run neither passes
+  nor fails: recall and variance results are reported evidence that a human
+  reads. The human sets a threshold after the first sweep-on and sweep-off runs
+  have been recorded (see Deferred Decisions).
+- Use Case 5 adds seeds and so changes the fixture's denominator. Sweep-off and
+  sweep-on runs must use the same fixture version, and the fixture version is
+  recorded with the results. The sweep is aimed at themes the 2026-09-10 fixture
+  does not seed, so the comparison is reported on the extended fixture, with the
+  original thirteen seeded defects also reported as their own subset. That
+  subset's own baseline comparability needs a repeated original-fixture run —
+  the same sweep-off and sweep-on configurations as the extended-fixture
+  comparison, against the original fixture version with the historical model and
+  configuration held constant, at least as many times each as the 2026-09-10
+  baseline's sample count — as AC8 requires; one run, and the subset alone, do
+  not restore it.
+
+---
+
+### Use Case 4: Operator Confirms Precision And Cost Did Not Regress
+
+**Actor**: Ronda operator
+
+**Preconditions**:
+
+- The recall and variance runs from Use Case 3 have been performed.
+- At least one precision fixture that expects a clean result is available.
+
+**Steps**:
+
+1. The operator runs the precision fixtures with the sweep off, keeping target,
+   model, configuration, and fixture version fixed apart from the sweep setting,
+   for the same number of samples as the recall runs.
+2. The operator runs the precision fixtures the same number of times with the
+   sweep on, under the same fixed target, model, configuration, and fixture
+   version, again apart from the sweep setting.
+3. The operator reads how many unexpected findings each configuration produced.
+   For the sweep-on runs the operator also reads which categories they came
+   from, from the per-category record in the benchmark output; for the sweep-off
+   runs no category attribution exists (see Considerations).
+4. The operator reads the cost figures for the sweep-on and sweep-off passes:
+   model calls per pass, and elapsed time per pass.
+5. The operator records the precision and cost results alongside the recall and
+   variance evidence.
+
+**Postconditions**:
+
+- Any unexpected finding is visible and can be judged as noise or as a real
+  finding. A sweep-on unexpected finding is also attributed to the category (or
+  categories, or uncategorized) recorded for it in the per-category pass record.
+  A sweep-off unexpected finding is reported as unattributed, because a
+  sweep-off pass has no per-category pass record.
+- Whether precision regressed is decided by a stated test (see Considerations),
+  not by impression.
+- The cost effect of the sweep per pass is recorded, including whether the sweep
+  multiplies model calls, and is placed against the recorded per-pull-request
+  convergence figures from the 2026-09-23 cost baseline. Any comparative cost
+  claim is stated over one named metric: the per-run difference in model calls
+  per pass, paired by run position and averaged across the runs, and the
+  per-run difference in elapsed time per pass likewise paired and averaged as
+  AC11 requires, not over the standalone figures or an aggregation AC11 does
+  not name.
+
+**Information shown**:
+
+- Unexpected finding count per configuration. Sweep-on findings are listed with
+  the category each one came from; sweep-off findings are listed as unattributed
+  (sweep off).
+- Whether each precision fixture stayed clean, per configuration.
+- The precision regression result: regressed or not regressed, with the counts
+  that decided it.
+- Model calls per pass and elapsed time per pass, sweep-off and sweep-on.
+- The comparison against the recorded per-pull-request cost figures.
+
+**Actions available**:
+
+- Accept the precision result.
+- Record a precision regression and revise or narrow the category list.
+
+**Considerations**:
+
+- Category attribution exists only for sweep-on runs, because the
+  per-category pass record is produced only by a sweep pass. Sweep-off findings
+  are counted and located but never attributed to a category, and the operator
+  is not required to derive a category for them. Cross-configuration
+  comparison is therefore made on unexpected-finding counts and on per-fixture
+  clean/not-clean status, not on categories.
+- Precision regression test: precision has regressed if the sweep-on runs
+  produced more unexpected findings in total than the sweep-off runs across the
+  same precision fixtures and sample count, or if any precision fixture that
+  stayed clean in every sweep-off run was not clean in at least one sweep-on run.
+  Unexpected findings are counted as findings, not as category attributions: a
+  finding attributed to more than one category counts once toward the total.
+  The test has no tolerance. Accepting any tolerance is a human decision that
+  is recorded with the evidence, not an automatic outcome.
+- Losing precision is the obvious failure mode of this change: a list of
+  categories invites the model to produce a finding for each one. Precision
+  evidence is therefore mandatory, not optional.
+- No cost ceiling applies to this feature: cost is reported, not capped. A
+  ceiling becomes necessary only if the sweep is later proposed as the default
+  for adopting repositories (see Deferred Decisions), so no sweep-on cost figure
+  can fail this feature.
+- The 2026-09-23 cost baseline contains no Ronda pass cost at all — Ronda
+  accounted for none of the Actions time in that window — so the sweep-off
+  control run is the only same-shape cost comparison available, and the
+  per-pull-request figures give it context.
+
+---
+
+### Use Case 5: Operator Extends The Benchmark Fixture Before Restoring The Regression Gate
+
+**Actor**: Ronda operator
+
+**Preconditions**:
+
+- The seeded benchmark fixture exists in its 2026-09-10 shape.
+- The real-pull-request themes with no fixture representation are known from the
+  recorded evidence.
+
+**Steps**:
+
+1. The operator adds a seeded case for each real theme that has no fixture
+   representation.
+2. The operator adds at least one harder credential-pattern case alongside the
+   existing, always-found sensitive-value case.
+3. The operator re-runs the benchmark and records the result for the extended
+   fixture.
+4. The operator declares the extended fixture ready to serve as the basis of a
+   regression gate. What that gate rejects is a deferred decision; the
+   declaration alone makes no benchmark result pass or fail.
+
+**Postconditions**:
+
+- The fixture contains a case for each of the four unseeded real themes.
+- The fixture contains at least one credential-pattern case that is harder than
+  the existing sensitive-value case.
+- Until those cases exist, the seeded benchmark is explicitly not treated as a
+  regression gate.
+
+**Information shown**:
+
+- Which real themes have fixture representation and which do not.
+- Benchmark results for the extended fixture.
+
+**Actions available**:
+
+- Add further seeds as new real themes appear.
+- Record that the fixture is, or is not, ready to serve as the basis of a
+  regression gate. Ready means the seeds required by AC12 and AC13 exist; it
+  does not define what the gate rejects (see Deferred Decisions).
+
+**Considerations**:
+
+- The existing fixture over-weights single-line algorithmic defects that are
+  always found and that nothing in the real corpus resembles. Rebalancing or
+  removing those seeds would leave the original-thirteen subset without the
+  2026-09-10 denominator to compare against, and is deliberately left out of
+  this feature.
+- Seeded cases must not contain real credential values; the existing rule that
+  quality evidence stores no secrets applies to every new seed.
+
+---
+
+### Use Case 6: Operator Decides Whether Real-Pull-Request Measurement Is Admissible Yet
+
+**Actor**: Ronda operator
+
+**Preconditions**:
+
+- Ronda already reviews this repository's own pull requests, so
+  real-pull-request reviews can accumulate.
+
+**Steps**:
+
+1. The operator closes the eligible cohort before adjudicating: it is the
+   pull requests that carried a sweep-enabled Ronda review under the current
+   category list version whose pass completed by a recorded cutoff, and every
+   pull request in it must reach a terminal adjudication before the count is
+   read, so an operator cannot reach ten by adjudicating the favorable cases
+   while leaving other eligible pull requests unresolved. An adjudication is
+   terminal when it records an outcome for every compared finding or confirms a
+   clean result, and a rejection or out-of-scope outcome is terminal too. The
+   operator then counts the cohort's pull requests that carried a sweep-enabled
+   review under the current category list version and whose compared findings
+   have been adjudicated. Its compared reviewers are those the real-pull-request
+   business rule defines, and a sweep-off control is not among them unless it is
+   recorded for that head. A pull request whose every compared reviewer reported
+   no findings is adjudicated, and counts, once that clean result is confirmed by
+   the recorded
+   same-head external review; a pull request whose external review alone was
+   clean while a compared reviewer reported a finding is not adjudicated
+   until those findings receive terminal outcomes too, so a Ronda-only finding
+   is never left unresolved behind a clean external review; a pull request with
+   no external review recorded is not adjudicated, whether or not it carried
+   findings.
+2. The operator compares that count against the minimum of ten required before
+   real-pull-request effect may be claimed.
+3. The operator labels the current evidence with the tier it qualifies for.
+4. When ten counted pull requests have accumulated, the operator promotes the
+   tier and reports the sweep-enabled real-pull-request miss record.
+
+**Postconditions**:
+
+- Evidence carries a tier label that says how far it can be read.
+- No real-pull-request effect claim is published below the minimum count.
+- Real-pull-request evidence is read only as a descriptive record of what
+  sweep-enabled reviews caught and missed. It is not read as a comparative
+  effect (that the sweep improved or worsened anything) unless a matched
+  sweep-off control exists for the same pull request heads, and, for a variance
+  claim specifically, unless each configuration was also run repeatedly on those
+  heads — the same number of runs on both, at least two each — (see
+  Considerations).
+- Every real-pull-request effect claim is labeled "own-repository".
+
+**Information shown**:
+
+- The number of counted pull requests accumulated so far (sweep-enabled,
+  under the current list version, with adjudicated compared-finding evidence,
+  its closed cohort fully adjudicated).
+- The current evidence tier and what it permits.
+- The own-repository label and the independence caveat attached to evidence
+  drawn from Ronda's own repository.
+
+**Actions available**:
+
+- Keep accumulating reviewed pull requests.
+- Promote the evidence tier once the minimum is met and the records are
+  adjudicated.
+
+**Considerations**:
+
+- Fixture evidence and real-pull-request evidence answer different questions.
+  The fixture says what Ronda misses on seeded defects; real pull requests say
+  what defects exist and whether Ronda found them.
+- Evidence drawn from Ronda's own repository is not independent of Ronda's
+  tuning, and every claim built on it must carry that caveat and the
+  "own-repository" label. Corroborating the effect in another repository is not
+  required for this feature; the label is what keeps the claim honest.
+- This gate delays measurement claims only. Building and shipping the sweep,
+  its recorded list, and its fixture-level evidence is not blocked by it.
+- The count in this gate counts sweep-enabled, adjudicated reviews only. It
+  defines no sweep-off baseline, and pull requests reviewed before the sweep
+  existed are not a matched control: different pull requests, different content,
+  and different model runs. A comparative real-pull-request claim (the sweep
+  raised or lowered real-pull-request recall, variance, or cost) therefore
+  always requires a matched control: a sweep-off review of the same pull request
+  heads, with the same model and configuration apart from the sweep setting,
+  recorded but not published, covering the whole closed cohort the count is read
+  over rather than a favorable subset of it. A variance claim is stricter still: it requires
+  repeated identical runs of each configuration on those same heads, the same
+  number per configuration, because one run per head measures nothing about
+  run-to-run variance, and that claim is stated over one named metric: the
+  standard deviation of per-run recall across the repeated runs, compared
+  between the two configurations as a direction with both figures recorded, so
+  a range-width comparison alone does not support it, and one observation is
+  one run (that run's defect-weighted recall across its whole head set, not a
+  set of per-head recalls or their average). A recall claim is stated
+  over a recorded metric: the denominator is the confirmed defects on
+  those heads — a defect found by any compared reviewer counts, Ronda's
+  sweep-enabled review, Ronda's sweep-off control, or the external reviewer
+  alike, since the external reviewer is a second opinion rather than truth and
+  a defect only one Ronda configuration found must not be hidden — an
+  adjudicated finding counts only when the
+  adjudication's recorded outcome represents a valid defect, so outcomes such
+  as `false_positive`, `out_of_scope`, and `ronda_better` are excluded, while a
+  `duplicate` outcome is a valid defect both reviewers found and counts once —
+  the
+  numerator is those the configuration's review reported (a finding matches
+  when it is on the same head and one is the same defect as the other, as the
+  adjudication records it), a defect reported by either configuration is
+  matched to the same confirmed defect rather than counted twice, and confirmed
+  defects with no counterpart in either configuration are reported as missed by
+  both, and where a configuration was run more than once on those heads the
+  claim is read off the mean of the per-run recalls, one observation per
+  run, rather than a union or majority rule over them; that repeated-run
+  reading and the cost claim's per-head reduction both require the same number
+  of runs on both configurations, and an asymmetric evidence set where one
+  configuration was repeated and the other was not supports no comparative
+  recall, variance, or cost claim at all. A zero denominator — no confirmed
+  defect found by any compared reviewer on those heads, so the external
+  reviews' clean results are confirmed and neither Ronda configuration nor a
+  recorded control contributed an adjudicated valid defect — makes recall not
+  applicable: that measurement
+  supports no recall claim, and it makes the variance result not applicable
+  too, since the standard deviation of per-run recall is undefined without a
+  confirmed defect, so no variance direction is claimed either. That
+  zero-denominator rule belongs to this real-pull-request denominator only: a
+  fixture's denominator is its seeded defects, which exist by design, so it
+  never reaches zero and no fixture comparison is made not applicable on this
+  ground. A cost claim is stated over one named metric: the
+  paired per-head difference in model calls per pass (sweep-on minus sweep-off
+  on the same head) averaged across those heads, and the paired per-head
+  difference in elapsed time per pass averaged across those heads, each with
+  both configurations' figures recorded, so an unpaired comparison, a median,
+  or a subset of heads does not support it; where a configuration was run more
+  than once on those heads, each head's figure is reduced across that head's
+  runs before the average across heads, so picking one repetition or averaging
+  all head-and-run pairs without pairing them per head does not support it —
+  and, as with the recall claim, both configurations must carry the same number
+  of runs, so an asymmetric evidence set supports no comparative cost claim.
+  Without that control, the strongest permitted real-pull-request claim is the
+  descriptive sweep-enabled miss record above.
+
+---
+
+## Business Rules
+
+- Ronda stays comment-only: it never pushes to, merges, or otherwise mutates the
+  pull request under review.
+- One review per head SHA, containing every finding from the pass, still holds
+  with the sweep active. The sweep never splits a pass into multiple published
+  reviews.
+- Exactly one sweep category list is current at any time, and it is recorded
+  where operators read Ronda's other quality evidence. A list with no categories
+  is not a valid current list.
+- When the sweep is enabled and the current category list cannot be read, or is
+  empty or malformed, at the
+  start of a pass that reaches review execution, the pass proceeds as an
+  ordinary non-sweep review and records
+  that the sweep did not run. A missing, unreadable, empty, or malformed list
+  never fails the pass and never suppresses the review the existing flow would
+  otherwise publish for that head (AC2). This rule
+  applies only to an enabled sweep: a disabled sweep inspects no list and
+  records no list outcome (AC18). A pass the existing flow ends before review
+  execution (a draft pull request, or an automatic run that finds the head's
+  existing check run) reads no list and emits no sweep-did-not-run record, as
+  AC1 and AC19 require.
+- Every category on the current list cites its supporting real-pull-request
+  evidence and the finding-instance count behind it.
+- The seeded benchmark's four never-found kinds are not, on their own, a valid
+  basis for the list, because no real-pull-request evidence confirms them.
+- Category counts recorded in the list are finding instances, not distinct
+  defects, and the list states this.
+- The per-category pass record is carried on the surfaces AC1 assigns to the
+  pass's outcome, and additionally in the benchmark output for benchmark runs,
+  so per-category recall can be attributed. A benchmark run
+  publishes nothing to GitHub, so for it the benchmark output and the logs are
+  the record surfaces. The record never appears in the published review body.
+- A benchmark run publishes nothing to GitHub. Wherever this spec requires a
+  pass to publish a review or a check-run record, a benchmark run satisfies the
+  requirement through its benchmark output and its logs instead, and the
+  one-review-per-head-SHA rule applies only to passes that publish to GitHub.
+- Producing no findings for a category is a valid and expected outcome. Ronda
+  must never be required, encouraged, or rewarded for producing at least one
+  finding per category.
+- Recall evidence for the sweep is invalid unless it reports every individual
+  run and the spread across identical runs, with a sample count at least as
+  large as the 2026-09-10 baseline's.
+- Sweep-on and sweep-off comparison runs must use the same target, model,
+  fixture version, and configuration apart from the sweep setting itself;
+  otherwise the comparison is not admissible evidence. Results are reported for
+  the extended fixture and, as a
+  separate subset, for the original thirteen seeded defects. Baseline
+  comparability for that subset needs a repeated original-fixture run — the same
+  sweep-off and sweep-on configurations as the extended-fixture comparison,
+  against the original fixture version with the historical model and
+  configuration held constant, at least as many times each as the 2026-09-10
+  baseline's sample count (AC8); the added patches reach the model in the same
+  review prompt as the original thirteen, and identical runs vary, so one run
+  and the subset alone do not provide it.
+- Precision evidence is mandatory for every recall claim: the same comparison
+  must report unexpected findings for both configurations, on the same
+  category-list version, effective sweep configuration, and model identity as
+  the comparison the
+  claim is made over, so precision evidence produced under a since-revised
+  category list, or on a different model from the claimed heads, does not back a
+  recall claim. Category attribution
+  is reported for sweep-on findings only; sweep-off findings are reported as
+  unattributed. Precision regression is decided by the strict test in Use
+  Case 4, which has no tolerance: a tolerance a human records is a recorded
+  judgement about the evidence, not a change to the test.
+- Cost evidence is mandatory and must state model calls per pass and elapsed
+  time per pass for both configurations, and place them against the recorded
+  per-pull-request convergence figures. No cost ceiling applies: cost is
+  reported, and no cost figure fails this feature.
+- Recall and variance results are reported evidence, not a pass/fail gate: this
+  feature defines no recall target and no variance ceiling.
+- The seeded benchmark is not treated as a regression gate until it seeds the
+  four real themes that currently have no representation and at least one
+  harder credential-pattern case (AC13). Even then, this feature defines no
+  pass/fail contract for the restored gate (see Deferred Decisions).
+- Real-pull-request effect of the sweep may not be claimed until at least ten
+  pull requests have carried a sweep-enabled Ronda review under the current
+  category list version and their compared-finding evidence has been
+  adjudicated. The eligible cohort is closed before adjudication — the pull
+  requests that carried a sweep-enabled review under that version up to a
+  recorded cutoff — and every pull request in it must reach a terminal
+  adjudication before the ten are counted, so adjudicating only the favorable or
+  easy cases while leaving other eligible pull requests unresolved does not reach
+  the ten; an adjudication is terminal when it records an outcome for every
+  compared finding or confirms a clean result, a rejection or out-of-scope
+  outcome being terminal too. A pull request's compared reviewers are those
+  whose findings its recorded evidence carries: the recorded same-head external
+  review, its sweep-enabled Ronda review, and, where a sweep-off control on that
+  head is recorded, that control. A control is therefore not a condition of the
+  count — the count defines no sweep-off baseline, and a comparative claim is
+  what requires one — but where a control is recorded its findings are compared
+  findings and need terminal outcomes too. Under that closed cohort, a pull
+  request whose every compared reviewer reported no findings is adjudicated, and
+  counts, once that clean result is confirmed by the recorded same-head external
+  review, while a pull request whose external review alone was clean but which
+  carried a finding from its sweep-enabled review or from its recorded control is
+  not adjudicated until those findings receive terminal outcomes too;
+  a pull request with no external review recorded is not adjudicated whether or
+  not it carried findings. Revising the list restarts that count. Even at
+  that minimum, only a descriptive sweep-enabled miss record may be claimed; a
+  comparative claim (the sweep changed real-pull-request recall, variance, or
+  cost) additionally requires a matched sweep-off control on the same pull
+  request heads, covering the whole closed cohort the count is read over rather
+  than a subset of it; a variance comparative claim additionally requires repeated
+  identical runs of each configuration on those same heads, the same number per
+  configuration, and is stated over the standard deviation of per-run recall
+  across those runs — one observation per run, the run's defect-weighted recall
+  over its whole head set as AC15(d) defines — compared as a direction with
+  both figures recorded; a fixture comparison is never made not applicable for
+  want of a confirmed defect, because a fixture's denominator is its
+  seeded defects (AC8), not that real-PR denominator; a
+  recall comparative claim is stated over a recorded denominator, numerator,
+  and matching rule (the denominator is the confirmed defects on those
+  heads — a defect found by any compared reviewer counts, Ronda's
+  sweep-enabled review, Ronda's sweep-off control, or the external reviewer
+  alike — an adjudicated finding counts only when its recorded outcome
+  represents a valid defect, so outcomes such as `false_positive`,
+  `out_of_scope`, and `ronda_better` are excluded, while a `duplicate` outcome
+  is a valid defect both reviewers found and counts once — the numerator those of them the
+  configuration's review reported, matched on the same head and the same defect
+  as the adjudication records it, with a defect reported by either
+  configuration matched to the same confirmed defect rather than counted twice,
+  with a zero denominator reported as recall not applicable and the variance
+  result not applicable, both supporting no claim, since ten counted pull
+  requests may all carry no confirmed defect from any compared reviewer); a
+  cost comparative claim is stated over the paired
+  per-head differences in model calls per pass and in elapsed time per pass,
+  each averaged across those heads, with both configurations' figures
+  recorded; the repeated-run reading for recall and the per-head reduction for
+  cost both apply only where a configuration was run more than once on those
+  heads, and there both require the same number of runs on both configurations —
+  that equal-count requirement bars an asymmetric evidence set, where one
+  configuration was repeated and the other was not, rather than mandating that
+  either be repeated — so one matched run per configuration admits a comparative
+  recall claim and a comparative cost claim, while a comparative variance claim
+  is stricter and requires at least two runs of each configuration; an evidence
+  set with a different run count per configuration carries no comparative recall,
+  variance, or cost claim (AC15(d)).)
+- A "sweep-enabled review", wherever this spec counts or labels one, is a review
+  whose pass actually ran the sweep and reported a category list version as used.
+  A pass that had the sweep enabled but degraded to a non-sweep review (AC19)
+  is not a sweep-enabled review and does not count toward any tier or count.
+- Evidence drawn from Ronda's own repository carries the independence caveat,
+  is labeled "own-repository", and is read as regression evidence for this
+  repository, not as generalization to others. Corroboration in another
+  repository is not required by this feature.
+- Changing the sweep category list is a human decision; no automated process may
+  add or remove a category on its own.
+- This feature ships the sweep off unless a repository enables it (AC18).
+  Making it the default for adopting repositories is a separate, later human
+  decision that requires a release note for existing adopters; it is not part of
+  this feature. Of the evidence this feature produces, only two tests are gating
+  for that later decision: recall, variance, precision, and cost evidence must
+  all have been recorded, and precision must not have regressed under the strict
+  test in Use Case 4. No recall-improvement target, variance ceiling, or cost
+  ceiling is defined, so recall, variance, and cost results are reported
+  evidence that the later human decision reads; they do not pass or fail a
+  default-enablement gate. Any thresholds that decision sets are recorded before
+  the default is changed (see Deferred Decisions).
+- Quality evidence produced by this feature stores no real or usable credential
+  values, tokens, or authorization values, as with existing quality evidence;
+  non-functional credential-shaped fixture data is not a stored credential.
+
+---
+
+## Statuses / Enum Values
+
+### Sweep categories (initial list)
+
+Display labels are what operators read in the recorded list and on the operator
+surfaces that report it. They do not appear in the review body: the review
+summary states only the sweep activation and the list version (AC3), and the
+per-category pass record never appears in the review body (AC1). The evidence
+identifier is the name used in the 2026-09-23 real-PR corpus, kept so every
+category is traceable to its source rows.
+
+| Evidence identifier | Display label | Description |
+| --- | --- | --- |
+| `pr-head-push-order` | State reconstruction from API evidence | Code infers a history or state (for example, which commits were ever branch heads) from an API response that does not establish it. 14 finding instances, the most expensive theme in the corpus. |
+| `credential-pattern-gap` | Credential pattern gap | A credential or secret guard matches the canonical form and misses qualified, camelCase, hyphenated, prefixed, or wrapped variants. 9 finding instances (6 from the local reviewer, 3 from Codex), a theme both independent reviewers hit. |
+| `external-output-parsing` | External output parsing | Output from another system (a reviewer body, a comment, a command result) is split, matched, or classified in a way that loses, merges, or misclassifies items. 8 finding instances. |
+| `record-identity` | Record identity and deduplication | Identity or deduplication keys collide, drift, or split: position-derived identifiers, truncated text, alias spellings, or shared namespaces. 7 finding instances. |
+| `guard-fails-open` | Guard fails open | A security or safety check is skipped, rather than refused, when its input cannot be loaded or is incomplete. 5 finding instances. |
+
+**Excluded candidates** (recorded with the list, not swept):
+
+- Planted-proof evidence (10 instances) — a workflow-gate artifact of this
+  repository's review process, not a product defect class.
+- The seeded benchmark's four never-found kinds — unconfirmed by real-PR
+  evidence.
+- Spec-AC-compliance (7 instances, tied with the record-identity theme and
+  ahead of the guard-fails-open theme's 5 in the corpus sub-theme ranking) —
+  excluded: checking it depends on a spec being present, which makes it a
+  workflow-gate concern like planted-proof evidence rather than a defect class
+  that any reviewed pull request can carry. It may be added at a later list
+  revision if dogfooded misses point at it.
+- Per-finding resolution (4 instances: 3 from the local reviewer and 1 from
+  Codex, the theme behind the `partial_success` category that both reviewers
+  hit) — excluded: four instances from a single pull request is too thin an
+  evidence base, and a category on that basis invites manufactured findings.
+  Recorded so it can be revisited when more evidence accumulates.
+
+**Candidate-set boundary**: the candidates considered are the sub-themes in the
+2026-09-23 real-PR corpus ranking that have at least five finding instances,
+plus any sub-theme both independent reviewers hit (the issue's own selection
+criteria, applied at sub-theme level; in the corpus these are
+credential-pattern-gap, guard-fails-open, and per-finding-resolution), plus the
+seeded benchmark's never-found kinds. Sub-themes ranked
+below that boundary are outside the candidate set: excerpt-sequence-boundaries
+(4 instances), placeholder-exemption (3), refusal-precedence (3),
+input-validation (2), github-api-pagination (1), path-traversal (1), and
+operator-usability (1). Each has too few instances to justify a category; they
+are recorded here so a later list revision can reconsider them if dogfooded
+misses point at them.
+
+Exactly one recorded category list version is current. Every candidate is
+either swept (currently in use) or explicitly excluded with a recorded
+rationale; no candidate is left undecided, so the list above is a complete
+record and can be marked current.
+
+### Evidence tier
+
+| Code value | Display label | Description |
+| --- | --- | --- |
+| `fixture_only` | Fixture evidence only | Evidence comes from the seeded benchmark and precision fixtures. It may support claims about seeded recall, variance, precision, and cost; it may not support claims about real-pull-request effect. |
+| `real_pr_provisional` | Real-PR evidence (provisional) | At least one sweep-enabled real pull request review has been recorded, but fewer than ten counted pull requests have accumulated under the current category list version (a pull request counts only if it carried a sweep-enabled review under that version and its compared-finding evidence — a finding from the external reviewer, from either Ronda configuration, or from a recorded sweep-off control, each a compared reviewer where its findings are recorded for that head — has been adjudicated; the count requires no sweep-off control, since it defines no sweep-off baseline and only a comparative claim requires one; a clean result counts once every compared reviewer is clean and it is confirmed by the recorded same-head external review, while a finding from a compared reviewer behind a clean external review is not adjudicated until it receives a terminal outcome; one with no external review recorded is not adjudicated; the eligible cohort is closed before adjudication and every pull request in it must be terminally adjudicated before the count is read). Findings are indicative only, support no effect claim, and are labeled as such. |
+| `real_pr_measured` | Real-PR evidence (measured) | At least ten counted pull requests (sweep-enabled under the current category list version, with adjudicated compared-finding evidence, the eligible cohort closed before adjudication and every pull request in it terminally adjudicated) have accumulated. Descriptive real-pull-request claims are permitted, with the independence caveat and the "own-repository" label. Comparative effect claims additionally require a matched sweep-off control on the same pull request heads, covering the whole closed cohort rather than a subset of it; a recall claim is stated over the recorded denominator, numerator, and matching rule AC15(d) defines and requires the paired precision evidence AC9 defines on the same category-list version, effective sweep configuration, and model identity as the claimed heads; a cost claim over the paired per-head differences AC15(d) names; a variance claim over the population standard deviation of per-run recall across the whole reported run set. |
+
+**Valid transitions**:
+
+- Fixture evidence only → Real-PR evidence (provisional) when the first
+  sweep-enabled real pull request review (one whose pass actually ran the
+  sweep, as the business rules define) is recorded.
+- Real-PR evidence (provisional) → Real-PR evidence (measured) when at least ten
+  counted pull requests (sweep-enabled under the current category list version,
+  with adjudicated compared-finding evidence) have accumulated. The eligible
+  cohort is closed before adjudication, and every pull request in it must reach
+  a terminal adjudication before the transition is made, so a reviewed but
+  unadjudicated eligible pull request blocks the transition rather than merely
+  not counting. In a fully adjudicated cohort, a pull request
+  whose every compared reviewer, as the real-pull-request business rule defines
+  them, reported no findings counts once its clean result is
+  confirmed by the recorded same-head external review; a pull request whose
+  external review alone was clean but which carried a finding from a compared
+  reviewer is not
+  adjudicated until those findings receive terminal outcomes too; one with no
+  external review recorded is not adjudicated, whether or not it carried
+  findings.
+- Real-PR evidence (measured) → Real-PR evidence (provisional) whenever the
+  counted pull requests fall below ten. The category list being revised is one
+  cause, until ten pull requests have accumulated under the revised list; a
+  control recorded on a head whose adjudication it reopens is another, because
+  the newly recorded control findings are compared findings and their pull
+  request is not counted until they receive terminal outcomes (the real-pull-request
+  business rule). The tier follows the count: a tier label Real-PR evidence
+  (measured) is admissible only while at least ten counted pull requests exist
+  under the current list version (AC15(b)), so any cause that drops the count
+  below ten demotes the label until the count is restored, and no such
+  demotion is a claim about the sweep's effect.
+- A revision made while the tier is Real-PR evidence (provisional) leaves the
+  tier at Real-PR evidence (provisional) and restarts the pull-request count.
+- Every other reachable combination leaves the tier unchanged. Fixture evidence
+  only with no sweep-enabled real pull request review recorded stays Fixture
+  evidence only; Real-PR evidence (provisional) below ten counted pull requests
+  stays Real-PR evidence (provisional); Real-PR evidence (measured) with ten or
+  more counted pull requests and no revision stays Real-PR evidence (measured).
+  No combination promotes a tier except the first recorded sweep-enabled real
+  pull request review and the tenth counted pull request.
+
+### Decision-gate consistency matrix
+
+This feature adds four decision gates and one pass-outcome rule. Each row below
+is the normative summary for its gate; the prose sites named under **Mirror
+surfaces** state the same rule and must not contradict this table.
+
+| Gate | Inputs | Allowed outcomes | Required next action | Mirror surfaces | Example |
+| --- | --- | --- | --- | --- | --- |
+| Sweep enablement resolution (AC18) | The effective operator-configuration value for the run: the value from the highest-precedence source that supplies a non-empty value | Off — absent, empty, or whitespace-only (no record); Off — a recognized off value (no record); Off — non-empty and unrecognized (record that the value was unrecognized, without exposing the raw value); On — a recognized on value | Every off outcome runs the ordinary non-sweep review and emits no sweep metadata; the unrecognized case additionally records that a non-empty enablement value was unrecognized, without exposing the raw value, on the surfaces AC1 assigns. On: run the sweep | Business rule "Whether the sweep is enabled is read from the effective operator configuration value" (~106); AC18; Use Case 1 step 1 | An empty value at a higher-precedence source defers to the next source and is not recorded. The recognized off value produces the same non-sweep review as the absent case, with no record. A non-empty unrecognized value at a higher-precedence source is the effective value: it is not replaced by a recognized value at a lower-precedence source, and that it was unrecognized is recorded, without the raw value. |
+| Category list readability (AC19) | The current category list's state at the start of a pass that reaches review execution: readable and well-formed, or unreadable, empty, or malformed | Readable: the sweep runs over the list. Unreadable, empty, or malformed: the sweep does not run, and the pass records `sweep-did-not-run`, reporting no list version as used | Degrade: the pass continues as an ordinary non-sweep review and preserves the ordinary publication eligibility (AC2); a missing list never fails the pass and never suppresses the review the existing flow would otherwise publish for that head | Business rule "If the current category list cannot be read…" (~120); AC19; Use Case 1 step 2 | A list whose two categories share an identifier is malformed, so the pass degrades and records `sweep-did-not-run`. A disabled sweep inspects no list and records no list outcome. |
+| Pass-outcome surface assignment (AC1) | Where the pass reached, whether it published a review, and whether its own check-run write produced a check run whose outcome is a review | Pre-review skip, or terminal failure before review execution: no sweep metadata of any kind. Reached completion with a check run whose outcome is a review: the per-category record on the check-run output and the logs. Reached completion with no such check run — a real-PR pass superseded before publication, or a completed benchmark run, which publishes no check run at all: the record on the logs, together with whatever per-category output that pass's own surface carries (the benchmark output for a benchmark run). Terminal failure after review execution: same rule — the record on the logs, plus the check-run output only where that write produced a check run whose outcome is a review | Record the categories the pass reached, on the surfaces this row assigns; never fabricate a record for a category the pass did not reach, and never publish a second review | AC1 (sole owner of this rule); the per-category pass record business rule (~541); Operational Visibility "Per-category pass record"; every other site references AC1 rather than restating it | A pass superseded before publication publishes no review, so no check run whose outcome is a review exists and its record is on the logs. A model credential the model API rejects fails after the changed files are read, so its record is likewise on the logs — its check run is the existing failure check run, whose outcome is not a review. A success check-run write that fails after its bounded retry leaves the record on the logs with whatever per-category surface that write produced. A completed benchmark run writes no check run, so its per-category record is in the benchmark output and its logs. |
+| Evidence-tier transition (Statuses / Enum Values → Evidence tier) | Whether any sweep-enabled real-PR review has been recorded (adjudicated or not), the counted pull requests under the current list version (sweep-enabled, with adjudicated compared-finding evidence when its eligible cohort — the pull requests carrying a sweep-enabled review under that version up to the recorded cutoff — has every member terminally adjudicated), and whether the category list was revised | `fixture_only` → `real_pr_provisional` once the first sweep-enabled real-PR review is recorded, even with a zero counted total; `fixture_only` on a list revision: unchanged — a revision cannot leave `fixture_only`, since the tier is driven by whether any sweep-enabled real-PR review is recorded, which a revision does not undo; `real_pr_provisional` → `real_pr_measured` at ten counted pull requests; `real_pr_provisional` on a list revision: unchanged — the tier stays `real_pr_provisional` and the counted pull requests restart at zero; `real_pr_measured` → `real_pr_provisional` whenever the counted pull requests fall below ten, whether the cause is a list revision or a sweep-off control recorded on a head whose adjudication it reopens, until the count is restored; every other reachable combination leaves the tier unchanged — `fixture_only` with no sweep-enabled real-PR review recorded stays `fixture_only`, `real_pr_provisional` below ten counted pull requests stays `real_pr_provisional`, and `real_pr_measured` with ten or more counted pull requests stays `real_pr_measured` | Promote or demote per the transition, and label the evidence tier on the quality evidence (Operational Visibility); a claim is admissible only as its tier allows and as the claim-admissibility gate below additionally requires | Statuses / Enum Values → Evidence tier "Valid transitions"; AC15; AC16; Use Case 6 | The first sweep-enabled real-PR review promotes `fixture_only` to `real_pr_provisional` before its external findings are adjudicated, so the counted total stays zero, and findings are labeled indicative only. Ten counted pull requests then promote to `real_pr_measured`. A list revision demotes `real_pr_measured` to `real_pr_provisional` until ten pull requests re-accumulate, a revision at `real_pr_provisional` restarts the count without leaving the tier, and a revision while at `fixture_only` leaves the tier unchanged. A sweep-off control recorded on a head inside a `real_pr_measured` cohort adds compared findings whose pull request is then uncounted until they receive terminal outcomes; if that drops the counted total below ten, the tier demotes to `real_pr_provisional` and returns to `real_pr_measured` once the count is restored, with no claim about the sweep read from the interim label. |
+| Claim admissibility (AC15(d)) | The evidence tier; for a real-pull-request claim, whether the eligible cohort was closed before adjudication and every pull request in it has reached a terminal adjudication, since adjudicating only the favorable or easy cases does not make the ten; for each claim, its own required evidence: whether a matched sweep-off control on the same pull request heads (same model and configuration apart from the sweep setting) is recorded and covers the whole closed cohort the count is read over, rather than a subset of it; for a variance claim, whether both configurations were run the same number of times on those heads, at least two runs each, **and** whether the claim is read off the population standard deviation of per-run recall over the whole reported run set with both configurations' figures recorded, rather than a range width, spread, or sample statistic over fewer runs; for a cost claim, whether the claim is read off the paired per-head differences AC15(d) names (each head's figure first reduced across that head's runs, then averaged across heads, both configurations' figures recorded), rather than an unpaired mean, a median, a subset of heads, or an average over head-and-run pairs not paired per head, and on an evidence set where both configurations carry the same number of runs; for a recall claim, whether the claim is read off the mean of the per-run recalls AC15(d) names where a configuration was run more than once — on an evidence set where both configurations carry the same number of runs — rather than a union, an intersection, or a majority rule over those runs, with one matched run per configuration admitting the claim since repetition is required for a variance claim alone; for a recall or variance claim, whether the confirmed-defect denominator (the confirmed defects found by any compared reviewer) is non-zero; for a recall claim, whether the paired precision evidence on the same target, model, fixture version, and sample count — and on the same category-list version, effective sweep configuration, and model identity as the real-pull-request comparison — together with its recorded regression result, is present | Real-pull-request claim on a cohort with an unadjudicated eligible pull request: not admissible — the cohort must be closed and terminally adjudicated first, because leaving unfavorable cases unresolved while adjudicating favorable ones is cohort selection, not evidence. Descriptive real-pull-request claim: permitted at `real_pr_measured` alone, with the independence caveat and the "own-repository" label. Comparative claim with a recorded matched sweep-off control: recall permitted only with a non-zero denominator, the mean-of-per-run-recall reading, **and** the paired precision evidence and its recorded regression result (precision evidence is mandatory for every recall claim); cost permitted only on the paired per-head differences, reduced per head before averaging; variance permitted only on the population standard deviation over the whole reported run set, and additionally requiring the repeated equal-size runs. Comparative claim missing the required control, the claim's own evidence, or the claim's own metric — including an asymmetric evidence set where only one configuration was repeated, which carries no comparative recall, variance, or cost claim — and a matched control covering only a subset of the closed cohort, which reads the claim off a hand-picked head set: not admissible — the claim is not made. Comparative recall or variance claim whose confirmed-defect denominator is zero: that figure is reported as not applicable and supports no claim of that kind | Admit a claim only when the tier permits it **and** the claim's own required evidence, read off the metric AC15(d) names for that claim, is recorded. When the tier or a missing control, evidence, or metric forbids the claim, omit it — do not publish the comparative claim and do not record it as not applicable; only the zero-denominator case AC15(d) defines records a not-applicable result, and it records one for the recall figure and the variance figure alike while the descriptive sweep-enabled record is still published | AC15(d); the evidence tier enum `real_pr_measured` row; the real-pull-request business rule; Coverage Matrix O5, O7, O11 | At `real_pr_measured` a comparative variance claim made after one run per configuration is inadmissible: the tier permits comparative claims but the claim's own evidence requires repeated equal-size runs. A comparative variance claim read off the range width, or off a subset of the runs, is inadmissible even with the repeated runs recorded. A comparative cost claim read off an unpaired mean, a median, or an average over head-and-run pairs not reduced per head is inadmissible. A comparative recall claim read off the union of the configurations' runs, or off a majority rule over them, is inadmissible even with the repeated runs recorded. A comparative recall, variance, or cost claim made on a sweep-on repeated runs / sweep-off single run evidence set is inadmissible: the repeated-run reading requires the same run count on both configurations. A recall claim whose heads carry no confirmed defect reports not applicable, and its variance figure with it. A comparative claim whose control is missing, or whose required evidence or metric is missing, is omitted rather than recorded not applicable. A comparative claim whose control covers only some of the ten counted pull requests — one favorable head, say — is inadmissible even though the tier and the metric requirements are met: the matched comparison must cover the whole closed cohort. A comparative recall claim whose paired precision evidence was run on a different model from the claimed heads is inadmissible even when the precision arms agree with each other and the regression result is clean: model identity is part of the pairing the claim requires. A comparative claim at `real_pr_provisional` is inadmissible on the tier alone, however complete its control evidence. A real-pull-request claim made while one eligible pull request in the cohort is still unadjudicated is inadmissible: the cohort is not closed. |
+
+---
+
+## Operational Visibility
+
+- **Review summary**: states that the category-forced sweep was active for the
+  pass and which category list version was used, in the same way existing
+  review-mode activation is recorded. Findings themselves are published exactly
+  as in a non-sweep review.
+- **Per-category pass record**: for each sweep pass, which categories produced
+  findings and which produced none, on the surfaces AC1 assigns to the pass's
+  outcome. It is never published in the review
+  body, so reviewers of the pull request do not read a list of empty categories.
+  A sweep-did-not-run record is carried on those same surfaces. It states that
+  the sweep did not run
+  because its category list
+  was unreadable, empty, or malformed (AC19), or that a non-empty enablement
+  value was unrecognized (AC18); neither record appears in the review body.
+  Both records are emitted only by a pass that reaches review execution; a
+  pre-review skip (AC1) and a pass that ends in a terminal failure before
+  review execution (AC1) each emit neither.
+- **Recorded category list**: the operator-readable artifact holding the current
+  categories, their evidence, the excluded candidates, and the revision history.
+- **Quality evidence**: recall per run, spread across runs (including the standard deviation of
+  per-run recall), precision results,
+  cost per pass, sample count, model identity, reviewed target, fixture
+  version, timestamps, and the evidence tier label.
+- **Logs**: record that the sweep ran, the list version, the per-category pass
+  record (AC1), and non-sensitive counts. Logs never record credential values.
+- **Notifications**: none beyond the existing GitHub review and check-run
+  surfaces.
+
+---
+
+## Acceptance Criteria
+
+- [ ] AC1: With the sweep enabled and its current list readable and well-formed
+      (AC19), a review pass **that reaches review execution** considers every
+      category on the
+      current recorded list for the reviewed head, and the pass's check-run
+      output (where the pass publishes a check run whose outcome is a review,
+      whether it carries findings or none) and its logs each show, per
+      category, whether that category produced findings or none. This
+      every-category guarantee governs a pass that **completes** review
+      execution; a pass that reaches review execution and then fails terminally
+      is outside it and is governed by the terminal-failure rule below, which
+      says what such a pass records and forbids a record for a category it did
+      not reach. That guarantee, and every surface this criterion assigns, rest
+      on one rule: **the check-run output carries the per-category record only
+      where the pass's own check-run write produced a check run whose outcome is
+      a review; otherwise the record is on the logs.** For a pass that completes
+      review execution and publishes a review, that write is a check run whose
+      outcome is a review, so the record is on both surfaces. A pass superseded
+      before publication is the completion case that reaches no such write: it
+      publishes no review and writes no check run, so its record is on the logs
+      only, exactly as AC2's supersede path governs. A benchmark
+      run, which publishes no check run, shows the same per-category record in
+      the benchmark output and its logs. No per-category record appears in the
+      published review body. A pass the existing flow ends before review
+      execution — the pre-review skips (a draft pull request, or an automatic
+      run that finds the head's existing check run, AC2) — considers no
+      categories and emits no per-category record, no sweep-activation
+      statement, and no sweep metadata of any kind; it is not a sweep pass and
+      is indistinguishable from the same skip in a non-sweep run. **Reaching
+      review execution** means the pass reads the changed files and runs the
+      review. The boundary is drawn where the pass reaches that point, not by
+      the kind of error: a pass that ends in a terminal failure **before** it
+      (a missing model credential, a config load error, or a deadline abort or
+      GitHub error raised before the changed files are read) considers no
+      categories and emits no per-category record, no
+      sweep-did-not-run record, no sweep-activation statement, and no sweep
+      metadata of any kind, because its outcome is the existing failure check
+      run and reporting categories as considered there would be false; the
+      existing failure and skip paths govern those passes unchanged, and no
+      sweep record is owed for them. A pass that reaches review execution and
+      then fails terminally — a model or GitHub error raised after the changed
+      files are read, including one during publication, and including a model
+      credential the model API rejects — is the case the
+      every-category guarantee above does not cover: it need not have considered
+      every category, and its logs carry the per-category record for the
+      categories it reached. Such a terminal failure records exactly as the
+      existing flow does, and the rule above resolves it. Where the failure
+      precedes the review becoming public — a model error, a GitHub error raised
+      after the changed files are read but before the review is published,
+      including a failure of the review publication call itself, or a model
+      credential the model API rejects — it publishes no review and its outcome
+      is the existing failure check run, whose outcome is a failure and not a
+      review, so the record is on the logs only. Where the review is
+      already public — a failure persisting the check-run recovery state, or a
+      success check-run write that fails after its bounded retry — the review
+      it published stands, and the existing flow's rule governs: because the
+      review is public and correct, the pass synthesizes no failure check run,
+      since that would
+      contradict what a reader can already see, and the failure surfaces through
+      a non-zero process exit instead. Its check run is therefore the success
+      outcome the pass reached, or none at all where the write never landed, and
+      in either case its per-category record is on the logs, with whatever
+      per-category surface its own check-run write actually produced. In every
+      case the pass publishes no second review, and no per-category record is
+      fabricated for a category the pass did not reach.
+- [ ] AC2: With the sweep enabled, whenever the existing review flow reaches
+      publication for that head SHA, Ronda publishes exactly one review per
+      head SHA containing all findings from the pass, and still makes no push,
+      merge, or other change to the pull request. The sweep adds no second
+      publication path: draft-skip and supersede behavior are unchanged, so a
+      pass that the existing flow would not have published (a skipped draft
+      pass, or a pass superseded before publication) publishes no review, in a
+      sweep-enabled run as in a non-sweep one.
+- [ ] AC3: The review summary for a sweep pass that publishes a review states
+      that the sweep was active and which category list version was used; a
+      non-sweep pass says neither. A sweep pass that publishes no review (AC1)
+      has no review summary and owes none.
+- [ ] AC4: A recorded sweep category list exists and, for each category, states
+      its identifier, display label, description, supporting real-pull-request
+      evidence source, and finding-instance count.
+- [ ] AC5: The recorded list states that its counts are finding instances rather
+      than distinct defects.
+- [ ] AC6: The recorded list accounts for every candidate category considered
+      (the candidate set is bounded as stated in Statuses / Enum Values, and the
+      sub-themes below that boundary are named in the record): each candidate is
+      either on the swept list or named as excluded with its exclusion
+      rationale. The swept list holds exactly the five categories in Statuses /
+      Enum Values, and the excluded entries are the seeded benchmark's four
+      never-found kinds, the planted-proof evidence theme, spec-AC-compliance,
+      and per-finding resolution, each with its recorded rationale. Exactly one
+      recorded list version is current, and no candidate is left undecided
+      in it.
+- [ ] AC7: The recorded list carries a version and a revision history entry for
+      each change, naming the evidence that motivated it and the revision's
+      date. The record also states the date the current list version became
+      active. A version identifies one list content and is never reused: every
+      revision recorded after it is given a version value that has not
+      appeared in the list's revision history before, so a version cannot name
+      a later list, and evidence recorded against a version is never
+      indistinguishable from evidence for a different list that reuses its
+      value.
+- [ ] AC8: Committed benchmark evidence reports, for sweep-off and sweep-on
+      configurations against the same target, model, and configuration apart
+      from the sweep setting itself (the sweep setting is the one value the two
+      configurations are required to differ in): per-run
+      recall, the lowest and highest recall, the standard deviation of per-run
+      recall (computed with the population formula over the runs performed, the
+      same formula AC15(d) requires), per-defect found and missed counts
+      across runs, the sample count, the model identity, the reviewed target,
+      the run timestamps, and the fixture version. The recall denominator here
+      is the fixture's seeded defects, not the confirmed defects
+      AC15(d)'s real-pull-request denominator uses, so a fixture comparison is
+      never reported as not applicable for want of a confirmed defect.
+      The sweep-off and sweep-on
+      configurations use the same recorded fixture version and the same sample
+      count, and that sample count is at least as large as the 2026-09-10
+      baseline's (five runs); evidence in which the two configurations differ in
+      fixture version or sample count is not admissible. The original thirteen
+      seeded defects are reported as a separate subset alongside the extended
+      fixture. Baseline comparability requires a repeated original-fixture
+      comparison: the same sweep-off and sweep-on configurations as the
+      extended-fixture comparison, run against the original fixture version with
+      the historical model and configuration held constant, at least as many
+      times each as the 2026-09-10 baseline's sample count. A single run does not
+      establish comparability, because the extended fixture's added patches reach
+      the model in the same review prompt as the original thirteen, and because
+      identical runs on this fixture vary. The record states that no recall target and no variance ceiling are defined for this feature, so the
+      recall and variance figures are reported evidence rather than a pass or
+      fail outcome.
+- [ ] AC9: The same committed evidence covers both sweep-off and sweep-on
+      precision runs on the same target, model, fixture version,
+      and sample count (the sample count AC8 requires for the recall runs), with
+      configuration identical apart from the sweep setting itself. It records
+      the category-list version and the effective sweep configuration the runs
+      used. It reports unexpected findings per configuration,
+      attributes each sweep-on unexpected finding to the category (or
+      categories, or uncategorized) recorded for it, reports each sweep-off
+      unexpected finding as unattributed, reports whether each precision fixture
+      stayed clean in each configuration, and states the precision regression
+      result under the strict test in Use Case 4.
+- [ ] AC10: A review pass that finds nothing for every swept category and has
+      no uncategorized finding publishes a clean result, and produces no
+      manufactured finding for any category. A pass whose only findings are
+      uncategorized publishes those findings under AC20 and is not clean.
+      This applies to a pass that reaches publication (AC2): a pass the
+      existing review flow would not have published — a skipped draft pass, or
+      a pass superseded before publication — publishes no result at all, clean
+      or otherwise, and owes none.
+- [ ] AC11: The same committed evidence reports model calls per pass and elapsed
+      time per pass for both configurations and compares them against the
+      recorded per-pull-request convergence figures. The record states that no
+      cost ceiling applies to this feature, so no cost figure fails it. A
+      comparative benchmark cost claim is stated over one named metric: the
+      per-run difference in model calls (sweep-on minus sweep-off paired by
+      run position within each configuration's identical run sequence) averaged
+      across those runs, and the per-run difference in elapsed time per pass
+      likewise paired by run position and averaged across those runs, each with
+      both configurations' figures recorded, so an unpaired comparison, a
+      median, a selected subset of runs, or a subset of the recorded runs does
+      not support the claim. The two configurations' run sequences have the
+      same length, as AC8 requires, so every recorded run is paired and no run
+      is dropped: evidence whose two sequences differ in length is inadmissible
+      under AC8 and supports no comparative cost claim at all.
+- [ ] AC12: The seeded benchmark fixture contains a case for state
+      reconstruction from API evidence, external output parsing, guard fails
+      open, and record identity.
+- [ ] AC13: The seeded benchmark fixture contains at least one credential-pattern
+      case that is harder than the existing always-found sensitive-value case.
+      "Harder" is defined by a testable rule: a credential-pattern case is
+      harder than baseline when the sensitive name or value it plants is not
+      matched by the exact canonical form the existing case uses, so that a
+      guard recognizing only that canonical form would miss it. A case is
+      harder when it differs from the canonical form in at least one of these
+      ways: a qualifier or prefix added to the name, a different letter-case
+      convention (for example camelCase), a different word separator (for
+      example hyphenated), or the name or value wrapped in another construct.
+      These four ways are the exhaustive set that AC13 counts; a variant that
+      differs in none of them is not harder for AC13 purposes, however
+      unusual it looks. The fixture records, for each harder case, which of the
+      four ways it differs by and the canonical baseline form it is compared
+      against, so the rule can be checked without judgment.
+- [ ] AC14: Quality evidence produced by this feature contains no real or
+      usable credential values, tokens, or authorization values. Non-functional
+      credential-shaped fixtures (names and values that authenticate nothing,
+      per the seeded-fixture rule above) are not prohibited by this criterion and
+      are what AC13 requires.
+- [ ] AC15: Recorded evidence carries exactly one of the three evidence tier
+      labels, and:
+      (a) no real-pull-request effect claim appears under a tier below Real-PR
+      evidence (measured);
+      (b) the label Real-PR evidence (measured) is assigned only when at least
+      ten counted pull requests exist under the current recorded category list
+      version, where the eligible cohort is closed before adjudication — it is
+      the pull requests that carried a sweep-enabled review under that version
+      up to a recorded cutoff — and every pull request in it must reach a
+      terminal adjudication before the label is assigned, so adjudicating only
+      the favorable or easy cases while leaving other eligible pull requests
+      unresolved does not reach the ten; a pull request counts only if it
+      carried a sweep-enabled review under that version and its
+      compared-finding evidence has been adjudicated (a finding from the
+      external reviewer, from either Ronda configuration, or from a recorded
+      sweep-off control, each a compared reviewer where its findings are
+      recorded for that head; the count requires no control, since only a
+      comparative claim does); a pull request
+      whose every compared reviewer reported no findings is adjudicated, and
+      counts, once
+      that clean result is confirmed by the recorded same-head external review,
+      while a pull request whose external review alone was clean but which
+      carried a finding from a compared reviewer is not adjudicated until those
+      findings receive
+      terminal outcomes too, so a Ronda-only finding is never left unresolved
+      behind a clean external review; a pull request
+      with no external review recorded is not adjudicated, whether or not it
+      carried findings; a record with at least one sweep-enabled real
+      pull request review recorded under any list version but nine or fewer
+      counted pull requests is labeled Real-PR evidence (provisional), and one
+      with no sweep-enabled real pull request review recorded under any list
+      version is labeled Fixture evidence only (the two ranges do not overlap);
+      (c) evidence previously labeled Real-PR evidence (measured) is relabeled
+      Real-PR evidence (provisional) whenever the counted pull requests fall
+      below ten, since (b) permits the label only while ten counted pull
+      requests exist: a change of the recorded category list version is one
+      cause, and the counted pull requests then restart at zero, so pull
+      requests reviewed under an earlier list version do not count toward the
+      revised version's ten; a sweep-off control recorded on a head inside the
+      cohort is another, because that control's findings become compared
+      findings and its pull request is not counted until they receive terminal
+      outcomes, so the label demotes until the count is restored and then
+      returns with no claim read from the interim label;
+      (d) a comparative real-pull-request claim (that the sweep changed
+      real-pull-request recall, variance, or cost) appears only where a matched
+      sweep-off control on the same pull request heads, with the same model and
+      configuration apart from the sweep setting, is recorded with it, and only
+      where that matched comparison covers the whole closed cohort — every
+      pull request the count is read over — rather than a subset of it, since a
+      control recorded on one favorable head after the cohort was closed would
+      otherwise satisfy the metric requirements on that head alone and read a
+      comparative claim off a hand-picked head set that the ten-pull-request
+      minimum was meant to prevent; a claim
+      that the sweep changed run-to-run variance additionally requires that each
+      configuration be run repeatedly on those same heads — the same number of
+      identical runs per configuration for both configurations, at least two —
+      because a single run per head cannot establish run-to-run variance, and
+      the claim is stated over one named metric: the standard deviation of
+      per-run recall across those runs, computed with the population formula
+      over the runs performed — those runs are the whole set reported, not a
+      sample drawn from a larger one — compared between the two configurations
+      as a direction (higher or lower) with both figures recorded, so that a
+      width-of-range or spread comparison alone does not support the claim;
+      one observation is one run, and a run repeats the same head set, so where
+      a run covers more than one head its recall is that run's defect-weighted
+      recall across its whole head set — the confirmed defects the run reported
+      over the confirmed defects on those heads, using the denominator and
+      matching rule below — and not a pooled set of per-head recalls, an average
+      of per-head recalls, or one observation per head or per defect, because
+      those aggregations yield different standard deviations and can reverse the
+      claimed direction when heads carry different defect denominators;
+      a comparative recall claim is stated over an explicitly recorded
+      denominator, numerator, and matching rule: the denominator is the
+      **confirmed defects** recorded for those heads — a defect found by any
+      compared reviewer counts, Ronda's sweep-enabled review, Ronda's sweep-off
+      control, or the external reviewer alike, because the external reviewer is
+      a second opinion rather than truth and a real defect only one Ronda
+      configuration found is exactly what the comparison must not hide; an
+      adjudicated finding enters the denominator only when the adjudication's
+      recorded outcome is one that represents a valid defect, and the outcomes
+      that do not (`false_positive`, `out_of_scope`, `ronda_better`; the plan
+      maps the recorded outcome vocabulary to this rule) are excluded, because
+      counting a rejected or out-of-scope finding as a miss would depress
+      recall for a finding Ronda was right to omit; a `duplicate` outcome, by
+      contrast, is a **valid defect both reviewers found** — the benchmark
+      contract defines `duplicate` as Ronda and the other reviewer finding the
+      same underlying issue — so it counts, entering the denominator and the
+      numerator once rather than being excluded, and duplicate adjudications of
+      the same defect across reviews or reviewers collapse to one confirmed
+      defect by underlying identity; the numerator is
+      those of them the configuration's review reported (a finding matches when
+      it is on the same head and one is the same defect as the other, as the
+      adjudication records it); a defect reported by either configuration is
+      matched to the same confirmed defect rather than counted twice;
+      and confirmed defects with no counterpart in either
+      configuration are reported as missed by both; where each configuration
+      was run more than once on those heads — the same number of runs on both
+      configurations, so an asymmetric evidence set where one configuration was
+      repeated and the other was not supports no comparative recall claim at all
+      — the comparative recall claim is stated over the
+      **mean of the per-run recalls** — one observation per run, each run's
+      defect-weighted recall computed as above over its whole head set — with
+      the run count and both configurations' figures recorded, so a defect
+      found in some runs and not others moves the mean rather than being
+      pooled into a union, dropped by an intersection or majority rule, or
+      reduced by some other run-level rule the record does not name; a
+      configuration whose
+      denominator is zero (no confirmed defect on those heads)
+      reports its recall as not applicable and supports no recall claim for
+      that measurement, because ten counted pull requests may all carry no
+      confirmed defect from any compared reviewer — the external reviews
+      confirmed clean and neither Ronda configuration nor a recorded control
+      contributing an adjudicated valid defect; the same zero denominator makes the
+      variance result not applicable as well and supports no comparative
+      variance claim, since per-run recall — and therefore its standard
+      deviation — is undefined when no confirmed defect exists on
+      those heads, so the not-applicable result is recorded for the variance
+      figure and no variance direction is claimed; a comparative recall claim
+      additionally requires the paired precision evidence AC9 defines on the
+      same target, model, fixture version, and sample count — and on the same
+      category-list version and effective sweep configuration as the heads the
+      claim is made over, and on the same model identity as those heads, since
+      AC9's "same model" binds only the two precision arms to each other and
+      false-positive behavior is model-dependent, so a clean precision result
+      from one model cannot back a recall claim measured with another —
+      together with its recorded regression result, because
+      precision evidence is mandatory for
+      every recall claim; a comparative cost claim is
+      likewise
+      stated over one named metric: the paired per-head difference in model
+      calls per pass (sweep-on minus sweep-off on the same head) and the paired
+      per-head difference in elapsed time per pass, each reported as its mean
+      across those heads with both configurations' figures recorded, so that an
+      unpaired mean, a median, or a subset of heads does not support the claim;
+      where each configuration was run more than once on those heads — the same
+      number of runs on both configurations, so that an asymmetric evidence set
+      where one configuration was repeated and the other was not supports no
+      comparative cost claim either — the
+      per-head figure is first reduced across that head's runs — the mean of
+      its runs' observations for that head, with the pair for a head formed
+      from the same run count on both configurations — and only then averaged
+      across heads, so that picking one repetition, or averaging all
+      head-and-run pairs without first pairing them per head, does not
+      support the claim;
+      without that control the record
+      carries only the descriptive sweep-enabled miss record.
+- [ ] AC16: Evidence drawn from Ronda's own repository states the independence
+      caveat, and every effect claim built on it is labeled "own-repository".
+      No claim asserts corroboration in another repository, and none is
+      required.
+- [ ] AC17: Documentation states that the seeded benchmark is not a regression
+      gate until the fixture cases required by AC12 and AC13 exist, and that the
+      operator may declare the extended fixture ready to serve as the basis of a
+      regression gate, with the declaration recorded (Use Case 5), once they do.
+      The documentation also states that what a restored gate rejects (its
+      pass/fail contract) is a deferred decision (see Deferred Decisions), so
+      the declaration does not make any benchmark result pass or fail.
+- [ ] AC18: An operator can enable and disable the sweep for the repositories
+      a deployment serves. The
+      authoritative source for that choice is the effective operator
+      configuration value for the run, resolved through Ronda's existing
+      operator-configuration precedence (environment or workflow input over the
+      operator config file over the built-in default, the same surface that
+      already carries the durability-mode switch); the concrete key name is a
+      planning decision. The choice is scoped to one deployment's effective
+      configuration, so it is per-repository wherever the ingress supplies it
+      per repository (the Actions workflow input) and deployment-wide where the
+      webhook resolves one process-wide operator configuration for every
+      repository it serves; a repository-keyed webhook enablement source is out
+      of scope (see Out of Scope). The recognized on and off values are the same,
+      case-insensitive, on and off vocabulary that Ronda's existing on/off
+      operator switches (the durability-mode switch) already accept, so
+      operators learn one convention; the plan states the exact values, and an
+      operator setting any of them gets the matching on or off result. The
+      sweep is off when the value is absent or empty, which are one case with
+      no record. It is also off, and never on, when the value is non-empty and
+      is not a recognized on or off value; in that case a pass that reaches
+      review execution preserves the
+      ordinary publication eligibility (AC2) — it publishes its normal review
+      only when the existing review flow reaches publication for that head SHA —
+      and records, without exposing the raw value, that the enablement value was
+      unrecognized, on the surfaces AC1 assigns to the pass's outcome; a pass the existing flow
+      ends before review execution (AC1) emits no such record. A value that is empty
+      or contains only whitespace counts as absent. The effective value is the
+      one from the highest-precedence source that supplies a non-empty value:
+      an empty or absent value at a higher-precedence source defers to the
+      next source, but an unrecognized non-empty value is the effective value
+      and is not replaced by a recognized value at a lower-precedence source.
+      A disabled sweep reproduces the non-sweep review behavior (Ronda's review
+      behavior for the same head with no sweep feature present: same findings
+      channel, same single review per head SHA, no sweep statement in the
+      summary, no per-category pass record); the unrecognized-value record is
+      the only addition, and it is made only in the unrecognized case. The built-in
+      default is off for every adopting repository; changing that default is
+      not part of this feature.
+- [ ] AC19: When the sweep is enabled but the current category list cannot be
+      read, or is empty or malformed, **a pass that reaches review execution**
+      preserves the ordinary publication
+      eligibility (AC2) — it publishes its normal review for that head only when
+      the existing review flow reaches publication — and records that the sweep
+      did not run. A pass the existing flow ends before review execution (a
+      draft pull request, or an automatic run that finds the head's existing
+      check run, AC2) reads no list, so it emits no sweep-did-not-run record and
+      remains indistinguishable from the same skip in a non-sweep run (AC1);
+      that skip governs, and this rule has no separate outcome for it. A category list is
+      malformed when any of these holds: it cannot be read as a list of
+      categories at all; any category lacks a display label, a description, an
+      evidence source, an identifier, or a finding-instance count (AC4), or
+      supplies any of those as a value outside its allowed domain — the
+      allowed domain is: identifiers, display labels, descriptions, and
+      evidence sources are each a non-empty string that is not blank
+      (whitespace-only counts as blank), and a finding-instance count is a
+      positive integer — zero is not allowed, because a category on the list is
+      justified by the real-pull-request findings behind it, and a count of zero
+      is no such justification — so a blank string or a count that is not a
+      positive integer is malformed rather than valid; two
+      categories share an identifier; it contains no categories; or it carries
+      no list version, or no single
+      current list version can be identified. The list version's allowed domain
+      is a non-blank scalar string — not a number, array, or object — compared
+      by exact string equality, so a version that is blank, or is not a scalar
+      string, is malformed under this rule and cannot be reported or used to
+      decide whether the ten-pull-request count resets; a version value is
+      never reused (AC7), so exact string equality is an identity, not a
+      display match, and two lists never share it. In each of these cases
+      the pass
+      reports no list version as used. How the list is stored and parsed is a
+      planning decision.
+- [ ] AC20: Every finding published by a sweep pass appears in the per-category
+      pass record, on the surfaces AC1 assigns to the pass's outcome (and in the
+      benchmark output for a benchmark run), either
+      against one or more swept categories
+      or as uncategorized.
+
+---
+
+## Brief Objective List
+
+- O1: Provide a category-forced review pass.
+- O2: Justify the category list by real-pull-request evidence and record the
+  list itself.
+- O3: Scope the list on the real-PR sub-theme ranking, not on the seeded
+  fixture's four never-found kinds.
+- O4: Produce benchmark evidence of the effect on recall.
+- O5: Produce benchmark evidence of the effect on run-to-run variance, so a
+  single-run improvement cannot stand as proof.
+- O6: Produce precision evidence, guarding against a manufactured finding per
+  category.
+- O7: Produce cost evidence against the recorded per-pull-request cost figures,
+  including whether the sweep multiplies model calls per pass.
+- O8: Add fixture seeds for state reconstruction from API evidence, external
+  output parsing, guard fails open, and record identity.
+- O9: Add at least one harder credential-pattern-gap fixture case.
+- O10: Do not treat the seeded benchmark as a regression gate again until those
+  seeds exist.
+- O11: Do not measure real-pull-request effect until the minimum number of
+  dogfooded pull requests fixed in AC15 (ten, with adjudicated evidence) have
+  accumulated.
+- O12: Account for the fixture over-weighting single-line algorithmic defects
+  that nothing in the real corpus resembles.
+
+---
+
+## Coverage Matrix
+
+| Brief objective | Acceptance criteria / disposition | Notes |
+| --- | --- | --- |
+| O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19, AC20 | The sweep runs inside the existing one-review-per-head contract for passes that reach review execution (the pass reads the changed files and runs the review); a pass that ends earlier — a pre-review skip (draft, or an automatic run finding the head's check run) or a terminal failure before review execution — emits no sweep metadata and is indistinguishable from the same outcome without the sweep; a pass that reaches review execution and then fails terminally is governed by AC1's terminal-failure rule, which assigns its per-category record to the logs and to its own check-run output only where that write produced a check run whose outcome is a review; and the review summary statement (AC3) belongs only to a sweep pass that publishes a review. It is operator-controllable and off by default, records per-category results on the surfaces AC1 assigns (and in the benchmark output for benchmark runs), and degrades to the non-sweep review behavior when its list is unreadable or its enablement value is unrecognized, preserving the ordinary publication eligibility (AC2) in every degraded case. |
+| O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts (positive finding-instance counts, zero not allowed), counting unit, version, and revisions, each revision dated and the current version's activation date recorded; a version value is never reused for a later list (AC7), so two lists never share one and evidence keyed to a version is never mistaken for evidence about a different list. |
+| O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales, and the seven sub-themes below the candidate boundary are named. |
+| O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
+| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; the original-thirteen subset is reported alongside the extended fixture, and baseline comparability for it needs a repeated original-fixture run — the same sweep-off and sweep-on configurations as the extended-fixture comparison, against the original fixture version with the historical model and configuration held constant, at least as many times each as the 2026-09-10 baseline's sample count — since added patches share the original thirteen's review prompt and identical runs vary; one observation is one run, read as that run's defect-weighted recall over its whole head set; recall is read against the fixture's seeded defects, so a fixture comparison is never not applicable for want of a confirmed defect, while a real-PR head set with no confirmed defect makes the variance result not applicable, supporting no claim; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
+| O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean; the runs record their category-list version, effective sweep configuration, and model identity, so under a revised list, or on a model the claimed heads did not run, the previous precision evidence cannot back a recall claim. |
+| O7: Cost evidence | AC11, AC15(d) | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied; a real-PR comparative cost claim is read off the paired per-head differences AC15(d) names — each head's figure reduced across that head's runs before the cross-head average, on an evidence set where both configurations carry the same run count — and a comparative benchmark cost claim off the per-run differences AC11 pairs by run position, not the standalone figures. |
+| O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
+| O9: Harder credential-pattern variant | AC13 | At least one variant harder than the existing sensitive-value case. |
+| O10: No regression gate until seeds exist | AC17 | Stated in documentation and tied to AC12 and AC13. Once they exist the extended fixture may be declared ready as a gate basis; the gate's pass/fail contract is a Deferred Decision, so the declaration makes no benchmark result pass or fail. |
+| O11: No real-PR measurement before ten adjudicated dogfooded PRs | AC15, AC16, plus the evidence tier enum | Ten is the confirmed minimum and the count requires adjudicated compared-finding evidence, counting a pull request whose every compared reviewer is clean once its same-head confirmation is recorded and requiring a Ronda-only finding behind a clean external review to be terminally adjudicated too, with the eligible cohort closed before adjudication and every pull request in it terminally adjudicated so only favorable-case adjudication cannot reach the ten; the tier labels enforce what each evidence set may claim, including that a comparative claim needs a matched sweep-off control covering the whole closed cohort the count is read over rather than a subset of it, with repeated runs for variance (read off the standard deviation of per-run recall), a comparative recall claim additionally needing the paired precision evidence AC9 defines — on the same category-list version, effective sweep configuration, and model identity as the claim's heads — and its recorded regression result (precision evidence is mandatory for every recall claim), and a recorded recall metric whose denominator is the confirmed defects found by any compared reviewer — Ronda's sweep-enabled review, Ronda's sweep-off control, or the external reviewer alike, since the external reviewer is a second opinion rather than truth (rejected and out-of-scope adjudications excluded; a `duplicate` outcome counted once as a valid defect both reviewers found; duplicates of one defect collapsed by underlying identity), with the recall figure being the mean of the per-run recalls where a configuration was run more than once — and requiring both configurations to carry the same run count, so an asymmetric evidence set where only one configuration was repeated supports no comparative claim. |
+| O12: Fixture over-weights single-line algorithmic defects | Out of Scope (MVP) — see Deferral Note D1 | Recorded as a known fixture bias; rebalancing is deferred. |
+
+### Deferral Notes
+
+- **D1 — "The fixture over-weights single-line algorithmic defects
+  (lexicographic numeric sort, lower-element median, cache capacity off-by-one,
+  all found 5/5). Nothing in the 79 real findings looks like them."**
+  Rationale: removing or re-weighting existing seeds would change the
+  denominator of the 2026-09-10 baseline, so the original-thirteen subset would
+  no longer have that denominator to compare against. (Comparability itself
+  still needs the repeated same-fixture-version run AC8 requires — the subset
+  alone never provides it, and one run never does.) The issue raises it as
+  a note rather than an outcome. This spec records the bias and adds new seeds
+  alongside the existing ones instead of rebalancing them. Human confirmation:
+  confirmed on 2026-09-26 — rebalancing the existing single-line algorithmic
+  seeds stays out of scope for this item.
+
+---
+
+## Out of Scope (MVP)
+
+- Rebalancing, re-weighting, or removing the existing single-line algorithmic
+  seeds in the benchmark fixture (see Deferral Note D1).
+- Removing the seeded benchmark's four never-found kinds from the fixture; they
+  stay seeded, they are simply not a basis for the sweep list.
+- Automatically deriving or revising the category list from evidence without a
+  human decision.
+- Publishing a per-category section in the GitHub review body that lists every
+  swept category, including the ones with no findings.
+- Per-adopter or per-repository custom category lists; this iteration ships one
+  recorded list.
+- Changing Ronda's review output contract, check-run behavior, draft-skip
+  behavior, supersede behavior, or trigger behavior, other than the additions
+  this spec states: the sweep statement in the review summary (AC3) and the
+  per-category pass record and the sweep-did-not-run or unrecognized-enablement
+  records (AC1, AC18, AC19), each on the surfaces AC1 assigns.
+- Model tiering, read-only checkout with symbol context, and the other epic #52
+  items that are not this sweep.
+- Adjudicating the outstanding template pull request comparison record, the
+  PR-Agent decision, and reviewer-loop history preservation — separate items
+  from the same baseline's recommendations.
+- Claiming that the sweep generalizes to repositories other than the one that
+  produced the evidence.
+- Corroborating the sweep's effect in another repository; own-repository
+  evidence, carrying its label and caveat, is what this item claims.
+- Setting a recall target or a variance ceiling for the sweep (see Deferred
+  Decisions).
+- A repository-keyed sweep enablement source for the webhook. The sweep's
+  enablement is a deployment-scoped operator-configuration value (AC18),
+  resolved where Ronda's existing operator switches are resolved; a multi-
+  repository webhook process supplies one value for every repository it serves,
+  and a repository-keyed source for that process is not part of this feature.
+- Setting a cost ceiling for a sweep pass (see Deferred Decisions).
+- Defining the pass/fail contract of a restored benchmark regression gate, that
+  is, what result the gate rejects (see Deferred Decisions).
+- Making the sweep the default for adopting repositories (see Deferred
+  Decisions).
+
+---
+
+## Deferred Decisions
+
+These product decisions are deliberately not made in this item. None of them
+blocks building, shipping, or measuring the sweep, because the sweep ships off
+by default and its recall, variance, and cost figures are reported evidence
+rather than pass/fail gates.
+
+| Decision | Owner | Trigger | Until then |
+| --- | --- | --- | --- |
+| A recall target and a variance ceiling for the sweep | Human (issue owner) | The first sweep-on and sweep-off runs are recorded | Recall and variance are reported evidence; no run passes or fails on them. |
+| The pass/fail contract of a restored benchmark regression gate (what result the gate rejects) | Human (issue owner) | The recall-target and variance-ceiling decision above is made | The extended fixture may be declared ready as a gate basis (AC17), but benchmark results are reported evidence; no run passes or fails. |
+| A cost ceiling per sweep pass | Human (issue owner) | Only if the sweep is proposed as the default for adopting repositories | Cost per pass is reported and compared against the per-pull-request convergence figures; no cost figure fails this feature. |
+| Flipping the sweep's default from off to on | Human (issue owner) | Recall, variance, precision, and cost evidence recorded, with no precision regression | The sweep stays off unless a repository enables it. Flipping the default is a separate change and requires a release note for existing adopters. |
