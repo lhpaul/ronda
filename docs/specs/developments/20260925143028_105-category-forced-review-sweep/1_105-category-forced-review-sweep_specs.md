@@ -259,9 +259,12 @@ findings in that one review.
   recorded with the results. The sweep is aimed at themes the 2026-09-10 fixture
   does not seed, so the comparison is reported on the extended fixture, with the
   original thirteen seeded defects also reported as their own subset. That
-  subset's own baseline comparability needs a separate run against the original
-  fixture version with the historical model and configuration held constant, as
-  AC8 requires; the subset alone does not restore it.
+  subset's own baseline comparability needs a repeated original-fixture run —
+  the same sweep-off and sweep-on configurations as the extended-fixture
+  comparison, against the original fixture version with the historical model and
+  configuration held constant, at least as many times each as the 2026-09-10
+  baseline's sample count — as AC8 requires; one run, and the subset alone, do
+  not restore it.
 
 ---
 
@@ -563,10 +566,13 @@ findings in that one review.
   otherwise the comparison is not admissible evidence. Results are reported for
   the extended fixture and, as a
   separate subset, for the original thirteen seeded defects. Baseline
-  comparability for that subset needs a separate run against the original
-  fixture version with the historical model and configuration held constant
-  (AC8); the added patches reach the model in the same review prompt as the
-  original thirteen, so the subset alone does not provide it.
+  comparability for that subset needs a repeated original-fixture run — the same
+  sweep-off and sweep-on configurations as the extended-fixture comparison,
+  against the original fixture version with the historical model and
+  configuration held constant, at least as many times each as the 2026-09-10
+  baseline's sample count (AC8); the added patches reach the model in the same
+  review prompt as the original thirteen, and identical runs vary, so one run
+  and the subset alone do not provide it.
 - Precision evidence is mandatory for every recall claim: the same comparison
   must report unexpected findings for both configurations. Category attribution
   is reported for sweep-on findings only; sweep-off findings are reported as
@@ -740,7 +746,7 @@ surfaces** state the same rule and must not contradict this table.
 | Category list readability (AC19) | The current category list's state at the start of a pass that reaches review execution: readable and well-formed, or unreadable, empty, or malformed | Readable: the sweep runs over the list. Unreadable, empty, or malformed: the sweep does not run, and the pass records `sweep-did-not-run`, reporting no list version as used | Degrade: the pass continues as an ordinary non-sweep review and preserves the ordinary publication eligibility (AC2); a missing list never fails the pass and never leaves the head without a result | Business rule "If the current category list cannot be read…" (~120); AC19; Use Case 1 step 2 | A list whose two categories share an identifier is malformed, so the pass degrades and records `sweep-did-not-run`. A disabled sweep inspects no list and records no list outcome. |
 | Pass-outcome surface assignment (AC1) | Where the pass reached, whether it published a review, and whether its own check-run write produced a check run whose outcome is a review | Pre-review skip, or terminal failure before review execution: no sweep metadata of any kind. Reached completion with a check run whose outcome is a review: the per-category record on the check-run output and the logs. Reached completion with no such check run — a real-PR pass superseded before publication, or a completed benchmark run, which publishes no check run at all: the record on the logs, together with whatever per-category output that pass's own surface carries (the benchmark output for a benchmark run). Terminal failure after review execution: same rule — the record on the logs, plus the check-run output only where that write produced a check run whose outcome is a review | Record the categories the pass reached, on the surfaces this row assigns; never fabricate a record for a category the pass did not reach, and never publish a second review | AC1 (sole owner of this rule); the per-category pass record business rule (~541); Operational Visibility "Per-category pass record"; every other site references AC1 rather than restating it | A pass superseded before publication publishes no review, so no check run whose outcome is a review exists and its record is on the logs. A model credential the model API rejects fails after the changed files are read, so its record is likewise on the logs — its check run is the existing failure check run, whose outcome is not a review. A success check-run write that fails after its bounded retry leaves the record on the logs with whatever per-category surface that write produced. A completed benchmark run writes no check run, so its per-category record is in the benchmark output and its logs. |
 | Evidence-tier transition (Statuses / Enum Values → Evidence tier) | Whether any sweep-enabled real-PR review has been recorded (adjudicated or not), the counted pull requests under the current list version (sweep-enabled, with adjudicated external-finding evidence), and whether the category list was revised | `fixture_only` → `real_pr_provisional` once the first sweep-enabled real-PR review is recorded, even with a zero counted total; `fixture_only` on a list revision: unchanged — a revision cannot leave `fixture_only`, since the tier is driven by whether any sweep-enabled real-PR review is recorded, which a revision does not undo; `real_pr_provisional` → `real_pr_measured` at ten counted pull requests; `real_pr_provisional` on a list revision: unchanged — the tier stays `real_pr_provisional` and the counted pull requests restart at zero; `real_pr_measured` → `real_pr_provisional` on a list revision, until ten pull requests accumulate under the revised list | Promote or demote per the transition, and label the evidence tier on the quality evidence (Operational Visibility); a claim is admissible only as its tier allows and as the claim-admissibility gate below additionally requires | Statuses / Enum Values → Evidence tier "Valid transitions"; AC15; AC16; Use Case 6 | The first sweep-enabled real-PR review promotes `fixture_only` to `real_pr_provisional` before its external findings are adjudicated, so the counted total stays zero, and findings are labeled indicative only. Ten counted pull requests then promote to `real_pr_measured`. A list revision demotes `real_pr_measured` to `real_pr_provisional` until ten pull requests re-accumulate, a revision at `real_pr_provisional` restarts the count without leaving the tier, and a revision while at `fixture_only` leaves the tier unchanged. |
-| Claim admissibility (AC15(d)) | The evidence tier; for each claim, its own required evidence: whether a matched sweep-off control on the same pull request heads (same model and configuration apart from the sweep setting) is recorded; for a variance claim, whether both configurations were run the same number of times on those heads, at least two runs each; for a recall or variance claim, whether the confirmed-external-defect denominator is non-zero | Descriptive real-pull-request claim: permitted at `real_pr_measured` alone, with the independence caveat and the "own-repository" label. Comparative claim with a recorded matched sweep-off control: recall (non-zero denominator) and cost permitted; variance additionally requires the repeated equal-size runs. Comparative claim without the required control or the claim's own evidence: not admissible — the claim is not made | Admit a claim only when the tier permits it **and** the claim's own required evidence is recorded; otherwise record the claim as not applicable rather than publishing it | AC15(d); the evidence tier enum `real_pr_measured` row; the real-pull-request business rule; Coverage Matrix O5, O7, O11 | At `real_pr_measured` a comparative variance claim made after one run per configuration is inadmissible: the tier permits comparative claims but the claim's own evidence requires repeated equal-size runs. A recall claim whose heads carry no confirmed external defect reports not applicable. A comparative claim at `real_pr_provisional` is inadmissible on the tier alone, however complete its control evidence. |
+| Claim admissibility (AC15(d)) | The evidence tier; for each claim, its own required evidence: whether a matched sweep-off control on the same pull request heads (same model and configuration apart from the sweep setting) is recorded; for a variance claim, whether both configurations were run the same number of times on those heads, at least two runs each; for a recall or variance claim, whether the confirmed-external-defect denominator is non-zero; for a recall claim, whether the paired precision evidence on the same target, model, fixture version, and sample count, together with its recorded regression result, is present | Descriptive real-pull-request claim: permitted at `real_pr_measured` alone, with the independence caveat and the "own-repository" label. Comparative claim with a recorded matched sweep-off control: recall permitted only with a non-zero denominator **and** the paired precision evidence and its recorded regression result (precision evidence is mandatory for every recall claim); cost permitted; variance additionally requires the repeated equal-size runs. Comparative claim without the required control or the claim's own evidence: not admissible — the claim is not made | Admit a claim only when the tier permits it **and** the claim's own required evidence is recorded; otherwise record the claim as not applicable rather than publishing it | AC15(d); the evidence tier enum `real_pr_measured` row; the real-pull-request business rule; Coverage Matrix O5, O7, O11 | At `real_pr_measured` a comparative variance claim made after one run per configuration is inadmissible: the tier permits comparative claims but the claim's own evidence requires repeated equal-size runs. A recall claim whose heads carry no confirmed external defect reports not applicable. A comparative claim at `real_pr_provisional` is inadmissible on the tier alone, however complete its control evidence. |
 
 ---
 
@@ -890,10 +896,14 @@ surfaces** state the same rule and must not contradict this table.
       baseline's (five runs); evidence in which the two configurations differ in
       fixture version or sample count is not admissible. The original thirteen
       seeded defects are reported as a separate subset alongside the extended
-      fixture. Baseline comparability requires a separate run against the
-      original fixture version with the historical model and configuration held
-      constant, because the extended fixture's added patches reach the model in
-      the same review prompt as the original thirteen. The record states that no recall target and no variance ceiling are defined for this feature, so the
+      fixture. Baseline comparability requires a repeated original-fixture
+      comparison: the same sweep-off and sweep-on configurations as the
+      extended-fixture comparison, run against the original fixture version with
+      the historical model and configuration held constant, at least as many
+      times each as the 2026-09-10 baseline's sample count. A single run does not
+      establish comparability, because the extended fixture's added patches reach
+      the model in the same review prompt as the original thirteen, and because
+      identical runs on this fixture vary. The record states that no recall target and no variance ceiling are defined for this feature, so the
       recall and variance figures are reported evidence rather than a pass or
       fail outcome.
 - [ ] AC9: The same committed evidence covers both sweep-off and sweep-on
@@ -1017,7 +1027,11 @@ surfaces** state the same rule and must not contradict this table.
       variance claim, since per-run recall — and therefore its standard
       deviation — is undefined when no confirmed external defect exists on
       those heads, so the not-applicable result is recorded for the variance
-      figure and no variance direction is claimed; a comparative cost claim is
+      figure and no variance direction is claimed; a comparative recall claim
+      additionally requires the paired precision evidence AC9 defines on the
+      same target, model, fixture version, and sample count, together with its
+      recorded regression result, because precision evidence is mandatory for
+      every recall claim; a comparative cost claim is
       likewise
       stated over one named metric: the paired per-head difference in model
       calls per pass (sweep-on minus sweep-off on the same head) and the paired
@@ -1149,13 +1163,13 @@ surfaces** state the same rule and must not contradict this table.
 | O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts (positive finding-instance counts, zero not allowed), counting unit, version, and revisions, each revision dated and the current version's activation date recorded. |
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales, and the seven sub-themes below the candidate boundary are named. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
-| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; the original-thirteen subset is reported alongside the extended fixture, and baseline comparability for it needs a separate run against the original fixture version with the historical model and configuration held constant, since added patches share the original thirteen's review prompt; one observation is one run, read as that run's defect-weighted recall over its whole head set; recall is read against the fixture's seeded defects, so a fixture comparison is never not applicable for want of a confirmed external defect, while a real-PR head set with no confirmed external defect makes the variance result not applicable, supporting no claim; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
+| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; the original-thirteen subset is reported alongside the extended fixture, and baseline comparability for it needs a repeated original-fixture run — the same sweep-off and sweep-on configurations as the extended-fixture comparison, against the original fixture version with the historical model and configuration held constant, at least as many times each as the 2026-09-10 baseline's sample count — since added patches share the original thirteen's review prompt and identical runs vary; one observation is one run, read as that run's defect-weighted recall over its whole head set; recall is read against the fixture's seeded defects, so a fixture comparison is never not applicable for want of a confirmed external defect, while a real-PR head set with no confirmed external defect makes the variance result not applicable, supporting no claim; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
 | O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean. |
 | O7: Cost evidence | AC11, AC15(d) | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied; a real-PR comparative cost claim is read off the paired per-head differences AC15(d) names, and a comparative benchmark cost claim off the per-run differences AC11 pairs by run position, not the standalone figures. |
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
 | O9: Harder credential-pattern variant | AC13 | At least one variant harder than the existing sensitive-value case. |
 | O10: No regression gate until seeds exist | AC17 | Stated in documentation and tied to AC12 and AC13. Once they exist the extended fixture may be declared ready as a gate basis; the gate's pass/fail contract is a Deferred Decision, so the declaration makes no benchmark result pass or fail. |
-| O11: No real-PR measurement before ten adjudicated dogfooded PRs | AC15, AC16, plus the evidence tier enum | Ten is the confirmed minimum and the count requires adjudicated external-finding evidence, counting a clean external review once its same-head confirmation is recorded; the tier labels enforce what each evidence set may claim, including that a comparative claim needs a matched sweep-off control, with repeated runs for variance (read off the standard deviation of per-run recall) and a recorded recall metric whose denominator is the confirmed external defects (rejected, out-of-scope, and duplicate adjudications excluded; duplicates collapsed). |
+| O11: No real-PR measurement before ten adjudicated dogfooded PRs | AC15, AC16, plus the evidence tier enum | Ten is the confirmed minimum and the count requires adjudicated external-finding evidence, counting a clean external review once its same-head confirmation is recorded; the tier labels enforce what each evidence set may claim, including that a comparative claim needs a matched sweep-off control, with repeated runs for variance (read off the standard deviation of per-run recall), a comparative recall claim additionally needing the paired precision evidence AC9 defines and its recorded regression result (precision evidence is mandatory for every recall claim), and a recorded recall metric whose denominator is the confirmed external defects (rejected, out-of-scope, and duplicate adjudications excluded; duplicates collapsed). |
 | O12: Fixture over-weights single-line algorithmic defects | Out of Scope (MVP) — see Deferral Note D1 | Recorded as a known fixture bias; rebalancing is deferred. |
 
 ### Deferral Notes
@@ -1166,8 +1180,8 @@ surfaces** state the same rule and must not contradict this table.
   Rationale: removing or re-weighting existing seeds would change the
   denominator of the 2026-09-10 baseline, so the original-thirteen subset would
   no longer have that denominator to compare against. (Comparability itself
-  still needs the separate same-fixture-version run AC8 requires — the subset
-  alone never provides it.) The issue raises it as
+  still needs the repeated same-fixture-version run AC8 requires — the subset
+  alone never provides it, and one run never does.) The issue raises it as
   a note rather than an outcome. This spec records the bias and adds new seeds
   alongside the existing ones instead of rebalancing them. Human confirmation:
   confirmed on 2026-09-26 — rebalancing the existing single-line algorithmic
