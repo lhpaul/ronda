@@ -568,9 +568,12 @@ findings in that one review.
 
 ### Sweep categories (initial list)
 
-Display labels are what operators read in the recorded list and in review
-summaries. The evidence identifier is the name used in the 2026-09-23 real-PR
-corpus, kept so every category is traceable to its source rows.
+Display labels are what operators read in the recorded list and on the operator
+surfaces that report it. They do not appear in the review body: the review
+summary states only the sweep activation and the list version (AC3), and the
+per-category pass record never appears in the review body (AC1). The evidence
+identifier is the name used in the 2026-09-23 real-PR corpus, kept so every
+category is traceable to its source rows.
 
 | Evidence identifier | Display label | Description |
 | --- | --- | --- |
