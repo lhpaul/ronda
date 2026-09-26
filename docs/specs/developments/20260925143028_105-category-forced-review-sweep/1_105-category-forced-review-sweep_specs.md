@@ -822,12 +822,12 @@ record and can be marked current.
       configuration be run repeatedly on those same heads — the same number of
       identical runs per configuration for both configurations, at least two —
       because a single run per head cannot establish run-to-run variance, and
-      the claim is stated over one named metric: the sample standard deviation
-      of per-run recall across those runs (the population standard deviation is
-      computed, not estimated, because the runs performed are the whole sample
-      reported), compared between the two configurations as a direction
-      (higher or lower) with both figures recorded, so that a width-of-range or
-      spread comparison alone does not support the claim;
+      the claim is stated over one named metric: the standard deviation of
+      per-run recall across those runs, computed with the population formula
+      over the runs performed — those runs are the whole set reported, not a
+      sample drawn from a larger one — compared between the two configurations
+      as a direction (higher or lower) with both figures recorded, so that a
+      width-of-range or spread comparison alone does not support the claim;
       a comparative recall claim is stated over an explicitly recorded
       denominator, numerator, and matching rule: the denominator is the
       **confirmed external defects** recorded for those heads — an adjudicated
