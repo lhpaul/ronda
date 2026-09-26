@@ -702,9 +702,11 @@ record and can be marked current.
       operator-configuration precedence (environment or workflow input over the
       operator config file over the built-in default, the same surface that
       already carries the durability-mode switch); the concrete key name is a
-      planning decision. The sweep is off when the value is absent. It is also
-      off, and never on, when the value is empty or is not a recognized on or
-      off value; in that case the pass still publishes its normal review and
+      planning decision. The recognized on values are: `true`, `1`, `yes`, `on`
+      (case-insensitive). The recognized off values are: `false`, `0`, `no`,
+      `off` (case-insensitive). The sweep is off when the value is absent. It is
+      also off, and never on, when the value is empty or is not a recognized on
+      or off value; in that case the pass still publishes its normal review and
       records, without exposing the raw value, that the enablement value was
       unrecognized. A disabled sweep reproduces the non-sweep review behavior
       (Ronda's review behavior for the same head with no sweep feature present:
@@ -714,7 +716,11 @@ record and can be marked current.
       not part of this feature.
 - [ ] AC19: When the sweep is enabled but the current category list cannot be
       read, or is empty or malformed, the pass still publishes its normal review
-      for that head and records that the sweep did not run.
+      for that head and records that the sweep did not run. A category list is
+      malformed when: it is not valid JSON or YAML as applicable; any entry is
+      missing a required field (display label, description, evidence source, or
+      category identifier); any category identifier is duplicated; or the list
+      contains zero valid category entries after parsing.
 - [ ] AC20: Every finding published by a sweep pass appears in the per-category
       pass record on the check-run output (where the pass publishes a check run)
       and in the logs (and in the benchmark output for a benchmark run), either
