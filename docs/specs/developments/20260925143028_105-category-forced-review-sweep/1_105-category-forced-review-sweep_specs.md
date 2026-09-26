@@ -258,8 +258,10 @@ findings in that one review.
   sweep-on runs must use the same fixture version, and the fixture version is
   recorded with the results. The sweep is aimed at themes the 2026-09-10 fixture
   does not seed, so the comparison is reported on the extended fixture, with the
-  original thirteen seeded defects also reported as their own subset so the
-  2026-09-10 baseline remains comparable.
+  original thirteen seeded defects also reported as their own subset. That
+  subset's own baseline comparability needs a separate run against the original
+  fixture version with the historical model and configuration held constant, as
+  AC8 requires; the subset alone does not restore it.
 
 ---
 
@@ -399,8 +401,9 @@ findings in that one review.
 
 - The existing fixture over-weights single-line algorithmic defects that are
   always found and that nothing in the real corpus resembles. Rebalancing or
-  removing those seeds would break comparability with the 2026-09-10 baseline
-  and is deliberately left out of this feature.
+  removing those seeds would leave the original-thirteen subset without the
+  2026-09-10 denominator to compare against, and is deliberately left out of
+  this feature.
 - Seeded cases must not contain real credential values; the existing rule that
   quality evidence stores no secrets applies to every new seed.
 
@@ -559,7 +562,11 @@ findings in that one review.
   fixture version, and configuration apart from the sweep setting itself;
   otherwise the comparison is not admissible evidence. Results are reported for
   the extended fixture and, as a
-  separate subset, for the original thirteen seeded defects.
+  separate subset, for the original thirteen seeded defects. Baseline
+  comparability for that subset needs a separate run against the original
+  fixture version with the historical model and configuration held constant
+  (AC8); the added patches reach the model in the same review prompt as the
+  original thirteen, so the subset alone does not provide it.
 - Precision evidence is mandatory for every recall claim: the same comparison
   must report unexpected findings for both configurations. Category attribution
   is reported for sweep-on findings only; sweep-off findings are reported as
@@ -883,7 +890,10 @@ surfaces** state the same rule and must not contradict this table.
       baseline's (five runs); evidence in which the two configurations differ in
       fixture version or sample count is not admissible. The original thirteen
       seeded defects are reported as a separate subset alongside the extended
-      fixture. The record states that no recall target and no variance ceiling are defined for this feature, so the
+      fixture. Baseline comparability requires a separate run against the
+      original fixture version with the historical model and configuration held
+      constant, because the extended fixture's added patches reach the model in
+      the same review prompt as the original thirteen. The record states that no recall target and no variance ceiling are defined for this feature, so the
       recall and variance figures are reported evidence rather than a pass or
       fail outcome.
 - [ ] AC9: The same committed evidence covers both sweep-off and sweep-on
@@ -1139,7 +1149,7 @@ surfaces** state the same rule and must not contradict this table.
 | O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts (positive finding-instance counts, zero not allowed), counting unit, version, and revisions, each revision dated and the current version's activation date recorded. |
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales, and the seven sub-themes below the candidate boundary are named. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
-| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; one observation is one run, read as that run's defect-weighted recall over its whole head set; recall is read against the fixture's seeded defects, so a fixture comparison is never not applicable for want of a confirmed external defect, while a real-PR head set with no confirmed external defect makes the variance result not applicable, supporting no claim; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
+| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; the original-thirteen subset is reported alongside the extended fixture, and baseline comparability for it needs a separate run against the original fixture version with the historical model and configuration held constant, since added patches share the original thirteen's review prompt; one observation is one run, read as that run's defect-weighted recall over its whole head set; recall is read against the fixture's seeded defects, so a fixture comparison is never not applicable for want of a confirmed external defect, while a real-PR head set with no confirmed external defect makes the variance result not applicable, supporting no claim; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
 | O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean. |
 | O7: Cost evidence | AC11, AC15(d) | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied; a real-PR comparative cost claim is read off the paired per-head differences AC15(d) names, and a comparative benchmark cost claim off the per-run differences AC11 pairs by run position, not the standalone figures. |
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
@@ -1154,8 +1164,10 @@ surfaces** state the same rule and must not contradict this table.
   (lexicographic numeric sort, lower-element median, cache capacity off-by-one,
   all found 5/5). Nothing in the 79 real findings looks like them."**
   Rationale: removing or re-weighting existing seeds would change the
-  denominator of the 2026-09-10 baseline and destroy the comparability this
-  feature depends on for its recall and variance claims. The issue raises it as
+  denominator of the 2026-09-10 baseline, so the original-thirteen subset would
+  no longer have that denominator to compare against. (Comparability itself
+  still needs the separate same-fixture-version run AC8 requires — the subset
+  alone never provides it.) The issue raises it as
   a note rather than an outcome. This spec records the bias and adds new seeds
   alongside the existing ones instead of rebalancing them. Human confirmation:
   confirmed on 2026-09-26 — rebalancing the existing single-line algorithmic
