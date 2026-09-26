@@ -640,8 +640,10 @@ record and can be marked current.
       unexpected finding as unattributed, reports whether each precision fixture
       stayed clean in each configuration, and states the precision regression
       result under the strict test in Use Case 4.
-- [ ] AC10: A review pass that finds nothing for every swept category publishes
-      a clean result, and produces no manufactured finding for any category.
+- [ ] AC10: A review pass that finds nothing for every swept category and has
+      no uncategorized finding publishes a clean result, and produces no
+      manufactured finding for any category. A pass whose only findings are
+      uncategorized publishes those findings under AC20 and is not clean.
 - [ ] AC11: The same committed evidence reports model calls per pass and elapsed
       time per pass for both configurations and compares them against the
       recorded per-pull-request convergence figures. The record states that no
@@ -721,8 +723,10 @@ record and can be marked current.
       for that head and records that the sweep did not run. A category list is
       malformed when any of these holds: it cannot be read as a list of
       categories at all; any category lacks a display label, a description, an
-      evidence source, or an identifier; two categories share an identifier; or
-      it contains no categories. How the list is stored and parsed is a
+      evidence source, or an identifier; two categories share an identifier; it
+      contains no categories; or it carries no list version, or no single
+      current list version can be identified. In each of these cases the pass
+      reports no list version as used. How the list is stored and parsed is a
       planning decision.
 - [ ] AC20: Every finding published by a sweep pass appears in the per-category
       pass record on the check-run output (where the pass publishes a check run)
