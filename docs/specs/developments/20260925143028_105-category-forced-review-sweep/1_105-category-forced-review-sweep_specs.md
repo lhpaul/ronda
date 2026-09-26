@@ -397,7 +397,9 @@ findings in that one review.
 - Real-pull-request evidence is read only as a descriptive record of what
   sweep-enabled reviews caught and missed. It is not read as a comparative
   effect (that the sweep improved or worsened anything) unless a matched
-  sweep-off control exists for the same pull request heads (see Considerations).
+  sweep-off control exists for the same pull request heads, and, for a variance
+  claim specifically, unless each configuration was also run repeatedly on those
+  heads (see Considerations).
 - Every real-pull-request effect claim is labeled "own-repository".
 
 **Information shown**:
@@ -431,7 +433,11 @@ findings in that one review.
   and different model runs. A comparative real-pull-request claim (the sweep
   raised or lowered real-pull-request recall, variance, or cost) therefore
   always requires a matched control: a sweep-off review of the same pull request
-  heads, with the same model and configuration, recorded but not published.
+  heads, with the same model and configuration apart from the sweep setting,
+  recorded but not published. A variance claim is stricter still: it requires
+  repeated identical runs of each configuration on those same heads, the same
+  number per configuration, because one run per head measures nothing about
+  run-to-run variance.
   Without that control, the strongest permitted real-pull-request claim is the
   descriptive sweep-enabled miss record above.
 
@@ -501,7 +507,9 @@ findings in that one review.
   that minimum, only a descriptive sweep-enabled miss record may be claimed; a
   comparative claim (the sweep changed real-pull-request recall, variance, or
   cost) additionally requires a matched sweep-off control on the same pull
-  request heads.
+  request heads; a variance comparative claim additionally requires repeated
+  identical runs of each configuration on those same heads, the same number per
+  configuration.
 - A "sweep-enabled review", wherever this spec counts or labels one, is a review
   whose pass actually ran the sweep and reported a category list version as used.
   A pass that had the sweep enabled but degraded to a non-sweep review (AC19)
@@ -743,7 +751,12 @@ record and can be marked current.
       (d) a comparative real-pull-request claim (that the sweep changed
       real-pull-request recall, variance, or cost) appears only where a matched
       sweep-off control on the same pull request heads, with the same model and
-      configuration, is recorded with it; without that control the record
+      configuration apart from the sweep setting, is recorded with it; a claim
+      that the sweep changed run-to-run variance additionally requires that each
+      configuration be run repeatedly on those same heads — the same number of
+      identical runs per configuration for both configurations, at least two —
+      because a single run per head cannot establish run-to-run variance;
+      without that control the record
       carries only the descriptive sweep-enabled miss record.
 - [ ] AC16: Evidence drawn from Ronda's own repository states the independence
       caveat, and every effect claim built on it is labeled "own-repository".
