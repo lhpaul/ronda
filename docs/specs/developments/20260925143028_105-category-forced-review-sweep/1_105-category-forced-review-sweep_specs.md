@@ -527,11 +527,14 @@ findings in that one review.
 - Category counts recorded in the list are finding instances, not distinct
   defects, and the list states this.
 - The per-category pass record is carried on the check-run output (wherever the
-  pass publishes a check run) and in the logs for every sweep pass, and
-  additionally in the benchmark output for benchmark runs, so per-category
-  recall can be attributed. A benchmark run publishes nothing to GitHub, so for
-  it the benchmark output and the logs are the record surfaces. The record never
-  appears in the published review body.
+  pass publishes a check run whose outcome is a review) and in the logs for
+  every sweep pass, and additionally in the benchmark output for benchmark runs,
+  so per-category recall can be attributed. A pass that reaches review execution
+  and then fails terminally is the one exception: its check run is the existing
+  failure check run, which states the failure rather than a category breakdown,
+  so its per-category record is in the logs only (AC1). A benchmark run
+  publishes nothing to GitHub, so for it the benchmark output and the logs are
+  the record surfaces. The record never appears in the published review body.
 - A benchmark run publishes nothing to GitHub. Wherever this spec requires a
   pass to publish a review or a check-run record, a benchmark run satisfies the
   requirement through its benchmark output and its logs instead, and the
@@ -720,8 +723,9 @@ record and can be marked current.
   the logs, and for benchmark runs it also appears in the benchmark output so
   recall can be attributed per category. It is never published in the review
   body, so reviewers of the pull request do not read a list of empty categories.
-  The same surfaces (check-run output where a check run is published, and the
-  logs) carry the record that the sweep did not run because its category list
+  The same surfaces (check-run output where a check run whose outcome is a
+  review is published, and the logs) carry the record that the sweep did not run
+  because its category list
   was unreadable, empty, or malformed (AC19), or that a non-empty enablement
   value was unrecognized (AC18); neither record appears in the review body.
   Both records are emitted only by a pass that reaches review execution; a
@@ -788,8 +792,11 @@ record and can be marked current.
       pass that the existing flow would not have published (a skipped draft
       pass, or a pass superseded before publication) publishes no review, in a
       sweep-enabled run as in a non-sweep one.
-- [ ] AC3: The review summary for a sweep pass states that the sweep was active
-      and which category list version was used; a non-sweep pass says neither.
+- [ ] AC3: The review summary for a sweep pass that publishes a review states
+      that the sweep was active and which category list version was used; a
+      non-sweep pass says neither. A sweep pass that reaches review execution
+      and then fails terminally (AC1) publishes no review, so it has no review
+      summary and owes none.
 - [ ] AC4: A recorded sweep category list exists and, for each category, states
       its identifier, display label, description, supporting real-pull-request
       evidence source, and finding-instance count.
@@ -1042,7 +1049,8 @@ record and can be marked current.
       reports no list version as used. How the list is stored and parsed is a
       planning decision.
 - [ ] AC20: Every finding published by a sweep pass appears in the per-category
-      pass record on the check-run output (where the pass publishes a check run)
+      pass record on the check-run output (where the pass publishes a check run
+      whose outcome is a review)
       and in the logs (and in the benchmark output for a benchmark run), either
       against one or more swept categories
       or as uncategorized.
@@ -1080,7 +1088,7 @@ record and can be marked current.
 
 | Brief objective | Acceptance criteria / disposition | Notes |
 | --- | --- | --- |
-| O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19, AC20 | The sweep runs inside the existing one-review-per-head contract for passes that reach review execution (the pass reads the changed files and runs the review); a pass that ends earlier — a pre-review skip (draft, or an automatic run finding the head's check run) or a terminal failure before review execution (missing or invalid credential, config load error, or a deadline abort or model or GitHub error raised before the changed files are read) — emits no sweep metadata and is indistinguishable from the same outcome without the sweep, while a pass that reaches review execution and then fails terminally keeps its per-category record on the logs (its check run is the existing failure check run). It is operator-controllable and off by default, records per-category results on the check-run output and the logs (and in the benchmark output for benchmark runs), and degrades to the non-sweep review behavior when its list is unreadable or its enablement value is unrecognized, preserving the ordinary publication eligibility (AC2) in every degraded case. |
+| O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19, AC20 | The sweep runs inside the existing one-review-per-head contract for passes that reach review execution (the pass reads the changed files and runs the review); a pass that ends earlier — a pre-review skip (draft, or an automatic run finding the head's check run) or a terminal failure before review execution (missing or invalid credential, config load error, or a deadline abort or model or GitHub error raised before the changed files are read) — emits no sweep metadata and is indistinguishable from the same outcome without the sweep, while a pass that reaches review execution and then fails terminally keeps its per-category record on the logs (its check run is the existing failure check run), and the review summary statement (AC3) belongs only to a sweep pass that publishes a review. It is operator-controllable and off by default, records per-category results on the check-run output and the logs (and in the benchmark output for benchmark runs), and degrades to the non-sweep review behavior when its list is unreadable or its enablement value is unrecognized, preserving the ordinary publication eligibility (AC2) in every degraded case. |
 | O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts (positive finding-instance counts, zero not allowed), counting unit, version, and revisions, each revision dated and the current version's activation date recorded. |
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales, and the seven sub-themes below the candidate boundary are named. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
@@ -1123,7 +1131,8 @@ record and can be marked current.
 - Changing Ronda's review output contract, check-run behavior, draft-skip
   behavior, supersede behavior, or trigger behavior, other than the additions
   this spec states: the sweep statement in the review summary (AC3), the
-  per-category pass record on the check-run output (AC1), and the records that
+  per-category pass record on the check-run output for a pass whose check run is
+  a review (AC1), and the records that
   the sweep did not run (AC19) or that the enablement value was unrecognized
   (AC18) on the check-run output.
 - Model tiering, read-only checkout with symbol context, and the other epic #52
