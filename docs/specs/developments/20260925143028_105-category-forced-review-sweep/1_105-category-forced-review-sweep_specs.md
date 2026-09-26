@@ -50,18 +50,29 @@ findings in that one review.
    and no more (AC1).
 3. Ronda records, for each category, whether it produced findings or explicitly
    produced none, on the check-run output and in the logs for that pass —
-   never in the published review body.
+   never in the published review body. This is the surface a pass that
+   completes review execution uses; a pass that reaches review execution and
+   then fails terminally records the categories it reached on the surfaces AC1
+   assigns to that outcome.
 4. When that pass reaches publication, Ronda publishes one review for that head
    SHA containing every finding from the pass; a pass the existing flow does not
    publish publishes no review.
 
 **Postconditions**:
 
-- Every category on the current list was considered for that head.
+- Every category on the current list was considered for that head. A pass that
+  completes review execution satisfies this in full; a pass that reaches review
+  execution and then fails terminally considers only the categories it reached
+  and is outside this postcondition (AC1).
 - All findings, whatever category prompted them, appear in one review for that
-  head SHA.
+  head SHA. A pass whose terminal failure precedes the review becoming public
+  publishes no review; a pass that fails after the review is public has already
+  published it, and that single review stands (AC1, AC3).
 - The pass records that the sweep ran and which version of the category list it
-  used.
+  used, as the review summary for a pass that publishes a review and as the
+  per-category pass record for a sweep pass (AC1, AC3); a pass whose terminal
+  failure precedes review execution, or precedes the review becoming public,
+  records no such statement, and owes none.
 
 **Information shown**:
 
