@@ -781,7 +781,9 @@ record and can be marked current.
       recorded list version is current, and no candidate is left undecided
       in it.
 - [ ] AC7: The recorded list carries a version and a revision history entry for
-      each change, naming the evidence that motivated it.
+      each change, naming the evidence that motivated it and the revision's
+      date. The record also states the date the current list version became
+      active.
 - [ ] AC8: Committed benchmark evidence reports, for sweep-off and sweep-on
       configurations against the same target, model, and configuration apart
       from the sweep setting itself (the sweep setting is the one value the two
@@ -1000,8 +1002,10 @@ record and can be marked current.
       allowed domain is: identifiers, display labels, descriptions, and
       evidence sources are each a non-empty string that is not blank
       (whitespace-only counts as blank), and a finding-instance count is a
-      non-negative integer, so a blank string or a count that is not a
-      non-negative integer is malformed rather than valid; two
+      positive integer — zero is not allowed, because a category on the list is
+      justified by the real-pull-request findings behind it, and a count of zero
+      is no such justification — so a blank string or a count that is not a
+      positive integer is malformed rather than valid; two
       categories share an identifier; it contains no categories; or it carries
       no list version, or no single
       current list version can be identified. The list version's allowed domain
@@ -1052,7 +1056,7 @@ record and can be marked current.
 | Brief objective | Acceptance criteria / disposition | Notes |
 | --- | --- | --- |
 | O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19, AC20 | The sweep runs inside the existing one-review-per-head contract for passes that reach review execution; a pre-review skip (draft, or an automatic run finding the head's check run) emits no sweep metadata and is indistinguishable from the same skip without the sweep. It is operator-controllable and off by default, records per-category results on the check-run output and the logs (and in the benchmark output for benchmark runs), and degrades to the non-sweep review behavior when its list is unreadable or its enablement value is unrecognized, preserving the ordinary publication eligibility (AC2) in every degraded case. |
-| O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts, counting unit, version, and revisions. |
+| O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts (positive finding-instance counts, zero not allowed), counting unit, version, and revisions, each revision dated and the current version's activation date recorded. |
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales, and the seven sub-themes below the candidate boundary are named. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
 | O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; one observation is one run, read as that run's defect-weighted recall over its whole head set; recall is read against the fixture's seeded defects, so a fixture comparison is never not applicable for want of a confirmed external defect, while a real-PR head set with no confirmed external defect makes the variance result not applicable, supporting no claim; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
