@@ -100,17 +100,24 @@ findings in that one review.
   or whitespace-only value means off, with no record, and counts as not
   supplied (an omitted setting and an empty one cannot be told apart on every
   configuration surface, so they are one case). A non-empty value that is
-  not recognized also means off: the pass runs as an ordinary non-sweep review,
+  not recognized also means off: a pass that reaches review execution runs as an
+  ordinary non-sweep review,
   records that the enablement value was unrecognized, and never treats an
-  unparseable value as a request to enable. "Non-sweep review" throughout
+  unparseable value as a request to enable. A pass the existing flow ends before
+  review execution (a draft pull request, or an existing-check automatic skip)
+  emits no such record. "Non-sweep review" throughout
   this spec means the review Ronda publishes for the same head with the sweep
   off, under the existing review contract.
-- If the current category list cannot be read when an enabled pass starts, or is
+- If the current category list cannot be read when an enabled pass that reaches
+  review execution starts, or is
   empty or
   malformed (as AC19 defines), the pass continues as an ordinary non-sweep review,
   records that the sweep did not run, and reports no list version as used. A
   missing list degrades coverage; it never fails the pass and never
-  leaves the head without a result. A disabled sweep never reaches this path.
+  leaves the head without a result. A pass the existing flow ends before review
+  execution (a draft pull request, or an existing-check automatic skip, AC1)
+  never reads the list and emits no such record. A disabled sweep never reaches
+  this path.
 
 ---
 
@@ -701,6 +708,8 @@ record and can be marked current.
   logs) carry the record that the sweep did not run because its category list
   was unreadable, empty, or malformed (AC19), or that a non-empty enablement
   value was unrecognized (AC18); neither record appears in the review body.
+  Both records are emitted only by a pass that reaches review execution; a
+  pre-review skip (AC1) emits neither.
 - **Recorded category list**: the operator-readable artifact holding the current
   categories, their evidence, the excluded candidates, and the revision history.
 - **Quality evidence**: recall per run, spread across runs (including the standard deviation of
@@ -917,12 +926,14 @@ record and can be marked current.
       operator setting any of them gets the matching on or off result. The
       sweep is off when the value is absent or empty, which are one case with
       no record. It is also off, and never on, when the value is non-empty and
-      is not a recognized on or off value; in that case the pass preserves the
+      is not a recognized on or off value; in that case a pass that reaches
+      review execution preserves the
       ordinary publication eligibility (AC2) — it publishes its normal review
       only when the existing review flow reaches publication for that head SHA —
       and records, without exposing the raw value, that the enablement value was
       unrecognized (on the check-run output where
-      the pass publishes a check run, and in the logs). A value that is empty
+      the pass publishes a check run, and in the logs); a pass the existing flow
+      ends before review execution (AC1) emits no such record. A value that is empty
       or contains only whitespace counts as absent. The effective value is the
       one from the highest-precedence source that supplies a non-empty value:
       an empty or absent value at a higher-precedence source defers to the
@@ -936,10 +947,15 @@ record and can be marked current.
       default is off for every adopting repository; changing that default is
       not part of this feature.
 - [ ] AC19: When the sweep is enabled but the current category list cannot be
-      read, or is empty or malformed, the pass preserves the ordinary publication
+      read, or is empty or malformed, **a pass that reaches review execution**
+      preserves the ordinary publication
       eligibility (AC2) — it publishes its normal review for that head only when
       the existing review flow reaches publication — and records that the sweep
-      did not run. A category list is
+      did not run. A pass the existing flow ends before review execution (a
+      draft pull request, or an automatic run that finds the head's existing
+      check run, AC2) reads no list, so it emits no sweep-did-not-run record and
+      remains indistinguishable from the same skip in a non-sweep run (AC1);
+      that skip governs, and this rule has no separate outcome for it. A category list is
       malformed when any of these holds: it cannot be read as a list of
       categories at all; any category lacks a display label, a description, an
       evidence source, an identifier, or a finding-instance count (AC4), or
