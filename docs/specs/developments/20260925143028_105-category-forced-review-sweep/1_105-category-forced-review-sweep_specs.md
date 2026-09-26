@@ -196,6 +196,8 @@ findings in that one review.
 - Recall is reported per run, not only as an average.
 - The spread across identical runs (lowest, highest, number of runs) and the
   standard deviation of per-run recall are reported for both configurations.
+  One observation is one run, and a run's recall is its defect-weighted recall
+  across its whole head set (AC15(d)), not an average of per-head recalls.
 - A reader can tell whether the sweep changed recall, changed variance, changed
   both, or changed neither; the variance claim is read off the standard
   deviation, not the range width.
@@ -449,7 +451,9 @@ findings in that one review.
   run-to-run variance, and that claim is stated over one named metric: the
   standard deviation of per-run recall across the repeated runs, compared
   between the two configurations as a direction with both figures recorded, so
-  a range-width comparison alone does not support it. A recall claim is stated
+  a range-width comparison alone does not support it, and one observation is
+  one run (that run's defect-weighted recall across its whole head set, not a
+  set of per-head recalls or their average). A recall claim is stated
   over a recorded metric: the denominator is the confirmed external defects on
   those heads — an adjudicated external finding counts only when the
   adjudication's recorded outcome represents a valid defect, so outcomes such
@@ -547,7 +551,9 @@ findings in that one review.
   request heads; a variance comparative claim additionally requires repeated
   identical runs of each configuration on those same heads, the same number per
   configuration, and is stated over the standard deviation of per-run recall
-  across those runs, compared as a direction with both figures recorded; a
+  across those runs — one observation per run, the run's defect-weighted recall
+  over its whole head set as AC15(d) defines — compared as a direction with
+  both figures recorded; a
   recall comparative claim is stated over a recorded denominator, numerator,
   and matching rule (the denominator is the confirmed external defects on those
   heads — an adjudicated finding counts only when its recorded outcome
@@ -839,6 +845,14 @@ record and can be marked current.
       sample drawn from a larger one — compared between the two configurations
       as a direction (higher or lower) with both figures recorded, so that a
       width-of-range or spread comparison alone does not support the claim;
+      one observation is one run, and a run repeats the same head set, so where
+      a run covers more than one head its recall is that run's defect-weighted
+      recall across its whole head set — the confirmed defects the run reported
+      over the confirmed defects on those heads, using the denominator and
+      matching rule below — and not a pooled set of per-head recalls, an average
+      of per-head recalls, or one observation per head or per defect, because
+      those aggregations yield different standard deviations and can reverse the
+      claimed direction when heads carry different defect denominators;
       a comparative recall claim is stated over an explicitly recorded
       denominator, numerator, and matching rule: the denominator is the
       **confirmed external defects** recorded for those heads — an adjudicated
@@ -965,7 +979,7 @@ record and can be marked current.
 | O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts, counting unit, version, and revisions. |
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales, and the seven sub-themes below the candidate boundary are named. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
-| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
+| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; one observation is one run, read as that run's defect-weighted recall over its whole head set; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
 | O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean. |
 | O7: Cost evidence | AC11, AC15(d) | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied; a comparative cost claim is read off the paired per-head differences AC15(d) names, not the standalone figures. |
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
