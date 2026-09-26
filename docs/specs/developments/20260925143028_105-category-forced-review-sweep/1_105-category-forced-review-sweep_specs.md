@@ -531,8 +531,8 @@ findings in that one review.
   `duplicate` outcome is a valid defect both reviewers found and counts once,
   and a **Ronda-only confirmed defect** — a valid defect the sweep-enabled
   review or a recorded control reported and the external reviewer did not, the
-  case AC15(d) defines and whose recorded outcome AC15(d) names in the
-  adjudication vocabulary — is likewise a valid defect and counts once —
+  case AC15(d) defines and whose recorded outcome is the **Ronda-only outcome**
+  it defines — is likewise a valid defect and counts once —
   the
   numerator is those the configuration's review reported (a finding matches
   when it is on the same head and one is the same defect as the other, as the
@@ -700,7 +700,7 @@ findings in that one review.
   is a valid defect both reviewers found and counts once, and a **Ronda-only
   confirmed defect** — one the sweep-enabled review or a recorded control
   reported and the external reviewer did not, whose **Ronda-only outcome**
-  AC15(d) names in the adjudication vocabulary — counts once too — the numerator those of them the
+  AC15(d) defines — counts once too — the numerator those of them the
   configuration's review reported, matched on the same head and the same defect
   as the adjudication records it, with a defect reported by either
   configuration matched to the same confirmed defect rather than counted twice,
@@ -802,6 +802,27 @@ either swept (currently in use) or explicitly excluded with a recorded
 rationale; no candidate is left undecided, so the list above is a complete
 record and can be marked current.
 
+### Adjudication outcomes
+
+The code values a compared finding's adjudication records, and what each means
+for the count AC15 defines. The dependency contract
+(`20260910143722_24-review-quality-benchmark-suite`) defines its own outcome
+vocabulary — `ronda_miss`, `ronda_better`, `duplicate`, `clean_agreement`, and
+`unclear` — and this feature does not extend it. This feature adds one code
+value of its own:
+
+| Code value | Display label | Description |
+| --- | --- | --- |
+| `ronda_only` | Ronda-only finding | The **Ronda-only outcome**: a valid defect the sweep-enabled review or a recorded sweep-off control reported and the external reviewer did not. It represents a valid defect and is terminal, so a finding carrying it counts. AC15(d) defines when a finding is one. |
+
+This is the only site that fixes the code value. Everywhere else this spec
+enumerates terminal outcomes by concept ("a Ronda-only outcome", AC15(d)); no
+other site restates or re-derives the value.
+
+The dependency contract's `unclear` is not terminal (AC15(b)). An adjudication
+that rejects the finding (for example `false_positive`), records it out of
+scope, or records `ronda_better` does not represent a valid defect.
+
 ### Evidence tier
 
 | Code value | Display label | Description |
@@ -837,7 +858,7 @@ record and can be marked current.
   outcome (`ronda_miss`, `ronda_better`, a rejection such as `false_positive`,
   an out-of-scope outcome, `duplicate`, or a Ronda-only outcome, the outcome
   recorded for a valid defect the external reviewer did not find, which AC15(d)
-  requires) or a confirmed clean result counts.
+  names) or a confirmed clean result counts.
 - Real-PR evidence (measured) → Real-PR evidence (provisional) whenever the
   counted pull requests fall below ten. The category list being revised is one
   cause, until ten pull requests have accumulated under the revised list; a
@@ -1195,13 +1216,14 @@ surfaces** state the same rule and must not contradict this table.
       valid defect the sweep-enabled review or a recorded control reported and
       the external reviewer did not — likewise counts once, entering the
       denominator and, for that configuration, the numerator, and its
-      adjudication records the **Ronda-only outcome** — a recorded outcome in the
-      benchmark contract's vocabulary that represents a valid defect without
-      asserting the external reviewer found it, since none of `ronda_miss`,
-      `ronda_better`, `duplicate`, or a rejection fits that case; the plan names
-      that outcome when it maps the recorded outcome vocabulary, and a Ronda-only
-      finding without one is not terminally adjudicated (AC15(b)), so its pull
-      request is not counted; the numerator is
+      adjudication records the **Ronda-only outcome**, whose code value
+      `ronda_only` (Statuses / Enum Values → Adjudication outcomes) this spec
+      fixes; none
+      of the benchmark contract's own values fits, since `ronda_miss` asserts the
+      external reviewer found the issue, `ronda_better` and a rejection deny that
+      the finding is a defect, and `duplicate` requires both reviewers to have
+      found it; a Ronda-only finding with no recorded outcome is not terminally
+      adjudicated (AC15(b)), so its pull request is not counted; the numerator is
       those of them the configuration's review reported (a finding matches when
       it is on the same head and one is the same defect as the other, as the
       adjudication records it); a defect reported by either configuration is
