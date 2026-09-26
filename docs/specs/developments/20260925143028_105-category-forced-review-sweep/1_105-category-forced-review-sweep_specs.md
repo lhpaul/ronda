@@ -827,9 +827,10 @@ record and can be marked current.
       likewise paired by run position and averaged across those runs, each with
       both configurations' figures recorded, so an unpaired comparison, a
       median, a selected subset of runs, or a subset of the recorded runs does
-      not support the claim; where the two configurations' run sequences differ
-      in length, the claim is made over the runs they share and states that
-      pairing, or is not made.
+      not support the claim. The two configurations' run sequences have the
+      same length, as AC8 requires, so every recorded run is paired and no run
+      is dropped: evidence whose two sequences differ in length is inadmissible
+      under AC8 and supports no comparative cost claim at all.
 - [ ] AC12: The seeded benchmark fixture contains a case for state
       reconstruction from API evidence, external output parsing, guard fails
       open, and record identity.
