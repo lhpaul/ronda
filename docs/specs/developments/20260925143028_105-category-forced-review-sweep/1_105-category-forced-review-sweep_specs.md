@@ -181,9 +181,10 @@ findings in that one review.
 **Steps**:
 
 1. The operator runs the benchmark repeatedly against the same target with the
-   sweep off, keeping model and configuration fixed.
+   sweep off, keeping model and configuration fixed apart from the sweep
+   setting.
 2. The operator runs the benchmark the same number of times with the sweep on,
-   keeping model and configuration fixed.
+   keeping model and configuration fixed apart from the sweep setting.
 3. The operator reads recall for every run and the spread across runs in each
    configuration.
 4. The operator records both sets of results as committed quality evidence.
@@ -242,11 +243,11 @@ findings in that one review.
 **Steps**:
 
 1. The operator runs the precision fixtures with the sweep off, keeping target,
-   model, configuration, and fixture version fixed, for the same number of
-   samples as the recall runs.
+   model, configuration, and fixture version fixed apart from the sweep setting,
+   for the same number of samples as the recall runs.
 2. The operator runs the precision fixtures the same number of times with the
    sweep on, under the same fixed target, model, configuration, and fixture
-   version.
+   version, again apart from the sweep setting.
 3. The operator reads how many unexpected findings each configuration produced.
    For the sweep-on runs the operator also reads which categories they came
    from, from the per-category record in the benchmark output; for the sweep-off
@@ -473,8 +474,9 @@ findings in that one review.
   run and the spread across identical runs, with a sample count at least as
   large as the 2026-09-10 baseline's.
 - Sweep-on and sweep-off comparison runs must use the same target, model,
-  configuration, and fixture version; otherwise the comparison is not
-  admissible evidence. Results are reported for the extended fixture and, as a
+  fixture version, and configuration apart from the sweep setting itself;
+  otherwise the comparison is not admissible evidence. Results are reported for
+  the extended fixture and, as a
   separate subset, for the original thirteen seeded defects.
 - Precision evidence is mandatory for every recall claim: the same comparison
   must report unexpected findings for both configurations. Category attribution
@@ -521,8 +523,9 @@ findings in that one review.
   evidence that the later human decision reads; they do not pass or fail a
   default-enablement gate. Any thresholds that decision sets are recorded before
   the default is changed (see Deferred Decisions).
-- Quality evidence produced by this feature stores no credential values, tokens,
-  or authorization values, as with existing quality evidence.
+- Quality evidence produced by this feature stores no real or usable credential
+  values, tokens, or authorization values, as with existing quality evidence;
+  non-functional credential-shaped fixture data is not a stored credential.
 
 ---
 
@@ -664,7 +667,9 @@ record and can be marked current.
 - [ ] AC7: The recorded list carries a version and a revision history entry for
       each change, naming the evidence that motivated it.
 - [ ] AC8: Committed benchmark evidence reports, for sweep-off and sweep-on
-      configurations against the same target, model, and configuration: per-run
+      configurations against the same target, model, and configuration apart
+      from the sweep setting itself (the sweep setting is the one value the two
+      configurations are required to differ in): per-run
       recall, the lowest and highest recall, per-defect found and missed counts
       across runs, the sample count, the model identity, the reviewed target,
       the run timestamps, and the fixture version. The sweep-off and sweep-on
@@ -677,8 +682,9 @@ record and can be marked current.
       recall and variance figures are reported evidence rather than a pass or
       fail outcome.
 - [ ] AC9: The same committed evidence covers both sweep-off and sweep-on
-      precision runs on the same target, model, configuration, fixture version,
-      and sample count (the sample count AC8 requires for the recall runs). It reports unexpected findings per configuration,
+      precision runs on the same target, model, fixture version,
+      and sample count (the sample count AC8 requires for the recall runs), with
+      configuration identical apart from the sweep setting itself. It reports unexpected findings per configuration,
       attributes each sweep-on unexpected finding to the category (or
       categories, or uncategorized) recorded for it, reports each sweep-off
       unexpected finding as unattributed, reports whether each precision fixture
@@ -710,8 +716,11 @@ record and can be marked current.
       unusual it looks. The fixture records, for each harder case, which of the
       four ways it differs by and the canonical baseline form it is compared
       against, so the rule can be checked without judgment.
-- [ ] AC14: Quality evidence produced by this feature contains no credential
-      values, tokens, or authorization values.
+- [ ] AC14: Quality evidence produced by this feature contains no real or
+      usable credential values, tokens, or authorization values. Non-functional
+      credential-shaped fixtures (names and values that authenticate nothing,
+      per the seeded-fixture rule above) are not prohibited by this criterion and
+      are what AC13 requires.
 - [ ] AC15: Recorded evidence carries exactly one of the three evidence tier
       labels, and:
       (a) no real-pull-request effect claim appears under a tier below Real-PR
@@ -781,8 +790,9 @@ record and can be marked current.
       for that head and records that the sweep did not run. A category list is
       malformed when any of these holds: it cannot be read as a list of
       categories at all; any category lacks a display label, a description, an
-      evidence source, or an identifier; two categories share an identifier; it
-      contains no categories; or it carries no list version, or no single
+      evidence source, an identifier, or a finding-instance count (AC4); two
+      categories share an identifier; it contains no categories; or it carries
+      no list version, or no single
       current list version can be identified. In each of these cases the pass
       reports no list version as used. How the list is stored and parsed is a
       planning decision.
@@ -828,7 +838,7 @@ record and can be marked current.
 | O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19, AC20 | The sweep runs inside the existing one-review-per-head contract, is operator-controllable and off by default, records per-category results on the check-run output and the logs (and in the benchmark output for benchmark runs), and degrades to the non-sweep review behavior when its list is unreadable or its enablement value is unrecognized. |
 | O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts, counting unit, version, and revisions. |
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales, and the seven sub-themes below the candidate boundary are named. |
-| O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target; reported evidence, with no recall target defined. |
+| O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
 | O5: Variance evidence | AC8 | Lowest, highest, and sample count reported; sample count at least the 2026-09-10 baseline's; no variance ceiling defined. |
 | O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean. |
 | O7: Cost evidence | AC11 | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied. |
