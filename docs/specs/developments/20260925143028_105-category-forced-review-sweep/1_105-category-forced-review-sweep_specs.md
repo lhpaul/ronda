@@ -204,10 +204,13 @@ findings in that one review.
 - The spread across identical runs (lowest, highest, number of runs) and the
   standard deviation of per-run recall are reported for both configurations.
   One observation is one run, and a run's recall is its defect-weighted recall
-  across its whole head set (AC15(d)), not an average of per-head recalls.
-  Where the head set carries no confirmed external defect, both the recall and
-  the variance result are reported as not applicable and neither supports a
-  claim.
+  across its whole head set, not an average of per-head recalls (the
+  aggregation rule AC15(d) states). A benchmark denominator is the fixture's
+  **seeded defects**, not the confirmed external defects AC15(d)'s real-PR
+  denominator uses: those do not exist on a fixture by design, and importing
+  that denominator would make every fixture comparison not applicable even
+  though AC8 requires per-seeded-defect recall. Only AC15 real-PR evidence uses
+  the confirmed-external-defect denominator and its zero-denominator handling.
 - A reader can tell whether the sweep changed recall, changed variance, changed
   both, or changed neither; the variance claim is read off the standard
   deviation, not the range width.
@@ -478,7 +481,11 @@ findings in that one review.
   were all confirmed clean — makes recall not applicable: that measurement
   supports no recall claim, and it makes the variance result not applicable
   too, since the standard deviation of per-run recall is undefined without a
-  confirmed external defect, so no variance direction is claimed either. A cost claim is stated over one named metric: the
+  confirmed external defect, so no variance direction is claimed either. That
+  zero-denominator rule belongs to this real-pull-request denominator only: a
+  fixture's denominator is its seeded defects, which exist by design, so it
+  never reaches zero and no fixture comparison is made not applicable on this
+  ground. A cost claim is stated over one named metric: the
   paired per-head difference in model calls per pass (sweep-on minus sweep-off
   on the same head) averaged across those heads, and the paired per-head
   difference in elapsed time per pass averaged across those heads, each with
@@ -569,7 +576,9 @@ findings in that one review.
   configuration, and is stated over the standard deviation of per-run recall
   across those runs — one observation per run, the run's defect-weighted recall
   over its whole head set as AC15(d) defines — compared as a direction with
-  both figures recorded; a
+  both figures recorded; a fixture comparison is never made not applicable for
+  want of a confirmed external defect, because a fixture's denominator is its
+  seeded defects (AC8), not that real-PR denominator; a
   recall comparative claim is stated over a recorded denominator, numerator,
   and matching rule (the denominator is the confirmed external defects on those
   heads — an adjudicated finding counts only when its recorded outcome
@@ -778,7 +787,11 @@ record and can be marked current.
       recall (computed with the population formula over the runs performed, the
       same formula AC15(d) requires), per-defect found and missed counts
       across runs, the sample count, the model identity, the reviewed target,
-      the run timestamps, and the fixture version. The sweep-off and sweep-on
+      the run timestamps, and the fixture version. The recall denominator here
+      is the fixture's seeded defects, not the confirmed external defects
+      AC15(d)'s real-pull-request denominator uses, so a fixture comparison is
+      never reported as not applicable for want of a confirmed external defect.
+      The sweep-off and sweep-on
       configurations use the same recorded fixture version and the same sample
       count, and that sample count is at least as large as the 2026-09-10
       baseline's (five runs); evidence in which the two configurations differ in
@@ -1017,7 +1030,7 @@ record and can be marked current.
 | O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts, counting unit, version, and revisions. |
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales, and the seven sub-themes below the candidate boundary are named. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
-| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; one observation is one run, read as that run's defect-weighted recall over its whole head set; a head set with no confirmed external defect makes the variance result not applicable, supporting no claim; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
+| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; one observation is one run, read as that run's defect-weighted recall over its whole head set; recall is read against the fixture's seeded defects, so a fixture comparison is never not applicable for want of a confirmed external defect, while a real-PR head set with no confirmed external defect makes the variance result not applicable, supporting no claim; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
 | O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean. |
 | O7: Cost evidence | AC11, AC15(d) | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied; a comparative cost claim is read off the paired per-head differences AC15(d) names, not the standalone figures. |
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
