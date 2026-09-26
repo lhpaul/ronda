@@ -501,11 +501,15 @@ findings in that one review.
   is not a valid current list.
 - When the sweep is enabled and the current category list cannot be read, or is
   empty or malformed, at the
-  start of a pass, the pass proceeds as an ordinary non-sweep review and records
+  start of a pass that reaches review execution, the pass proceeds as an
+  ordinary non-sweep review and records
   that the sweep did not run. A missing, unreadable, empty, or malformed list
   never fails the pass and never suppresses the review for that head. This rule
   applies only to an enabled sweep: a disabled sweep inspects no list and
-  records no list outcome (AC18).
+  records no list outcome (AC18). A pass the existing flow ends before review
+  execution (a draft pull request, or an automatic run that finds the head's
+  existing check run) reads no list and emits no sweep-did-not-run record, as
+  AC1 and AC19 require.
 - Every category on the current list cites its supporting real-pull-request
   evidence and the finding-instance count behind it.
 - The seeded benchmark's four never-found kinds are not, on their own, a valid
