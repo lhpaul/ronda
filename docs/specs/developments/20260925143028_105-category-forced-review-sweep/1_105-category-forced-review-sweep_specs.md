@@ -104,11 +104,12 @@ findings in that one review.
   unparseable value as a request to enable. "Non-sweep review" throughout
   this spec means the review Ronda publishes for the same head with the sweep
   off, under the existing review contract.
-- If the current category list cannot be read when a pass starts, or is empty or
+- If the current category list cannot be read when an enabled pass starts, or is
+  empty or
   malformed (as AC19 defines), the pass continues as an ordinary non-sweep review,
   records that the sweep did not run, and reports no list version as used. A
   missing list degrades coverage; it never fails the pass and never
-  leaves the head without a result.
+  leaves the head without a result. A disabled sweep never reaches this path.
 
 ---
 
@@ -453,10 +454,13 @@ findings in that one review.
 - Exactly one sweep category list is current at any time, and it is recorded
   where operators read Ronda's other quality evidence. A list with no categories
   is not a valid current list.
-- When the current category list cannot be read, or is empty or malformed, at the
+- When the sweep is enabled and the current category list cannot be read, or is
+  empty or malformed, at the
   start of a pass, the pass proceeds as an ordinary non-sweep review and records
   that the sweep did not run. A missing, unreadable, empty, or malformed list
-  never fails the pass and never suppresses the review for that head.
+  never fails the pass and never suppresses the review for that head. This rule
+  applies only to an enabled sweep: a disabled sweep inspects no list and
+  records no list outcome (AC18).
 - Every category on the current list cites its supporting real-pull-request
   evidence and the finding-instance count behind it.
 - The seeded benchmark's four never-found kinds are not, on their own, a valid
