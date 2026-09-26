@@ -659,9 +659,12 @@ record and can be marked current.
       configurations against the same target, model, and configuration: per-run
       recall, the lowest and highest recall, per-defect found and missed counts
       across runs, the sample count, the model identity, the reviewed target,
-      the run timestamps, and the fixture version — with a sample count at least as large as the 2026-09-10
-      baseline's, and with the original thirteen seeded defects reported as a
-      separate subset alongside the extended fixture. The record states that no
+      the run timestamps, and the fixture version. The sweep-off and sweep-on
+      configurations use the same recorded fixture version and the same sample
+      count, and that sample count is at least as large as the 2026-09-10
+      baseline's; evidence in which the two configurations differ in fixture
+      version or sample count is not admissible. The original thirteen seeded
+      defects are reported as a separate subset alongside the extended fixture. The record states that no
       recall target and no variance ceiling are defined for this feature, so the
       recall and variance figures are reported evidence rather than a pass or
       fail outcome.
