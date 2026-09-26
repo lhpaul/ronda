@@ -271,7 +271,9 @@ findings in that one review.
   not by impression.
 - The cost effect of the sweep per pass is recorded, including whether the sweep
   multiplies model calls, and is placed against the recorded per-pull-request
-  convergence figures from the 2026-09-23 cost baseline.
+  convergence figures from the 2026-09-23 cost baseline. Any comparative cost
+  claim is stated over the paired per-head differences AC15(d) names, not over
+  the standalone figures.
 
 **Information shown**:
 
@@ -460,7 +462,12 @@ findings in that one review.
   defects with no counterpart in either configuration are reported as missed by
   both. A zero denominator — ten counted pull requests whose external reviews
   were all confirmed clean — makes recall not applicable: that measurement
-  supports no recall claim.
+  supports no recall claim. A cost claim is stated over one named metric: the
+  paired per-head difference in model calls per pass (sweep-on minus sweep-off
+  on the same head) averaged across those heads, and the paired per-head
+  difference in elapsed time per pass averaged across those heads, each with
+  both configurations' figures recorded, so an unpaired comparison, a median,
+  or a subset of heads does not support it.
   Without that control, the strongest permitted real-pull-request claim is the
   descriptive sweep-enabled miss record above.
 
@@ -552,7 +559,10 @@ findings in that one review.
   configuration matched to the same confirmed defect rather than counted twice,
   with a zero denominator reported as recall not applicable and supporting no
   recall claim, since ten counted pull requests may all carry confirmed-clean
-  external reviews).
+  external reviews); a cost comparative claim is stated over the paired
+  per-head differences in model calls per pass and in elapsed time per pass,
+  each averaged across those heads, with both configurations' figures
+  recorded.)
 - A "sweep-enabled review", wherever this spec counts or labels one, is a review
   whose pass actually ran the sweep and reported a category list version as used.
   A pass that had the sweep enabled but degraded to a non-sweep review (AC19)
@@ -641,7 +651,7 @@ record and can be marked current.
 | --- | --- | --- |
 | `fixture_only` | Fixture evidence only | Evidence comes from the seeded benchmark and precision fixtures. It may support claims about seeded recall, variance, precision, and cost; it may not support claims about real-pull-request effect. |
 | `real_pr_provisional` | Real-PR evidence (provisional) | At least one sweep-enabled real pull request review has been recorded, but fewer than ten counted pull requests have accumulated under the current category list version (a pull request counts only if it carried a sweep-enabled review under that version and its external-finding evidence has been adjudicated; a clean external review counts once confirmed by the recorded same-head external review, and one with no external review recorded is not adjudicated). Findings are indicative only, support no effect claim, and are labeled as such. |
-| `real_pr_measured` | Real-PR evidence (measured) | At least ten counted pull requests (sweep-enabled under the current category list version, with adjudicated external-finding evidence) have accumulated. Descriptive real-pull-request claims are permitted, with the independence caveat and the "own-repository" label. Comparative effect claims additionally require a matched sweep-off control on the same pull request heads; a recall claim is stated over the recorded denominator, numerator, and matching rule AC15(d) defines. |
+| `real_pr_measured` | Real-PR evidence (measured) | At least ten counted pull requests (sweep-enabled under the current category list version, with adjudicated external-finding evidence) have accumulated. Descriptive real-pull-request claims are permitted, with the independence caveat and the "own-repository" label. Comparative effect claims additionally require a matched sweep-off control on the same pull request heads; a recall claim is stated over the recorded denominator, numerator, and matching rule AC15(d) defines; a cost claim over the paired per-head differences AC15(d) names. |
 
 **Valid transitions**:
 
@@ -740,7 +750,8 @@ record and can be marked current.
       from the sweep setting itself (the sweep setting is the one value the two
       configurations are required to differ in): per-run
       recall, the lowest and highest recall, the standard deviation of per-run
-      recall, per-defect found and missed counts
+      recall (computed with the population formula over the runs performed, the
+      same formula AC15(d) requires), per-defect found and missed counts
       across runs, the sample count, the model identity, the reviewed target,
       the run timestamps, and the fixture version. The sweep-off and sweep-on
       configurations use the same recorded fixture version and the same sample
@@ -848,7 +859,13 @@ record and can be marked current.
       denominator is zero (no confirmed external defect on those heads)
       reports its recall as not applicable and supports no recall claim for
       that measurement, because ten counted pull requests may all carry
-      confirmed-clean external reviews; without that control the record
+      confirmed-clean external reviews; a comparative cost claim is likewise
+      stated over one named metric: the paired per-head difference in model
+      calls per pass (sweep-on minus sweep-off on the same head) and the paired
+      per-head difference in elapsed time per pass, each reported as its mean
+      across those heads with both configurations' figures recorded, so that an
+      unpaired mean, a median, or a subset of heads does not support the claim;
+      without that control the record
       carries only the descriptive sweep-enabled miss record.
 - [ ] AC16: Evidence drawn from Ronda's own repository states the independence
       caveat, and every effect claim built on it is labeled "own-repository".
@@ -950,7 +967,7 @@ record and can be marked current.
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
 | O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
 | O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean. |
-| O7: Cost evidence | AC11 | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied. |
+| O7: Cost evidence | AC11, AC15(d) | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied; a comparative cost claim is read off the paired per-head differences AC15(d) names, not the standalone figures. |
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
 | O9: Harder credential-pattern variants | AC13 | At least one variant harder than the existing sensitive-value case. |
 | O10: No regression gate until seeds exist | AC17 | Stated in documentation and tied to AC12 and AC13. Once they exist the extended fixture may be declared ready as a gate basis; the gate's pass/fail contract is a Deferred Decision, so the declaration makes no benchmark result pass or fail. |
