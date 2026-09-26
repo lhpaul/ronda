@@ -813,11 +813,11 @@ these code values:
 | Code value | Display label | Description |
 | --- | --- | --- |
 | `ronda_only` | Ronda-only finding | The **Ronda-only outcome**: a valid defect the sweep-enabled review or a recorded sweep-off control reported and the external reviewer did not. It represents a valid defect and is terminal, so a finding carrying it counts. AC15(d) defines when a finding is one. |
-| `ronda_rejected` | Ronda finding rejected | The **Ronda finding rejected** outcome: a finding the sweep-enabled review or a recorded sweep-off control reported that human adjudication rejects as a false positive or records as out of scope of the sweep's claim. It does not represent a valid defect and is terminal, so a finding carrying it is excluded from the denominator and from that configuration's numerator. The external-reviewer-origin equivalent is `ronda_better`. AC15(d) defines when a finding is one. |
+| `ronda_rejected` | Ronda finding rejected | The **Ronda finding rejected** outcome: a finding the sweep-enabled review or a recorded sweep-off control reported that human adjudication rejects as a false positive or records as out of scope of the sweep's claim. It does not represent a valid defect and is terminal, so a finding carrying it is excluded from the denominator and from that configuration's numerator. The external-reviewer-origin equivalent is `ronda_better`, which applies only when the external reviewer alone raised the finding. AC15(d) defines when a finding is one. |
 
 This is the only site that fixes these code values. Everywhere else this spec enumerates terminal outcomes by concept ("a Ronda-only outcome" and "a Ronda finding rejected", AC15(d)); no other site restates or re-derives the values.
 
-The dependency contract's `unclear` is not terminal (AC15(b)). An adjudication that rejects the finding or records it out of scope records `ronda_better` when the external reviewer raised the finding, and the **Ronda finding rejected** outcome when Ronda's own review raised it; neither represents a valid defect.
+The dependency contract's `unclear` is not terminal (AC15(b)). An adjudication that rejects the finding or records it out of scope records `ronda_better` when the external reviewer alone raised it, and the **Ronda finding rejected** outcome when Ronda's own review raised it — including when both raised it, since `ronda_better` describes an external-only finding Ronda was right to omit and so cannot apply to a finding Ronda's own review also raised; neither represents a valid defect.
 
 ### Evidence tier
 
@@ -1196,7 +1196,7 @@ surfaces** state the same rule and must not contradict this table.
       configuration found is exactly what the comparison must not hide; an
       adjudicated finding enters the denominator only when the adjudication's
       recorded outcome is one that represents a valid defect, and the outcomes
-      that do not are excluded — `ronda_better`, which the dependency contract scopes to a finding the external reviewer raised that Ronda was right to omit, and the **Ronda finding rejected** outcome, which records a finding Ronda's own review raised that adjudication rejects or records out of scope, because counting a finding Ronda was right to omit as a miss would depress recall; a `duplicate` outcome, by
+      that do not are excluded — `ronda_better`, which the dependency contract scopes to a finding the external reviewer alone raised that Ronda was right to omit, and the **Ronda finding rejected** outcome, which records a finding Ronda's own review raised that adjudication rejects or records out of scope, because counting a finding Ronda was right to omit as a miss would depress recall; a `duplicate` outcome, by
       contrast, is a **valid defect both reviewers found** — the benchmark
       contract defines `duplicate` as Ronda and the other reviewer finding the
       same underlying issue — so it counts, entering the denominator and the
