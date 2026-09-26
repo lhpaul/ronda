@@ -94,9 +94,11 @@ findings in that one review.
   its categories to that pass; it never turns one pass into two published
   reviews.
 - Whether the sweep is enabled is read from the effective operator
-  configuration value for the run (AC18). An absent or empty value means off,
-  with no record (an omitted setting and an empty one cannot be told apart on
-  every configuration surface, so they are one case). A non-empty value that is
+  configuration value for the run (AC18): the value from the
+  highest-precedence source that supplies a non-empty value. An absent, empty,
+  or whitespace-only value means off, with no record, and counts as not
+  supplied (an omitted setting and an empty one cannot be told apart on every
+  configuration surface, so they are one case). A non-empty value that is
   not recognized also means off: the pass runs as an ordinary non-sweep review,
   records that the enablement value was unrecognized, and never treats an
   unparseable value as a request to enable. "Non-sweep review" throughout
@@ -460,6 +462,10 @@ findings in that one review.
   recall can be attributed. A benchmark run publishes nothing to GitHub, so for
   it the benchmark output and the logs are the record surfaces. The record never
   appears in the published review body.
+- A benchmark run publishes nothing to GitHub. Wherever this spec requires a
+  pass to publish a review or a check-run record, a benchmark run satisfies the
+  requirement through its benchmark output and its logs instead, and the
+  one-review-per-head-SHA rule applies only to passes that publish to GitHub.
 - Producing no findings for a category is a valid and expected outcome. Ronda
   must never be required, encouraged, or rewarded for producing at least one
   finding per category.
@@ -611,13 +617,13 @@ record and can be marked current.
   body, so reviewers of the pull request do not read a list of empty categories.
   The same surfaces (check-run output where a check run is published, and the
   logs) carry the record that the sweep did not run because its category list
-  was unreadable, empty, or malformed (AC19), or that the enablement value was
-  unrecognized (AC18); neither record appears in the review body.
+  was unreadable, empty, or malformed (AC19), or that a non-empty enablement
+  value was unrecognized (AC18); neither record appears in the review body.
 - **Recorded category list**: the operator-readable artifact holding the current
   categories, their evidence, the excluded candidates, and the revision history.
 - **Quality evidence**: recall per run, spread across runs, precision results,
-  cost per pass, sample count, model identity, reviewed target, timestamps, and
-  the evidence tier label.
+  cost per pass, sample count, model identity, reviewed target, fixture
+  version, timestamps, and the evidence tier label.
 - **Logs**: record that the sweep ran, the list version, the per-category pass
   record (AC1), and non-sensitive counts. Logs never record credential values.
 - **Notifications**: none beyond the existing GitHub review and check-run
@@ -664,15 +670,15 @@ record and can be marked current.
       the run timestamps, and the fixture version. The sweep-off and sweep-on
       configurations use the same recorded fixture version and the same sample
       count, and that sample count is at least as large as the 2026-09-10
-      baseline's; evidence in which the two configurations differ in fixture
-      version or sample count is not admissible. The original thirteen seeded
-      defects are reported as a separate subset alongside the extended fixture. The record states that no
-      recall target and no variance ceiling are defined for this feature, so the
+      baseline's (five runs); evidence in which the two configurations differ in
+      fixture version or sample count is not admissible. The original thirteen
+      seeded defects are reported as a separate subset alongside the extended
+      fixture. The record states that no recall target and no variance ceiling are defined for this feature, so the
       recall and variance figures are reported evidence rather than a pass or
       fail outcome.
 - [ ] AC9: The same committed evidence covers both sweep-off and sweep-on
       precision runs on the same target, model, configuration, fixture version,
-      and sample count. It reports unexpected findings per configuration,
+      and sample count (the sample count AC8 requires for the recall runs). It reports unexpected findings per configuration,
       attributes each sweep-on unexpected finding to the category (or
       categories, or uncategorized) recorded for it, reports each sweep-off
       unexpected finding as unattributed, reports whether each precision fixture
@@ -757,7 +763,12 @@ record and can be marked current.
       is not a recognized on or off value; in that case the pass still
       publishes its normal review and records, without exposing the raw value,
       that the enablement value was unrecognized (on the check-run output where
-      the pass publishes a check run, and in the logs).
+      the pass publishes a check run, and in the logs). A value that is empty
+      or contains only whitespace counts as absent. The effective value is the
+      one from the highest-precedence source that supplies a non-empty value:
+      an empty or absent value at a higher-precedence source defers to the
+      next source, but an unrecognized non-empty value is the effective value
+      and is not replaced by a recognized value at a lower-precedence source.
       A disabled sweep reproduces the non-sweep review behavior (Ronda's review
       behavior for the same head with no sweep feature present: same findings
       channel, same single review per head SHA, no sweep statement in the
@@ -824,7 +835,7 @@ record and can be marked current.
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
 | O9: Harder credential-pattern variants | AC13 | At least one variant harder than the existing sensitive-value case. |
 | O10: No regression gate until seeds exist | AC17 | Stated in documentation and tied to AC12 and AC13. Once they exist the extended fixture may be declared ready as a gate basis; the gate's pass/fail contract is a Deferred Decision, so the declaration makes no benchmark result pass or fail. |
-| O11: No real-PR measurement before ~10 dogfooded PRs | AC15, AC16, plus the evidence tier enum | Ten is the confirmed minimum and the count requires adjudicated external-finding evidence; the tier labels enforce what each evidence set may claim, including that a comparative claim needs a matched sweep-off control. |
+| O11: No real-PR measurement before ten adjudicated dogfooded PRs | AC15, AC16, plus the evidence tier enum | Ten is the confirmed minimum and the count requires adjudicated external-finding evidence; the tier labels enforce what each evidence set may claim, including that a comparative claim needs a matched sweep-off control. |
 | O12: Fixture over-weights single-line algorithmic defects | Out of Scope (MVP) — see Deferral Note D1 | Recorded as a known fixture bias; rebalancing is deferred. |
 
 ### Deferral Notes
