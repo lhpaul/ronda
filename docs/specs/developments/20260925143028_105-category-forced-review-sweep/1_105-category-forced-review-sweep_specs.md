@@ -724,10 +724,10 @@ surfaces** state the same rule and must not contradict this table.
 
 | Gate | Inputs | Allowed outcomes | Required next action | Mirror surfaces | Example |
 | --- | --- | --- | --- | --- | --- |
-| Sweep enablement resolution (AC18) | The effective operator-configuration value for the run: the value from the highest-precedence source that supplies a non-empty value | Off — absent, empty, or whitespace-only (no record); Off — non-empty and unrecognized (record that the value was unrecognized, without exposing the raw value); On — a recognized on value | Off: run the ordinary non-sweep review, emit no sweep metadata. Unrecognized: same, plus the record, on the surfaces AC1 assigns. On: run the sweep | Business rule "Whether the sweep is enabled is read from the effective operator configuration value" (~106); AC18; Use Case 1 step 1 | An empty value at a higher-precedence source defers to the next source and is not recorded. A non-empty unrecognized value at a higher-precedence source is the effective value: it is not replaced by a recognized value at a lower-precedence source, and it is recorded. |
+| Sweep enablement resolution (AC18) | The effective operator-configuration value for the run: the value from the highest-precedence source that supplies a non-empty value | Off — absent, empty, or whitespace-only (no record); Off — a recognized off value (no record); Off — non-empty and unrecognized (record that the value was unrecognized, without exposing the raw value); On — a recognized on value | Every off outcome runs the ordinary non-sweep review and emits no sweep metadata; the unrecognized case additionally records the unrecognized value, on the surfaces AC1 assigns. On: run the sweep | Business rule "Whether the sweep is enabled is read from the effective operator configuration value" (~106); AC18; Use Case 1 step 1 | An empty value at a higher-precedence source defers to the next source and is not recorded. The recognized off value produces the same non-sweep review as the absent case, with no record. A non-empty unrecognized value at a higher-precedence source is the effective value: it is not replaced by a recognized value at a lower-precedence source, and it is recorded. |
 | Category list readability (AC19) | The current category list's state at the start of a pass that reaches review execution: readable and well-formed, or unreadable, empty, or malformed | Readable: the sweep runs over the list. Unreadable, empty, or malformed: the sweep does not run, and the pass records `sweep-did-not-run`, reporting no list version as used | Degrade: the pass continues as an ordinary non-sweep review and preserves the ordinary publication eligibility (AC2); a missing list never fails the pass and never leaves the head without a result | Business rule "If the current category list cannot be read…" (~120); AC19; Use Case 1 step 2 | A list whose two categories share an identifier is malformed, so the pass degrades and records `sweep-did-not-run`. A disabled sweep inspects no list and records no list outcome. |
-| Pass-outcome surface assignment (AC1) | Where the pass reached, and whether its own check-run write produced a check run whose outcome is a review | Pre-review skip, or terminal failure before review execution: no sweep metadata of any kind. Completion: the per-category record on the check-run output and the logs. Terminal failure after review execution: the per-category record on the logs, and on the check-run output only where the pass's own check-run write produced a check run whose outcome is a review | Record the categories the pass reached, on the surfaces this row assigns; never fabricate a record for a category the pass did not reach, and never publish a second review | AC1 (sole owner of this rule); the per-category pass record business rule (~541); Operational Visibility "Per-category pass record"; every other site references AC1 rather than restating it | A model credential the model API rejects fails after the changed files are read, so its record is on the logs — its check run is the existing failure check run, whose outcome is not a review. A success check-run write that fails after its bounded retry leaves the record on the logs with whatever per-category surface that write produced. |
-| Evidence-tier transition (Statuses / Enum Values → Evidence tier) | Counted pull requests under the current list version (sweep-enabled, with adjudicated external-finding evidence), and whether the category list was revised | `fixture_only` → `real_pr_provisional` → `real_pr_measured`, and `real_pr_measured` → `real_pr_provisional` on a list revision | Promote or demote per the transition, and label the evidence tier on the quality evidence (Operational Visibility); a claim is admissible only as its tier allows | Statuses / Enum Values → Evidence tier "Valid transitions"; AC15; AC16; Use Case 6 | Ten counted pull requests promote `real_pr_provisional` to `real_pr_measured`. A list revision demotes `real_pr_measured` to `real_pr_provisional` until ten pull requests re-accumulate, and a revision at `real_pr_provisional` restarts the count without leaving the tier. |
+| Pass-outcome surface assignment (AC1) | Where the pass reached, whether it published a review, and whether its own check-run write produced a check run whose outcome is a review | Pre-review skip, or terminal failure before review execution: no sweep metadata of any kind. Reached completion with a check run whose outcome is a review: the per-category record on the check-run output and the logs. Reached completion with no such check run — superseded before publication: the record on the logs only. Terminal failure after review execution: same rule — the record on the logs, plus the check-run output only where that write produced a check run whose outcome is a review | Record the categories the pass reached, on the surfaces this row assigns; never fabricate a record for a category the pass did not reach, and never publish a second review | AC1 (sole owner of this rule); the per-category pass record business rule (~541); Operational Visibility "Per-category pass record"; every other site references AC1 rather than restating it | A pass superseded before publication publishes no review, so no check run whose outcome is a review exists and its record is on the logs. A model credential the model API rejects fails after the changed files are read, so its record is likewise on the logs — its check run is the existing failure check run, whose outcome is not a review. A success check-run write that fails after its bounded retry leaves the record on the logs with whatever per-category surface that write produced. |
+| Evidence-tier transition (Statuses / Enum Values → Evidence tier) | Whether any sweep-enabled real-PR review has been recorded (adjudicated or not), the counted pull requests under the current list version (sweep-enabled, with adjudicated external-finding evidence), and whether the category list was revised | `fixture_only` → `real_pr_provisional` once the first sweep-enabled real-PR review is recorded, even with a zero counted total; `real_pr_provisional` → `real_pr_measured` at ten counted pull requests; `real_pr_measured` → `real_pr_provisional` on a list revision | Promote or demote per the transition, and label the evidence tier on the quality evidence (Operational Visibility); a claim is admissible only as its tier allows | Statuses / Enum Values → Evidence tier "Valid transitions"; AC15; AC16; Use Case 6 | The first sweep-enabled real-PR review promotes `fixture_only` to `real_pr_provisional` before its external findings are adjudicated, so the counted total stays zero, and findings are labeled indicative only. Ten counted pull requests then promote to `real_pr_measured`. A list revision demotes `real_pr_measured` to `real_pr_provisional` until ten pull requests re-accumulate, and a revision at `real_pr_provisional` restarts the count without leaving the tier. |
 
 ---
 
@@ -775,7 +775,15 @@ surfaces** state the same rule and must not contradict this table.
       execution; a pass that reaches review execution and then fails terminally
       is outside it and is governed by the terminal-failure rule below, which
       says what such a pass records and forbids a record for a category it did
-      not reach. A benchmark
+      not reach. That guarantee, and every surface this criterion assigns, rest
+      on one rule: **the check-run output carries the per-category record only
+      where the pass's own check-run write produced a check run whose outcome is
+      a review; otherwise the record is on the logs.** For a pass that completes
+      review execution and publishes a review, that write is a check run whose
+      outcome is a review, so the record is on both surfaces. A pass superseded
+      before publication is the completion case that reaches no such write: it
+      publishes no review and writes no check run, so its record is on the logs
+      only, exactly as AC2's supersede path governs. A benchmark
       run, which publishes no check run, shows the same per-category record in
       the benchmark output and its logs. No per-category record appears in the
       published review body. A pass the existing flow ends before review
@@ -801,17 +809,13 @@ surfaces** state the same rule and must not contradict this table.
       every-category guarantee above does not cover: it need not have considered
       every category, and its logs carry the per-category record for the
       categories it reached. Such a terminal failure records exactly as the
-      existing flow does, and its surfaces follow from one rule: **the
-      check-run output carries the per-category record only where the pass's
-      own check-run write produced a check run whose outcome is a review;
-      otherwise the record is on the logs.** That rule resolves both of the
-      shapes a terminal failure can take. Where the failure precedes the
-      review becoming public — a model error, a GitHub error raised after the
-      changed files are read but before the review is published, including a
-      failure of the review publication call itself, or a model credential the
-      model API rejects — it publishes no review and its outcome is the
-      existing failure check run, so the check run's outcome is a failure and
-      not a review and the record is on the logs only. Where the review is
+      existing flow does, and the rule above resolves it. Where the failure
+      precedes the review becoming public — a model error, a GitHub error raised
+      after the changed files are read but before the review is published,
+      including a failure of the review publication call itself, or a model
+      credential the model API rejects — it publishes no review and its outcome
+      is the existing failure check run, whose outcome is a failure and not a
+      review, so the record is on the logs only. Where the review is
       already public — a failure persisting the check-run recovery state, or a
       success check-run write that fails after its bounded retry — the review
       it published stands, and the existing flow's rule governs: because the
@@ -821,8 +825,8 @@ surfaces** state the same rule and must not contradict this table.
       a non-zero process exit instead. Its check run is therefore the success
       outcome the pass reached, or none at all where the write never landed, and
       in either case its per-category record is on the logs, with whatever
-      per-category surface its own check-run write actually produced. In both
-      shapes the pass publishes no second review, and no per-category record is
+      per-category surface its own check-run write actually produced. In every
+      case the pass publishes no second review, and no per-category record is
       fabricated for a category the pass did not reach.
 - [ ] AC2: With the sweep enabled, whenever the existing review flow reaches
       publication for that head SHA, Ronda publishes exactly one review per
