@@ -141,7 +141,8 @@ findings in that one review.
 - The current list version and the date it became current.
 - Each category: identifier, display label, description (including the failure
   shape it targets), the supporting evidence source, and the finding count.
-- Excluded candidates with their exclusion rationale.
+- Excluded candidates with their exclusion rationale, and the sub-themes named as
+  below the candidate boundary.
 - Revision history.
 
 **Actions available**:
@@ -193,7 +194,8 @@ findings in that one review.
 
 **Information shown**:
 
-- Sample count, model identity, reviewed target, and run timestamps.
+- Sample count, model identity, reviewed target, fixture version, and run
+  timestamps.
 - Per-run found and missed seeded defects for each configuration.
 - Lowest and highest recall per configuration.
 - Per-defect found/missed counts across runs.
@@ -527,7 +529,7 @@ corpus, kept so every category is traceable to its source rows.
 | Evidence identifier | Display label | Description |
 | --- | --- | --- |
 | `pr-head-push-order` | State reconstruction from API evidence | Code infers a history or state (for example, which commits were ever branch heads) from an API response that does not establish it. 14 finding instances, the most expensive theme in the corpus. |
-| `credential-pattern-gap` | Credential pattern gap | A credential or secret guard matches the canonical form and misses qualified, camelCase, hyphenated, prefixed, or wrapped variants. 9 finding instances, and the theme both independent reviewers hit. |
+| `credential-pattern-gap` | Credential pattern gap | A credential or secret guard matches the canonical form and misses qualified, camelCase, hyphenated, prefixed, or wrapped variants. 9 finding instances (6 from the local reviewer, 3 from Codex), a theme both independent reviewers hit. |
 | `external-output-parsing` | External output parsing | Output from another system (a reviewer body, a comment, a command result) is split, matched, or classified in a way that loses, merges, or misclassifies items. 8 finding instances. |
 | `record-identity` | Record identity and deduplication | Identity or deduplication keys collide, drift, or split: position-derived identifiers, truncated text, alias spellings, or shared namespaces. 7 finding instances. |
 | `guard-fails-open` | Guard fails open | A security or safety check is skipped, rather than refused, when its input cannot be loaded or is incomplete. 5 finding instances. |
@@ -538,9 +540,9 @@ corpus, kept so every category is traceable to its source rows.
   repository's review process, not a product defect class.
 - The seeded benchmark's four never-found kinds — unconfirmed by real-PR
   evidence.
-- Spec-AC-compliance (7 instances, tied with the fourth-ranked record-identity
-  theme and ahead of the fifth-ranked guard-fails-open theme in the sub-theme
-  ranking) — excluded: checking it depends on a spec being present, which makes it a
+- Spec-AC-compliance (7 instances, tied with the record-identity theme and
+  ahead of the guard-fails-open theme's 5 in the corpus sub-theme ranking) —
+  excluded: checking it depends on a spec being present, which makes it a
   workflow-gate concern like planted-proof evidence rather than a defect class
   that any reviewed pull request can carry. It may be added at a later list
   revision if dogfooded misses point at it.
@@ -552,8 +554,10 @@ corpus, kept so every category is traceable to its source rows.
 
 **Candidate-set boundary**: the candidates considered are the sub-themes in the
 2026-09-23 real-PR corpus ranking that have at least five finding instances,
-plus any theme both independent reviewers hit (the issue's own selection
-criteria), plus the seeded benchmark's never-found kinds. Sub-themes ranked
+plus any sub-theme both independent reviewers hit (the issue's own selection
+criteria, applied at sub-theme level; in the corpus these are
+credential-pattern-gap, guard-fails-open, and per-finding-resolution), plus the
+seeded benchmark's never-found kinds. Sub-themes ranked
 below that boundary are outside the candidate set: excerpt-sequence-boundaries
 (4 instances), placeholder-exemption (3), refusal-precedence (3),
 input-validation (2), github-api-pagination (1), path-traversal (1), and
@@ -805,7 +809,7 @@ record and can be marked current.
 | --- | --- | --- |
 | O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19, AC20 | The sweep runs inside the existing one-review-per-head contract, is operator-controllable and off by default, records per-category results on the check-run output and the logs (and in the benchmark output for benchmark runs), and degrades to the non-sweep review behavior when its list is unreadable or its enablement value is unrecognized. |
 | O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts, counting unit, version, and revisions. |
-| O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales. |
+| O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales, and the seven sub-themes below the candidate boundary are named. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target; reported evidence, with no recall target defined. |
 | O5: Variance evidence | AC8 | Lowest, highest, and sample count reported; sample count at least the 2026-09-10 baseline's; no variance ceiling defined. |
 | O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean. |
