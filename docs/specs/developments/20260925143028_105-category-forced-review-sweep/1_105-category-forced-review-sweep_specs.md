@@ -326,7 +326,9 @@ findings in that one review.
    always-found sensitive-value case.
 3. The operator re-runs the benchmark and records the result for the extended
    fixture.
-4. The operator declares the extended fixture usable as a regression gate.
+4. The operator declares the extended fixture ready to serve as the basis of a
+   regression gate. What that gate rejects is a deferred decision; the
+   declaration alone makes no benchmark result pass or fail.
 
 **Postconditions**:
 
@@ -474,7 +476,8 @@ findings in that one review.
   feature defines no recall target and no variance ceiling.
 - The seeded benchmark is not treated as a regression gate until it seeds the
   four real themes that currently have no representation and harder
-  credential-pattern variants.
+  credential-pattern variants. Even then, this feature defines no pass/fail
+  contract for the restored gate (see Deferred Decisions).
 - Real-pull-request effect of the sweep may not be claimed until at least ten
   pull requests have carried a sweep-enabled Ronda review under the current
   category list version and their external-finding evidence has been
@@ -685,10 +688,11 @@ record and can be marked current.
       version, where a pull request counts only if it carried a sweep-enabled
       review under that version and its external-finding evidence has been
       adjudicated (a pull request reviewed but not adjudicated does not count
-      and does not block the label); a record with nine or fewer counted pull
-      requests is labeled Real-PR evidence (provisional), and one with no
-      sweep-enabled real pull request review recorded under any list version is
-      labeled Fixture evidence only;
+      and does not block the label); a record with at least one sweep-enabled real
+      pull request review recorded under any list version but nine or fewer
+      counted pull requests is labeled Real-PR evidence (provisional), and one
+      with no sweep-enabled real pull request review recorded under any list
+      version is labeled Fixture evidence only (the two ranges do not overlap);
       (c) when the recorded category list version changes, evidence previously
       labeled Real-PR evidence (measured) is relabeled Real-PR evidence
       (provisional), and the counted pull requests restart at zero, so pull
@@ -705,8 +709,11 @@ record and can be marked current.
       required.
 - [ ] AC17: Documentation states that the seeded benchmark is not a regression
       gate until the fixture cases required by AC12 and AC13 exist, and that the
-      operator may declare it restored, with the declaration recorded (Use Case
-      5), once they do.
+      operator may declare the extended fixture ready to serve as the basis of a
+      regression gate, with the declaration recorded (Use Case 5), once they do.
+      The documentation also states that what a restored gate rejects (its
+      pass/fail contract) is a deferred decision (see Deferred Decisions), so
+      the declaration does not make any benchmark result pass or fail.
 - [ ] AC18: An operator can enable and disable the sweep for a repository. The
       authoritative source for that choice is the effective operator
       configuration value for the run, resolved through Ronda's existing
@@ -848,5 +855,6 @@ rather than pass/fail gates.
 | Decision | Owner | Trigger | Until then |
 | --- | --- | --- | --- |
 | A recall target and a variance ceiling for the sweep | Human (issue owner) | The first sweep-on and sweep-off runs are recorded | Recall and variance are reported evidence; no run passes or fails on them. |
+| The pass/fail contract of a restored benchmark regression gate (what result the gate rejects) | Human (issue owner) | The recall-target and variance-ceiling decision above is made | The extended fixture may be declared ready as a gate basis (AC17), but benchmark results are reported evidence; no run passes or fails. |
 | A cost ceiling per sweep pass | Human (issue owner) | Only if the sweep is proposed as the default for adopting repositories | Cost per pass is reported and compared against the per-pull-request convergence figures; no cost figure fails this feature. |
 | Flipping the sweep's default from off to on | Human (issue owner) | Recall, variance, precision, and cost evidence recorded, with no precision regression | The sweep stays off unless a repository enables it. Flipping the default is a separate change and requires a release note for existing adopters. |
