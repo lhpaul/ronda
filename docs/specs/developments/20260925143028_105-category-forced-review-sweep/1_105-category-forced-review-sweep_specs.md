@@ -550,6 +550,17 @@ corpus, kept so every category is traceable to its source rows.
   evidence base, and a category on that basis invites manufactured findings.
   Recorded so it can be revisited when more evidence accumulates.
 
+**Candidate-set boundary**: the candidates considered are the sub-themes in the
+2026-09-23 real-PR corpus ranking that have at least five finding instances,
+plus any theme both independent reviewers hit (the issue's own selection
+criteria), plus the seeded benchmark's never-found kinds. Sub-themes ranked
+below that boundary are outside the candidate set: excerpt-sequence-boundaries
+(4 instances), placeholder-exemption (3), refusal-precedence (3),
+input-validation (2), github-api-pagination (1), path-traversal (1), and
+operator-usability (1). Each has too few instances to justify a category; they
+are recorded here so a later list revision can reconsider them if dogfooded
+misses point at them.
+
 Exactly one recorded category list version is current. Every candidate is
 either swept (currently in use) or explicitly excluded with a recorded
 rationale; no candidate is left undecided, so the list above is a complete
@@ -628,8 +639,10 @@ record and can be marked current.
       evidence source, and finding-instance count.
 - [ ] AC5: The recorded list states that its counts are finding instances rather
       than distinct defects.
-- [ ] AC6: The recorded list accounts for every candidate category considered:
-      each is either on the swept list or named as excluded with its exclusion
+- [ ] AC6: The recorded list accounts for every candidate category considered
+      (the candidate set is bounded as stated in Statuses / Enum Values, and the
+      sub-themes below that boundary are named in the record): each candidate is
+      either on the swept list or named as excluded with its exclusion
       rationale. The swept list holds exactly the five categories in Statuses /
       Enum Values, and the excluded entries are the seeded benchmark's four
       never-found kinds, the planted-proof evidence theme, spec-AC-compliance,
