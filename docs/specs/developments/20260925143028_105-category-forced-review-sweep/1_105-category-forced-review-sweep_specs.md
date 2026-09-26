@@ -287,8 +287,11 @@ findings in that one review.
 - The cost effect of the sweep per pass is recorded, including whether the sweep
   multiplies model calls, and is placed against the recorded per-pull-request
   convergence figures from the 2026-09-23 cost baseline. Any comparative cost
-  claim is stated over the paired per-head differences AC15(d) names, not over
-  the standalone figures.
+  claim is stated over one named metric: the per-run difference in model calls
+  per pass, paired by run position and averaged across the runs, and the
+  per-run difference in elapsed time per pass likewise paired and averaged as
+  AC11 requires, not over the standalone figures or an aggregation AC11 does
+  not name.
 
 **Information shown**:
 
@@ -816,7 +819,17 @@ record and can be marked current.
 - [ ] AC11: The same committed evidence reports model calls per pass and elapsed
       time per pass for both configurations and compares them against the
       recorded per-pull-request convergence figures. The record states that no
-      cost ceiling applies to this feature, so no cost figure fails it.
+      cost ceiling applies to this feature, so no cost figure fails it. A
+      comparative benchmark cost claim is stated over one named metric: the
+      per-run difference in model calls (sweep-on minus sweep-off paired by
+      run position within each configuration's identical run sequence) averaged
+      across those runs, and the per-run difference in elapsed time per pass
+      likewise paired by run position and averaged across those runs, each with
+      both configurations' figures recorded, so an unpaired comparison, a
+      median, a selected subset of runs, or a subset of the recorded runs does
+      not support the claim; where the two configurations' run sequences differ
+      in length, the claim is made over the runs they share and states that
+      pairing, or is not made.
 - [ ] AC12: The seeded benchmark fixture contains a case for state
       reconstruction from API evidence, external output parsing, guard fails
       open, and record identity.
@@ -930,13 +943,19 @@ record and can be marked current.
       The documentation also states that what a restored gate rejects (its
       pass/fail contract) is a deferred decision (see Deferred Decisions), so
       the declaration does not make any benchmark result pass or fail.
-- [ ] AC18: An operator can enable and disable the sweep for a repository. The
+- [ ] AC18: An operator can enable and disable the sweep for the repositories
+      a deployment serves. The
       authoritative source for that choice is the effective operator
       configuration value for the run, resolved through Ronda's existing
       operator-configuration precedence (environment or workflow input over the
       operator config file over the built-in default, the same surface that
       already carries the durability-mode switch); the concrete key name is a
-      planning decision. The recognized on and off values are the same,
+      planning decision. The choice is scoped to one deployment's effective
+      configuration, so it is per-repository wherever the ingress supplies it
+      per repository (the Actions workflow input) and deployment-wide where the
+      webhook resolves one process-wide operator configuration for every
+      repository it serves; a repository-keyed webhook enablement source is out
+      of scope (see Out of Scope). The recognized on and off values are the same,
       case-insensitive, on and off vocabulary that Ronda's existing on/off
       operator switches (the durability-mode switch) already accept, so
       operators learn one convention; the plan states the exact values, and an
@@ -984,7 +1003,12 @@ record and can be marked current.
       non-negative integer is malformed rather than valid; two
       categories share an identifier; it contains no categories; or it carries
       no list version, or no single
-      current list version can be identified. In each of these cases the pass
+      current list version can be identified. The list version's allowed domain
+      is a non-blank scalar string — not a number, array, or object — compared
+      by exact string equality, so a version that is blank, or is not a scalar
+      string, is malformed under this rule and cannot be reported or used to
+      decide whether the ten-pull-request count resets. In each of these cases
+      the pass
       reports no list version as used. How the list is stored and parsed is a
       planning decision.
 - [ ] AC20: Every finding published by a sweep pass appears in the per-category
@@ -1032,7 +1056,7 @@ record and can be marked current.
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
 | O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; one observation is one run, read as that run's defect-weighted recall over its whole head set; recall is read against the fixture's seeded defects, so a fixture comparison is never not applicable for want of a confirmed external defect, while a real-PR head set with no confirmed external defect makes the variance result not applicable, supporting no claim; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
 | O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean. |
-| O7: Cost evidence | AC11, AC15(d) | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied; a comparative cost claim is read off the paired per-head differences AC15(d) names, not the standalone figures. |
+| O7: Cost evidence | AC11, AC15(d) | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied; a real-PR comparative cost claim is read off the paired per-head differences AC15(d) names, and a comparative benchmark cost claim off the per-run differences AC11 pairs by run position, not the standalone figures. |
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
 | O9: Harder credential-pattern variants | AC13 | At least one variant harder than the existing sensitive-value case. |
 | O10: No regression gate until seeds exist | AC17 | Stated in documentation and tied to AC12 and AC13. Once they exist the extended fixture may be declared ready as a gate basis; the gate's pass/fail contract is a Deferred Decision, so the declaration makes no benchmark result pass or fail. |
@@ -1083,6 +1107,11 @@ record and can be marked current.
   evidence, carrying its label and caveat, is what this item claims.
 - Setting a recall target or a variance ceiling for the sweep (see Deferred
   Decisions).
+- A repository-keyed sweep enablement source for the webhook. The sweep's
+  enablement is a deployment-scoped operator-configuration value (AC18),
+  resolved where Ronda's existing operator switches are resolved; a multi-
+  repository webhook process supplies one value for every repository it serves,
+  and a repository-keyed source for that process is not part of this feature.
 - Setting a cost ceiling for a sweep pass (see Deferred Decisions).
 - Defining the pass/fail contract of a restored benchmark regression gate, that
   is, what result the gate rejects (see Deferred Decisions).
