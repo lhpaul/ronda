@@ -384,7 +384,11 @@ findings in that one review.
 1. The operator counts the pull requests that carried a sweep-enabled Ronda
    review under the current category list version and whose external-finding
    evidence has been adjudicated. A pull request that Ronda merely reviewed,
-   with its evidence not yet adjudicated, does not count.
+   with its evidence not yet adjudicated, does not count and does not block the
+   tier. A pull request whose external review reported no findings is
+   adjudicated, and counts, once that clean result is confirmed by the recorded
+   same-head external review; a pull request with no external review recorded
+   is not adjudicated, whether or not it carried findings.
 2. The operator compares that count against the minimum of ten required before
    real-pull-request effect may be claimed.
 3. The operator labels the current evidence with the tier it qualifies for.
@@ -438,7 +442,15 @@ findings in that one review.
   recorded but not published. A variance claim is stricter still: it requires
   repeated identical runs of each configuration on those same heads, the same
   number per configuration, because one run per head measures nothing about
-  run-to-run variance.
+  run-to-run variance. A recall claim is stated over a recorded metric: the
+  denominator is the adjudicated external findings on those heads, the numerator
+  is those the configuration's review reported (a finding matches when it is on
+  the same head and one is the same defect as the other, as the adjudication
+  records it), a finding adjudicated as the same defect as an external finding
+  but reported by no configuration counts in the denominator for both, findings
+  detected by either configuration are matched to the same external finding
+  rather than counted twice, and adjudicated external findings with no
+  counterpart in either configuration are reported as missed by both.
   Without that control, the strongest permitted real-pull-request claim is the
   descriptive sweep-enabled miss record above.
 
@@ -507,13 +519,24 @@ findings in that one review.
   pull requests have carried a sweep-enabled Ronda review under the current
   category list version and their external-finding evidence has been
   adjudicated. A pull request that Ronda reviewed but whose evidence is not
-  adjudicated does not count. Revising the list restarts that count. Even at
+  adjudicated does not count and does not block the tier; a pull request whose
+  external review reported no findings is adjudicated, and counts, once that
+  clean result is confirmed by the recorded same-head external review, while a
+  pull request with no external review recorded is not adjudicated whether or
+  not it carried findings. Revising the list restarts that count. Even at
   that minimum, only a descriptive sweep-enabled miss record may be claimed; a
   comparative claim (the sweep changed real-pull-request recall, variance, or
   cost) additionally requires a matched sweep-off control on the same pull
   request heads; a variance comparative claim additionally requires repeated
   identical runs of each configuration on those same heads, the same number per
-  configuration.
+  configuration; a recall comparative claim is stated over a recorded
+  denominator, numerator, and matching rule (the denominator is the adjudicated
+  external findings on those heads, the numerator those of them the
+  configuration's review reported, matched on the same head and the same defect
+  as the adjudication records it, with a finding reported by either
+  configuration matched to the same external finding rather than counted twice
+  and one adjudicated as the same defect as an external finding but reported by
+  no configuration counting in the denominator for both).
 - A "sweep-enabled review", wherever this spec counts or labels one, is a review
   whose pass actually ran the sweep and reported a category list version as used.
   A pass that had the sweep enabled but degraded to a non-sweep review (AC19)
@@ -598,8 +621,8 @@ record and can be marked current.
 | Code value | Display label | Description |
 | --- | --- | --- |
 | `fixture_only` | Fixture evidence only | Evidence comes from the seeded benchmark and precision fixtures. It may support claims about seeded recall, variance, precision, and cost; it may not support claims about real-pull-request effect. |
-| `real_pr_provisional` | Real-PR evidence (provisional) | At least one sweep-enabled real pull request review has been recorded, but fewer than ten counted pull requests have accumulated under the current category list version (a pull request counts only if it carried a sweep-enabled review under that version and its external-finding evidence has been adjudicated). Findings are indicative only, support no effect claim, and are labeled as such. |
-| `real_pr_measured` | Real-PR evidence (measured) | At least ten counted pull requests (sweep-enabled under the current category list version, with adjudicated external-finding evidence) have accumulated. Descriptive real-pull-request claims are permitted, with the independence caveat and the "own-repository" label. Comparative effect claims additionally require a matched sweep-off control on the same pull request heads. |
+| `real_pr_provisional` | Real-PR evidence (provisional) | At least one sweep-enabled real pull request review has been recorded, but fewer than ten counted pull requests have accumulated under the current category list version (a pull request counts only if it carried a sweep-enabled review under that version and its external-finding evidence has been adjudicated; a clean external review counts once confirmed by the recorded same-head external review, and one with no external review recorded is not adjudicated). Findings are indicative only, support no effect claim, and are labeled as such. |
+| `real_pr_measured` | Real-PR evidence (measured) | At least ten counted pull requests (sweep-enabled under the current category list version, with adjudicated external-finding evidence) have accumulated. Descriptive real-pull-request claims are permitted, with the independence caveat and the "own-repository" label. Comparative effect claims additionally require a matched sweep-off control on the same pull request heads; a recall claim is stated over the recorded denominator, numerator, and matching rule AC15(d) defines. |
 
 **Valid transitions**:
 
@@ -608,9 +631,12 @@ record and can be marked current.
   sweep, as the business rules define) is recorded.
 - Real-PR evidence (provisional) → Real-PR evidence (measured) when at least ten
   counted pull requests (sweep-enabled under the current category list version,
-  with adjudicated external-finding evidence) have accumulated. Pull requests
-  reviewed but not yet adjudicated do not count and do not block the
-  transition.
+  with adjudicated external-finding evidence) have accumulated. A pull request
+  whose external review reported no findings counts once its clean result is
+  confirmed by the recorded same-head external review; one with no external
+  review recorded is not adjudicated, whether or not it carried findings.
+  Pull requests reviewed but not yet adjudicated do not count and do not block
+  the transition.
 - Real-PR evidence (measured) → Real-PR evidence (provisional) when the category
   list is revised, until ten pull requests have accumulated under the revised
   list.
@@ -742,7 +768,11 @@ record and can be marked current.
       version, where a pull request counts only if it carried a sweep-enabled
       review under that version and its external-finding evidence has been
       adjudicated (a pull request reviewed but not adjudicated does not count
-      and does not block the label); a record with at least one sweep-enabled real
+      and does not block the label); a pull request whose external review
+      reported no findings is adjudicated, and counts, once that clean result
+      is confirmed by the recorded same-head external review — a pull request
+      with no external review recorded is not adjudicated, whether or not it
+      carried findings; a record with at least one sweep-enabled real
       pull request review recorded under any list version but nine or fewer
       counted pull requests is labeled Real-PR evidence (provisional), and one
       with no sweep-enabled real pull request review recorded under any list
@@ -760,7 +790,18 @@ record and can be marked current.
       configuration be run repeatedly on those same heads — the same number of
       identical runs per configuration for both configurations, at least two —
       because a single run per head cannot establish run-to-run variance;
-      without that control the record
+      a comparative recall claim is stated over an explicitly recorded
+      denominator, numerator, and matching rule: the denominator is the
+      adjudicated external findings recorded for those heads, the numerator is
+      those of them the configuration's review reported (a finding matches when
+      it is on the same head and one is the same defect as the other, as the
+      adjudication records it), a finding adjudicated as the same defect as an
+      external finding but reported by no configuration counts in the
+      denominator for both, findings detected by either configuration are
+      matched to the same external finding rather than counted twice, and
+      adjudicated external findings with no counterpart in either
+      configuration are reported as missed by both; without that control the
+      record
       carries only the descriptive sweep-enabled miss record.
 - [ ] AC16: Evidence drawn from Ronda's own repository states the independence
       caveat, and every effect claim built on it is labeled "own-repository".
@@ -862,7 +903,7 @@ record and can be marked current.
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
 | O9: Harder credential-pattern variants | AC13 | At least one variant harder than the existing sensitive-value case. |
 | O10: No regression gate until seeds exist | AC17 | Stated in documentation and tied to AC12 and AC13. Once they exist the extended fixture may be declared ready as a gate basis; the gate's pass/fail contract is a Deferred Decision, so the declaration makes no benchmark result pass or fail. |
-| O11: No real-PR measurement before ten adjudicated dogfooded PRs | AC15, AC16, plus the evidence tier enum | Ten is the confirmed minimum and the count requires adjudicated external-finding evidence; the tier labels enforce what each evidence set may claim, including that a comparative claim needs a matched sweep-off control. |
+| O11: No real-PR measurement before ten adjudicated dogfooded PRs | AC15, AC16, plus the evidence tier enum | Ten is the confirmed minimum and the count requires adjudicated external-finding evidence, counting a clean external review once its same-head confirmation is recorded; the tier labels enforce what each evidence set may claim, including that a comparative claim needs a matched sweep-off control, with repeated runs for variance and a recorded recall metric for recall. |
 | O12: Fixture over-weights single-line algorithmic defects | Out of Scope (MVP) — see Deferral Note D1 | Recorded as a known fixture bias; rebalancing is deferred. |
 
 ### Deferral Notes
