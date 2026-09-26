@@ -442,10 +442,12 @@ findings in that one review.
   basis for the list, because no real-pull-request evidence confirms them.
 - Category counts recorded in the list are finding instances, not distinct
   defects, and the list states this.
-- The per-category pass record is carried on the check-run output and in the
-  logs for every sweep pass, and additionally in the benchmark output for
-  benchmark runs, so per-category recall can be attributed. It never appears in
-  the published review body.
+- The per-category pass record is carried on the check-run output (wherever the
+  pass publishes a check run) and in the logs for every sweep pass, and
+  additionally in the benchmark output for benchmark runs, so per-category
+  recall can be attributed. A benchmark run publishes nothing to GitHub, so for
+  it the benchmark output and the logs are the record surfaces. The record never
+  appears in the published review body.
 - Producing no findings for a category is a valid and expected outcome. Ronda
   must never be required, encouraged, or rewarded for producing at least one
   finding per category.
@@ -523,8 +525,9 @@ corpus, kept so every category is traceable to its source rows.
   repository's review process, not a product defect class.
 - The seeded benchmark's four never-found kinds — unconfirmed by real-PR
   evidence.
-- Spec-AC-compliance (7 instances, tied fifth in the sub-theme ranking) —
-  excluded: checking it depends on a spec being present, which makes it a
+- Spec-AC-compliance (7 instances, tied with the fourth-ranked record-identity
+  theme and ahead of the fifth-ranked guard-fails-open theme in the sub-theme
+  ranking) — excluded: checking it depends on a spec being present, which makes it a
   workflow-gate concern like planted-proof evidence rather than a defect class
   that any reviewed pull request can carry. It may be added at a later list
   revision if dogfooded misses point at it.
@@ -544,16 +547,18 @@ record and can be marked current.
 | Code value | Display label | Description |
 | --- | --- | --- |
 | `fixture_only` | Fixture evidence only | Evidence comes from the seeded benchmark and precision fixtures. It may support claims about seeded recall, variance, precision, and cost; it may not support claims about real-pull-request effect. |
-| `real_pr_provisional` | Real-PR evidence (provisional) | Fewer than ten sweep-enabled pull requests reviewed under the current category list version have accumulated, or their external-finding evidence is not yet adjudicated. Findings are indicative only and are labeled as such. |
-| `real_pr_measured` | Real-PR evidence (measured) | At least ten sweep-enabled pull requests reviewed under the current category list version have accumulated and their external-finding evidence is adjudicated. Descriptive real-pull-request claims are permitted, with the independence caveat and the "own-repository" label. Comparative effect claims additionally require a matched sweep-off control on the same pull request heads. |
+| `real_pr_provisional` | Real-PR evidence (provisional) | At least one sweep-enabled real pull request review has been recorded, but fewer than ten counted pull requests have accumulated under the current category list version (a pull request counts only if it carried a sweep-enabled review under that version and its external-finding evidence has been adjudicated). Findings are indicative only, support no effect claim, and are labeled as such. |
+| `real_pr_measured` | Real-PR evidence (measured) | At least ten counted pull requests (sweep-enabled under the current category list version, with adjudicated external-finding evidence) have accumulated. Descriptive real-pull-request claims are permitted, with the independence caveat and the "own-repository" label. Comparative effect claims additionally require a matched sweep-off control on the same pull request heads. |
 
 **Valid transitions**:
 
 - Fixture evidence only → Real-PR evidence (provisional) when the first pull
   request carrying a Ronda review with the sweep enabled is recorded.
 - Real-PR evidence (provisional) → Real-PR evidence (measured) when at least ten
-  sweep-enabled pull requests reviewed under the current category list version
-  have accumulated and their external-finding evidence has been adjudicated.
+  counted pull requests (sweep-enabled under the current category list version,
+  with adjudicated external-finding evidence) have accumulated. Pull requests
+  reviewed but not yet adjudicated do not count and do not block the
+  transition.
 - Real-PR evidence (measured) → Real-PR evidence (provisional) when the category
   list is revised, until ten pull requests have accumulated under the revised
   list.
@@ -573,13 +578,17 @@ record and can be marked current.
   the logs, and for benchmark runs it also appears in the benchmark output so
   recall can be attributed per category. It is never published in the review
   body, so reviewers of the pull request do not read a list of empty categories.
+  The same surfaces (check-run output where a check run is published, and the
+  logs) carry the record that the sweep did not run because its category list
+  was unreadable, empty, or malformed (AC19), or that the enablement value was
+  unrecognized (AC18); neither record appears in the review body.
 - **Recorded category list**: the operator-readable artifact holding the current
   categories, their evidence, the excluded candidates, and the revision history.
 - **Quality evidence**: recall per run, spread across runs, precision results,
   cost per pass, sample count, model identity, reviewed target, timestamps, and
   the evidence tier label.
-- **Logs**: may record that the sweep ran, the list version, and non-sensitive
-  counts. Logs never record credential values.
+- **Logs**: record that the sweep ran, the list version, the per-category pass
+  record (AC1), and non-sensitive counts. Logs never record credential values.
 - **Notifications**: none beyond the existing GitHub review and check-run
   surfaces.
 
@@ -589,10 +598,11 @@ record and can be marked current.
 
 - [ ] AC1: With the sweep enabled, a review pass considers every category on the
       current recorded list for the reviewed head, and the pass's check-run
-      output and its logs each show, per category, whether that category
-      produced findings or none. A benchmark run also shows the same
-      per-category record in the benchmark output. No per-category record
-      appears in the published review body.
+      output (where the pass publishes a check run) and its logs each show, per
+      category, whether that category produced findings or none. A benchmark
+      run, which publishes no check run, shows the same per-category record in
+      the benchmark output and its logs. No per-category record appears in the
+      published review body.
 - [ ] AC2: With the sweep enabled, Ronda still publishes exactly one review per
       head SHA containing all findings from the pass, and still makes no push,
       merge, or other change to the pull request.
@@ -661,12 +671,14 @@ record and can be marked current.
       (a) no real-pull-request effect claim appears under a tier below Real-PR
       evidence (measured);
       (b) the label Real-PR evidence (measured) is assigned only when at least
-      ten pull requests under the current recorded category list version have
-      been sweep-enabled and reviewed, and their external-finding evidence has
-      been adjudicated; a record with nine or fewer counted pull requests, or
-      with any counted pull request's evidence not yet adjudicated, is labeled
-      Real-PR evidence (provisional), and one with no sweep-enabled real pull
-      request review recorded is labeled Fixture evidence only;
+      ten counted pull requests exist under the current recorded category list
+      version, where a pull request counts only if it carried a sweep-enabled
+      review under that version and its external-finding evidence has been
+      adjudicated (a pull request reviewed but not adjudicated does not count
+      and does not block the label); a record with nine or fewer counted pull
+      requests is labeled Real-PR evidence (provisional), and one with no
+      sweep-enabled real pull request review recorded under any list version is
+      labeled Fixture evidence only;
       (c) when the recorded category list version changes, evidence previously
       labeled Real-PR evidence (measured) is relabeled Real-PR evidence
       (provisional), and the counted pull requests restart at zero, so pull
@@ -704,8 +716,9 @@ record and can be marked current.
       read, or is empty or malformed, the pass still publishes its normal review
       for that head and records that the sweep did not run.
 - [ ] AC20: Every finding published by a sweep pass appears in the per-category
-      pass record on the check-run output and in the logs (and in the benchmark
-      output for a benchmark run), either against one or more swept categories
+      pass record on the check-run output (where the pass publishes a check run)
+      and in the logs (and in the benchmark output for a benchmark run), either
+      against one or more swept categories
       or as uncategorized.
 
 ---
@@ -781,7 +794,9 @@ record and can be marked current.
 - Per-adopter or per-repository custom category lists; this iteration ships one
   recorded list.
 - Changing Ronda's review output contract, check-run behavior, draft-skip
-  behavior, supersede behavior, or trigger behavior.
+  behavior, supersede behavior, or trigger behavior, other than the additions
+  this spec states: the sweep statement in the review summary (AC3) and the
+  per-category pass record on the check-run output (AC1).
 - Model tiering, read-only checkout with symbol context, and the other epic #52
   items that are not this sweep.
 - Adjudicating the outstanding template pull request comparison record, the
