@@ -194,10 +194,11 @@ findings in that one review.
 **Postconditions**:
 
 - Recall is reported per run, not only as an average.
-- The spread across identical runs (lowest, highest, and number of runs) is
-  reported for both configurations.
+- The spread across identical runs (lowest, highest, number of runs) and the
+  standard deviation of per-run recall are reported for both configurations.
 - A reader can tell whether the sweep changed recall, changed variance, changed
-  both, or changed neither.
+  both, or changed neither; the variance claim is read off the standard
+  deviation, not the range width.
 
 **Information shown**:
 
@@ -443,18 +444,23 @@ findings in that one review.
   recorded but not published. A variance claim is stricter still: it requires
   repeated identical runs of each configuration on those same heads, the same
   number per configuration, because one run per head measures nothing about
-  run-to-run variance. A recall claim is stated over a recorded metric: the
-  denominator is the adjudicated external findings on those heads, the numerator
-  is those the configuration's review reported (a finding matches when it is on
-  the same head and one is the same defect as the other, as the adjudication
-  records it), a finding adjudicated as the same defect as an external finding
-  but reported by no configuration counts in the denominator for both, findings
-  detected by either configuration are matched to the same external finding
-  rather than counted twice, and adjudicated external findings with no
-  counterpart in either configuration are reported as missed by both. A zero
-  denominator — ten counted pull requests whose external reviews were all
-  confirmed clean — makes recall not applicable: that measurement supports no
-  recall claim.
+  run-to-run variance, and that claim is stated over one named metric: the
+  standard deviation of per-run recall across the repeated runs, compared
+  between the two configurations as a direction with both figures recorded, so
+  a range-width comparison alone does not support it. A recall claim is stated
+  over a recorded metric: the denominator is the confirmed external defects on
+  those heads — an adjudicated external finding counts only when the
+  adjudication's recorded outcome represents a valid defect, so outcomes such
+  as `false_positive`, `out_of_scope`, `ronda_better`, and `duplicate` are
+  excluded and duplicate adjudications of one defect collapse to one — the
+  numerator is those the configuration's review reported (a finding matches
+  when it is on the same head and one is the same defect as the other, as the
+  adjudication records it), a defect reported by either configuration is
+  matched to the same confirmed defect rather than counted twice, and confirmed
+  defects with no counterpart in either configuration are reported as missed by
+  both. A zero denominator — ten counted pull requests whose external reviews
+  were all confirmed clean — makes recall not applicable: that measurement
+  supports no recall claim.
   Without that control, the strongest permitted real-pull-request claim is the
   descriptive sweep-enabled miss record above.
 
@@ -533,17 +539,20 @@ findings in that one review.
   cost) additionally requires a matched sweep-off control on the same pull
   request heads; a variance comparative claim additionally requires repeated
   identical runs of each configuration on those same heads, the same number per
-  configuration; a recall comparative claim is stated over a recorded
-  denominator, numerator, and matching rule (the denominator is the adjudicated
-  external findings on those heads, the numerator those of them the
+  configuration, and is stated over the standard deviation of per-run recall
+  across those runs, compared as a direction with both figures recorded; a
+  recall comparative claim is stated over a recorded denominator, numerator,
+  and matching rule (the denominator is the confirmed external defects on those
+  heads — an adjudicated finding counts only when its recorded outcome
+  represents a valid defect, so outcomes such as `false_positive`,
+  `out_of_scope`, `ronda_better`, and `duplicate` are excluded and duplicate
+  adjudications of one defect collapse to one — the numerator those of them the
   configuration's review reported, matched on the same head and the same defect
-  as the adjudication records it, with a finding reported by either
-  configuration matched to the same external finding rather than counted twice
-  and one adjudicated as the same defect as an external finding but reported by
-  no configuration counting in the denominator for both, with a zero
-  denominator reported as recall not applicable and supporting no recall claim,
-  since ten counted pull requests may all carry confirmed-clean external
-  reviews).
+  as the adjudication records it, with a defect reported by either
+  configuration matched to the same confirmed defect rather than counted twice,
+  with a zero denominator reported as recall not applicable and supporting no
+  recall claim, since ten counted pull requests may all carry confirmed-clean
+  external reviews).
 - A "sweep-enabled review", wherever this spec counts or labels one, is a review
   whose pass actually ran the sweep and reported a category list version as used.
   A pass that had the sweep enabled but degraded to a non-sweep review (AC19)
@@ -672,7 +681,8 @@ record and can be marked current.
   value was unrecognized (AC18); neither record appears in the review body.
 - **Recorded category list**: the operator-readable artifact holding the current
   categories, their evidence, the excluded candidates, and the revision history.
-- **Quality evidence**: recall per run, spread across runs, precision results,
+- **Quality evidence**: recall per run, spread across runs (including the standard deviation of
+  per-run recall), precision results,
   cost per pass, sample count, model identity, reviewed target, fixture
   version, timestamps, and the evidence tier label.
 - **Logs**: record that the sweep ran, the list version, the per-category pass
@@ -685,13 +695,19 @@ record and can be marked current.
 ## Acceptance Criteria
 
 - [ ] AC1: With the sweep enabled and its current list readable and well-formed
-      (AC19), a review pass considers every category on the
+      (AC19), a review pass **that reaches review execution** considers every
+      category on the
       current recorded list for the reviewed head, and the pass's check-run
       output (where the pass publishes a check run) and its logs each show, per
       category, whether that category produced findings or none. A benchmark
       run, which publishes no check run, shows the same per-category record in
       the benchmark output and its logs. No per-category record appears in the
-      published review body.
+      published review body. A pass the existing flow ends before review
+      execution — the pre-review skips (a draft pull request, or an automatic
+      run that finds the head's existing check run, AC2) — considers no
+      categories and emits no per-category record, no sweep-activation
+      statement, and no sweep metadata of any kind; it is not a sweep pass and
+      is indistinguishable from the same skip in a non-sweep run.
 - [ ] AC2: With the sweep enabled, whenever the existing review flow reaches
       publication for that head SHA, Ronda publishes exactly one review per
       head SHA containing all findings from the pass, and still makes no push,
@@ -723,7 +739,8 @@ record and can be marked current.
       configurations against the same target, model, and configuration apart
       from the sweep setting itself (the sweep setting is the one value the two
       configurations are required to differ in): per-run
-      recall, the lowest and highest recall, per-defect found and missed counts
+      recall, the lowest and highest recall, the standard deviation of per-run
+      recall, per-defect found and missed counts
       across runs, the sample count, the model identity, the reviewed target,
       the run timestamps, and the fixture version. The sweep-off and sweep-on
       configurations use the same recorded fixture version and the same sample
@@ -804,19 +821,31 @@ record and can be marked current.
       that the sweep changed run-to-run variance additionally requires that each
       configuration be run repeatedly on those same heads — the same number of
       identical runs per configuration for both configurations, at least two —
-      because a single run per head cannot establish run-to-run variance;
+      because a single run per head cannot establish run-to-run variance, and
+      the claim is stated over one named metric: the sample standard deviation
+      of per-run recall across those runs (the population standard deviation is
+      computed, not estimated, because the runs performed are the whole sample
+      reported), compared between the two configurations as a direction
+      (higher or lower) with both figures recorded, so that a width-of-range or
+      spread comparison alone does not support the claim;
       a comparative recall claim is stated over an explicitly recorded
       denominator, numerator, and matching rule: the denominator is the
-      adjudicated external findings recorded for those heads, the numerator is
+      **confirmed external defects** recorded for those heads — an adjudicated
+      external finding enters the denominator only when the adjudication's
+      recorded outcome is one that represents a valid defect, and the outcomes
+      that do not (`false_positive`, `out_of_scope`, `ronda_better`,
+      `duplicate`; the plan maps the recorded outcome vocabulary to this rule)
+      are excluded, because counting a rejected, out-of-scope, or
+      already-found finding as a miss would depress recall for a finding Ronda
+      was right to omit; duplicate adjudications of the same defect across
+      reviews or reviewers collapse to one confirmed defect; the numerator is
       those of them the configuration's review reported (a finding matches when
       it is on the same head and one is the same defect as the other, as the
-      adjudication records it), a finding adjudicated as the same defect as an
-      external finding but reported by no configuration counts in the
-      denominator for both, findings detected by either configuration are
-      matched to the same external finding rather than counted twice, and
-      adjudicated external findings with no counterpart in either
+      adjudication records it); a defect reported by either configuration is
+      matched to the same confirmed external defect rather than counted twice;
+      and confirmed external defects with no counterpart in either
       configuration are reported as missed by both; a configuration whose
-      denominator is zero (no adjudicated external finding on those heads)
+      denominator is zero (no confirmed external defect on those heads)
       reports its recall as not applicable and supports no recall claim for
       that measurement, because ten counted pull requests may all carry
       confirmed-clean external reviews; without that control the record
@@ -915,17 +944,17 @@ record and can be marked current.
 
 | Brief objective | Acceptance criteria / disposition | Notes |
 | --- | --- | --- |
-| O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19, AC20 | The sweep runs inside the existing one-review-per-head contract, is operator-controllable and off by default, records per-category results on the check-run output and the logs (and in the benchmark output for benchmark runs), and degrades to the non-sweep review behavior when its list is unreadable or its enablement value is unrecognized. |
+| O1: Category-forced review pass | AC1, AC2, AC3, AC18, AC19, AC20 | The sweep runs inside the existing one-review-per-head contract for passes that reach review execution; a pre-review skip (draft, or an automatic run finding the head's check run) emits no sweep metadata and is indistinguishable from the same skip without the sweep. It is operator-controllable and off by default, records per-category results on the check-run output and the logs (and in the benchmark output for benchmark runs), and degrades to the non-sweep review behavior when its list is unreadable or its enablement value is unrecognized, preserving the ordinary publication eligibility (AC2) in every degraded case. |
 | O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts, counting unit, version, and revisions. |
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales, and the seven sub-themes below the candidate boundary are named. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
-| O5: Variance evidence | AC8 | Lowest, highest, and sample count reported; sample count at least the 2026-09-10 baseline's; no variance ceiling defined. |
+| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
 | O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean. |
 | O7: Cost evidence | AC11 | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied. |
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
 | O9: Harder credential-pattern variants | AC13 | At least one variant harder than the existing sensitive-value case. |
 | O10: No regression gate until seeds exist | AC17 | Stated in documentation and tied to AC12 and AC13. Once they exist the extended fixture may be declared ready as a gate basis; the gate's pass/fail contract is a Deferred Decision, so the declaration makes no benchmark result pass or fail. |
-| O11: No real-PR measurement before ten adjudicated dogfooded PRs | AC15, AC16, plus the evidence tier enum | Ten is the confirmed minimum and the count requires adjudicated external-finding evidence, counting a clean external review once its same-head confirmation is recorded; the tier labels enforce what each evidence set may claim, including that a comparative claim needs a matched sweep-off control, with repeated runs for variance and a recorded recall metric for recall. |
+| O11: No real-PR measurement before ten adjudicated dogfooded PRs | AC15, AC16, plus the evidence tier enum | Ten is the confirmed minimum and the count requires adjudicated external-finding evidence, counting a clean external review once its same-head confirmation is recorded; the tier labels enforce what each evidence set may claim, including that a comparative claim needs a matched sweep-off control, with repeated runs for variance (read off the standard deviation of per-run recall) and a recorded recall metric whose denominator is the confirmed external defects (rejected, out-of-scope, and duplicate adjudications excluded; duplicates collapsed). |
 | O12: Fixture over-weights single-line algorithmic defects | Out of Scope (MVP) — see Deferral Note D1 | Recorded as a known fixture bias; rebalancing is deferred. |
 
 ### Deferral Notes
