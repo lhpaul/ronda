@@ -450,7 +450,10 @@ findings in that one review.
   but reported by no configuration counts in the denominator for both, findings
   detected by either configuration are matched to the same external finding
   rather than counted twice, and adjudicated external findings with no
-  counterpart in either configuration are reported as missed by both.
+  counterpart in either configuration are reported as missed by both. A zero
+  denominator — ten counted pull requests whose external reviews were all
+  confirmed clean — makes recall not applicable: that measurement supports no
+  recall claim.
   Without that control, the strongest permitted real-pull-request claim is the
   descriptive sweep-enabled miss record above.
 
@@ -536,7 +539,10 @@ findings in that one review.
   as the adjudication records it, with a finding reported by either
   configuration matched to the same external finding rather than counted twice
   and one adjudicated as the same defect as an external finding but reported by
-  no configuration counting in the denominator for both).
+  no configuration counting in the denominator for both, with a zero
+  denominator reported as recall not applicable and supporting no recall claim,
+  since ten counted pull requests may all carry confirmed-clean external
+  reviews).
 - A "sweep-enabled review", wherever this spec counts or labels one, is a review
   whose pass actually ran the sweep and reported a category list version as used.
   A pass that had the sweep enabled but degraded to a non-sweep review (AC19)
@@ -803,8 +809,11 @@ record and can be marked current.
       denominator for both, findings detected by either configuration are
       matched to the same external finding rather than counted twice, and
       adjudicated external findings with no counterpart in either
-      configuration are reported as missed by both; without that control the
-      record
+      configuration are reported as missed by both; a configuration whose
+      denominator is zero (no adjudicated external finding on those heads)
+      reports its recall as not applicable and supports no recall claim for
+      that measurement, because ten counted pull requests may all carry
+      confirmed-clean external reviews; without that control the record
       carries only the descriptive sweep-enabled miss record.
 - [ ] AC16: Evidence drawn from Ronda's own repository states the independence
       caveat, and every effect claim built on it is labeled "own-repository".
