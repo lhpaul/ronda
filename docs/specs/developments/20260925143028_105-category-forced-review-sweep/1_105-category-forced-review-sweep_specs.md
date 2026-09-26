@@ -573,7 +573,8 @@ findings in that one review.
   must report unexpected findings for both configurations. Category attribution
   is reported for sweep-on findings only; sweep-off findings are reported as
   unattributed. Precision regression is decided by the strict test in Use
-  Case 4, with no tolerance unless a human records one.
+  Case 4, which has no tolerance: a tolerance a human records is a recorded
+  judgement about the evidence, not a change to the test.
 - Cost evidence is mandatory and must state model calls per pass and elapsed
   time per pass for both configurations, and place them against the recorded
   per-pull-request convergence figures. No cost ceiling applies: cost is
@@ -745,11 +746,16 @@ record and can be marked current.
   and then fails terminally follows AC1's own rule for its surfaces instead. It
   is never published in the review
   body, so reviewers of the pull request do not read a list of empty categories.
-  The same surfaces (check-run output where a check run whose outcome is a
-  review is published, and the logs) carry the record that the sweep did not run
+  A sweep-did-not-run record is carried on those same surfaces — the check-run
+  output where a check run whose outcome is a review is published, and the
+  logs — by a pass that completes review execution. It states that the sweep did
+  not run
   because its category list
   was unreadable, empty, or malformed (AC19), or that a non-empty enablement
   value was unrecognized (AC18); neither record appears in the review body.
+  A pass that reaches review execution and then fails terminally carries a
+  sweep-did-not-run record on the logs, and on the check-run output only where
+  the pass's own check-run write produced one (AC1).
   Both records are emitted only by a pass that reaches review execution; a
   pre-review skip (AC1) and a pass that ends in a terminal failure before
   review execution (AC1) each emit neither. A pass that reaches review
@@ -1100,7 +1106,10 @@ record and can be marked current.
       whose outcome is a review)
       and in the logs (and in the benchmark output for a benchmark run), either
       against one or more swept categories
-      or as uncategorized.
+      or as uncategorized. This criterion governs a pass that completes review
+      execution; a pass that reaches review execution and then fails terminally
+      is governed by AC1, and its per-category record is on the logs even where
+      its own check-run write produced no check run.
 
 ---
 
