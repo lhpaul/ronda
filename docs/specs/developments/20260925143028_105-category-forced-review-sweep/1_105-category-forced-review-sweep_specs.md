@@ -101,8 +101,9 @@ findings in that one review.
   this spec means the review Ronda publishes for the same head with the sweep
   off, under the existing review contract.
 - If the current category list cannot be read when a pass starts, or is empty or
-  malformed, the pass continues as an ordinary non-sweep review and records that
-  the sweep did not run. A missing list degrades coverage; it never fails the pass and never
+  malformed (as AC19 defines), the pass continues as an ordinary non-sweep review,
+  records that the sweep did not run, and reports no list version as used. A
+  missing list degrades coverage; it never fails the pass and never
   leaves the head without a result.
 
 ---
@@ -289,6 +290,8 @@ findings in that one review.
   produced more unexpected findings in total than the sweep-off runs across the
   same precision fixtures and sample count, or if any precision fixture that
   stayed clean in every sweep-off run was not clean in at least one sweep-on run.
+  Unexpected findings are counted as findings, not as category attributions: a
+  finding attributed to more than one category counts once toward the total.
   The test has no tolerance. Accepting any tolerance is a human decision that
   is recorded with the evidence, not an automatic outcome.
 - Losing precision is the obvious failure mode of this change: a list of
@@ -481,6 +484,10 @@ findings in that one review.
   comparative claim (the sweep changed real-pull-request recall, variance, or
   cost) additionally requires a matched sweep-off control on the same pull
   request heads.
+- A "sweep-enabled review", wherever this spec counts or labels one, is a review
+  whose pass actually ran the sweep and reported a category list version as used.
+  A pass that had the sweep enabled but degraded to a non-sweep review (AC19)
+  is not a sweep-enabled review and does not count toward any tier or count.
 - Evidence drawn from Ronda's own repository carries the independence caveat,
   is labeled "own-repository", and is read as regression evidence for this
   repository, not as generalization to others. Corroboration in another
@@ -596,7 +603,8 @@ record and can be marked current.
 
 ## Acceptance Criteria
 
-- [ ] AC1: With the sweep enabled, a review pass considers every category on the
+- [ ] AC1: With the sweep enabled and its current list readable and well-formed
+      (AC19), a review pass considers every category on the
       current recorded list for the reviewed head, and the pass's check-run
       output (where the pass publishes a check run) and its logs each show, per
       category, whether that category produced findings or none. A benchmark
@@ -609,8 +617,8 @@ record and can be marked current.
 - [ ] AC3: The review summary for a sweep pass states that the sweep was active
       and which category list version was used; a non-sweep pass says neither.
 - [ ] AC4: A recorded sweep category list exists and, for each category, states
-      its display label, description, supporting real-pull-request evidence
-      source, and finding-instance count.
+      its identifier, display label, description, supporting real-pull-request
+      evidence source, and finding-instance count.
 - [ ] AC5: The recorded list states that its counts are finding instances rather
       than distinct defects.
 - [ ] AC6: The recorded list accounts for every candidate category considered:
@@ -697,7 +705,8 @@ record and can be marked current.
       required.
 - [ ] AC17: Documentation states that the seeded benchmark is not a regression
       gate until the fixture cases required by AC12 and AC13 exist, and that the
-      gate is restored once they do.
+      operator may declare it restored, with the declaration recorded (Use Case
+      5), once they do.
 - [ ] AC18: An operator can enable and disable the sweep for a repository. The
       authoritative source for that choice is the effective operator
       configuration value for the run, resolved through Ronda's existing
@@ -808,8 +817,10 @@ record and can be marked current.
   recorded list.
 - Changing Ronda's review output contract, check-run behavior, draft-skip
   behavior, supersede behavior, or trigger behavior, other than the additions
-  this spec states: the sweep statement in the review summary (AC3) and the
-  per-category pass record on the check-run output (AC1).
+  this spec states: the sweep statement in the review summary (AC3), the
+  per-category pass record on the check-run output (AC1), and the records that
+  the sweep did not run (AC19) or that the enablement value was unrecognized
+  (AC18) on the check-run output.
 - Model tiering, read-only checkout with symbol context, and the other epic #52
   items that are not this sweep.
 - Adjudicating the outstanding template pull request comparison record, the
