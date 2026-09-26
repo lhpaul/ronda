@@ -362,8 +362,8 @@ findings in that one review.
 
 1. The operator adds a seeded case for each real theme that has no fixture
    representation.
-2. The operator adds harder credential-pattern variants alongside the existing,
-   always-found sensitive-value case.
+2. The operator adds at least one harder credential-pattern case alongside the
+   existing, always-found sensitive-value case.
 3. The operator re-runs the benchmark and records the result for the extended
    fixture.
 4. The operator declares the extended fixture ready to serve as the basis of a
@@ -373,8 +373,8 @@ findings in that one review.
 **Postconditions**:
 
 - The fixture contains a case for each of the four unseeded real themes.
-- The fixture contains credential-pattern cases that are harder than the
-  existing sensitive-value case.
+- The fixture contains at least one credential-pattern case that is harder than
+  the existing sensitive-value case.
 - Until those cases exist, the seeded benchmark is explicitly not treated as a
   regression gate.
 
@@ -568,9 +568,9 @@ findings in that one review.
 - Recall and variance results are reported evidence, not a pass/fail gate: this
   feature defines no recall target and no variance ceiling.
 - The seeded benchmark is not treated as a regression gate until it seeds the
-  four real themes that currently have no representation and harder
-  credential-pattern variants. Even then, this feature defines no pass/fail
-  contract for the restored gate (see Deferred Decisions).
+  four real themes that currently have no representation and at least one
+  harder credential-pattern case (AC13). Even then, this feature defines no
+  pass/fail contract for the restored gate (see Deferred Decisions).
 - Real-pull-request effect of the sweep may not be claimed until at least ten
   pull requests have carried a sweep-enabled Ronda review under the current
   category list version and their external-finding evidence has been
@@ -1115,7 +1115,7 @@ surfaces** state the same rule and must not contradict this table.
   including whether the sweep multiplies model calls per pass.
 - O8: Add fixture seeds for state reconstruction from API evidence, external
   output parsing, guard fails open, and record identity.
-- O9: Add harder credential-pattern-gap fixture variants.
+- O9: Add at least one harder credential-pattern-gap fixture case.
 - O10: Do not treat the seeded benchmark as a regression gate again until those
   seeds exist.
 - O11: Do not measure real-pull-request effect until the minimum number of
@@ -1138,7 +1138,7 @@ surfaces** state the same rule and must not contradict this table.
 | O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean. |
 | O7: Cost evidence | AC11, AC15(d) | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied; a real-PR comparative cost claim is read off the paired per-head differences AC15(d) names, and a comparative benchmark cost claim off the per-run differences AC11 pairs by run position, not the standalone figures. |
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
-| O9: Harder credential-pattern variants | AC13 | At least one variant harder than the existing sensitive-value case. |
+| O9: Harder credential-pattern variant | AC13 | At least one variant harder than the existing sensitive-value case. |
 | O10: No regression gate until seeds exist | AC17 | Stated in documentation and tied to AC12 and AC13. Once they exist the extended fixture may be declared ready as a gate basis; the gate's pass/fail contract is a Deferred Decision, so the declaration makes no benchmark result pass or fail. |
 | O11: No real-PR measurement before ten adjudicated dogfooded PRs | AC15, AC16, plus the evidence tier enum | Ten is the confirmed minimum and the count requires adjudicated external-finding evidence, counting a clean external review once its same-head confirmation is recorded; the tier labels enforce what each evidence set may claim, including that a comparative claim needs a matched sweep-off control, with repeated runs for variance (read off the standard deviation of per-run recall) and a recorded recall metric whose denominator is the confirmed external defects (rejected, out-of-scope, and duplicate adjudications excluded; duplicates collapsed). |
 | O12: Fixture over-weights single-line algorithmic defects | Out of Scope (MVP) — see Deferral Note D1 | Recorded as a known fixture bias; rebalancing is deferred. |
