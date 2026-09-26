@@ -45,6 +45,9 @@ findings in that one review.
 1. Ronda starts a review pass for the pull request head.
 2. Ronda considers the changed content against every category on the current
    sweep category list, in addition to anything else it would otherwise report.
+   This is what a pass that completes review execution does; a pass that reaches
+   review execution and then fails terminally records the categories it reached
+   and no more (AC1).
 3. Ronda records, for each category, whether it produced findings or explicitly
    produced none, on the check-run output and in the logs for that pass —
    never in the published review body.
@@ -755,7 +758,12 @@ record and can be marked current.
       current recorded list for the reviewed head, and the pass's check-run
       output (where the pass publishes a check run whose outcome is a review,
       whether it carries findings or none) and its logs each show, per
-      category, whether that category produced findings or none. A benchmark
+      category, whether that category produced findings or none. This
+      every-category guarantee governs a pass that **completes** review
+      execution; a pass that reaches review execution and then fails terminally
+      is outside it and is governed by the terminal-failure rule below, which
+      says what such a pass records and forbids a record for a category it did
+      not reach. A benchmark
       run, which publishes no check run, shows the same per-category record in
       the benchmark output and its logs. No per-category record appears in the
       published review body. A pass the existing flow ends before review
@@ -776,10 +784,11 @@ record and can be marked current.
       existing failure and skip paths govern those passes unchanged, and no
       sweep record is owed for them. A pass that reaches review execution and
       then fails terminally — a model or GitHub error raised after the changed
-      files are read, including one during publication — has considered the
-      categories, so its logs carry the per-category record for the categories
-      it reached, and it records the failure exactly as the existing flow does.
-      Because its check run is the existing failure check run, whose output
+      files are read, including one during publication — is the case the
+      every-category guarantee above does not cover: it need not have considered
+      every category, and its logs carry the per-category record for the
+      categories it reached, and it records the failure exactly as the existing
+      flow does. Because its check run is the existing failure check run, whose output
       states the failure rather than a category breakdown, the per-category
       record for this outcome is on the logs only and not on that check run;
       the pass publishes no review, and no per-category record is fabricated
