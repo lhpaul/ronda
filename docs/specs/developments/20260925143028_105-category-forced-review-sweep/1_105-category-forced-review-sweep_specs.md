@@ -836,6 +836,22 @@ either swept (currently in use) or explicitly excluded with a recorded
 rationale; no candidate is left undecided, so the list above is a complete
 record and can be marked current.
 
+### Per-category pass outcomes
+
+Each entry of the per-category pass record (AC1) carries exactly one of these
+code values, stating what the pass established for that category. They are
+terminal per-pass results rather than lifecycle states: a pass writes one per
+category when it records the pass and never transitions it afterward, so no
+transition table applies and no later state supersedes an entry. This is the
+only site that fixes these code values; every other site names the outcomes by
+concept.
+
+| Code value | Display label | Description |
+| --- | --- | --- |
+| `produced_findings` | Produced findings | The pass completed its review of the category and the category produced one or more findings for the reviewed head. |
+| `produced_none` | Produced no findings | The pass completed its review of the category and the category produced no findings for the reviewed head. |
+| `not_determined` | Not determined | The pass reached the category and then failed terminally before its review result existed, so neither of the other outcomes is established for it (AC1). |
+
 ### Adjudication outcomes
 
 The code values a compared finding's adjudication records, and what each means
@@ -969,14 +985,15 @@ surfaces** state the same rule and must not contradict this table.
   it reached as **not determined**, on the surfaces AC1 assigns to the pass's
   outcome. It is never published in the review
   body, so reviewers of the pull request do not read a list of empty categories.
-  A sweep-did-not-run record is carried on those same surfaces. It states that
-  the sweep did not run
-  because its category list
-  was unreadable, empty, or malformed (AC19), or that a non-empty enablement
-  value was unrecognized (AC18); neither record appears in the review body.
-  Both records are emitted only by a pass that reaches review execution; a
-  pre-review skip (AC1) and a pass that ends in a terminal failure before
-  review execution (AC1) each emit neither.
+  Two further records are carried on those same surfaces, and they are distinct
+  records rather than one record with reason values. The `sweep-did-not-run`
+  record states that the sweep did not run because its category list was
+  unreadable, empty, or malformed (AC19). The unrecognized-enablement record
+  states that a non-empty enablement value was unrecognized (AC18), without
+  exposing the raw value. Neither record appears in the review body. Both are
+  emitted only by a pass that reaches review execution; a pre-review skip (AC1)
+  and a pass that ends in a terminal failure before review execution (AC1) each
+  emit neither.
 - **Recorded category list**: the operator-readable artifact holding the current
   categories, their evidence, the excluded candidates, and the revision history.
 - **Quality evidence**: recall per run, spread across runs (including the standard deviation of
@@ -1037,8 +1054,9 @@ surfaces** state the same rule and must not contradict this table.
       every-category guarantee above does not cover, and its logs carry the
       per-category record for the categories it reached, recording each reached
       category as **not determined** where the failure left the finding result
-      unestablished. **Not determined** is the third per-category outcome, and
-      it belongs only to that case: a failure after review execution but before
+      unestablished. **Not determined** is the third per-category outcome the
+      Per-category pass outcomes section defines, and it belongs only to that
+      case: a failure after review execution but before
       the review result exists — a model error or a GitHub error raised after
       the changed files are read but before that result is available. Neither
       produced-findings nor produced-none is knowable for a category whose
