@@ -54,8 +54,9 @@ findings in that one review.
 3. Ronda records, for each category, whether it produced findings or explicitly
    produced none — never in the published review body, and on the surfaces AC1
    assigns to the pass's outcome. A pass that reaches review execution and then
-   fails terminally records **not determined** for each category it reached
-   instead, since it established no finding result (AC1).
+   fails terminally before its review result exists records **not determined**
+   for each category it reached instead, since it established no finding result
+   (AC1).
 4. When that pass reaches publication, Ronda publishes one review for that head
    SHA containing every finding from the pass; a pass the existing flow does not
    publish publishes no review.
@@ -86,8 +87,8 @@ findings in that one review.
   category list version was used.
 - The check-run output and the logs: which categories produced findings for
   that pass, which produced none, and which it reached as **not determined**
-  where the pass failed terminally after review execution, on the surfaces AC1
-  assigns to the pass's outcome.
+  where the pass failed terminally before its review result existed, on the
+  surfaces AC1 assigns to the pass's outcome.
 
 **Actions available**:
 
@@ -913,8 +914,9 @@ surfaces** state the same rule and must not contradict this table.
   as in a non-sweep review.
 - **Per-category pass record**: for each sweep pass, which categories produced
   findings and which produced none, and — for a pass that reaches review
-  execution and then fails terminally — which it reached as **not determined**,
-  on the surfaces AC1 assigns to the pass's outcome. It is never published in the review
+  execution and then fails terminally before its review result exists — which
+  it reached as **not determined**, on the surfaces AC1 assigns to the pass's
+  outcome. It is never published in the review
   body, so reviewers of the pull request do not read a list of empty categories.
   A sweep-did-not-run record is carried on those same surfaces. It states that
   the sweep did not run
@@ -983,12 +985,18 @@ surfaces** state the same rule and must not contradict this table.
       credential the model API rejects — is the case the
       every-category guarantee above does not cover, and its logs carry the
       per-category record for the categories it reached, recording each reached
-      category as **not determined**. **Not determined** is the third
-      per-category outcome, and it belongs only to a pass that reaches review
-      execution and then fails terminally: neither produced-findings nor
-      produced-none is knowable for a category whose review the pass never
-      completed, so such a pass records the categories it reached and makes no
-      finding-result claim about any of them. A category is
+      category as **not determined** where the failure left the finding result
+      unestablished. **Not determined** is the third per-category outcome, and
+      it belongs only to that case: a failure after review execution but before
+      the review result exists — a model error or a GitHub error raised after
+      the changed files are read but before that result is available. Neither
+      produced-findings nor produced-none is knowable for a category whose
+      review the pass never completed, so such a pass records the categories it
+      reached and makes no finding-result claim about any of them. Where the
+      failure occurs after the review is already public, the finding result
+      does exist, so that pass records the ordinary produced-findings or
+      produced-none values for the categories it reached and records nothing as
+      not determined. A category is
       **reached** when the review request
       the pass issued carried it, so the categories reached are exactly those
       the pass's request carried before the failure: a pass that fails before
@@ -1012,8 +1020,12 @@ surfaces** state the same rule and must not contradict this table.
       contradict what a reader can already see, and the failure surfaces through
       a non-zero process exit instead. Its check run is therefore the success
       outcome the pass reached, or none at all where the write never landed, and
-      in either case its per-category record is on the logs, with whatever
-      per-category surface its own check-run write actually produced. In every
+      in either case its per-category record is on the logs, carrying the
+      ordinary produced-findings and produced-none values for the categories it
+      reached rather than not determined, with whatever per-category surface
+      its own check-run write actually produced — the review is public, so the
+      finding result it implies is knowable, and every published finding is
+      categorized or uncategorized as AC20 requires. In every
       case the pass publishes no second review, and no per-category record is
       fabricated for a category the pass did not reach.
 - [ ] AC2: With the sweep enabled, whenever the existing review flow reaches
