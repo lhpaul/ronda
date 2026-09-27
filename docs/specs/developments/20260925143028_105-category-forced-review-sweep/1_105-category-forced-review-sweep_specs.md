@@ -53,7 +53,9 @@ findings in that one review.
    and no more (AC1).
 3. Ronda records, for each category, whether it produced findings or explicitly
    produced none — never in the published review body, and on the surfaces AC1
-   assigns to the pass's outcome.
+   assigns to the pass's outcome. A pass that reaches review execution and then
+   fails terminally records **not determined** for each category it reached
+   instead, since it established no finding result (AC1).
 4. When that pass reaches publication, Ronda publishes one review for that head
    SHA containing every finding from the pass; a pass the existing flow does not
    publish publishes no review.
@@ -71,8 +73,9 @@ findings in that one review.
   publishes no review has no review summary and owes no activation statement or
   list version, whichever surface it otherwise writes.
 - Every sweep pass that reaches review execution records, per category, which
-  categories produced findings and which produced none, on the surfaces AC1
-  assigns to the pass's outcome (AC1). This per-category record is owed by such
+  categories produced findings, which produced none, and — for a pass that
+  ended before the finding result was established — which it reached as **not
+  determined**, on the surfaces AC1 assigns to the pass's outcome (AC1). This per-category record is owed by such
   a pass even where it is superseded before publication; it then carries the
   record on the logs, as AC1 assigns.
 
@@ -82,8 +85,9 @@ findings in that one review.
 - The review summary: that the category-forced sweep was active and which
   category list version was used.
 - The check-run output and the logs: which categories produced findings for
-  that pass and which produced none, on the surfaces AC1 assigns to the
-  pass's outcome.
+  that pass, which produced none, and which it reached as **not determined**
+  where the pass failed terminally after review execution, on the surfaces AC1
+  assigns to the pass's outcome.
 
 **Actions available**:
 
@@ -908,8 +912,9 @@ surfaces** state the same rule and must not contradict this table.
   review-mode activation is recorded. Findings themselves are published exactly
   as in a non-sweep review.
 - **Per-category pass record**: for each sweep pass, which categories produced
-  findings and which produced none, on the surfaces AC1 assigns to the pass's
-  outcome. It is never published in the review
+  findings and which produced none, and — for a pass that reaches review
+  execution and then fails terminally — which it reached as **not determined**,
+  on the surfaces AC1 assigns to the pass's outcome. It is never published in the review
   body, so reviewers of the pull request do not read a list of empty categories.
   A sweep-did-not-run record is carried on those same surfaces. It states that
   the sweep did not run
@@ -977,14 +982,19 @@ surfaces** state the same rule and must not contradict this table.
       files are read, including one during publication, and including a model
       credential the model API rejects — is the case the
       every-category guarantee above does not cover, and its logs carry the
-      per-category record for the categories it reached. A category is
+      per-category record for the categories it reached, recording each reached
+      category as **not determined**. **Not determined** is the third
+      per-category outcome, and it belongs only to a pass that reaches review
+      execution and then fails terminally: neither produced-findings nor
+      produced-none is knowable for a category whose review the pass never
+      completed, so such a pass records the categories it reached and makes no
+      finding-result claim about any of them. A category is
       **reached** when the review request
       the pass issued carried it, so the categories reached are exactly those
       the pass's request carried before the failure: a pass that fails before
       issuing any review request has reached none, and a pass that issued its
-      request and then failed has reached every category the current list
-      records, because the sweep composes that one request from the recorded
-      list. The record is read off the request the pass issued, not off the
+      request and then failed has reached every category its request carried,
+      because the sweep composes that one request from the recorded list. The record is read off the request the pass issued, not off the
       category list, so it is observable without per-category progress. Such a
       terminal failure records exactly as the
       existing flow does, and the rule above resolves it. Where the failure
