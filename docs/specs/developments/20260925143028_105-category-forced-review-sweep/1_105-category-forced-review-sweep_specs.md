@@ -834,7 +834,17 @@ misses point at them.
 Exactly one recorded category list version is current. Every candidate is
 either swept (currently in use) or explicitly excluded with a recorded
 rationale; no candidate is left undecided, so the list above is a complete
-record and can be marked current.
+record and can be marked current. The same record carries the three fields
+AC7 requires of it. It states the version value the list above is, `sweep-categories-v1`.
+It states the date that version became active, 2026-09-27, the date this
+initial list first became the current list version. It states one revision
+history entry, the initial revision that established the list as current,
+dated 2026-09-27 with its motivating evidence recorded: the 2026-09-23
+real-PR corpus ranking and the seeded benchmark's never-found kinds, which
+are the evidence the swept and excluded entries above already cite, so the
+entry is read from that evidence rather than stated separately from it. Later
+revisions add further entries, each with its own date and evidence; the
+initial entry names no prior version because the initial list has none.
 
 ### Per-category pass outcomes
 
