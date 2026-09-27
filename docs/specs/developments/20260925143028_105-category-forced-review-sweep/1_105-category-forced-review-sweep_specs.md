@@ -1130,13 +1130,13 @@ surfaces** state the same rule and must not contradict this table.
       least as many times each as the 2026-09-10 baseline's sample count, with
       the run's model identity and effective review configuration recorded and
       identical between the two configurations. Baseline reproduction is
-      required only where the baseline document's recorded evidence fixes the
-      configuration — the command, the sample count, and the model alias it
-      records; it fixes no prompt revision, inference parameter, or immutable
-      model version, so where the run's model identity or effective review
-      configuration differs from the alias the baseline records, the comparison
-      is reported as a new original-fixture comparison under the recorded
-      configuration rather than as reproduction of the historical baseline. A single run does not
+      required only where the baseline document records a prompt revision, the
+      inference parameters, and an immutable model version. The 2026-09-10
+      baseline records only a command, a sample count, and a mutable model
+      alias, so no run against it is classified as baseline reproduction: the
+      comparison is reported, at every site this criterion governs, as a new
+      original-fixture comparison under the configuration the run itself
+      records, and no field of it is compared against the recorded alias. A single run does not
       establish comparability, because the extended fixture's added patches reach
       the model in the same review prompt as the original thirteen, and because
       identical runs on this fixture vary. The record states that no recall target and no variance ceiling are defined for this feature, so the
