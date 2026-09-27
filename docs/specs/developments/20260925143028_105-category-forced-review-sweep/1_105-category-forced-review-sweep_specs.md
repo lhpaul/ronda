@@ -272,8 +272,7 @@ findings in that one review.
   original thirteen seeded defects also reported as their own subset. That
   subset's own baseline comparability needs a repeated original-fixture run —
   the same sweep-off and sweep-on configurations as the extended-fixture
-  comparison, against the original fixture version with the historical model and
-  configuration held constant, at least as many times each as the 2026-09-10
+  comparison, against the original fixture version with the recorded baseline-comparison configuration AC8 defines, at least as many times each as the 2026-09-10
   baseline's sample count — as AC8 requires; one run, and the subset alone, do
   not restore it.
 
@@ -643,8 +642,7 @@ findings in that one review.
   separate subset, for the original thirteen seeded defects. Baseline
   comparability for that subset needs a repeated original-fixture run — the same
   sweep-off and sweep-on configurations as the extended-fixture comparison,
-  against the original fixture version with the historical model and
-  configuration held constant, at least as many times each as the 2026-09-10
+  against the original fixture version with the recorded baseline-comparison configuration AC8 defines, at least as many times each as the 2026-09-10
   baseline's sample count (AC8); the added patches reach the model in the same
   review prompt as the original thirteen, and identical runs vary, so one run
   and the subset alone do not provide it.
@@ -1128,9 +1126,17 @@ surfaces** state the same rule and must not contradict this table.
       seeded defects are reported as a separate subset alongside the extended
       fixture. Baseline comparability requires a repeated original-fixture
       comparison: the same sweep-off and sweep-on configurations as the
-      extended-fixture comparison, run against the original fixture version with
-      the historical model and configuration held constant, at least as many
-      times each as the 2026-09-10 baseline's sample count. A single run does not
+      extended-fixture comparison, run against the original fixture version, at
+      least as many times each as the 2026-09-10 baseline's sample count, with
+      the run's model identity and effective review configuration recorded and
+      identical between the two configurations. Baseline reproduction is
+      required only where the baseline document's recorded evidence fixes the
+      configuration — the command, the sample count, and the model alias it
+      records; it fixes no prompt revision, inference parameter, or immutable
+      model version, so where the run's model identity or effective review
+      configuration differs from the alias the baseline records, the comparison
+      is reported as a new original-fixture comparison under the recorded
+      configuration rather than as reproduction of the historical baseline. A single run does not
       establish comparability, because the extended fixture's added patches reach
       the model in the same review prompt as the original thirteen, and because
       identical runs on this fixture vary. The record states that no recall target and no variance ceiling are defined for this feature, so the
@@ -1506,7 +1512,7 @@ surfaces** state the same rule and must not contradict this table.
 | O2: Evidence-justified, recorded list | AC4, AC5, AC7 | The list records evidence source, counts (positive finding-instance counts, zero not allowed), counting unit, version, and revisions, each revision dated and the current version's activation date recorded; a version value is never reused for a later list (AC7), so two lists never share one and evidence keyed to a version is never mistaken for evidence about a different list. |
 | O3: Scope on the real-PR sub-theme ranking | AC4, AC6, plus the initial list in Statuses / Enum Values | The five initial categories come from the 2026-09-23 sub-theme ranking; the seeded fixture's four never-found kinds, planted-proof evidence, spec-AC-compliance, and per-finding resolution are recorded as excluded with rationales, and the seven sub-themes below the candidate boundary are named. |
 | O4: Recall evidence | AC8 | Per-run recall for both configurations against the same target, with configuration identical apart from the sweep setting; reported evidence, with no recall target defined. |
-| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; the original-thirteen subset is reported alongside the extended fixture, and baseline comparability for it needs a repeated original-fixture run — the same sweep-off and sweep-on configurations as the extended-fixture comparison, against the original fixture version with the historical model and configuration held constant, at least as many times each as the 2026-09-10 baseline's sample count — since added patches share the original thirteen's review prompt and identical runs vary; one observation is one run, read as that run's defect-weighted recall over its whole head set; recall is read against the fixture's seeded defects, so a fixture comparison is never not applicable for want of a confirmed defect, while a real-PR head set with no confirmed defect makes the variance result not applicable, supporting no claim; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
+| O5: Variance evidence | AC8, AC15(d) | Lowest, highest, sample count, and the standard deviation of per-run recall reported; sample count at least the 2026-09-10 baseline's; the original-thirteen subset is reported alongside the extended fixture, and baseline comparability for it needs a repeated original-fixture run — the same sweep-off and sweep-on configurations as the extended-fixture comparison, against the original fixture version with the recorded baseline-comparison configuration AC8 defines, at least as many times each as the 2026-09-10 baseline's sample count — since added patches share the original thirteen's review prompt and identical runs vary; one observation is one run, read as that run's defect-weighted recall over its whole head set; recall is read against the fixture's seeded defects, so a fixture comparison is never not applicable for want of a confirmed defect, while a real-PR head set with no confirmed defect makes the variance result not applicable, supporting no claim; the variance claim is read off the standard deviation, not the range width; no variance ceiling defined. |
 | O6: Precision evidence | AC9, AC10 | Sweep-off and sweep-on unexpected findings are counted; sweep-on findings are attributed per category and sweep-off findings are reported as unattributed; a strict no-tolerance test decides regression; a clean pass stays clean; the runs record their category-list version and effective review configuration (AC9), so under a revised list, or under a configuration the claimed heads did not run, the previous precision evidence cannot back a recall claim. |
 | O7: Cost evidence | AC11, AC15(d) | Model calls and elapsed time per pass, compared against the recorded per-pull-request figures; reported, with no cost ceiling applied; a real-PR comparative cost claim is read off the paired per-head differences AC15(d) defines — each head's figure reduced across that head's runs before the cross-head average, on an evidence set where both configurations carry the same run count — and a comparative benchmark cost claim off the per-run differences AC11 pairs by run position, not the standalone figures. |
 | O8: Seeds for the four unseeded themes | AC12 | One seeded case per theme. |
