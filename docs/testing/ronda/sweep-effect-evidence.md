@@ -297,20 +297,26 @@ model calls per run. The precision fixture is `harmless-session-refactor`,
 expected clean. Its per-run record is
 `{"id": "harmless-session-refactor", "expected": "clean", "clean": true, "falsePositiveCount": 0, "falsePositives": []}`.
 
+The unexpected findings below are read from each record's
+`precisionFixtures[].falsePositiveCount` — the precision pass over the precision
+fixture, which is what Use Case 4's test counts. They are **not** read from the
+record's top-level `falsePositives`, which belongs to the same leg's recall pass
+over the seeded benchmark (see [below](#recall-pass-false-positives-in-the-precision-legs)).
+
 | Arm | Run position | Unexpected findings | Fixture clean |
 | --- | --- | --- | --- |
-| Sweep off | 0 | 2 | true |
-| Sweep off | 1 | 1 | true |
-| Sweep off | 2 | 1 | true |
-| Sweep off | 3 | 1 | true |
-| Sweep off | 4 | 2 | true |
-| **Sweep off total** | | **7** | 5 of 5 clean |
-| Sweep on | 0 | 2 | true |
-| Sweep on | 1 | 2 | true |
-| Sweep on | 2 | 2 | true |
-| Sweep on | 3 | 2 | true |
+| Sweep off | 0 | 0 | true |
+| Sweep off | 1 | 0 | true |
+| Sweep off | 2 | 0 | true |
+| Sweep off | 3 | 0 | true |
+| Sweep off | 4 | 0 | true |
+| **Sweep off total** | | **0** | 5 of 5 clean |
+| Sweep on | 0 | 0 | true |
+| Sweep on | 1 | 0 | true |
+| Sweep on | 2 | 0 | true |
+| Sweep on | 3 | 0 | true |
 | Sweep on | 4 | 0 | true |
-| **Sweep on total** | | **8** | 5 of 5 clean |
+| **Sweep on total** | | **0** | 5 of 5 clean |
 
 `qualityCategories` is identical on all 10 precision runs. `comparisons` is
 empty on every precision record.
@@ -319,29 +325,68 @@ empty on every precision record.
 
 The test from the spec, applied as written:
 
-- **Clause 1 — total unexpected findings.** Sweep-on runs produced 8 unexpected
-  findings in total; sweep-off runs produced 7, across the same precision
-  fixtures and the same sample count of 5. `8 > 7`, so **clause 1 fires.**
+- **Clause 1 — total unexpected findings.** Sweep-on runs produced 0 unexpected
+  findings in total; sweep-off runs produced 0, across the same precision
+  fixtures and the same sample count of 5. `0 > 0` is false, so **clause 1
+  does not fire.**
 - **Clause 2 — a fixture that was clean under every sweep-off run.** The only
   precision fixture, `harmless-session-refactor`, was clean in 5 of 5 sweep-off
   runs and clean in 5 of 5 sweep-on runs. No fixture that stayed clean in every
   sweep-off run failed to stay clean in a sweep-on run, so **clause 2 does not
   fire.**
 
-**Precision regression result: REGRESSED.** The counts that decided it are the
-totals above: sweep-off 7 unexpected findings `[2, 1, 1, 1, 2]` against
-sweep-on 8 `[2, 2, 2, 2, 0]`.
+**Precision regression result: NOT REGRESSED.** The counts that decided it are
+the totals above: sweep-off 0 unexpected findings `[0, 0, 0, 0, 0]` against
+sweep-on 0 `[0, 0, 0, 0, 0]`, with the fixture clean in 5 of 5 runs on each arm.
 
 Unexpected findings are counted as findings, not as category attributions: a
 finding attributed to more than one category counts once toward the total. The
-test has no tolerance, and none was applied here.
+test has no tolerance, and none was applied here. With no precision-fixture
+finding on either arm, no sweep-on unexpected finding exists to attribute to a
+category and no sweep-off unexpected finding exists to report as unattributed.
+
+This result rests on one precision fixture. A single clean fixture detects a
+sweep that manufactures findings on harmless code; it cannot measure a smaller
+precision change, so NOT REGRESSED here means only that this fixture stayed
+clean on both arms.
 
 No product code implements this test; it is an operator read, recorded here.
 Under Use Case 4, the available action is to accept the result, or to record
-the regression and revise or narrow the category list. This record states the
+a regression and revise or narrow the category list. This record states the
 result and takes no action on it.
 
-### Unexpected findings, by run
+**Correction.** An earlier revision of this record reported this result as
+REGRESSED (sweep-off 7 against sweep-on 8). Those counts were the recall pass's
+false positives on the seeded benchmark, read from the wrong field, not
+unexpected findings on the precision fixture. They are kept below under their
+correct label.
+
+### Recall-pass false positives in the precision legs
+
+Each precision leg's recall pass also reviewed the seeded benchmark, and those
+passes raised findings that match no seeded defect. They are the record's
+top-level `falsePositives`. They are recall-side noise on the benchmark, not
+precision-fixture findings, and they do not enter the strict test above.
+
+| Arm | Run position | Recall-pass false positives |
+| --- | --- | --- |
+| Sweep off | 0 | 2 |
+| Sweep off | 1 | 1 |
+| Sweep off | 2 | 1 |
+| Sweep off | 3 | 1 |
+| Sweep off | 4 | 2 |
+| **Sweep off total** | | **7** |
+| Sweep on | 0 | 2 |
+| Sweep on | 1 | 2 |
+| Sweep on | 2 | 2 |
+| Sweep on | 3 | 2 |
+| Sweep on | 4 | 0 |
+| **Sweep on total** | | **8** |
+
+These totals are descriptive. No test in the spec is stated over them, and no
+regression claim is made from them.
+
+#### Recall-pass false positives, by run
 
 | Arm | Run position | Path | Line | Severity | Title |
 | --- | --- | --- | --- | --- | --- |
@@ -498,7 +543,7 @@ declaration has not been made, and no benchmark result is treated as a gate.**
 
 **What a restored gate rejects — its pass/fail contract — is a deferred
 decision**, so the declaration alone makes no benchmark result pass or fail,
-including the REGRESSED precision result recorded above. Acting on that result
+including the precision result recorded above. Acting on any benchmark result
 is a human decision that is recorded with the evidence.
 
 ## Constraints this evidence does not resolve
