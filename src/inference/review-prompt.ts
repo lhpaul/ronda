@@ -1,4 +1,4 @@
-import type { ChangedFile } from "../domain/review-pass.types.js";
+import type { ChangedFile, SweepCategory } from "../domain/review-pass.types.js";
 import type { DurabilityModeResolution } from "../review/durability-mode.js";
 
 export interface AuthoritativeDocExcerpt {
@@ -18,6 +18,14 @@ export interface BuildReviewPromptInput {
   maxAuthoritativeDocChars?: number;
   /** When present and active, append durability mode instructions to the system prompt. */
   durabilityMode?: DurabilityModeResolution;
+  /**
+   * The swept categories (#105). When present, one "## Category-forced sweep"
+   * section is appended after the durability sections so a single pass carries
+   * both modes without splitting the request. Findings are attributed to
+   * categories prompt-side by `classifyFindings`, not by the model naming one —
+   * no sweep vocabulary ever reaches a published finding.
+   */
+  sweepCategories?: SweepCategory[];
 }
 
 export interface ReviewPrompt {
@@ -115,6 +123,45 @@ function appendDurabilityModeInstructions(
   ].join("\n");
 }
 
+/**
+ * The category-forced sweep instruction (#105, AC1, AC10, AC20). The model is
+ * asked to consider each category against the changed content and to report
+ * what it genuinely finds — never to name a category, and never to manufacture
+ * a finding to satisfy one. Membership is decided afterwards by
+ * `classifyFindings` over the finding's own wording, so the section deliberately
+ * does not teach the model sweep vocabulary: a category's identifier and
+ * display label stay prompt-side input, and the finding's `title`/`body` remain
+ * the only text the review publishes.
+ */
+function appendSweepCategoryInstructions(
+  systemPrompt: string,
+  sweepCategories: SweepCategory[] | undefined,
+): string {
+  if (!sweepCategories || sweepCategories.length === 0) {
+    return systemPrompt;
+  }
+
+  const sections = sweepCategories.map((category) =>
+    [
+      `### ${category.displayLabel}`,
+      `Failure shape: ${category.failureShape}`,
+      `Context: ${category.description}`,
+    ].join("\n"),
+  );
+
+  return [
+    systemPrompt,
+    "",
+    "## Category-forced sweep",
+    "Consider each category below against the changed content. For each, report any defect you genuinely find that has that failure shape.",
+    "Producing no finding for a category is a normal, expected result. Never invent, pad, or stretch a finding to satisfy a category.",
+    "A category name is a review lens, not a label to attach: do not name, quote, or paraphrase a category, its title, or its failure shape in a finding's title or body.",
+    "A defect that fits no category below is still reported — the ordinary severity rules and the JSON output contract are unchanged, and categories neither relax nor replace them.",
+    "",
+    ...sections,
+  ].join("\n");
+}
+
 function renderDurabilityModeUserSection(
   durabilityMode: DurabilityModeResolution | undefined,
 ): string[] {
@@ -172,7 +219,10 @@ export function buildReviewPrompt(input: BuildReviewPromptInput): ReviewPrompt {
   ].join("\n");
 
   return {
-    systemPrompt: appendDurabilityModeInstructions(SYSTEM_PROMPT, input.durabilityMode),
+    systemPrompt: appendSweepCategoryInstructions(
+      appendDurabilityModeInstructions(SYSTEM_PROMPT, input.durabilityMode),
+      input.sweepCategories,
+    ),
     userPrompt,
   };
 }

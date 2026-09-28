@@ -161,6 +161,14 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   single model call when changed paths match sensitive surfaces or the operator
   forces the mode on. Activation metadata is recorded in the review summary;
   findings stay on the ordinary severity channel (no second model call).
+- **Category-forced review sweep** (`src/review/sweep-categories.ts`): off by
+  default (`RONDA_SWEEP_MODE` / `sweepMode`). When enabled it forces one review
+  pass per category of the recorded category list
+  (`docs/testing/ronda/sweep-categories.json`), so each category produces its
+  own finding or a recorded "produced no findings" outcome rather than the
+  categories competing inside one prompt. Per-category outcomes are recorded on
+  the pass record and the logs; activation and the list version appear in the
+  review summary. No finding text enters the records.
 
 ## Security
 

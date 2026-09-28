@@ -83,6 +83,41 @@
       "severity": "blocking",
       "title": "Do not publish stale SHA reviews",
       "body": "The review publishes to the event SHA even when the current head changed, creating a stale review publication."
+    },
+    {
+      "path": "src/benchmark/git-history.ts",
+      "line": 7,
+      "severity": "blocking",
+      "title": "Do not infer branch head from a list response",
+      "body": "The branch head state is reconstructed from an API list response that does not establish it, so the evidence does not support the conclusion drawn from it."
+    },
+    {
+      "path": "src/benchmark/output.ts",
+      "line": 2,
+      "severity": "important",
+      "title": "External output parsing is lossy",
+      "body": "Splitting and classifying another system's output drops items whose lines do not match the expected prefix, so parsing is lossy."
+    },
+    {
+      "path": "src/benchmark/guard.ts",
+      "line": 7,
+      "severity": "blocking",
+      "title": "Guard fails open when rules cannot be loaded",
+      "body": "The guard fails open: when the rule input cannot be loaded the check continues and allows the action instead of rejecting it."
+    },
+    {
+      "path": "src/benchmark/records.ts",
+      "line": 3,
+      "severity": "important",
+      "title": "Position-derived record identity can drift",
+      "body": "The record identity embeds the array index and a lossy alias spelling, so it drifts when records are reordered and can collide."
+    },
+    {
+      "path": "src/benchmark/credentials.ts",
+      "line": 3,
+      "severity": "blocking",
+      "title": "Credential name convention gap",
+      "body": "The camelCase credential name is not matched by the canonical credential name convention, so a guard recognizing only that form misses it."
     }
   ]
 }

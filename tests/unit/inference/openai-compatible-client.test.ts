@@ -12,13 +12,44 @@ test("a successful response returns the message content", async () => {
       baseUrl: server.url,
       modelName: "mock-model",
     });
-    const content = await client.complete(
+    const completion = await client.complete(
       { systemPrompt: "sys", userPrompt: "user" },
       new AbortController().signal,
     );
-    assert.equal(content, '{"findings":[]}');
+    assert.equal(completion.content, '{"findings":[]}');
+    // The seam's own `model` field travels through as the reported identity.
+    assert.equal(completion.reportedModel, "mock-model");
   } finally {
     await server.close();
+  }
+});
+
+test("a response without a usable model field reports no identity", async () => {
+  // Fail closed (AC8/AC9): an absent, non-string, or empty `model` is
+  // `undefined` rather than a silent backfill from the configured alias, which
+  // nothing could distinguish from a genuinely reported identifier.
+  for (const model of [undefined, 7, "", null]) {
+    const client = createOpenAiCompatibleClient({
+      apiKey: "test-key",
+      baseUrl: "https://example.test",
+      modelName: "configured-alias",
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            ...(model === undefined ? {} : { model }),
+            choices: [{ message: { content: '{"findings":[]}' } }],
+          }),
+          { status: 200 },
+        ),
+    });
+
+    const completion = await client.complete(
+      { systemPrompt: "sys", userPrompt: "user" },
+      new AbortController().signal,
+    );
+
+    assert.equal(completion.content, '{"findings":[]}');
+    assert.equal(completion.reportedModel, undefined, `model=${JSON.stringify(model)}`);
   }
 });
 

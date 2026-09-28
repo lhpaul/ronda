@@ -1,7 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildCheckRunOutput, buildReviewSummary, countBySeverity } from "../../../src/core/summary.js";
-import type { Finding } from "../../../src/domain/review-pass.types.js";
+import type {
+  Finding,
+  SweepPassRecord,
+} from "../../../src/domain/review-pass.types.js";
 
 const findings: Finding[] = [
   { path: "src/a.ts", line: 1, severity: "blocking", title: "Bug", body: "Fix it" },
@@ -121,4 +124,139 @@ test("buildCheckRunOutput names the failure reason and the re-run hint", () => {
   });
   assert.equal(output.title, "Review failed — model credential missing");
   assert.match(output.summary, /Ask for another pass with `\/ronda review`/);
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 4 — the sweep renderers (#105)
+// ---------------------------------------------------------------------------
+
+/**
+ * Two published findings: index 0 matched to two categories, index 1 matched to
+ * none. The per-category outcomes alone cannot distinguish them, so a renderer
+ * that dropped the attribution lines would still pass an outcomes-only test.
+ */
+const sweepRecord: SweepPassRecord = {
+  listVersion: "sweep-categories-v1",
+  categories: [
+    { identifier: "guard-fails-open", outcome: "produced_findings" },
+    { identifier: "external-output-parsing", outcome: "produced_findings" },
+    { identifier: "record-identity", outcome: "produced_none" },
+    { identifier: "pr-head-push-order", outcome: "not_determined" },
+  ],
+  findings: [
+    { publicationIndex: 0, categories: ["guard-fails-open", "external-output-parsing"] },
+    { publicationIndex: 1, categories: [] },
+  ],
+  uncategorizedFindingCount: 1,
+};
+
+test("buildReviewSummary states the sweep and its list version, and nothing else", () => {
+  const summary = buildReviewSummary({
+    changedFileCount: 1,
+    additions: 1,
+    deletions: 0,
+    findings,
+    unmappedFindings: [],
+    modelName: "qwen-plus",
+    durationMs: 1000,
+    trigger: "automatic",
+    malformedCount: 0,
+    coercedSeverityCount: 0,
+    duplicateCount: 0,
+    // Deliberately carries the whole record: structural typing lets a caller
+    // hand over more than `{ listVersion }`, and the renderer must read only
+    // the version. A renderer that spread the record fails here.
+    sweep: {
+      ...sweepRecord,
+      listVersion: "sweep-categories-v1",
+    } as { listVersion: string },
+  });
+
+  assert.match(summary, /### Category-forced sweep/);
+  assert.match(summary, /sweep-categories-v1/);
+  // The published review body carries no sweep vocabulary beyond the version.
+  assert.doesNotMatch(summary, /guard-fails-open/);
+  assert.doesNotMatch(summary, /produced_findings/);
+  assert.doesNotMatch(summary, /publicationIndex|finding 0/);
+});
+
+test("buildReviewSummary renders identically when the sweep is absent", () => {
+  const base = {
+    changedFileCount: 1,
+    additions: 1,
+    deletions: 0,
+    findings,
+    unmappedFindings: [],
+    modelName: "qwen-plus",
+    durationMs: 1000,
+    trigger: "automatic" as const,
+    malformedCount: 0,
+    coercedSeverityCount: 0,
+    duplicateCount: 0,
+  };
+  assert.equal(buildReviewSummary(base), buildReviewSummary(base));
+  assert.doesNotMatch(buildReviewSummary(base), /Category-forced sweep/);
+});
+
+test("buildCheckRunOutput renders the per-category record with its attribution lines", () => {
+  const output = buildCheckRunOutput({
+    outcome: "succeeded",
+    findingCounts: { blocking: 1, important: 1, nit: 0 },
+    modelName: "qwen-plus",
+    durationMs: 5000,
+    sweep: sweepRecord,
+  });
+
+  for (const category of sweepRecord.categories) {
+    assert.match(output.summary, new RegExp(`- ${category.identifier}: ${category.outcome}`));
+  }
+  // The attribution lines: index 0 names both categories, index 1 is
+  // uncategorized. An outcomes-only renderer fails here.
+  assert.match(output.summary, /- finding 0: guard-fails-open, external-output-parsing/);
+  assert.match(output.summary, /- finding 1: uncategorized/);
+  assert.match(output.summary, /Uncategorized findings: 1/);
+  // No finding text: the record deliberately carries none.
+  assert.doesNotMatch(output.summary, /Fix it|Please clean|Bug/);
+});
+
+test("buildCheckRunOutput renders the invalid-list degraded record without a list version", () => {
+  const output = buildCheckRunOutput({
+    outcome: "succeeded",
+    findingCounts: { blocking: 0, important: 0, nit: 0 },
+    modelName: "qwen-plus",
+    durationMs: 1000,
+    sweepDegraded: { kind: "sweep-did-not-run", reason: "malformed", detail: "no categories" },
+  });
+
+  assert.match(output.summary, /sweep-did-not-run/);
+  assert.match(output.summary, /Reason: malformed/);
+  // It used no list, so it may not name one — and the free-text detail stays
+  // off the surface.
+  assert.doesNotMatch(output.summary, /sweep-categories-v1/);
+  assert.doesNotMatch(output.summary, /no categories/);
+});
+
+test("buildCheckRunOutput renders the unrecognized-enablement record without the raw value", () => {
+  const output = buildCheckRunOutput({
+    outcome: "succeeded",
+    findingCounts: { blocking: 0, important: 0, nit: 0 },
+    modelName: "qwen-plus",
+    durationMs: 1000,
+    sweepDegraded: { kind: "sweep_enablement_unrecognized" },
+  });
+
+  assert.match(output.summary, /unrecognized enablement value/);
+  assert.doesNotMatch(output.summary, /sweep-categories-v1/);
+});
+
+test("buildCheckRunOutput on the failure path carries no sweep fields", () => {
+  const output = buildCheckRunOutput({
+    outcome: "failed",
+    findingCounts: { blocking: 0, important: 0, nit: 0 },
+    modelName: "qwen-plus",
+    durationMs: 1000,
+    failureReason: "model_unavailable",
+  });
+  assert.doesNotMatch(output.summary, /Category-forced sweep/);
+  assert.doesNotMatch(output.summary, /sweep-did-not-run|unrecognized enablement/);
 });

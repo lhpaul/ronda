@@ -1,6 +1,7 @@
 import type { RondaConfig } from "../config/config.types.js";
 import type { DeadlineClock } from "../core/pass-deadline.js";
 import type { ModelClient } from "../inference/model-client.js";
+import type { SweepListResult } from "../review/sweep-categories.js";
 import type { Severity } from "./severity.js";
 
 /**
@@ -206,7 +207,101 @@ export interface ReviewPassDeps {
    * nothing else keeping the event loop alive, not a product bug.
    */
   deadlineClock?: DeadlineClock;
+  /**
+   * Overrides the sweep category-list loader (#105). Absent in production,
+   * where the real, module-relative `loadSweepList` reads the committed
+   * artifact. The optional `path` is the direct-loader seam; a pass-level test
+   * cannot reach a malformed list through it alone, so this dependency is what
+   * drives the AC19 degrade path end to end — a loader returning each
+   * malformed shape, or one that throws to cover the unreadable case — with
+   * the committed artifact untouched. Same optional test-injection pattern as
+   * `deadlineClock`.
+   */
+  loadSweepList?: (options?: { path?: string }) => SweepListResult | Promise<SweepListResult>;
 }
+
+/**
+ * One swept category of the recorded list (#105). Every field is required and
+ * carries its own value — a category's description, failure shape,
+ * finding-instance count, and evidence source are never inferred from one
+ * another (AC4, AC5), so the loader validates each in its own right (AC19).
+ *
+ * `matchTerms` are lowercase literal substrings the classifier matches against
+ * a finding's own text; they are the list's classification vocabulary and are
+ * never published (AC20 attributes findings to categories, it does not quote
+ * the terms).
+ */
+export interface SweepCategory {
+  /** The evidence identifier — the name used in the source corpus. */
+  identifier: string;
+  displayLabel: string;
+  description: string;
+  failureShape: string;
+  evidenceSource: string;
+  /** Positive integer. Zero is not allowed (AC19): a category is justified by the findings behind it. */
+  findingInstanceCount: number;
+  matchTerms: string[];
+}
+
+export interface SweepCategoryList {
+  /** Non-blank scalar string, compared by exact equality; a value is never reused (AC7). */
+  version: string;
+  categories: SweepCategory[];
+}
+
+/**
+ * The per-category result code values (Statuses / Enum Values). Terminal
+ * per-pass results, not lifecycle states: a pass writes one per category when
+ * it records the pass and never transitions it afterward.
+ */
+export type SweepCategoryPassOutcome =
+  | "produced_findings"
+  | "produced_none"
+  | "not_determined";
+
+/**
+ * One published finding's attribution in the per-category pass record (AC20).
+ * Carries the finding's publication index and its category identifiers, never
+ * the finding's own text — the record is logged through `sweep_pass_record`,
+ * so it stays free of review content.
+ */
+export interface SweepFindingAttribution {
+  /** Position of the finding in the pass's published findings. */
+  publicationIndex: number;
+  /** One or more swept category identifiers, or `["uncategorized"]`. */
+  categories: string[];
+}
+
+/**
+ * AC1's per-category pass record: every category the pass reached, with what
+ * it established for each, plus every published finding's attribution (AC20).
+ */
+export interface SweepPassRecord {
+  listVersion: string;
+  categories: Array<{
+    identifier: string;
+    outcome: SweepCategoryPassOutcome;
+  }>;
+  findings: SweepFindingAttribution[];
+  uncategorizedFindingCount: number;
+}
+
+/**
+ * The two degraded records (Operational Visibility). They are distinct records
+ * rather than one record with reason values, and neither appears in the review
+ * body. Both are emitted only by a pass that reaches review execution.
+ */
+export type SweepDegradedRecord =
+  | {
+      /** AC19: the list could not be read, was empty, or was malformed. No list version is reported as used. */
+      kind: "sweep-did-not-run";
+      reason: "unreadable" | "empty" | "malformed";
+      detail: string;
+    }
+  | {
+      /** AC18: a non-empty enablement value was unrecognized. The raw value is never carried here. */
+      kind: "sweep_enablement_unrecognized";
+    };
 
 export interface ReviewPassResult {
   outcome: PassOutcome;
@@ -219,4 +314,14 @@ export interface ReviewPassResult {
   coercedSeverityCount: number;
   duplicateCount: number;
   durationMs: number;
+  /**
+   * Sweep metadata for a pass that reached review execution with the sweep
+   * enabled (AC1). Absent for a pre-review skip and for a terminal failure
+   * before review execution — those passes emit no sweep metadata of any kind.
+   * Present either as a pass record or as one of the two degraded records.
+   */
+  sweep?: {
+    record?: SweepPassRecord;
+    degraded?: SweepDegradedRecord;
+  };
 }

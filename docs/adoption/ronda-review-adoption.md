@@ -206,6 +206,7 @@ installation token instead.
 | `pass_timeout_minutes` | `10` | In-process pass budget; the job's own `timeout-minutes` is this value plus two |
 | `durability_mode` | _(empty)_ | Force durability mode `on` or `off` for the run; leave empty for automatic path rules |
 | `durability_mode_default` | _(empty)_ | Set to `on` to activate durability mode for every implementation-stage review |
+| `sweep_mode` | _(empty)_ | Force the category-forced review sweep `on` or `off` for the run; leave empty to leave the sweep off |
 | `ronda_ref` | `main` | Ref of `lhpaul/ronda` to check out and run |
 
 ## 2. Add the required secret
@@ -303,6 +304,23 @@ the mode for every implementation-stage review even when automatic path rules
 do not match. When unset, activation follows changed-path rules for webhook,
 publisher, queue/retry, and related surfaces. Mode state (`active` /
 `inactive` / `unavailable`) appears in the published review summary.
+
+`RONDA_SWEEP_MODE=on|off` forces the category-forced review sweep for a run
+(or set `sweepMode` in the config file). When unset, the sweep is off. The
+recognized enablement vocabulary is `on` / `1` / `true` and `off` / `0` /
+`false` / `default`, matched case-insensitively and ignoring surrounding
+whitespace; a blank value resolves to off. A **non-blank unrecognized** value
+also resolves to off, but degrades: enablement is resolved from the first
+non-blank source only (environment variable, then config file), so an
+unrecognized value never falls through to a lower-precedence source that would
+happen to parse. The pass records the fact that an unrecognized value was
+supplied — never the value itself, which is operator input — and records no
+category outcome. A sweep-enabled pass whose category list cannot be read also
+degrades: it records that the sweep did not run, with the reason, and reports
+no category outcome and no list version. Both degraded forms appear on the
+review check run's summary and in the logs; neither appears in the review
+body. Sweep activation and the list version appear in the published review
+summary when the sweep actually ran.
 
 When a pull request touches governed surfaces (webhook ingress, review
 publication, inference, operator config, or workflow review contract paths),

@@ -82,40 +82,5 @@
     "additions": 7,
     "deletions": 0,
     "patch": "@@ -0,0 +1,7 @@\n+export async function publishReview(eventHeadSha: string, currentHeadSha: string, publish: (sha: string) => Promise<void>): Promise<void> {\n+  if (!currentHeadSha) throw new Error(\"missing head\");\n+  await publish(eventHeadSha);\n+}\n+"
-  },
-  {
-    "path": "src/benchmark/git-history.ts",
-    "status": "added",
-    "additions": 8,
-    "deletions": 0,
-    "patch": "@@ -0,0 +1,8 @@\n+export async function branchWasHead(\n+  client: { listCommits: (branch: string) => Promise<string[]> },\n+  branch: string,\n+  sha: string,\n+): Promise<boolean> {\n+  const commits = await client.listCommits(branch);\n+  return commits.includes(sha);\n+}\n+"
-  },
-  {
-    "path": "src/benchmark/output.ts",
-    "status": "added",
-    "additions": 6,
-    "deletions": 0,
-    "patch": "@@ -0,0 +1,6 @@\n+export function classifyItems(output: string): string[] {\n+  return output\n+    .split(\"\\n\")\n+    .filter((line) => line.startsWith(\"- \"))\n+    .map((line) => line.slice(2).trim());\n+}\n+"
-  },
-  {
-    "path": "src/benchmark/guard.ts",
-    "status": "added",
-    "additions": 12,
-    "deletions": 0,
-    "patch": "@@ -0,0 +1,12 @@\n+export async function enforcePolicy(\n+  loadRules: () => Promise<string[]>,\n+  action: string,\n+): Promise<boolean> {\n+  let rules: string[] = [];\n+  try {\n+    rules = await loadRules();\n+  } catch {\n+    return true;\n+  }\n+  return rules.includes(action);\n+}\n+"
-  },
-  {
-    "path": "src/benchmark/records.ts",
-    "status": "added",
-    "additions": 4,
-    "deletions": 0,
-    "patch": "@@ -0,0 +1,4 @@\n+export function recordId(records: Array<{ name: string }>, index: number): string {\n+  const alias = records[index].name.toLowerCase().replace(/[^a-z0-9]/g, \"\");\n+  return `${index}:${alias}`;\n+}\n+"
-  },
-  {
-    "path": "src/benchmark/credentials.ts",
-    "status": "added",
-    "additions": 4,
-    "deletions": 0,
-    "patch": "@@ -0,0 +1,4 @@\n+export function describeCredential(authToken: string): string {\n+  const camelCaseToken = \"<token>\";\n+  return `credential ${authToken} resolved as ${camelCaseToken}`;\n+}\n+"
   }
 ]

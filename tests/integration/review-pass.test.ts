@@ -82,6 +82,8 @@ test("integration: a ready pull request with one finding produces exact review a
           maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
           durabilityMode: "default",
           durabilityModeDefault: false,
+          sweepMode: "off",
+          sweepModeRaw: undefined,
         },
         // A fixed clock makes durationMs deterministic (always 0) so the
         // rendered summary/check-run text is reproducible for exact assertions.
@@ -221,6 +223,8 @@ test("integration: multiple findings in the same changed file remain distinct in
           maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
           durabilityMode: "default",
           durabilityModeDefault: false,
+          sweepMode: "off",
+          sweepModeRaw: undefined,
         },
         clock: { now: () => 0, isoNow: () => "2026-01-01T00:00:00.000Z" },
         logger: { event: () => undefined },
@@ -302,6 +306,8 @@ test("integration: webhook file changes attach fetched authoritative docs to the
           maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
           durabilityMode: "default",
           durabilityModeDefault: false,
+          sweepMode: "off",
+          sweepModeRaw: undefined,
         },
         clock: { now: () => 0, isoNow: () => "2026-01-01T00:00:00.000Z" },
         logger: { event: () => undefined },

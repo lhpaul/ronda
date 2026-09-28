@@ -1,0 +1,166 @@
+{
+  "version": "sweep-categories-v1",
+  "activatedOn": "2026-09-27",
+  "countingUnit": "finding instances, not distinct defects",
+  "categories": [
+    {
+      "identifier": "pr-head-push-order",
+      "displayLabel": "State reconstruction from API evidence",
+      "description": "History or state inferred from an API response that does not establish it.",
+      "failureShape": "Which commits were ever branch heads, inferred from a response that does not establish it.",
+      "evidenceSource": "The 2026-09-23 real-PR corpus.",
+      "findingInstanceCount": 14,
+      "matchTerms": [
+        "branch heads",
+        "branch head",
+        "api response",
+        "does not establish",
+        "inferred from a response"
+      ]
+    },
+    {
+      "identifier": "credential-pattern-gap",
+      "displayLabel": "Credential pattern gap",
+      "description": "A credential or secret guard matches the canonical form but not its variants.",
+      "failureShape": "A qualified, camelCase, hyphenated, prefixed, or wrapped credential the guard's pattern does not match.",
+      "evidenceSource": "The 2026-09-23 real-PR corpus: 6 from the local reviewer and 3 from Codex, a theme both independent reviewers hit.",
+      "findingInstanceCount": 9,
+      "matchTerms": [
+        "camelcase",
+        "hyphenated",
+        "prefixed",
+        "wrapped credential",
+        "pattern does not match"
+      ]
+    },
+    {
+      "identifier": "external-output-parsing",
+      "displayLabel": "External output parsing",
+      "description": "Output from another system is split, matched, or classified lossily.",
+      "failureShape": "A reviewer body, a comment, or a command result whose items are lost, merged, or misclassified.",
+      "evidenceSource": "The 2026-09-23 real-PR corpus.",
+      "findingInstanceCount": 8,
+      "matchTerms": [
+        "reviewer body",
+        "command result",
+        "items are lost",
+        "misclassified"
+      ]
+    },
+    {
+      "identifier": "record-identity",
+      "displayLabel": "Record identity and deduplication",
+      "description": "Identity or deduplication keys collide, drift, or split.",
+      "failureShape": "A position-derived identifier, truncated text, alias spelling, or shared namespace that collides, drifts, or splits.",
+      "evidenceSource": "The 2026-09-23 real-PR corpus.",
+      "findingInstanceCount": 7,
+      "matchTerms": [
+        "position-derived identifier",
+        "truncated text",
+        "alias spelling",
+        "shared namespace",
+        "collides",
+        "drifts",
+        "splits"
+      ]
+    },
+    {
+      "identifier": "guard-fails-open",
+      "displayLabel": "Guard fails open",
+      "description": "A security or safety check is skipped rather than refused.",
+      "failureShape": "A check that continues when its input cannot be loaded or is incomplete.",
+      "evidenceSource": "The 2026-09-23 real-PR corpus.",
+      "findingInstanceCount": 5,
+      "matchTerms": [
+        "continues when its input",
+        "cannot be loaded",
+        "is incomplete",
+        "fails open"
+      ]
+    }
+  ],
+  "excludedCandidates": [
+    {
+      "identifier": "authorization-bypass-seed",
+      "displayLabel": "Seeded never-found kind: authorization bypass",
+      "rationale": "One of the seeded benchmark's four never-found kinds, unconfirmed by real-PR evidence in the 2026-09-23 corpus, so it is not a valid basis for the swept list."
+    },
+    {
+      "identifier": "data-loss-overwrite-seed",
+      "displayLabel": "Seeded never-found kind: data-loss overwrite",
+      "rationale": "One of the seeded benchmark's four never-found kinds, unconfirmed by real-PR evidence in the 2026-09-23 corpus, so it is not a valid basis for the swept list."
+    },
+    {
+      "identifier": "configuration-debug-default-seed",
+      "displayLabel": "Seeded never-found kind: configuration debug default",
+      "rationale": "One of the seeded benchmark's four never-found kinds, unconfirmed by real-PR evidence in the 2026-09-23 corpus, so it is not a valid basis for the swept list."
+    },
+    {
+      "identifier": "invalid-range-parsing-seed",
+      "displayLabel": "Seeded never-found kind: invalid range parsing",
+      "rationale": "One of the seeded benchmark's four never-found kinds, unconfirmed by real-PR evidence in the 2026-09-23 corpus, so it is not a valid basis for the swept list."
+    },
+    {
+      "identifier": "planted-proof-evidence",
+      "displayLabel": "Planted-proof evidence",
+      "rationale": "10 instances. A workflow-gate artifact of this repository's review process, not a product defect class."
+    },
+    {
+      "identifier": "spec-ac-compliance",
+      "displayLabel": "Spec-AC-compliance",
+      "rationale": "7 instances, tied with the record-identity theme and ahead of the guard-fails-open theme's 5 in the corpus sub-theme ranking. Excluded because checking it depends on a spec being present, which makes it a workflow-gate concern like planted-proof evidence rather than a defect class any reviewed pull request can carry. It may be added at a later list revision if dogfooded misses point at it."
+    },
+    {
+      "identifier": "per-finding-resolution",
+      "displayLabel": "Per-finding resolution",
+      "rationale": "4 instances: 3 from the local reviewer and 1 from Codex, the theme behind the partial_success category both reviewers hit. Excluded because four instances from a single pull request is too thin an evidence base, and a category on that basis invites manufactured findings. Recorded so it can be revisited when more evidence accumulates."
+    }
+  ],
+  "belowBoundarySubThemes": [
+    {
+      "identifier": "excerpt-sequence-boundaries",
+      "findingInstanceCount": 4,
+      "rationale": "Too few instances to justify a category; recorded so a later list revision can reconsider it if dogfooded misses point at it."
+    },
+    {
+      "identifier": "placeholder-exemption",
+      "findingInstanceCount": 3,
+      "rationale": "Too few instances to justify a category; recorded so a later list revision can reconsider it if dogfooded misses point at it."
+    },
+    {
+      "identifier": "refusal-precedence",
+      "findingInstanceCount": 3,
+      "rationale": "Too few instances to justify a category; recorded so a later list revision can reconsider it if dogfooded misses point at it."
+    },
+    {
+      "identifier": "input-validation",
+      "findingInstanceCount": 2,
+      "rationale": "Too few instances to justify a category; recorded so a later list revision can reconsider it if dogfooded misses point at it."
+    },
+    {
+      "identifier": "github-api-pagination",
+      "findingInstanceCount": 1,
+      "rationale": "Too few instances to justify a category; recorded so a later list revision can reconsider it if dogfooded misses point at it."
+    },
+    {
+      "identifier": "path-traversal",
+      "findingInstanceCount": 1,
+      "rationale": "Too few instances to justify a category; recorded so a later list revision can reconsider it if dogfooded misses point at it."
+    },
+    {
+      "identifier": "operator-usability",
+      "findingInstanceCount": 1,
+      "rationale": "Too few instances to justify a category; recorded so a later list revision can reconsider it if dogfooded misses point at it."
+    }
+  ],
+  "candidateBoundary": "The candidates considered are the sub-themes in the 2026-09-23 real-PR corpus ranking that have at least five finding instances, plus any sub-theme both independent reviewers hit (in the corpus these are credential-pattern-gap, guard-fails-open, and per-finding-resolution), plus the seeded benchmark's never-found kinds. Sub-themes ranked below that boundary are named in belowBoundarySubThemes and are outside the candidate set.",
+  "revisionHistory": [
+    {
+      "version": "sweep-categories-v1",
+      "date": "2026-09-27",
+      "motivatingEvidence": "The 2026-09-23 real-PR corpus sub-theme ranking and the seeded benchmark's never-found kinds.",
+      "priorVersion": null,
+      "summary": "Initial revision that established the list as current."
+    }
+  ]
+}
