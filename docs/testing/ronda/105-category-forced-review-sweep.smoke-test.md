@@ -212,7 +212,7 @@ value appears in any fixture or output.
 2. Repeat the same paired runs against the committed pre-extension snapshot
    (original-thirteen subset control) — `--manifest` and `--patches` point at
    `tests/fixtures/recall-benchmark/original-thirteen/`, created in
-   implementation step 9 by copying `manifest.json` and `patches.json` before
+   implementation step 10 by copying `manifest.json` and `patches.json` before
    the five new seeds were added — each configuration writing its own file:
 
    ```bash
