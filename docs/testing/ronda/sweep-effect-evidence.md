@@ -26,12 +26,14 @@ status statement required by AC17 — see
 | Original-thirteen control | `sweep-off-original-thirteen.json` | `sweep-on-original-thirteen.json` | 13 | 5 | 1 recall |
 | Paired precision | `sweep-off-precision.json` | `sweep-on-precision.json` | 18 | 5 | 1 recall + 1 precision |
 
-Commands, verbatim from the runbook (`<the recorded basis>` is the
+Commands, from the runbook with the model pinned by `RONDA_MODEL_NAME` (`<the recorded basis>` is the
 version-attestation text quoted under
 [Model identity](#model-identity-and-version-attestation), passed identically on
 every command):
 
 ```bash
+set -euo pipefail
+export RONDA_MODEL_NAME=qwen-plus-2025-12-01
 npx tsx src/cli/recall-benchmark.ts --sweep-mode off --runs 5 \
   --version-attestation "<the recorded basis>" \
   --output-file docs/testing/ronda/sweep-off-extended.json
