@@ -66,6 +66,13 @@ category on the list with `produced_findings` or `produced_none`, plus the
 uncategorized finding count. No per-category section appears in the review
 body. One review published, one check run, no push/merge.
 
+**Also verify the degraded records reach the same surfaces** (Steps 3 and 4
+below): a completing pass whose enablement value was unrecognized, or whose
+list failed validation, publishes its ordinary non-sweep review and carries its
+degraded record — the unrecognized-enablement statement, or
+`sweep-did-not-run` with the reason and no list version — in the **successful
+review check run** as well as the logs. Neither appears in the review body.
+
 ### Step 3: Enablement vocabulary and precedence
 
 **Maps to**: Acceptance Criterion 18
@@ -77,9 +84,10 @@ body. One review published, one check run, no push/merge.
 **Expected result**: `on`/`1`/`TRUE` run the sweep; `off`/`0`/`default`,
 absent, and whitespace-only run the ordinary review with no record; `banana`
 runs the ordinary review and records that the enablement value was
-unrecognized — without the raw value appearing anywhere. An unrecognized
-non-empty value at a higher-precedence source is not replaced by a recognized
-lower-precedence value (spot-check env over config file).
+unrecognized — without the raw value appearing anywhere, on the logs **and the
+successful review check run**. An unrecognized non-empty value at a
+higher-precedence source is not replaced by a recognized lower-precedence
+value (spot-check env over config file).
 
 ### Step 4: Malformed category list degrades
 
@@ -117,7 +125,8 @@ test rather than a manual repoint:
 
 **Expected result**: Both suites pass. Every malformed variant is rejected
 without throwing, and the pass-level test shows the sweep degrading to a
-complete, publishable non-sweep review with `sweep-did-not-run` logged.
+complete, publishable non-sweep review with `sweep-did-not-run` logged **and
+carried on the successful check-run output** (reason shown, no list version).
 
 ### Step 5: Pre-review skips emit no sweep metadata
 
@@ -195,11 +204,24 @@ value appears in any fixture or output.
 3. Record everything in `docs/testing/ronda/sweep-effect-evidence.md`, assembled
    from those output files — no run is hand-transcribed.
 
+Each run record carries `fixture` (resolved manifest path, `benchmarkId`, seed
+count, manifest and patch content hashes) and `configuration` (effective
+`sweepMode`, model name and version, config values, prompt fingerprint) blocks.
+Confirm before writing the evidence doc: the sweep-off and sweep-on files for a
+given leg have **equal** `fixture` blocks and `configuration` blocks differing
+only in `sweepMode` — that is what proves the arms differ only by the sweep
+setting. The original-thirteen files share the extended fixture's `benchmarkId`
+(the snapshot is a byte-identical copy) but must differ by path and content
+hash; if they do not, the control ran against the wrong inputs.
+
 **Expected result**: The evidence records per-run recall, lowest and highest
 recall, the population-standard-deviation of per-run recall, per-defect
 found/missed counts, sample count, immutable model version, reviewed target,
-run timestamps, and fixture version for both configurations; the
-original-thirteen subset is reported alongside the extended fixture; the
+run timestamps, and fixture version **and effective review configuration read
+from the runs' own identity blocks** for both configurations; the paired arms
+are shown to differ only by `sweepMode`; the
+original-thirteen subset is reported alongside the extended fixture and is
+shown to have run against its own inputs; the
 historical 2026-09-10 baseline is labeled non-comparable with no figure read
 against it; the record states no recall target and no variance ceiling are
 defined.
@@ -290,9 +312,11 @@ restored gate rejects is a deferred decision.
 Each checkbox maps to an acceptance criterion from the spec.
 
 - [ ] AC1: every sweep pass reaching review execution records per-category
-      outcomes on the AC1-assigned surfaces; skips and pre-execution failures
-      emit nothing; terminal failures after execution record `not_determined`
-      on the logs only; no record in the review body.
+      outcomes on the AC1-assigned surfaces; a degraded pass records
+      `sweep-did-not-run` or the unrecognized-enablement record on the same
+      surfaces (the successful review check run and the logs); skips and
+      pre-execution failures emit nothing; terminal failures after execution
+      record `not_determined` on the logs only; no record in the review body.
 - [ ] AC2: one review per head SHA, no PR mutation, unchanged draft-skip and
       supersede behavior with the sweep enabled.
 - [ ] AC3: review summary states sweep activation and list version; non-sweep
