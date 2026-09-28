@@ -378,7 +378,13 @@ one initial revision-history entry.
 
 **Expected result**: The tier is `fixture_only` with zero counted pull
 requests at ship time; the own-repository label and independence caveat are
-present; no real-PR effect claim appears.
+present; no real-PR effect claim appears. The record's transition rules also
+state the **list-revision restart**: a revision restarts the counted
+pull-request total at zero while the tier follows its own rule — unchanged at
+`fixture_only` and `real_pr_provisional`, demoted to `real_pr_provisional`
+from `real_pr_measured` — with the count written against the new list version
+and the prior version's count kept as the prior version's evidence rather than
+carried forward.
 
 ### Last Step: Validate & Shut Down
 
