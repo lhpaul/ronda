@@ -429,10 +429,17 @@ Each checkbox maps to an acceptance criterion from the spec.
       passes say neither.
 - [x] AC4/AC5/AC6/AC7: recorded list fields, counting unit, complete candidate
       accounting, single current version, revision history.
-- [x] AC8: committed recall/variance evidence with per-run figures, spread,
+- [ ] AC8: committed recall/variance evidence with per-run figures, spread,
       standard deviation, non-comparable baseline label, sample count ≥ 5.
-- [x] AC9: paired precision evidence with category attribution for sweep-on
-      and the strict regression result.
+      **Not met.** The figures are committed, but AC8 requires both arms to
+      share an immutable model version, and the endpoint reports only the
+      mutable `qwen-plus` alias. The run set is unattested and carries no
+      same-configuration claim.
+- [ ] AC9: paired precision evidence with category attribution for sweep-on
+      and the strict regression result. **Not met**, for the same reason as
+      AC8: the sweep-off and sweep-on precision arms cannot be shown to share
+      an immutable model version, so the strict regression result is recorded
+      but does not establish the required comparison.
 - [x] AC10: no manufactured finding per category; clean pass stays clean.
 - [x] AC11: model calls and elapsed time per pass for both configurations,
       compared against the recorded per-PR figures.
@@ -511,10 +518,18 @@ and this line updated.
 | 5 | Pass | Passes ending before the review request emit no sweep metadata; `run-review-pass` 40 / 0. |
 | 6 | Pass | Terminal failure after the review request records `not_determined` on the logs only; `run-review-pass` 40 / 0. |
 | 7 | Pass | Extended fixture is 18 seeds; fixture-response run reports `totalSeededDefects: 18`, found 17, missed 1 (`invalid-range-parsing`), false positives 0 - every seed found or missed, none invisible, and the five new seeds are all classified. Clean precision fixture `harmless-session-refactor` stays clean (`clean: true`, 0 false positives). Six-shape credential scan over the manifest, patches, both response files, and the run output: no credential-shaped hit outside the non-functional canary allowlist. |
-| 8 | Pass | Both arms 5 / 5 runs, zero failure records. Recall off-extended min 0.333 / max 0.500 / pop-SD 0.0667; on-extended min 0.389 / max 0.500 / pop-SD 0.0351. Original-thirteen control off 0.615-0.692 / pop-SD 0.0377, on 0.462-0.692 / pop-SD 0.0897. Paired arms differ only by `sweepMode`; `fixture` blocks equal across arms. Model identity is recorded as **inconclusive** (mutable alias, no immutable artifact identifier), so the run set carries no same-configuration claim. |
-| 9 | Pass | Both precision arms 5 / 5 runs, zero failure records. Every run: `harmless-session-refactor` clean, 0 false positives; sweep-on runs record `sweepListVersion: sweep-categories-v1`. Strict no-tolerance regression test stated with the counts that decided it. |
+| 8 | Incomplete | Both arms 5 / 5 runs, zero failure records. Recall off-extended min 0.333 / max 0.500 / pop-SD 0.0667; on-extended min 0.389 / max 0.500 / pop-SD 0.0351. Original-thirteen control off 0.615-0.692 / pop-SD 0.0377, on 0.462-0.692 / pop-SD 0.0897. Paired arms differ only by `sweepMode`; `fixture` blocks equal across arms. Model identity is recorded as **inconclusive** (mutable alias, no immutable artifact identifier), so the run set carries no same-configuration claim and AC8 is not met. |
+| 9 | Incomplete | Both precision arms 5 / 5 runs, zero failure records. Every run: `harmless-session-refactor` clean, 0 false positives; sweep-on runs record `sweepListVersion: sweep-categories-v1`. Strict no-tolerance regression test stated with the counts that decided it, but the arms share no attested immutable model version, so AC9 is not met and the result is not a same-configuration comparison. |
 | 10 | Pass | Model calls per pass 1 (recall arms) and 2 (precision arms) on both configurations; elapsed-time means 14.5 s / 15.8 s (recall, off / on) and 15.0 s / 15.8 s (precision, off / on), placed against the recorded per-PR baseline and stated as non-comparable. No cost ceiling stated. |
 | 11 | Pass | `sweep-categories.json` carries all seven fields per category, the counting-unit statement (finding instances, not distinct defects), 7 excluded candidates with rationale, 7 below-boundary sub-themes, one current version `sweep-categories-v1` activated 2026-09-27 with one initial revision-history entry. |
 | 12 | Pass | Tier `fixture_only`, counted pull requests `0`, list version `sweep-categories-v1`; independence caveat, own-repository label, adjudication and terminal-miss code values, and all transition rules present. `tests/unit/testing/evidence-records.test.ts` 16 pass / 0 fail. AC15's real-PR tier is deferred by construction. |
 
-**Result: PASSED.** All twelve steps pass; no step failed or was skipped.
+**Result: NOT SIGNED OFF.** Steps 1-7 and 10-12 pass; none failed or was skipped.
+Steps 8 and 9 ran to completion and their records are committed, but they are
+recorded as incomplete: AC8 and AC9 both require the two arms to share an
+immutable model version, and this endpoint exposes only the mutable `qwen-plus`
+alias. The sweep-off and sweep-on differences and the precision result are
+therefore evidence from the campaign, not a same-configuration comparison, and
+no effect of the sweep is concluded from them. AC8 and AC9 stay open until a run
+set is recorded against a provider that reports an immutable model-artifact
+identifier, or with an attestation the provider itself supplies.
