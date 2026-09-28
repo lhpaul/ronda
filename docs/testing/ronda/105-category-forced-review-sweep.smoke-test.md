@@ -153,6 +153,13 @@ review), so the per-category record is on the logs only, with every category
 the pass's request carried recorded as `not_determined`. No category the pass
 did not reach appears, and no second review is published.
 
+This step covers the failure that precedes the review becoming public. Where a
+failure lands **after** publication (`reviewPublished` guard, or the
+post-publication check-run write), the record instead carries the ordinary
+`produced_findings`/`produced_none` outcomes — the pass did classify — on the
+logs plus whatever per-category surface that write produced. The unit suite
+asserts both cases; this step exercises the pre-publication one directly.
+
 ### Step 7: New fixture seeds present and matched
 
 **Maps to**: Acceptance Criteria 12, 13, 14
