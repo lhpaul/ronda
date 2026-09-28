@@ -84,14 +84,39 @@ lower-precedence value (spot-check env over config file).
 
 **Maps to**: Acceptance Criteria 2, 19
 
-1. Point the pass at a malformed list copy (duplicate identifier, blank
-   description, zero count, or empty list — one variant is enough).
-2. Run a review pass with `RONDA_SWEEP_MODE=on`.
+There is no operator-facing list path to repoint — production loading is fixed
+to the repository artifact, and the plan adds no config key for it. The seam is
+the loader's test-only `path` option, so this step is a targeted automated
+test rather than a manual repoint:
 
-**Expected result**: The pass completes as an ordinary non-sweep review, the
-review is published per the existing flow, and the logs record
-`sweep-did-not-run` with the reason and no list version as used. The pass
-never fails and never loses publication eligibility.
+1. Run the loader/validator suite, which injects each malformed shape through
+   `loadSweepList({ path })` against a temporary copy written outside the repo
+   (never committed):
+
+   ```bash
+   npx tsx --test tests/unit/review/sweep-categories.test.ts
+   ```
+
+   Every variant AC19 names must return `{ ok: false, reason }` — unreadable
+   file, non-JSON, missing/blank version, no categories, a blank field, a zero
+   or non-integer count, missing/empty/non-string `matchTerms`, duplicate
+   identifiers.
+
+2. Run the pass-orchestration suite, which drives the AC19 branch end to end
+   through the same seam:
+
+   ```bash
+   npx tsx --test tests/unit/core/run-review-pass.test.ts
+   ```
+
+   Assert on the degrade path: with a malformed list and `sweepMode: "on"`, the
+   pass produces the ordinary non-sweep review and check run, emits
+   `sweep-did-not-run` with the reason and no list version, and neither throws
+   nor skips publication.
+
+**Expected result**: Both suites pass. Every malformed variant is rejected
+without throwing, and the pass-level test shows the sweep degrading to a
+complete, publishable non-sweep review with `sweep-did-not-run` logged.
 
 ### Step 5: Pre-review skips emit no sweep metadata
 
@@ -264,7 +289,7 @@ The following seed data must be present:
 | Sweep category list | `sweep-categories-v1`, five categories | Committed at `docs/testing/ronda/sweep-categories.json` |
 | Extended benchmark fixture | 13 original + 5 new seeded defects | Committed at `tests/fixtures/recall-benchmark/manifest.json` and `patches.json` |
 | Precision fixture | `harmless-session-refactor`, expected clean | Same manifest |
-| Malformed list variant | One malformed copy for Step 4 | Create a temporary copy outside the repo; never commit it |
+| Malformed list variant | One malformed copy for Step 4 | Injected by the unit suites through the `loadSweepList({ path })` test seam, from a temporary copy outside the repo; never committed |
 
 ---
 
