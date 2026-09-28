@@ -197,3 +197,17 @@ precisionResults.map((result) => result.summary),` with `precisionFixtures:
 equal: actual: 0, expected: 1`. Isolates `assert.equal(fixtures.length, 1)`
 (line 872) — the quality summary carries one entry per configured precision
 fixture, which is the collection every other assertion in the test addresses.
+
+## P16 — recall gate applied to the runs of a campaign
+
+**Plant**: `src/cli/recall-benchmark.ts:1204` — drop the `&& runs === 1`
+condition from `if (only !== undefined && isFailureRecord(only) === false &&
+runs === 1) {`, so the recall gate judges the first record of a multi-run
+campaign too.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+equal: actual: 1, expected: 0`. Isolates `assert.equal(campaign.exitCode, 0)`
+(line 679) — a two-run campaign whose runs fail the recall gate still exits
+zero, because per-run recall is the measurement and only a failure record may
+turn a campaign's exit code non-zero. The single-run assertion beside it
+(`assert.equal(single.exitCode, 1)`) keeps the gate itself proven.

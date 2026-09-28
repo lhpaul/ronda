@@ -1197,6 +1197,9 @@ export async function runBenchmarkCampaign(
     console.log(serialized);
   }
 
+  // A single run keeps the recall gate. In a campaign the per-run recall and
+  // false-positive counts are the measurement, so only a failure record (a run
+  // that could not complete) makes the campaign exit non-zero.
   const only = records[0];
   if (only !== undefined && isFailureRecord(only) === false && runs === 1) {
     return recallGate(only);

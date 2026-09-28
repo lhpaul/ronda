@@ -658,6 +658,29 @@ test("campaign --runs 2 writes two per-run records, each carrying both identity 
   }
 });
 
+test("the recall gate judges a single run but not the runs of a campaign", async () => {
+  const lowRecall = campaignDeps({
+    createModel: () => ({
+      modelName: "fixture:empty",
+      async complete() {
+        return { content: JSON.stringify({ findings: [] }) };
+      },
+    }),
+  });
+
+  const single = await runCampaign("gate-single", { sweepMode: "off", runs: 1 }, lowRecall);
+  const campaign = await runCampaign("gate-campaign", { sweepMode: "off", runs: 2 }, lowRecall);
+
+  // One run keeps the existing gate: nothing found is a failing result.
+  assert.equal(single.exitCode, 1);
+  // In a campaign per-run recall is the measurement, so a run that fails the
+  // gate is recorded, not turned into a non-zero exit that would abort the
+  // runbook's chain of campaign legs; only a failure record exits non-zero.
+  assert.equal(campaign.exitCode, 0);
+  assert.equal(campaign.records.length, 2);
+  assert.deepEqual(campaign.records.map(isFailure), [false, false]);
+});
+
 test("campaign gives each run its own pass deadline", async () => {
   const signals: AbortSignal[] = [];
   const abortedAtEntry: boolean[] = [];
