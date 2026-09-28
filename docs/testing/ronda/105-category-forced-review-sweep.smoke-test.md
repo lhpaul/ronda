@@ -165,10 +165,21 @@ value appears in any fixture or output.
 
 1. Run the benchmark at least 5 times with the sweep off and at least 5 times
    with the sweep on, against the same target, immutable model version, and
-   configuration apart from the sweep setting, on the extended fixture.
+   configuration apart from the sweep setting, on the extended fixture. Each
+   configuration is one command, writing its own file:
+
+   ```bash
+   npx tsx src/cli/recall-benchmark.ts --sweep-mode off --runs 5 \
+     --output-file docs/testing/ronda/sweep-off-extended.json
+   npx tsx src/cli/recall-benchmark.ts --sweep-mode on --runs 5 \
+     --output-file docs/testing/ronda/sweep-on-extended.json
+   ```
+
 2. Repeat the same paired runs against the original fixture version
-   (original-thirteen subset control).
-3. Record everything in `docs/testing/ronda/sweep-effect-evidence.md`.
+   (original-thirteen subset control), pointing `--manifest` and `--patches` at
+   the original fixture and using their own output files.
+3. Record everything in `docs/testing/ronda/sweep-effect-evidence.md`, assembled
+   from those output files — no run is hand-transcribed.
 
 **Expected result**: The evidence records per-run recall, lowest and highest
 recall, the population-standard-deviation of per-run recall, per-defect
