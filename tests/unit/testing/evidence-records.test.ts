@@ -314,6 +314,26 @@ test("the real-PR record states the ten-count rule with the non-terminal unclear
     "`unclear` outcome is not terminal",
     "AC15(b) requires `unclear` to be stated as not terminal",
   );
+  states(
+    tenCount,
+    "recorded cutoff fixed in advance, before any eligible pass's findings are\nvisible",
+    "AC15(b) requires the cohort cutoff to be fixed before any eligible pass's findings are visible",
+  );
+  states(
+    tenCount,
+    "confirmed by the recorded same-head external review",
+    "AC15(b) requires a clean result to be confirmed by the recorded same-head external review",
+  );
+  states(
+    tenCount,
+    "with no external review recorded on that\nhead is not adjudicated",
+    "AC15(b) requires a pull request with no external review recorded to be not adjudicated",
+  );
+  states(
+    tenCount,
+    "[terminal miss record](#terminal-miss-record) is complete",
+    "the terminal-condition list must include a complete terminal miss record as a terminal branch",
+  );
 });
 
 test("the real-PR record makes no real-pull-request effect claim at this tier", () => {
