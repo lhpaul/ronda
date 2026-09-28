@@ -187,7 +187,8 @@ differences, and the record states no cost ceiling applies.
 
 1. Open `docs/testing/ronda/sweep-categories.json`.
 2. Read, for each category, its identifier, display label, description,
-   failure shape, evidence source, and finding-instance count.
+   failure shape, evidence source, finding-instance count, and the
+   `matchTerms` array the deterministic classifier matches against.
 3. Read the excluded candidates, the sub-themes below the candidate boundary,
    the version, activation date, and revision history.
 
