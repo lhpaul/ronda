@@ -121,12 +121,18 @@ test rather than a manual repoint:
    Assert on the degrade path: with a malformed list and `sweepMode: "on"`, the
    pass produces the ordinary non-sweep review and check run, emits
    `sweep-did-not-run` with the reason and no list version, and neither throws
-   nor skips publication.
+   nor skips publication. Also assert the boundary: the same malformed list
+   with a failure raised **after** the failed load but **before** the review
+   request (drive the authoritative-document fetch to throw) emits no
+   `sweep-did-not-run` and no sweep metadata on any surface — the invalid-list
+   record is held pending exactly as the unrecognized-enablement record is, and
+   released only once the request is issued.
 
 **Expected result**: Both suites pass. Every malformed variant is rejected
 without throwing, and the pass-level test shows the sweep degrading to a
 complete, publishable non-sweep review with `sweep-did-not-run` logged **and
-carried on the successful check-run output** (reason shown, no list version).
+carried on the successful check-run output** (reason shown, no list version),
+while the pre-request failure of the same malformed list carries none of it.
 
 ### Step 5: Passes that end before the review request emit no sweep metadata
 
@@ -293,7 +299,9 @@ defined.
 category (or categories, or uncategorized) from the per-category record;
 sweep-off findings are unattributed; the strict no-tolerance regression test
 result is stated with the counts that decided it; the evidence records the
-category-list version and effective review configuration used.
+category-list version — read from `sweepListVersion` on each sweep-on run
+record, the same version the pass recorded for AC3 — and the effective review
+configuration used.
 
 ### Step 10: Cost campaign
 
