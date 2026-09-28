@@ -416,38 +416,38 @@ carried forward.
 
 Each checkbox maps to an acceptance criterion from the spec.
 
-- [ ] AC1: every sweep pass reaching review execution records per-category
+- [x] AC1: every sweep pass reaching review execution records per-category
       outcomes on the AC1-assigned surfaces; a degraded pass records
       `sweep-did-not-run` or the unrecognized-enablement record on the same
       surfaces (the successful review check run and the logs); skips and
       failures before the review request is issued emit nothing; terminal
       failures after the request record `not_determined` on the logs only; no
       record in the review body.
-- [ ] AC2: one review per head SHA, no PR mutation, unchanged draft-skip and
+- [x] AC2: one review per head SHA, no PR mutation, unchanged draft-skip and
       supersede behavior with the sweep enabled.
-- [ ] AC3: review summary states sweep activation and list version; non-sweep
+- [x] AC3: review summary states sweep activation and list version; non-sweep
       passes say neither.
-- [ ] AC4/AC5/AC6/AC7: recorded list fields, counting unit, complete candidate
+- [x] AC4/AC5/AC6/AC7: recorded list fields, counting unit, complete candidate
       accounting, single current version, revision history.
-- [ ] AC8: committed recall/variance evidence with per-run figures, spread,
+- [x] AC8: committed recall/variance evidence with per-run figures, spread,
       standard deviation, non-comparable baseline label, sample count ≥ 5.
-- [ ] AC9: paired precision evidence with category attribution for sweep-on
+- [x] AC9: paired precision evidence with category attribution for sweep-on
       and the strict regression result.
-- [ ] AC10: no manufactured finding per category; clean pass stays clean.
-- [ ] AC11: model calls and elapsed time per pass for both configurations,
+- [x] AC10: no manufactured finding per category; clean pass stays clean.
+- [x] AC11: model calls and elapsed time per pass for both configurations,
       compared against the recorded per-PR figures.
-- [ ] AC12/AC13: fixture seeds for the four real themes and the harder
+- [x] AC12/AC13: fixture seeds for the four real themes and the harder
       credential-pattern case with `harderThan` metadata.
-- [ ] AC14: no real or usable credential value in any evidence or fixture.
-- [ ] AC15/AC16: evidence tier labeled honestly at `fixture_only`; no real-PR
+- [x] AC14: no real or usable credential value in any evidence or fixture.
+- [x] AC15/AC16: evidence tier labeled honestly at `fixture_only`; no real-PR
       effect claim; own-repository caveat present.
-- [ ] AC17: documentation states the regression-gate status and the deferred
+- [x] AC17: documentation states the regression-gate status and the deferred
       gate contract.
-- [ ] AC18: enablement matrix behaves exactly as the spec's gate table states,
+- [x] AC18: enablement matrix behaves exactly as the spec's gate table states,
       including the unrecognized-value record without the raw value.
-- [ ] AC19: malformed or missing list degrades to a non-sweep review without
+- [x] AC19: malformed or missing list degrades to a non-sweep review without
       failing the pass or suppressing publication.
-- [ ] AC20: every published finding appears in the per-category record against
+- [x] AC20: every published finding appears in the per-category record against
       one or more categories or as uncategorized.
 
 ---
@@ -483,3 +483,29 @@ The following seed data must be present:
 - The real-PR tier (Step 12) cannot complete at implementation time by
   design — the ten-PR count accumulates over time; the record exists to keep
   the tier honest, not to promote it.
+
+---
+
+## Sign-off
+
+Executed 2026-09-28 on `feature/105-category-forced-review-sweep` at the head
+under review. Steps 1-7 and 11-12 are deterministic and were run here; Steps
+8-10 need a real model credential and were recorded as committed evidence
+(their records are the six `sweep-*.json` campaign files beside this runbook).
+
+| Step | Result (Pass/Fail/Skip) | Notes |
+| --- | --- | --- |
+| 1 | Pass | Sweep off reproduces non-sweep behavior; `tests/unit/core/run-review-pass.test.ts` 40 pass / 0 fail. |
+| 2 | Pass | Sweep enabled records per-category outcomes on both AC1 surfaces; same suite, 40 / 0. |
+| 3 | Pass | Enablement vocabulary and precedence, including the unrecognized value recorded without the raw value; same suite, 40 / 0. |
+| 4 | Pass | Malformed list degrades to a non-sweep review without failing the pass; `tests/unit/review/sweep-categories.test.ts` 25 pass / 0 fail, plus the degradation arms of `run-review-pass`. |
+| 5 | Pass | Passes ending before the review request emit no sweep metadata; `run-review-pass` 40 / 0. |
+| 6 | Pass | Terminal failure after the review request records `not_determined` on the logs only; `run-review-pass` 40 / 0. |
+| 7 | Pass | Extended fixture is 18 seeds; fixture-response run reports `totalSeededDefects: 18`, found 17, missed 1 (`invalid-range-parsing`), false positives 0 - every seed found or missed, none invisible, and the five new seeds are all classified. Clean precision fixture `harmless-session-refactor` stays clean (`clean: true`, 0 false positives). Six-shape credential scan over the manifest, patches, both response files, and the run output: no credential-shaped hit outside the non-functional canary allowlist. |
+| 8 | Pass | Both arms 5 / 5 runs, zero failure records. Recall off-extended min 0.333 / max 0.500 / pop-SD 0.0667; on-extended min 0.389 / max 0.500 / pop-SD 0.0351. Original-thirteen control off 0.615-0.692 / pop-SD 0.0377, on 0.462-0.692 / pop-SD 0.0897. Paired arms differ only by `sweepMode`; `fixture` blocks equal across arms. Model identity is recorded as **inconclusive** (mutable alias, no immutable artifact identifier), so the run set carries no same-configuration claim. |
+| 9 | Pass | Both precision arms 5 / 5 runs, zero failure records. Every run: `harmless-session-refactor` clean, 0 false positives; sweep-on runs record `sweepListVersion: sweep-categories-v1`. Strict no-tolerance regression test stated with the counts that decided it. |
+| 10 | Pass | Model calls per pass 1 (recall arms) and 2 (precision arms) on both configurations; elapsed-time means 14.5 s / 15.8 s (recall, off / on) and 15.0 s / 15.8 s (precision, off / on), placed against the recorded per-PR baseline and stated as non-comparable. No cost ceiling stated. |
+| 11 | Pass | `sweep-categories.json` carries all seven fields per category, the counting-unit statement (finding instances, not distinct defects), 7 excluded candidates with rationale, 7 below-boundary sub-themes, one current version `sweep-categories-v1` activated 2026-09-27 with one initial revision-history entry. |
+| 12 | Pass | Tier `fixture_only`, counted pull requests `0`, list version `sweep-categories-v1`; independence caveat, own-repository label, adjudication and terminal-miss code values, and all transition rules present. `tests/unit/testing/evidence-records.test.ts` 16 pass / 0 fail. AC15's real-PR tier is deferred by construction. |
+
+**Result: PASSED.** All twelve steps pass; no step failed or was skipped.

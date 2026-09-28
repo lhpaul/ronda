@@ -1,0 +1,472 @@
+[
+  {
+    "benchmarkId": "issue-15-recall-benchmark",
+    "totalSeededDefects": 13,
+    "foundSeededDefects": [
+      "expired-session-inversion",
+      "sensitive-value-exposure",
+      "cache-capacity-off-by-one",
+      "sql-interpolation",
+      "lexicographic-numeric-sort",
+      "lower-element-median",
+      "empty-word-title-casing",
+      "stale-sha-review-publication"
+    ],
+    "missedSeededDefects": [
+      "invalid-range-parsing",
+      "authorization-bypass",
+      "data-loss-overwrite",
+      "async-race-duplicate-processing",
+      "configuration-debug-default"
+    ],
+    "falsePositives": [],
+    "model": "qwen-plus",
+    "reviewedTarget": "issue-15-recall-benchmark",
+    "timestamp": "2026-09-28T14:05:59.726Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/original-thirteen/manifest.json",
+      "benchmarkId": "issue-15-recall-benchmark",
+      "seedCount": 13,
+      "manifestSha256": "1ff80de715d320db744f0b866b51df1c7501e952fce63dfa48ef60a1529eb497",
+      "patchesSha256": "e548bd03e17accf6f003d16c361c941fb26d57cddd23e2f8999443d98f0e1b61"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus",
+      "versionAttestation": "provider-reported identity only; endpoint dashscope-intl compatible-mode/v1, reported model qwen-plus, 2026-09-28; the operator configures a mutable alias and the provider exposes no immutable model-artifact identifier, so this run set carries no same-configuration claim and is recorded as inconclusive",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "42c6d53fa971f50506ea5990f2211344ea4131a3f1682f2b90e239ce8561f940",
+      "requests": [
+        {
+          "kind": "recall",
+          "reportedModel": "qwen-plus"
+        }
+      ]
+    },
+    "modelCallCount": 1,
+    "elapsedMs": 12780,
+    "originalThirteenSubset": {
+      "ids": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "invalid-range-parsing",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "async-race-duplicate-processing",
+        "configuration-debug-default",
+        "stale-sha-review-publication"
+      ],
+      "foundSeededDefects": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "stale-sha-review-publication"
+      ],
+      "missedSeededDefects": [
+        "invalid-range-parsing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "async-race-duplicate-processing",
+        "configuration-debug-default"
+      ]
+    }
+  },
+  {
+    "benchmarkId": "issue-15-recall-benchmark",
+    "totalSeededDefects": 13,
+    "foundSeededDefects": [
+      "expired-session-inversion",
+      "sensitive-value-exposure",
+      "cache-capacity-off-by-one",
+      "sql-interpolation",
+      "lexicographic-numeric-sort",
+      "lower-element-median",
+      "empty-word-title-casing",
+      "async-race-duplicate-processing",
+      "stale-sha-review-publication"
+    ],
+    "missedSeededDefects": [
+      "invalid-range-parsing",
+      "authorization-bypass",
+      "data-loss-overwrite",
+      "configuration-debug-default"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/storage.ts",
+        "line": 3,
+        "severity": "important",
+        "title": "Unsafe type assertion in updateProfile"
+      }
+    ],
+    "model": "qwen-plus",
+    "reviewedTarget": "issue-15-recall-benchmark",
+    "timestamp": "2026-09-28T14:06:12.508Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/original-thirteen/manifest.json",
+      "benchmarkId": "issue-15-recall-benchmark",
+      "seedCount": 13,
+      "manifestSha256": "1ff80de715d320db744f0b866b51df1c7501e952fce63dfa48ef60a1529eb497",
+      "patchesSha256": "e548bd03e17accf6f003d16c361c941fb26d57cddd23e2f8999443d98f0e1b61"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus",
+      "versionAttestation": "provider-reported identity only; endpoint dashscope-intl compatible-mode/v1, reported model qwen-plus, 2026-09-28; the operator configures a mutable alias and the provider exposes no immutable model-artifact identifier, so this run set carries no same-configuration claim and is recorded as inconclusive",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "42c6d53fa971f50506ea5990f2211344ea4131a3f1682f2b90e239ce8561f940",
+      "requests": [
+        {
+          "kind": "recall",
+          "reportedModel": "qwen-plus"
+        }
+      ]
+    },
+    "modelCallCount": 1,
+    "elapsedMs": 13234,
+    "originalThirteenSubset": {
+      "ids": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "invalid-range-parsing",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "async-race-duplicate-processing",
+        "configuration-debug-default",
+        "stale-sha-review-publication"
+      ],
+      "foundSeededDefects": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "async-race-duplicate-processing",
+        "stale-sha-review-publication"
+      ],
+      "missedSeededDefects": [
+        "invalid-range-parsing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "configuration-debug-default"
+      ]
+    }
+  },
+  {
+    "benchmarkId": "issue-15-recall-benchmark",
+    "totalSeededDefects": 13,
+    "foundSeededDefects": [
+      "expired-session-inversion",
+      "sensitive-value-exposure",
+      "cache-capacity-off-by-one",
+      "sql-interpolation",
+      "lexicographic-numeric-sort",
+      "lower-element-median",
+      "empty-word-title-casing",
+      "async-race-duplicate-processing",
+      "stale-sha-review-publication"
+    ],
+    "missedSeededDefects": [
+      "invalid-range-parsing",
+      "authorization-bypass",
+      "data-loss-overwrite",
+      "configuration-debug-default"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/storage.ts",
+        "line": 3,
+        "severity": "important",
+        "title": "Unsafe type assertion in profile update"
+      }
+    ],
+    "model": "qwen-plus",
+    "reviewedTarget": "issue-15-recall-benchmark",
+    "timestamp": "2026-09-28T14:06:25.744Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/original-thirteen/manifest.json",
+      "benchmarkId": "issue-15-recall-benchmark",
+      "seedCount": 13,
+      "manifestSha256": "1ff80de715d320db744f0b866b51df1c7501e952fce63dfa48ef60a1529eb497",
+      "patchesSha256": "e548bd03e17accf6f003d16c361c941fb26d57cddd23e2f8999443d98f0e1b61"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus",
+      "versionAttestation": "provider-reported identity only; endpoint dashscope-intl compatible-mode/v1, reported model qwen-plus, 2026-09-28; the operator configures a mutable alias and the provider exposes no immutable model-artifact identifier, so this run set carries no same-configuration claim and is recorded as inconclusive",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "42c6d53fa971f50506ea5990f2211344ea4131a3f1682f2b90e239ce8561f940",
+      "requests": [
+        {
+          "kind": "recall",
+          "reportedModel": "qwen-plus"
+        }
+      ]
+    },
+    "modelCallCount": 1,
+    "elapsedMs": 14112,
+    "originalThirteenSubset": {
+      "ids": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "invalid-range-parsing",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "async-race-duplicate-processing",
+        "configuration-debug-default",
+        "stale-sha-review-publication"
+      ],
+      "foundSeededDefects": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "async-race-duplicate-processing",
+        "stale-sha-review-publication"
+      ],
+      "missedSeededDefects": [
+        "invalid-range-parsing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "configuration-debug-default"
+      ]
+    }
+  },
+  {
+    "benchmarkId": "issue-15-recall-benchmark",
+    "totalSeededDefects": 13,
+    "foundSeededDefects": [
+      "expired-session-inversion",
+      "sensitive-value-exposure",
+      "cache-capacity-off-by-one",
+      "sql-interpolation",
+      "lexicographic-numeric-sort",
+      "lower-element-median",
+      "empty-word-title-casing",
+      "async-race-duplicate-processing",
+      "stale-sha-review-publication"
+    ],
+    "missedSeededDefects": [
+      "invalid-range-parsing",
+      "authorization-bypass",
+      "data-loss-overwrite",
+      "configuration-debug-default"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/storage.ts",
+        "line": 3,
+        "severity": "important",
+        "title": "Unsafe type assertion in profile update"
+      }
+    ],
+    "model": "qwen-plus",
+    "reviewedTarget": "issue-15-recall-benchmark",
+    "timestamp": "2026-09-28T14:06:39.858Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/original-thirteen/manifest.json",
+      "benchmarkId": "issue-15-recall-benchmark",
+      "seedCount": 13,
+      "manifestSha256": "1ff80de715d320db744f0b866b51df1c7501e952fce63dfa48ef60a1529eb497",
+      "patchesSha256": "e548bd03e17accf6f003d16c361c941fb26d57cddd23e2f8999443d98f0e1b61"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus",
+      "versionAttestation": "provider-reported identity only; endpoint dashscope-intl compatible-mode/v1, reported model qwen-plus, 2026-09-28; the operator configures a mutable alias and the provider exposes no immutable model-artifact identifier, so this run set carries no same-configuration claim and is recorded as inconclusive",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "42c6d53fa971f50506ea5990f2211344ea4131a3f1682f2b90e239ce8561f940",
+      "requests": [
+        {
+          "kind": "recall",
+          "reportedModel": "qwen-plus"
+        }
+      ]
+    },
+    "modelCallCount": 1,
+    "elapsedMs": 14464,
+    "originalThirteenSubset": {
+      "ids": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "invalid-range-parsing",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "async-race-duplicate-processing",
+        "configuration-debug-default",
+        "stale-sha-review-publication"
+      ],
+      "foundSeededDefects": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "async-race-duplicate-processing",
+        "stale-sha-review-publication"
+      ],
+      "missedSeededDefects": [
+        "invalid-range-parsing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "configuration-debug-default"
+      ]
+    }
+  },
+  {
+    "benchmarkId": "issue-15-recall-benchmark",
+    "totalSeededDefects": 13,
+    "foundSeededDefects": [
+      "expired-session-inversion",
+      "sensitive-value-exposure",
+      "cache-capacity-off-by-one",
+      "sql-interpolation",
+      "lexicographic-numeric-sort",
+      "lower-element-median",
+      "empty-word-title-casing",
+      "stale-sha-review-publication"
+    ],
+    "missedSeededDefects": [
+      "invalid-range-parsing",
+      "authorization-bypass",
+      "data-loss-overwrite",
+      "async-race-duplicate-processing",
+      "configuration-debug-default"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/authorization.ts",
+        "line": 2,
+        "severity": "important",
+        "title": "Inconsistent authorization logic"
+      },
+      {
+        "path": "src/benchmark/storage.ts",
+        "line": 3,
+        "severity": "important",
+        "title": "Unsafe type assertion in profile update"
+      },
+      {
+        "path": "src/benchmark/jobs.ts",
+        "line": 5,
+        "severity": "important",
+        "title": "Race condition in job processing"
+      }
+    ],
+    "model": "qwen-plus",
+    "reviewedTarget": "issue-15-recall-benchmark",
+    "timestamp": "2026-09-28T14:06:54.324Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/original-thirteen/manifest.json",
+      "benchmarkId": "issue-15-recall-benchmark",
+      "seedCount": 13,
+      "manifestSha256": "1ff80de715d320db744f0b866b51df1c7501e952fce63dfa48ef60a1529eb497",
+      "patchesSha256": "e548bd03e17accf6f003d16c361c941fb26d57cddd23e2f8999443d98f0e1b61"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus",
+      "versionAttestation": "provider-reported identity only; endpoint dashscope-intl compatible-mode/v1, reported model qwen-plus, 2026-09-28; the operator configures a mutable alias and the provider exposes no immutable model-artifact identifier, so this run set carries no same-configuration claim and is recorded as inconclusive",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "42c6d53fa971f50506ea5990f2211344ea4131a3f1682f2b90e239ce8561f940",
+      "requests": [
+        {
+          "kind": "recall",
+          "reportedModel": "qwen-plus"
+        }
+      ]
+    },
+    "modelCallCount": 1,
+    "elapsedMs": 14891,
+    "originalThirteenSubset": {
+      "ids": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "invalid-range-parsing",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "async-race-duplicate-processing",
+        "configuration-debug-default",
+        "stale-sha-review-publication"
+      ],
+      "foundSeededDefects": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "stale-sha-review-publication"
+      ],
+      "missedSeededDefects": [
+        "invalid-range-parsing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "async-race-duplicate-processing",
+        "configuration-debug-default"
+      ]
+    }
+  }
+]
