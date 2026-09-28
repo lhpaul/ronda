@@ -225,8 +225,6 @@ beside them:
 - **Real-PR evidence tier**: [`ronda/sweep-real-pr-evidence.md`](ronda/sweep-real-pr-evidence.md) —
   the operator-maintained evidence-tier record, count, caveats, adjudication
   code values, and transition rules.
-- **Category list**: [`ronda/sweep-categories.json`](ronda/sweep-categories.json) —
-  the recorded category list the sweep runs against and the counts accrue under.
 - **Campaign records**: [`ronda/sweep-off-*.json`](ronda/) and
   [`ronda/sweep-on-*.json`](ronda/) — the raw per-run records the evidence
   document reads, six files across the three legs.
