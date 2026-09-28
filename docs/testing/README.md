@@ -210,6 +210,25 @@ rm -f /tmp/smoke-test*.mjs && rm -rf /tmp/smoke-screenshots
 
 ---
 
+## Ronda smoke test runbooks and evidence
+
+Runbooks live under `docs/testing/ronda/`, one per feature, named
+`[issue]-[slug].smoke-test.md`. Evidence documents the runbooks produce sit
+beside them:
+
+- **Runbook**: [`ronda/105-category-forced-review-sweep.smoke-test.md`](ronda/105-category-forced-review-sweep.smoke-test.md) —
+  the category-forced review sweep; exercises the sweep's per-category records,
+  the degraded enablement paths, the category list, and the evidence documents.
+- **Benchmark-effect evidence**: [`ronda/sweep-effect-evidence.md`](ronda/sweep-effect-evidence.md) —
+  the sweep-off/sweep-on recall, variance, precision, and cost campaign, with
+  the AC17 regression-gate statement as its single authoritative home.
+- **Real-PR evidence tier**: [`ronda/sweep-real-pr-evidence.md`](ronda/sweep-real-pr-evidence.md) —
+  the operator-maintained evidence-tier record, count, caveats, adjudication
+  code values, and transition rules.
+- **Campaign records**: [`ronda/sweep-off-*.json`](ronda/) and
+  [`ronda/sweep-on-*.json`](ronda/) — the raw per-run records the evidence
+  document reads, six files across the three legs.
+
 ## References
 
 - **Smoke test process and output format**: [Smoke Test Protocol](../workflow/development-workflow/protocols/04-smoke-test-protocol.md)
