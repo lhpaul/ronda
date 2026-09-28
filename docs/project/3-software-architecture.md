@@ -162,13 +162,17 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   forces the mode on. Activation metadata is recorded in the review summary;
   findings stay on the ordinary severity channel (no second model call).
 - **Category-forced review sweep** (`src/review/sweep-categories.ts`): off by
-  default (`RONDA_SWEEP_MODE` / `sweepMode`). When enabled it forces one review
-  pass per category of the recorded category list
-  (`docs/testing/ronda/sweep-categories.json`), so each category produces its
-  own finding or a recorded "produced no findings" outcome rather than the
-  categories competing inside one prompt. Per-category outcomes are recorded on
-  the pass record and the logs; activation and the list version appear in the
-  review summary. No finding text enters the records.
+  default (`RONDA_SWEEP_MODE` / `sweepMode`). When enabled it appends a section
+  to the pass's system prompt that asks the model to consider each category of
+  the recorded category list (`docs/testing/ronda/sweep-categories.json`)
+  against the changed content, within the same single model call: it adds no
+  extra pass or request, and the one-pass-per-SHA contract is unchanged.
+  Categories are review lenses, not labels, and a category with nothing to
+  report is a normal result. Per-category outcomes are derived after the call by
+  classifying each published finding's own wording against the list, so a
+  category with no matching finding is recorded as "produced no findings".
+  Outcomes are recorded on the pass record and the logs; activation and the list
+  version appear in the review summary. No finding text enters the records.
 
 ## Security
 
