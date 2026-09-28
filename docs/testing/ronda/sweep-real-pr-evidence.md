@@ -1,7 +1,7 @@
 # Real-PR evidence record — category-forced review sweep
 
 Issue: [#105](https://github.com/lhpaul/ronda/issues/105) (epic #52).
-Companion documents: [`sweep-categories.json`](sweep-categories.json) (the
+Companion documents: `sweep-categories.json` under this directory (the
 category list this record's counts accrue under),
 [`sweep-effect-evidence.md`](sweep-effect-evidence.md) (the seeded-fixture
 evidence), [`105-category-forced-review-sweep.smoke-test.md`](105-category-forced-review-sweep.smoke-test.md)
@@ -202,14 +202,26 @@ row below when it happens.
 
 `real_pr_measured` is assigned only when at least ten counted pull requests
 exist under the current recorded category list version. The eligible cohort is
-**closed before adjudication**, and every pull request in it must reach a
+the pull requests that carried a sweep-enabled review under that version up to a
+**recorded cutoff fixed in advance, before any eligible pass's findings are
+visible**. The cutoff and the eligible heads are recorded before those passes'
+review results are observed, and the cohort is closed before adjudication, so it
+cannot be chosen after seeing outcomes. Every pull request in it must reach a
 terminal adjudication before the label is assigned. An adjudication is terminal
 only when every compared finding carries `ronda_miss`, `ronda_better`,
 `duplicate`, or a Ronda-only outcome (`ronda_only`) or a Ronda finding rejected
 outcome (`ronda_rejected`), or when the clean result `clean_agreement` is
-confirmed. An `unclear` outcome is not terminal, because the dependency
-contract defines it as needing more human review before it can be used as
-quality evidence — so a pull request whose compared findings carry an `unclear`
+confirmed by the recorded same-head external review, or when the head's
+[terminal miss record](#terminal-miss-record) is complete: `sweep_enabled_miss`
+and `external_review_miss` recorded together,
+plus `sweep_off_miss` where a recorded sweep-off control is among the head's
+compared reviewers. A pull request with no external review recorded on that
+head is not adjudicated, whether or not it carried findings, so a head holding
+only Ronda findings never counts; and one whose external review alone was clean
+but which carried a finding from a compared reviewer is not adjudicated until
+those findings receive terminal outcomes too. An `unclear` outcome is not
+terminal, because the dependency contract defines it as needing more human
+review before it can be used as quality evidence — so a pull request whose compared findings carry an `unclear`
 outcome is not adjudicated, and ten such pull requests do not reach the label.
 
 ## Claim admissibility at the current tier
