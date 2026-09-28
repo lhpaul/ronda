@@ -488,10 +488,19 @@ The following seed data must be present:
 
 ## Sign-off
 
-Executed 2026-09-28 on `feature/105-category-forced-review-sweep` at the head
-under review. Steps 1-7 and 11-12 are deterministic and were run here; Steps
-8-10 need a real model credential and were recorded as committed evidence
-(their records are the six `sweep-*.json` campaign files beside this runbook).
+Executed 2026-09-28 against the feature, not against the evidence pull request
+that carries this runbook. Tested commit: `6bb5d37b3510f29acbe3e78012e983d1143a60f0`
+on `feature/105-category-forced-review-sweep` (#118). Steps 1-7 and 11-12 are
+deterministic and were run at that commit; the suite counts and the
+fixture-response figures below are that commit's. Steps 8-10 need a real model
+credential and were recorded as committed evidence (their records are the six
+`sweep-*.json` campaign files beside this runbook).
+
+The evidence pull request (#119) ships documents and data only, so its own head
+has nothing for these steps to execute. This sign-off attests the tested commit
+above; it is not current-head evidence for the evidence pull request, and a
+change to the feature after that commit needs the deterministic steps re-run
+and this line updated.
 
 | Step | Result (Pass/Fail/Skip) | Notes |
 | --- | --- | --- |
