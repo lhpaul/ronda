@@ -1,0 +1,199 @@
+# Planted-violation proofs — #105
+
+Recorded for PR #118 per REVIEW.md Workflow Policy checklist item 4 and the
+implementation plan. Each proof: plant location (file:line), fail
+command/outcome, restore, pass command/outcome.
+
+Scope: the seventeen assertions this PR adds to
+`tests/unit/cli/recall-benchmark.test.ts` under
+`campaign attributes each precision finding under AC9 independently of the
+recall pass` (line 848) — the coverage that answers the two review findings
+routed against the precision sweep records and the per-request prompt
+identity. The pre-existing credential-scanner suite (`P1`–`P14`,
+`the credential scan fails on a planted canary and passes once it is
+removed, per shape` at line 1201) is unchanged by this PR and is not re-proved
+here; the plan's scenario-7 canary proof already covers it.
+
+Both commands below are identical, run from the repository root:
+
+```bash
+./node_modules/.bin/tsx --test \
+  --test-name-pattern="campaign attributes each precision finding" \
+  tests/unit/cli/recall-benchmark.test.ts
+```
+
+Unplanted outcome (`**Pass**` for every proof): `ℹ pass 1`, `ℹ fail 0`.
+
+## P1 — precision record classifies the recall pass's findings
+
+**Plant**: `src/cli/recall-benchmark.ts:1013` — replace
+`...classifySweepFindings(result.findings, list),` with
+`...classifySweepFindings(pass.findings, list),` so the per-fixture record is
+built from the recall pass's findings instead of the precision request's own.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+equal: actual: 13, expected: 1` — the precision record's
+`uncategorizedFindingCount` becomes the recall pass's count. Isolates the
+independence of the two classifications
+(`assert.equal(precisionRecord.uncategorizedFindingCount, 1)`, line 889).
+
+## P2 — precision request's own fingerprint omitted
+
+**Plant**: `src/cli/recall-benchmark.ts:1045-1047` — delete the
+`...(result.promptFingerprint !== undefined ? { promptFingerprint: … } : {})`
+spread from the precision entry of `requests[]`.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy
+value: actual: undefined, expected: true`. Isolates
+`assert.ok(onRequests[1].promptFingerprint)` (line 914).
+
+## P3 — sweep section not stripped from the prompt fingerprint
+
+**Plant**: `src/cli/recall-benchmark.ts:770-773` — replace the marker
+truncation with `return sha256Hex(\`${prompt.systemPrompt}\n${prompt.userPrompt}\`);`
+so `fingerprintPrompt` hashes the swept system prompt.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+deep-equal: actual: [ '128da42b…', 'abaa2c96…' ], expected: [ '1f76380e…',
+'41593c7c…' ]` — the two arms stop agreeing, because the sweep section is the
+only difference between them. Isolates the arm-equality deep-equal of
+`promptFingerprint` across sweep-off and sweep-on (line 922).
+
+## P4 — precision per-fixture record not published
+
+**Plant**: `src/cli/recall-benchmark.ts:1015-1021` — delete the `console.error(
+JSON.stringify({ event: "sweep_pass_record", runIndex,
+...result.summary.sweepPassRecord }))` call.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+equal: actual: 1, expected: 2` — only the recall pass's line remains on the
+`benchmark-output` surface. Isolates `assert.equal(published.length, 2)`
+(line 930).
+
+## P5 — sweep-off run admitted to the per-fixture record
+
+**Plant**: `src/cli/recall-benchmark.ts:1009-1014` — change the guard to
+`if (list !== undefined || context.options.quality) {` and default the
+`listVersion`/classification to a synthetic list when `list` is absent.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+equal: actual: true, expected: false`. Isolates
+`assert.equal("sweepPassRecord" in offFixtures[0], false)` (line 903) — the
+sweep-off arm must publish no per-fixture record.
+
+## P6 — precision per-fixture record never assigned
+
+**Plant**: `src/cli/recall-benchmark.ts:1011-1014` — replace the whole
+`result.summary.sweepPassRecord = { … }` assignment with `void
+result.findings;`.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy
+value: actual: undefined, expected: true`. Isolates `assert.ok(precisionRecord)`
+(line 882).
+
+## P7 — precision record carries a different list version
+
+**Plant**: `src/cli/recall-benchmark.ts:1012` — replace `listVersion:
+list.version,` with `listVersion: \`${list.version}-planted\`,`.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+equal: actual: 'sweep-categories-v1-planted', expected: 'sweep-categories-v1'`.
+Isolates `assert.equal(precisionRecord.listVersion, recalled.listVersion)`
+(line 883) — one list, one version, across both request kinds.
+
+## P8 — precision entries dropped from the request identity list
+
+**Plant**: `src/cli/recall-benchmark.ts:1042` — replace
+`...precisionResults.map((result, index) => ({` with
+`...precisionResults.slice(0, 0).map((result, index) => ({`.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+equal: actual: 1, expected: 2`. Isolates `assert.equal(onRequests.length, 2)`
+(line 912).
+
+## P9 — precision entry reuses the recall fingerprint
+
+**Plant**: `src/cli/recall-benchmark.ts:1045-1047` — replace
+`result.promptFingerprint` with `pass.promptFingerprint` in the precision
+entry's spread.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly
+unequal to: actual: '1f76380e…', expected: '1f76380e…'`. Isolates
+`assert.notEqual(onRequests[0].promptFingerprint,
+onRequests[1].promptFingerprint)` (line 915) — each request's entry must
+reflect that request's own prompt.
+
+## P10 — recall stderr line gains a seventh key
+
+**Plant**: `src/cli/recall-benchmark.ts:1074` — insert `plantedExtra: 1,` into
+the recall `sweep_pass_record` object literal.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+deep-equal: actual: [ 'categories', 'event', 'findings', 'listVersion',
+'plantedExtra', 'runIndex', 'uncategorizedFindingCount' ], expected: [
+'categories', 'event', 'findings', 'listVersion', 'runIndex',
+'uncategorizedFindingCount' ]`. Isolates `assert.deepEqual(keySets[0], […])`
+(line 932).
+
+## P11 — precision stderr line gains a seventh key
+
+**Plant**: `src/cli/recall-benchmark.ts:1017-1019` — insert `plantedExtra: 1,`
+into the precision `sweep_pass_record` object literal.
+
+**Fail**: same deep-equal failure as P10, on the precision line. Together
+P10 and P11 isolate both halves of the schema check: P10 breaks the recall
+line's key set (`keySets[0]`, line 932), P11 breaks the precision line's —
+which only the final `assert.deepEqual(keySets[1], keySets[0])` (line 940)
+catches, since `keySets[1]` is otherwise never compared to a literal. Remove
+either plant and its line matches the six-key literal again.
+
+## P12 — precision per-category outcomes copied from the recall pass
+
+**Plant**: `src/cli/recall-benchmark.ts:1013` — after the
+`classifySweepFindings(result.findings, list)` spread, add `categories:
+classifySweepFindings(pass.findings, list).categories,` so the per-category
+outcomes are the recall pass's.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+deep-equal: actual: [ 'produced_findings', 'produced_findings',
+'produced_none', 'produced_findings', 'produced_findings' ], expected: [
+'produced_none', 'produced_none', 'produced_none', 'produced_none',
+'produced_none' ]`. Isolates `assert.notDeepEqual(precisionRecord.categories,
+recalled.categories)` (line 898) — each request records its own per-category
+outcome.
+
+## P13 — recall request's own fingerprint omitted
+
+**Plant**: `src/cli/recall-benchmark.ts:1037-1039` — delete the
+`...(pass.promptFingerprint !== undefined ? { promptFingerprint: … } : {})`
+spread from the recall entry of `requests[]`.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy
+value: actual: undefined, expected: true`. Isolates
+`assert.ok(onRequests[0].promptFingerprint)` (line 913), the pairing that
+proves P2 and P9 fail for the reason stated rather than because the whole
+array is malformed.
+
+## P14 — sweep-off recall record admitted
+
+**Plant**: `src/cli/recall-benchmark.ts:1082` — replace `sweep: sweepRecord,`
+with a synthetic record stand-in, `sweep: sweepRecord ?? ({ listVersion:
+"planted", categories: [], findings: [], uncategorizedFindingCount: 0 } as
+typeof sweepRecord),`.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+equal: actual: true, expected: false`. Isolates
+`assert.equal("sweepPassRecord" in offRecord, false)` (line 904) — a
+sweep-off run publishes no recall-side record either, not only no per-fixture
+record.
+
+## P15 — per-fixture summaries dropped from the quality summary
+
+**Plant**: `src/cli/recall-benchmark.ts:1093` — replace `precisionFixtures:
+precisionResults.map((result) => result.summary),` with `precisionFixtures:
+[],`.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+equal: actual: 0, expected: 1`. Isolates `assert.equal(fixtures.length, 1)`
+(line 872) — the quality summary carries one entry per configured precision
+fixture, which is the collection every other assertion in the test addresses.

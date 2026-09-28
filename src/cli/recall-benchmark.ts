@@ -158,6 +158,14 @@ export interface BenchmarkRequestIdentity {
   fixtureId?: string;
   /** That response's provider-reported identity, absent when the endpoint reported none. */
   reportedModel?: string;
+  /**
+   * SHA-256 over *this request's* own composed prompt with the sweep section
+   * excluded. Each request composes separately — the recall prompt and every
+   * precision prompt carry their own title and patch set — so a change to one
+   * only must still move the record. The run-level `promptFingerprint` above
+   * cannot see that: it hashes the recall template alone.
+   */
+  promptFingerprint?: string;
 }
 
 /** The configuration facts a run records before its inference — everything but the per-request identities. */
@@ -207,6 +215,15 @@ export interface PrecisionFixtureSummary {
   clean: boolean;
   falsePositiveCount: number;
   falsePositives: FindingSummary[];
+  /**
+   * AC9's per-category record for *this* fixture's own findings — the precision
+   * request's sweep outcome, recorded independently of the recall pass's, so a
+   * sweep-on precision finding is attributed to the category (or categories, or
+   * uncategorized) recorded for it. Present only on a sweep-on run, which alone
+   * ran a list; a sweep-off run's findings are reported as unattributed by its
+   * absence.
+   */
+  sweepPassRecord?: SweepPassRecord;
 }
 
 export type ComparisonAdjudicationOutcome =
@@ -298,6 +315,8 @@ export interface RecallBenchmarkRun {
   findings: Finding[];
   /** That response's provider-reported identity; absent when the endpoint reported none. */
   reportedModel?: string;
+  /** SHA-256 over this request's own composed prompt, sweep section excluded. */
+  promptFingerprint?: string;
 }
 
 export interface CliOptions {
@@ -364,9 +383,12 @@ async function runRecallPass(input: RunRecallBenchmarkInput): Promise<RecallBenc
     reviewedTarget: input.reviewedTarget,
     timestamp: input.timestamp,
   });
-  return completion.reportedModel === undefined
-    ? { summary, findings: parsed.findings }
-    : { summary, findings: parsed.findings, reportedModel: completion.reportedModel };
+  return {
+    summary,
+    findings: parsed.findings,
+    promptFingerprint: fingerprintPrompt(prompt),
+    ...(completion.reportedModel !== undefined ? { reportedModel: completion.reportedModel } : {}),
+  };
 }
 
 export async function runRecallBenchmark(
@@ -375,10 +397,17 @@ export async function runRecallBenchmark(
   return (await runRecallPass(input)).summary;
 }
 
-/** A precision pass's summary plus the identity only its own response can report. */
+/**
+ * A precision pass's summary plus the identity only its own response can report:
+ * its findings, because AC9's per-fixture sweep classification reads the
+ * findings' own wording, and `promptFingerprint`, because only this pass
+ * composed this prompt.
+ */
 interface PrecisionFixtureRun {
   summary: PrecisionFixtureSummary;
+  findings: Finding[];
   reportedModel?: string;
+  promptFingerprint?: string;
 }
 
 async function runPrecisionPass(input: RunPrecisionFixtureInput): Promise<PrecisionFixtureRun> {
@@ -395,9 +424,12 @@ async function runPrecisionPass(input: RunPrecisionFixtureInput): Promise<Precis
     fixture: input.fixture,
     findings: parsed.findings,
   });
-  return completion.reportedModel === undefined
-    ? { summary }
-    : { summary, reportedModel: completion.reportedModel };
+  return {
+    summary,
+    findings: parsed.findings,
+    promptFingerprint: fingerprintPrompt(prompt),
+    ...(completion.reportedModel !== undefined ? { reportedModel: completion.reportedModel } : {}),
+  };
 }
 
 export async function runPrecisionFixture(
@@ -719,6 +751,28 @@ function buildPromptFingerprint(
   return sha256Hex(`${prompt.systemPrompt}\n${prompt.userPrompt}`);
 }
 
+/** Where `appendSweepCategoryInstructions` appends its block — the section's own heading. */
+const SWEEP_SECTION_MARKER = "\n\n## Category-forced sweep";
+
+/**
+ * One request's own fingerprint, over the prompt that request actually composed
+ * (`buildReviewPrompt`'s return shape) with the sweep section stripped, so the
+ * two arms of the same request agree by construction. Per request rather than
+ * per run: the recall prompt and each precision prompt carry their own title and
+ * patch set, so a change to one only must still move its own entry, which the
+ * run-level `configuration.promptFingerprint` — recall template alone — cannot
+ * see.
+ *
+ * The sweep block is a pure suffix of `systemPrompt`, so truncating at the
+ * marker yields exactly the un-swept prompt without re-composing it.
+ */
+function fingerprintPrompt(prompt: ReturnType<typeof buildReviewPrompt>): string {
+  const markerIndex = prompt.systemPrompt.indexOf(SWEEP_SECTION_MARKER);
+  const systemPrompt =
+    markerIndex === -1 ? prompt.systemPrompt : prompt.systemPrompt.slice(0, markerIndex);
+  return sha256Hex(`${systemPrompt}\n${prompt.userPrompt}`);
+}
+
 /**
  * Everything about a run that does not depend on a response. The per-request
  * identities are layered on top, so the success record and the failure record
@@ -918,15 +972,21 @@ async function runOneCampaignRun(
         ? await Promise.all(
             context.manifest.precisionFixtures.map((fixture): Promise<PrecisionFixtureRun> =>
               context.options.precisionResponsePath
-                ? Promise.resolve({
-                    summary: classifyPrecisionFixture({
-                      fixture,
-                      findings: parsedResponseFindings(
+                ? Promise.resolve(
+                    ((): PrecisionFixtureRun => {
+                      // The offline seam issues no request, so it records no
+                      // prompt identity — but it does carry the findings it parsed,
+                      // which AC9's per-fixture attribution still needs.
+                      const findings = parsedResponseFindings(
                         context.options.precisionResponsePath as string,
                         fixture.changedFiles,
-                      ),
-                    }),
-                  })
+                      );
+                      return {
+                        summary: classifyPrecisionFixture({ fixture, findings }),
+                        findings,
+                      };
+                    })(),
+                  )
                 : runPrecisionPass({
                     fixture,
                     model,
@@ -937,6 +997,30 @@ async function runOneCampaignRun(
             ),
           )
         : [];
+
+    // AC9: each precision request's own findings are classified against the same
+    // list, independently of the recall pass's, so a sweep-on precision finding is
+    // attributed to the category (or categories, or uncategorized) recorded for it
+    // — and a sweep-off run's is reported unattributed by this record's absence.
+    // Logged like the recall pass's (AC20's benchmark-output surface), identifiers
+    // and indices only: the same key set as the recall line, so the two surfaces
+    // stay one schema. The fixture's identity is not a field of the record — it is
+    // carried by the JSON, where the record sits under its `precisionFixtures` entry.
+    if (list !== undefined) {
+      precisionResults.forEach((result) => {
+        result.summary.sweepPassRecord = {
+          listVersion: list.version,
+          ...classifySweepFindings(result.findings, list),
+        };
+        console.error(
+          JSON.stringify({
+            event: "sweep_pass_record",
+            runIndex,
+            ...result.summary.sweepPassRecord,
+          }),
+        );
+      });
+    }
 
     const configuration: BenchmarkConfigurationIdentity = {
       ...buildConfigurationBase({
@@ -950,11 +1034,17 @@ async function runOneCampaignRun(
       requests: [
         {
           kind: "recall",
+          ...(pass.promptFingerprint !== undefined
+            ? { promptFingerprint: pass.promptFingerprint }
+            : {}),
           ...(pass.reportedModel !== undefined ? { reportedModel: pass.reportedModel } : {}),
         },
         ...precisionResults.map((result, index) => ({
           kind: "precision" as const,
           fixtureId: context.manifest.precisionFixtures?.[index]?.id ?? "",
+          ...(result.promptFingerprint !== undefined
+            ? { promptFingerprint: result.promptFingerprint }
+            : {}),
           ...(result.reportedModel !== undefined ? { reportedModel: result.reportedModel } : {}),
         })),
       ],

@@ -432,6 +432,25 @@ function campaignDeps(overrides: Partial<BenchmarkCampaignDeps> = {}): Benchmark
   };
 }
 
+/**
+ * A double that answers the request it was actually sent: the recall prompt with
+ * `passing`, every precision prompt with `precision-noisy`. The default
+ * `createFixtureModel("passing")` answers both with the same body, which is fine
+ * for a run's own record but hides whether a per-request record was built from
+ * that request's own response.
+ */
+function createPerRequestModel(): ModelClient {
+  return {
+    modelName: "fixture:per-request",
+    async complete(prompt) {
+      const name = prompt.userPrompt.includes("Recall benchmark")
+        ? "passing"
+        : "precision-noisy";
+      return { content: readFileSync(fixturePath(`model-responses/${name}.json`), "utf8") };
+    },
+  };
+}
+
 function outputPath(label: string): string {
   return join(mkdtempSync(join(tmpdir(), `ronda-bench-${label}-`)), "summary.json");
 }
@@ -824,6 +843,101 @@ test("campaign publishes the per-category record on stderr as well as in the JSO
   // A sweep-off run publishes nothing, so the assertion above is the sweep-on
   // arm's alone.
   assert.equal("sweepPassRecord" in offRecord, false);
+});
+
+test("campaign attributes each precision finding under AC9 independently of the recall pass", async () => {
+  const lines: string[] = [];
+  const spy = mock.method(console, "error", (...args: unknown[]) => {
+    lines.push(args.map((value) => String(value)).join(" "));
+  });
+
+  // One endpoint, two requests, two different responses. `campaignDeps`'s default
+  // double answers every request with `passing`, which would hand the precision
+  // request the recall pass's own seventeen findings; the campaign's per-request
+  // records only mean something once the double answers the request it was sent.
+  const perRequestDeps = campaignDeps({ createModel: () => createPerRequestModel() });
+
+  let onRecord: Record<string, unknown>;
+  let offRecord: Record<string, unknown>;
+  try {
+    onRecord = (await runCampaign("quality-on", { sweepMode: "on", quality: true }, perRequestDeps))
+      .records[0];
+    offRecord = (await runCampaign("quality-off", { sweepMode: "off", quality: true }, perRequestDeps))
+      .records[0];
+  } finally {
+    spy.mock.restore();
+  }
+
+  const fixtures = onRecord.precisionFixtures as Array<Record<string, unknown>>;
+  assert.equal(fixtures.length, 1);
+
+  const precisionRecord = fixtures[0].sweepPassRecord as {
+    listVersion: string;
+    categories: Array<{ identifier: string; outcome: string }>;
+    findings: Array<{ publicationIndex: number; categories: string[] }>;
+    uncategorizedFindingCount: number;
+  };
+  const recalled = onRecord.sweepPassRecord as typeof precisionRecord;
+
+  assert.ok(precisionRecord);
+  assert.equal(precisionRecord.listVersion, recalled.listVersion);
+
+  // The fixture double's sole finding on the precision fixture's own path carries
+  // none of the list's terms, so the precision request records it uncategorized
+  // and every category produced none — the recall pass's own outcomes are
+  // different, which is what makes this record the precision request's alone.
+  assert.equal(precisionRecord.uncategorizedFindingCount, 1);
+  assert.deepEqual(
+    precisionRecord.findings,
+    [{ publicationIndex: 0, categories: [] }],
+  );
+  assert.deepEqual(
+    precisionRecord.categories.map((category) => category.outcome),
+    recalled.categories.map(() => "produced_none"),
+  );
+  assert.notDeepEqual(precisionRecord.categories, recalled.categories);
+
+  // A sweep-off run ran no list, so it publishes no per-fixture record at all —
+  // its precision findings are reported as unattributed by that absence.
+  const offFixtures = offRecord.precisionFixtures as Array<Record<string, unknown>>;
+  assert.equal("sweepPassRecord" in offFixtures[0], false);
+  assert.equal("sweepPassRecord" in offRecord, false);
+
+  // Both the recall and the precision request carry their own prompt identity, and
+  // the two differ: each composed its own prompt, so one changing alone still moves
+  // the record it belongs to.
+  const onRequests = (onRecord.configuration as {
+    requests: Array<{ kind: string; promptFingerprint?: string }>;
+  }).requests;
+  assert.equal(onRequests.length, 2);
+  assert.ok(onRequests[0].promptFingerprint);
+  assert.ok(onRequests[1].promptFingerprint);
+  assert.notEqual(onRequests[0].promptFingerprint, onRequests[1].promptFingerprint);
+
+  // Per request and arm-independent: the sweep section is stripped from the
+  // fingerprint, so the two arms record the same value for the same request.
+  const offRequests = (offRecord.configuration as {
+    requests: Array<{ kind: string; promptFingerprint?: string }>;
+  }).requests;
+  assert.deepEqual(
+    onRequests.map((request) => request.promptFingerprint),
+    offRequests.map((request) => request.promptFingerprint),
+  );
+
+  // The precision request logs its own record on the same surface as the recall
+  // pass's, under exactly the same key set — one schema, not two.
+  const published = lines.filter((line) => line.includes('"event":"sweep_pass_record"'));
+  assert.equal(published.length, 2);
+  const keySets = published.map((line) => Object.keys(JSON.parse(line) as object).sort());
+  assert.deepEqual(keySets[0], [
+    "categories",
+    "event",
+    "findings",
+    "listVersion",
+    "runIndex",
+    "uncategorizedFindingCount",
+  ]);
+  assert.deepEqual(keySets[1], keySets[0]);
 });
 
 // ---------------------------------------------------------------------------
