@@ -211,12 +211,17 @@ terminal adjudication before the label is assigned. An adjudication is terminal
 only when every compared finding carries `ronda_miss`, `ronda_better`,
 `duplicate`, or a Ronda-only outcome (`ronda_only`) or a Ronda finding rejected
 outcome (`ronda_rejected`), or when the clean result `clean_agreement` is
-confirmed, or when the head's [terminal miss record](#terminal-miss-record) is
-complete: `sweep_enabled_miss` and `external_review_miss` recorded together,
+confirmed by the recorded same-head external review, or when the head's
+[terminal miss record](#terminal-miss-record) is complete: `sweep_enabled_miss`
+and `external_review_miss` recorded together,
 plus `sweep_off_miss` where a recorded sweep-off control is among the head's
-compared reviewers. An `unclear` outcome is not terminal, because the dependency
-contract defines it as needing more human review before it can be used as
-quality evidence — so a pull request whose compared findings carry an `unclear`
+compared reviewers. A pull request with no external review recorded on that
+head is not adjudicated, whether or not it carried findings, so a head holding
+only Ronda findings never counts; and one whose external review alone was clean
+but which carried a finding from a compared reviewer is not adjudicated until
+those findings receive terminal outcomes too. An `unclear` outcome is not
+terminal, because the dependency contract defines it as needing more human
+review before it can be used as quality evidence — so a pull request whose compared findings carry an `unclear`
 outcome is not adjudicated, and ten such pull requests do not reach the label.
 
 ## Claim admissibility at the current tier
