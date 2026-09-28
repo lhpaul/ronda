@@ -216,7 +216,8 @@ attestation that the endpoint pins the snapshot; re-running the campaign would
 not change that. The figures below are campaign evidence, not a
 same-configuration claim, and they are not a claim that the sweep had an effect:
 see [What the recall evidence shows](#what-the-recall-evidence-shows), which
-finds no consistent overall recall effect.
+finds no consistent overall recall difference, and treats every between-arm
+comparison as inconclusive.
 
 ## Recall evidence (AC8)
 
@@ -344,8 +345,8 @@ Counts are out of the 5 runs of the leg, read from each record's
 
 ### What the recall evidence shows
 
-- **Overall recall: no consistent effect of the sweep is shown, in either
-  direction.** The mean recall difference (sweep on minus sweep off) is
+- **Overall recall: inconclusive, and no consistent difference is observed in
+  either direction.** The mean recall difference (sweep on minus sweep off) is
   +0.033333 on the extended fixture, −0.015385 on the original-thirteen
   control, and −0.044444 on the recall pass of the precision legs: positive on one leg,
   negative on the other two. In defects per run that is +0.6,
@@ -360,7 +361,7 @@ Counts are out of the 5 runs of the leg, read from each record's
   0.388889–0.444444, and the original-thirteen control's
   sweep-on range is 0.461538–0.615385 against sweep-off
   0.461538–0.692308.
-- **Spread: no consistent effect either.** The population SD of per-run recall
+- **Spread: inconclusive, and no consistent difference either.** The population SD of per-run recall
   moves 0.027217 → 0.088889 on the extended fixture (wider),
   0.078446 → 0.061538 on the original-thirteen control (narrower), and
   0.035136 → 0.064788 on the recall pass of the precision legs (wider). The
@@ -376,13 +377,14 @@ Counts are out of the 5 runs of the leg, read from each record's
   recall improvement nor a recall loss, nor a change in variance, is supported.
   What five runs can show is a large, repeatable, seed-specific change, and
   there is one (next point).
-- **The one clear seed-level effect is `guard-fails-open`.** It was found in 5
+- **The one large seed-level difference observed is `guard-fails-open`.** It was found in 5
   of 5 sweep-on runs on the extended fixture and 5 of 5 on the precision legs
   (10 of 10), and in 0 of 10 sweep-off runs. That is the largest
-  repeatable seed-level change in these tables. It shows the sweep can
-  bring out a finding on a seeded defect that matches one of its categories,
-  on a fixture from Ronda's own repository; it says nothing about real pull
-  requests. `api-evidence-state-reconstruction` moves 0/5 → 2/5 on the
+  repeatable seed-level change in these tables. It is an observation, not an
+  attributed effect: the arms are not an admissible same-configuration
+  comparison, so model drift between the arms can explain any between-arm
+  difference here, this one included. It comes from a fixture in Ronda's own
+  repository and says nothing about real pull requests. `api-evidence-state-reconstruction` moves 0/5 → 2/5 on the
   extended fixture and 0/5 → 3/5 on the precision legs, and
   `stale-sha-review-publication` moves 3/5 → 5/5 on the extended fixture, 4/5 →
   5/5 on the control, and stays 5/5 on the precision legs; these are smaller
@@ -473,7 +475,11 @@ The test from the spec, applied as written:
   sweep-off run failed to stay clean in a sweep-on run, so **clause 2 does not
   fire.**
 
-**Precision regression result: NOT REGRESSED.** The counts that decided it are
+**Precision regression result: computed as NOT REGRESSED, reported as
+inconclusive.** The strict test does not fire on these records, but the arms are
+not an admissible same-configuration comparison, so the reading carries no
+comparison weight until the endpoint pin is attested. The counts that decided it
+are
 the totals above: sweep-off 0 unexpected findings `[0, 0, 0, 0, 0]` against
 sweep-on 0 `[0, 0, 0, 0, 0]`, with the fixture clean in 5 of 5 runs on the sweep-off arm and 5 of 5 on the sweep-on arm.
 
@@ -488,8 +494,8 @@ an uncategorized count of 0.
 
 This result rests on one precision fixture. A single clean fixture detects a
 sweep that manufactures findings on harmless code; it cannot measure a smaller
-precision change, so NOT REGRESSED here means only that this fixture stayed
-clean on both arms.
+precision change, so the computed reading here means only that this fixture
+stayed clean on both arms.
 
 No product code implements this test; it is an operator read, recorded here.
 Under Use Case 4, the available action is to accept the result, or to record
@@ -645,8 +651,8 @@ Per-arm figures for each leg, read from the same records:
 
 Both configurations' figures are recorded above. The paired means are of
 opposite sign across legs (+1489.6, −988.4, and −206.2 ms) and are small against the
-run-to-run spread within each arm, so the sweep shows no consistent elapsed-time
-effect. The largest single figure, 23071 ms, is a sweep-on extended run (position 1), the same run
+run-to-run spread within each arm, so no consistent elapsed-time difference is observed, and the
+comparison is inconclusive. The largest single figure, 23071 ms, is a sweep-on extended run (position 1), the same run
 that found 11 of 18; without that position the leg's paired mean would be +53.25 ms, against +1489.6 ms with it. The
 six legs appear to have run concurrently against one provider endpoint (see
 [Provenance](#provenance)), so these figures were likely taken under shared
@@ -728,7 +734,7 @@ is a human decision that is recorded with the evidence.
   dated snapshot, reported consistently on every request, with the provider's
   naming as the only basis for treating it as frozen. AC8 and AC9 stay open on
   that point.
-- **A 5-run sample cannot resolve small effects.** The campaign shows one clear
-  seed-level effect (`guard-fails-open`) and no consistent overall recall,
-  variance, or elapsed-time effect; it does not show that the sweep leaves
+- **A 5-run sample cannot resolve small effects.** The campaign observed one large
+  seed-level difference (`guard-fails-open`), not an attributed effect, and no
+  consistent overall recall, variance, or elapsed-time difference; it does not show that the sweep leaves
   recall unchanged either.
