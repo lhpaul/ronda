@@ -429,18 +429,18 @@ Each checkbox maps to an acceptance criterion from the spec.
       passes say neither.
 - [x] AC4/AC5/AC6/AC7: recorded list fields, counting unit, complete candidate
       accounting, single current version, revision history.
-- [x] AC8: committed recall/variance evidence with per-run figures, spread,
+- [ ] AC8: committed recall/variance evidence with per-run figures, spread,
       standard deviation, non-comparable baseline label, sample count ≥ 5.
-      Met on the qualified reading recorded in `sweep-effect-evidence.md`: all
-      40 requests report the dated provider snapshot `qwen-plus-2025-12-01`
-      the operator configured, the arms differ only in `sweepMode`, and the
-      operator's recorded basis states that the snapshot's frozen status rests
-      on the provider's naming and is not independently verified. The evidence
-      reports no consistent recall or variance effect of the sweep.
-- [x] AC9: paired precision evidence with category attribution for sweep-on
-      and the strict regression result. Met on the same qualified reading as
-      AC8. The strict result is NOT REGRESSED: 0 unexpected findings on both
-      arms, `harmless-session-refactor` clean in 5 of 5 runs on each arm.
+      **Not met.** The figures are committed on the dated provider snapshot
+      `qwen-plus-2025-12-01`, but AC8 requires both arms to share an immutable
+      model version, and the operator's recorded basis says the snapshot's
+      frozen status rests on the provider's naming and is not independently
+      verified. Open until the endpoint's pin is attested.
+- [ ] AC9: paired precision evidence with category attribution for sweep-on
+      and the strict regression result. **Not met**, for the same reason as
+      AC8. The strict result is recorded as NOT REGRESSED (0 unexpected findings
+      on both arms, `harmless-session-refactor` clean in 5 of 5 runs each), but
+      it is not a same-configuration comparison.
 - [x] AC10: no manufactured finding per category; clean pass stays clean.
 - [x] AC11: model calls and elapsed time per pass for both configurations,
       compared against the recorded per-PR figures.
@@ -492,7 +492,8 @@ The following seed data must be present:
   (`qwen-plus-2025-12-01`), reported identically on every request. Its frozen
   status is not independently verified: the recorded attestation says it rests
   on the provider's dated-snapshot naming, and no provider-signed attestation
-  or artifact hash exists. The same-configuration claim holds at that strength.
+  or artifact hash exists. No same-configuration claim is made, and AC8 and AC9
+  stay open on that point.
 - The campaign is 5 runs per arm. It shows one clear seed-level effect and no
   consistent overall recall, variance, or elapsed-time effect; it cannot rule
   small effects in or out, and recall figures count only findings the lexical
@@ -537,24 +538,22 @@ and this line updated.
 | 5 | Pass | Passes ending before the review request emit no sweep metadata; `run-review-pass` 40 / 0. |
 | 6 | Pass | Terminal failure after the review request records `not_determined` on the logs only; `run-review-pass` 40 / 0. |
 | 7 | Pass | Extended fixture is 18 seeds; fixture-response run reports `totalSeededDefects: 18`, found 17, missed 1 (`invalid-range-parsing`), false positives 0 - every seed found or missed, none invisible, and the five new seeds are all classified. Clean precision fixture `harmless-session-refactor` stays clean (`clean: true`, 0 false positives). Six-shape credential scan over the manifest, patches, both response files, and the run output: no credential-shaped hit outside the non-functional canary allowlist. |
-| 8 | Pass | Both arms 5 / 5 runs on every leg, zero failure records. Recall off-extended 0.389-0.444 / pop-SD 0.0272, on-extended 0.389-0.611 / pop-SD 0.0889; original-thirteen control off 0.462-0.692 / pop-SD 0.0784, on 0.462-0.615 / pop-SD 0.0615. Paired arms differ only by `sweepMode`; `fixture` blocks equal across arms. All 40 requests report `qwen-plus-2025-12-01`, one identical attestation on all 30 records ("frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified"). Pairing judged admissible on that qualified basis, so the same-configuration claim holds at the provider-naming strength only, and frozen status is not independently verified. Result: no consistent recall or variance effect of the sweep (sweep-on is not uniformly higher; 5 runs cannot resolve small effects); one clear seed-level effect, `guard-fails-open` 0 of 10 sweep-off against 10 of 10 sweep-on. |
-| 9 | Pass | Both precision arms 5 / 5 runs, zero failure records. Every run: `harmless-session-refactor` clean, `falsePositiveCount` 0; sweep-on runs record `sweepListVersion: sweep-categories-v1`. Strict no-tolerance test: clause 1 (total unexpected findings) sweep-on 0 against sweep-off 0, not `>`, does not fire; clause 2 (fixture clean in every sweep-off run but not in every sweep-on run) 5 of 5 against 5 of 5, does not fire. Result NOT REGRESSED, same qualified same-configuration basis as Step 8. The recall pass's own false positives (sweep-off 5, sweep-on 7 on the precision legs) are a different field and do not enter the test. |
+| 8 | Incomplete | Both arms 5 / 5 runs on every leg, zero failure records. Recall off-extended 0.389-0.444 / pop-SD 0.0272, on-extended 0.389-0.611 / pop-SD 0.0889; original-thirteen control off 0.462-0.692 / pop-SD 0.0784, on 0.462-0.615 / pop-SD 0.0615. Paired arms differ only by `sweepMode`; `fixture` blocks equal across arms. All 40 requests report `qwen-plus-2025-12-01`, one identical attestation on all 30 records ("frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified"). The pairing is not admissible as a same-configuration comparison: frozen status is not independently verified, so AC8 is not met. Result: no consistent recall or variance effect of the sweep (sweep-on is not uniformly higher; 5 runs cannot resolve small effects); one clear seed-level effect, `guard-fails-open` 0 of 10 sweep-off against 10 of 10 sweep-on. |
+| 9 | Incomplete | Both precision arms 5 / 5 runs, zero failure records. Every run: `harmless-session-refactor` clean, `falsePositiveCount` 0; sweep-on runs record `sweepListVersion: sweep-categories-v1`. Strict no-tolerance test: clause 1 (total unexpected findings) sweep-on 0 against sweep-off 0, not `>`, does not fire; clause 2 (fixture clean in every sweep-off run but not in every sweep-on run) 5 of 5 against 5 of 5, does not fire. Result NOT REGRESSED, but the arms carry no same-configuration claim (same basis as Step 8), so AC9 is not met. The recall pass's own false positives (sweep-off 5, sweep-on 7 on the precision legs) are a different field and do not enter the test. |
 | 10 | Pass | Model calls per pass 1 (recall legs) and 2 (precision legs), identical on both configurations (paired difference 0). Elapsed mean per pass, sweep off / sweep on: extended 14.3 s / 15.8 s, original-thirteen 13.3 s / 12.4 s, precision 14.7 s / 14.5 s (paired means +1489.6, −988.4, −206.2 ms, opposite in sign: no consistent elapsed effect; the six legs appear to have run concurrently, first records within 11 ms, so figures are likely under shared load). The recorded cost baseline holds no Ronda pass cost, so there is no baseline figure to compare against. No cost ceiling stated. |
 | 11 | Pass | `sweep-categories.json` carries all seven fields per category, the counting-unit statement (finding instances, not distinct defects), 7 excluded candidates with rationale, 7 below-boundary sub-themes, one current version `sweep-categories-v1` activated 2026-09-27 with one initial revision-history entry. |
 | 12 | Pass | Tier `fixture_only`, counted pull requests `0`, list version `sweep-categories-v1`; independence caveat, own-repository label, adjudication and terminal-miss code values, and all transition rules present. `tests/unit/testing/evidence-records.test.ts` 16 pass / 0 fail. AC15's real-PR tier is deferred by construction. |
 
-**Result: SIGNED OFF, with one stated qualification.** Steps 1-12 pass; none
-failed or was skipped. AC8 and AC9 are ticked on the reading recorded in
-`sweep-effect-evidence.md` under "Admissibility of the pairing": every request
-in the campaign reports the same dated provider snapshot the operator
-configured, and the arms differ only in `sweepMode`, so the pairing is
-admissible and the same-configuration claim is supported. The qualification is
-that the snapshot's frozen status rests on the provider's dated-snapshot naming
-and is not independently verified; the attestation says so itself, and a
-reviewer who requires independent verification should treat AC8 and AC9 as
-open on that point alone. The campaign's results are not a claimed benefit: it
-shows no consistent effect of the sweep on overall recall, spread, or elapsed
-time, one clear seed-level effect (`guard-fails-open`), and a strict precision
-result of NOT REGRESSED (0 against 0 unexpected findings). No recall target or
-variance ceiling is defined for the feature, so none of these figures passes or
-fails it.
+**Result: NOT SIGNED OFF.** Steps 1-7 and 10-12 pass; none failed or was
+skipped. Steps 8 and 9 ran to completion and their records are committed, but
+they are recorded as incomplete: AC8 and AC9 require the two arms to share an
+immutable model version. Every request in the campaign reports the same dated
+provider snapshot `qwen-plus-2025-12-01` and the arms differ only in
+`sweepMode`, but the operator's recorded basis says the snapshot's frozen status
+rests on the provider's naming and is not independently verified, and the
+runbook admits the comparison only when the operator has recorded that the
+endpoint pins a frozen artifact. AC8 and AC9 stay open until an operator or
+provider attestation of that pin is recorded. The campaign shows no consistent
+effect of the sweep on overall recall, spread, or elapsed time, one clear
+seed-level effect (`guard-fails-open`), and a strict precision result of NOT
+REGRESSED (0 against 0 unexpected findings); none of it is a claimed benefit.

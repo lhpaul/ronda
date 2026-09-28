@@ -194,23 +194,26 @@ has two parts, and they are met to different degrees:
 
 - *Every request's reported value matches* the recorded identity: met without
   qualification, 40 of 40 requests.
-- *The operator has recorded the pin*: the operator recorded that a
+- *The operator has recorded the pin*: **not met.** The operator recorded that a
   provider-published dated snapshot identifier was configured explicitly on
   every leg, and recorded in the same sentence that the frozen status of that
   snapshot rests on the provider's naming and is not independently verified.
-  This document reads that as satisfying the clause in its qualified form. The
-  operator pinned the run to a dated snapshot rather than to the alias, recorded
-  the pin on every record, and disclosed the limit of it. The rule asks for the
-  operator's record, not for independent verification, and this is that record.
-  A reader who requires independent verification would read the clause as not
-  met; nothing recorded here could satisfy that reader.
+  That is a record that a dated name was configured, not a record that the
+  endpoint pins a frozen artifact behind it, which is what the rule requires. No
+  provider-signed attestation or artifact hash is recorded, and the records
+  cannot distinguish a provider that resolves the snapshot from one that echoes
+  the name back.
 
-**Conclusion.** The pairing is admissible, and an AC8/AC9 same-configuration
-claim is supported at the strength the attestation states: both arms of every
-leg ran the same prompt, parameters, and fixture against one provider-named
-dated snapshot, and the arms differ only in `sweepMode`. That claim is a claim
-about configuration. It is not a claim that the sweep had an effect: see
-[What the recall evidence shows](#what-the-recall-evidence-shows), which
+**Conclusion.** The pairing is **not admissible** as an AC8/AC9
+same-configuration comparison, and AC8 and AC9 stay open. What is established is
+narrower: both arms of every leg ran the same prompt, parameters, and fixture
+against one provider-named dated snapshot, every request reported that name, and
+the arms differ only in `sweepMode`. What is not established is that the
+snapshot is a frozen artifact. Closing the gap needs an operator or provider
+attestation that the endpoint pins the snapshot; re-running the campaign would
+not change that. The figures below are campaign evidence, not a
+same-configuration claim, and they are not a claim that the sweep had an effect:
+see [What the recall evidence shows](#what-the-recall-evidence-shows), which
 finds no consistent overall recall effect.
 
 ## Recall evidence (AC8)
@@ -718,10 +721,11 @@ is a human decision that is recorded with the evidence.
   count accumulates over time, and nothing in this document may be read as a
   real-PR effect claim.
 - **The frozen status of the model snapshot is unverified.** The configuration
-  is a same-configuration one at the strength stated under
+  is not established as a same-configuration one; see
   [Model identity](#model-identity-and-version-attestation): a provider-named
   dated snapshot, reported consistently on every request, with the provider's
-  naming as the only basis for treating it as frozen.
+  naming as the only basis for treating it as frozen. AC8 and AC9 stay open on
+  that point.
 - **A 5-run sample cannot resolve small effects.** The campaign shows one clear
   seed-level effect (`guard-fails-open`) and no consistent overall recall,
   variance, or elapsed-time effect; it does not show that the sweep leaves
