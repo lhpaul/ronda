@@ -213,20 +213,29 @@ value appears in any fixture or output.
 
 Each run record carries `fixture` (resolved manifest path, `benchmarkId`, seed
 count, manifest and patch content hashes) and `configuration` (effective
-`sweepMode`, model name and version, config values, prompt fingerprint) blocks.
+`sweepMode`, the provider-reported immutable model version alongside the
+configured model name, config values, prompt fingerprint) blocks.
 Confirm before writing the evidence doc: the sweep-off and sweep-on files for a
 given leg have **equal** `fixture` blocks and `configuration` blocks differing
 only in `sweepMode` — that is what proves the arms differ only by the sweep
 setting. The original-thirteen files share the extended fixture's `benchmarkId`
 (the snapshot is a byte-identical copy) but must differ by path and content
-hash; if they do not, the control ran against the wrong inputs.
+hash; if they do not, the control ran against the wrong inputs. Read the model
+version from the block's provider-reported field, never from the configured
+alias: the alias is mutable, and a block whose version field restates it — or
+that silently omits the field — is the case this check exists to catch. If the
+endpoint reports no version, the block says so explicitly; record that in the
+evidence rather than substituting the alias, since an unverifiable model
+version does not support the AC8/AC9 same-configuration requirement.
 
 **Expected result**: The evidence records per-run recall, lowest and highest
 recall, the population-standard-deviation of per-run recall, per-defect
 found/missed counts, sample count, immutable model version, reviewed target,
 run timestamps, and fixture version **and effective review configuration read
 from the runs' own identity blocks** for both configurations; the paired arms
-are shown to differ only by `sweepMode`; the
+are shown to differ only by `sweepMode`; the model version read from the blocks
+is the provider-reported one, with the unavailable case recorded as unavailable
+rather than backfilled from the configured alias; the
 original-thirteen subset is reported alongside the extended fixture and is
 shown to have run against its own inputs; the
 historical 2026-09-10 baseline is labeled non-comparable with no figure read
