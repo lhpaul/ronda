@@ -295,7 +295,14 @@ and is
 shown to have run against its own inputs; the
 historical 2026-09-10 baseline is labeled non-comparable with no figure read
 against it; the record states no recall target and no variance ceiling are
-defined.
+defined; and the record carries **AC17's regression-gate statement** — that the
+seeded benchmark is not a regression gate until the AC12/AC13 seeds exist, that
+the operator may declare the extended fixture ready to serve as a gate basis
+once they do with the declaration recorded (Use Case 5), and that what a
+restored gate rejects is a deferred decision, so the declaration makes no
+benchmark result pass or fail. `sweep-effect-evidence.md` is this statement's
+single authoritative home; `sweep-real-pr-evidence.md` (Step 12) does not also
+carry it.
 
 ### Step 9: Precision campaign
 
@@ -364,16 +371,14 @@ one initial revision-history entry.
 
 ### Step 12: Real-PR evidence record is at the honest tier
 
-**Maps to**: Acceptance Criteria 15, 16, 17
+**Maps to**: Acceptance Criteria 15, 16
 
 1. Open `docs/testing/ronda/sweep-real-pr-evidence.md`.
 2. Read the tier label, counted-pull-request total, and the caveats.
 
 **Expected result**: The tier is `fixture_only` with zero counted pull
 requests at ship time; the own-repository label and independence caveat are
-present; no real-PR effect claim appears; the doc states the seeded benchmark
-is not a regression gate until the AC12/AC13 seeds exist, and that what a
-restored gate rejects is a deferred decision.
+present; no real-PR effect claim appears.
 
 ### Last Step: Validate & Shut Down
 
