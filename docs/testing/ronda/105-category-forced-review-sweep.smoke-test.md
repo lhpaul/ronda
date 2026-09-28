@@ -213,20 +213,27 @@ value appears in any fixture or output.
 
 Each run record carries `fixture` (resolved manifest path, `benchmarkId`, seed
 count, manifest and patch content hashes) and `configuration` (effective
-`sweepMode`, the provider-reported immutable model version alongside the
-configured model name, config values, prompt fingerprint) blocks.
+`sweepMode`, each inference request's own provider-reported model identity
+alongside the configured model name, the version-attestation basis, config
+values, prompt fingerprint) blocks.
 Confirm before writing the evidence doc: the sweep-off and sweep-on files for a
 given leg have **equal** `fixture` blocks and `configuration` blocks differing
 only in `sweepMode` — that is what proves the arms differ only by the sweep
 setting. The original-thirteen files share the extended fixture's `benchmarkId`
 (the snapshot is a byte-identical copy) but must differ by path and content
-hash; if they do not, the control ran against the wrong inputs. Read the model
-version from the block's provider-reported field, never from the configured
-alias: the alias is mutable, and a block whose version field restates it — or
-that silently omits the field — is the case this check exists to catch. If the
-endpoint reports no version, the block says so explicitly; record that in the
-evidence rather than substituting the alias, since an unverifiable model
-version does not support the AC8/AC9 same-configuration requirement.
+hash; if they do not, the control ran against the wrong inputs. On the model
+identity: read each request's own reported value from the record, never the
+configured alias and never a single value carried over from another request —
+the alias is mutable, and the precision fixtures run concurrently, so a
+shared-client "last response" value can belong to a different fixture. A block
+that restates the alias, omits the field, or shows differing reported values
+across the run set is the case this check exists to catch: record it as
+**unattested**, and report the comparison as inconclusive — the run set then
+supports no same-configuration claim, so do not write one. Verify the
+version-attestation basis is recorded alongside it: the reported identity is
+evidence of what the endpoint returned, not proof it is immutable, so the
+comparison is admissible only when the operator has recorded that the endpoint
+pins a frozen model artifact and every request's reported value matches it.
 
 **Expected result**: The evidence records per-run recall, lowest and highest
 recall, the population-standard-deviation of per-run recall, per-defect
@@ -234,8 +241,12 @@ found/missed counts, sample count, immutable model version, reviewed target,
 run timestamps, and fixture version **and effective review configuration read
 from the runs' own identity blocks** for both configurations; the paired arms
 are shown to differ only by `sweepMode`; the model version read from the blocks
-is the provider-reported one, with the unavailable case recorded as unavailable
-rather than backfilled from the configured alias; the
+is each request's own provider-reported one — never the configured alias and
+never a single value carried across requests — with the unavailable,
+alias-restating, or run-set-inconsistent case recorded as unattested rather
+than backfilled, and the version-attestation basis recorded next to it, so a
+run set without one is reported as an inconclusive comparison carrying no
+same-configuration claim; the
 original-thirteen subset is reported alongside the extended fixture and is
 shown to have run against its own inputs; the
 historical 2026-09-10 baseline is labeled non-comparable with no figure read
