@@ -128,24 +128,35 @@ without throwing, and the pass-level test shows the sweep degrading to a
 complete, publishable non-sweep review with `sweep-did-not-run` logged **and
 carried on the successful check-run output** (reason shown, no list version).
 
-### Step 5: Pre-review skips emit no sweep metadata
+### Step 5: Passes that end before the review request emit no sweep metadata
 
 **Maps to**: Acceptance Criterion 1
 
 1. Trigger an automatic pass on a draft pull request.
 2. Trigger an automatic pass on a head whose check run already exists.
+3. Run a sweep-enabled pass that fails **after the changed files are read but
+   before the review request is issued** — an authoritative-document fetch that
+   raises a GitHub error is the natural fixture, since that fetch sits between
+   `readChangedFiles` and `deps.model.complete`. A missing model credential or a
+   config load error exercises the same rule one stage earlier.
 
-**Expected result**: Both skips are indistinguishable from the same skip in a
+**Expected result**: All three are indistinguishable from the same outcome in a
 non-sweep run — no per-category record, no activation statement, no
-sweep metadata of any kind.
+sweep metadata of any kind, and for case 3 no `sweep-did-not-run` record either.
+AC1 draws the boundary at the review request the pass issued, not at the
+changed-files read: a pass that dies between the two reached no category, so a
+degraded record there would report a sweep consideration the spec says does not
+exist. The existing skip and failure paths govern these passes unchanged.
 
-### Step 6: Terminal failure after review execution records not-determined
+### Step 6: Terminal failure after the review request records not-determined
 
 **Maps to**: Acceptance Criterion 1
 
 1. Run a sweep-enabled pass against a fixture whose model call fails after the
-   changed files are read (an invalid credential rejected by the model API is
-   the natural fixture).
+   review request is issued — an invalid credential rejected by the model API is
+   the natural fixture, since the request reaches the model before the rejection.
+   The boundary is the issued request, not the changed-files read: a failure
+   between the two belongs to Step 5 and owes no record at all.
 2. Inspect the logs and the check run.
 
 **Expected result**: The failure check run's outcome is a failure (not a
@@ -342,8 +353,9 @@ Each checkbox maps to an acceptance criterion from the spec.
       outcomes on the AC1-assigned surfaces; a degraded pass records
       `sweep-did-not-run` or the unrecognized-enablement record on the same
       surfaces (the successful review check run and the logs); skips and
-      pre-execution failures emit nothing; terminal failures after execution
-      record `not_determined` on the logs only; no record in the review body.
+      failures before the review request is issued emit nothing; terminal
+      failures after the request record `not_determined` on the logs only; no
+      record in the review body.
 - [ ] AC2: one review per head SHA, no PR mutation, unchanged draft-skip and
       supersede behavior with the sweep enabled.
 - [ ] AC3: review summary states sweep activation and list version; non-sweep
