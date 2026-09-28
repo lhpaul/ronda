@@ -205,10 +205,19 @@ value appears in any fixture or output.
 
    ```bash
    npx tsx src/cli/recall-benchmark.ts --sweep-mode off --runs 5 \
+     --version-attestation "<the recorded basis>" \
      --output-file docs/testing/ronda/sweep-off-extended.json
    npx tsx src/cli/recall-benchmark.ts --sweep-mode on --runs 5 \
+     --version-attestation "<the recorded basis>" \
      --output-file docs/testing/ronda/sweep-on-extended.json
    ```
+
+   Pass the **same** `--version-attestation` value on both arms, and on every
+   later leg: the attestation is part of the `configuration` block, so an
+   attestation present on one arm and absent on the other makes the pair differ
+   in a second field and its comparison inadmissible. Omitting it leaves the
+   version unattested at write time, which is the inconclusive case — it cannot
+   be repaired afterwards by editing the file.
 
 2. Repeat the same paired runs against the committed pre-extension snapshot
    (original-thirteen subset control) — `--manifest` and `--patches` point at
@@ -218,10 +227,12 @@ value appears in any fixture or output.
 
    ```bash
    npx tsx src/cli/recall-benchmark.ts --sweep-mode off --runs 5 \
+     --version-attestation "<the recorded basis>" \
      --manifest tests/fixtures/recall-benchmark/original-thirteen/manifest.json \
      --patches tests/fixtures/recall-benchmark/original-thirteen/patches.json \
      --output-file docs/testing/ronda/sweep-off-original-thirteen.json
    npx tsx src/cli/recall-benchmark.ts --sweep-mode on --runs 5 \
+     --version-attestation "<the recorded basis>" \
      --manifest tests/fixtures/recall-benchmark/original-thirteen/manifest.json \
      --patches tests/fixtures/recall-benchmark/original-thirteen/patches.json \
      --output-file docs/testing/ronda/sweep-on-original-thirteen.json
@@ -233,7 +244,10 @@ Each run record carries `fixture` (resolved manifest path, `benchmarkId`, seed
 count, manifest and patch content hashes) and `configuration` (effective
 `sweepMode`, each inference request's own provider-reported model identity
 alongside the configured model name, the version-attestation basis, config
-values, prompt fingerprint) blocks.
+values, prompt fingerprint) blocks. A `--runs 5` file holds an **array** of five
+such records, one per run; a single-run invocation holds one summary object
+instead, so an existing consumer of the single-run summary still reads it
+unchanged.
 Confirm before writing the evidence doc: the sweep-off and sweep-on files for a
 given leg have **equal** `fixture` blocks and `configuration` blocks differing
 only in `sweepMode` — that is what proves the arms differ only by the sweep
@@ -265,7 +279,10 @@ alias-restating, or run-set-inconsistent case recorded as unattested rather
 than backfilled, and the version-attestation basis recorded next to it, so a
 run set without one is reported as an inconclusive comparison carrying no
 same-configuration claim; the
-original-thirteen subset is reported alongside the extended fixture and is
+original-thirteen subset is read from each extended run record's
+`originalThirteenSubset` block — the subset inside every extended-fixture run,
+reported per run and separately from the standalone original-thirteen control —
+and is
 shown to have run against its own inputs; the
 historical 2026-09-10 baseline is labeled non-comparable with no figure read
 against it; the record states no recall target and no variance ceiling are
@@ -282,8 +299,10 @@ defined.
 
    ```bash
    npx tsx src/cli/recall-benchmark.ts --sweep-mode off --runs 5 --quality \
+     --version-attestation "<the recorded basis>" \
      --output-file docs/testing/ronda/sweep-off-precision.json
    npx tsx src/cli/recall-benchmark.ts --sweep-mode on --runs 5 --quality \
+     --version-attestation "<the recorded basis>" \
      --output-file docs/testing/ronda/sweep-on-precision.json
    ```
 
