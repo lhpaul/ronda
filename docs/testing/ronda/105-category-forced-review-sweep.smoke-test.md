@@ -204,6 +204,7 @@ value appears in any fixture or output.
    configuration is one command, writing its own file:
 
    ```bash
+   set -euo pipefail
    npx tsx src/cli/recall-benchmark.ts --sweep-mode off --runs 5 \
      --version-attestation "<the recorded basis>" \
      --output-file docs/testing/ronda/sweep-off-extended.json
@@ -219,6 +220,22 @@ value appears in any fixture or output.
    version unattested at write time, which is the inconclusive case — it cannot
    be repaired afterwards by editing the file.
 
+   The `set -euo pipefail` line is required, not decorative: each block writes
+   committed evidence files, so without it a failing arm would be masked by the
+   second arm succeeding, and the campaign would be recorded as complete while
+   one configuration's evidence is absent or truncated. `-e` is the part that
+   carries the guard for these literal command lines: the runner already exits
+   non-zero when any run of a campaign is recorded as a failure (its
+   record-and-continue policy writes the array, failure records included, before
+   exiting), so `-e` is what makes that non-zero exit **halt the block** — the
+   second arm does not run, the operator sees the stop, and the partial file that
+   is already on disk is read as partial rather than passed over by a succeeding
+   command. `-u` is the operator's safeguard when they substitute a shell
+   variable for the attestation basis — the quoted placeholder above is literal
+   text and is passed through as written, so `-u` bites only on a block the
+   operator has parameterized, where it stops an unset basis rather than writing
+   an unattested file.
+
 2. Repeat the same paired runs against the committed pre-extension snapshot
    (original-thirteen subset control) — `--manifest` and `--patches` point at
    `tests/fixtures/recall-benchmark/original-thirteen/`, created in
@@ -226,6 +243,7 @@ value appears in any fixture or output.
    the five new seeds were added — each configuration writing its own file:
 
    ```bash
+   set -euo pipefail
    npx tsx src/cli/recall-benchmark.ts --sweep-mode off --runs 5 \
      --version-attestation "<the recorded basis>" \
      --manifest tests/fixtures/recall-benchmark/original-thirteen/manifest.json \
@@ -314,6 +332,7 @@ carry it.
    writing its own file:
 
    ```bash
+   set -euo pipefail
    npx tsx src/cli/recall-benchmark.ts --sweep-mode off --runs 5 --quality \
      --version-attestation "<the recorded basis>" \
      --output-file docs/testing/ronda/sweep-off-precision.json
