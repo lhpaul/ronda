@@ -31,6 +31,7 @@ Before running this smoke test:
 | --- | --- |
 | Recorded sweep category list | `docs/testing/ronda/sweep-categories.json` (`sweep-categories-v1`) |
 | Seeded benchmark fixture | `tests/fixtures/recall-benchmark/` (13 original + 5 new seeds) |
+| Original-fixture control | `tests/fixtures/recall-benchmark/original-thirteen/` (the pre-extension `manifest.json` + `patches.json`, 13 seeds) |
 | Precision fixture | `harmless-session-refactor` (expected clean) |
 | Cost baseline for comparison | `docs/testing/ronda/cost-convergence-baseline-2026-09-23.md` |
 | Enablement knob | `RONDA_SWEEP_MODE` env var / `sweep_mode` workflow input / `sweepMode` config key |
@@ -175,9 +176,22 @@ value appears in any fixture or output.
      --output-file docs/testing/ronda/sweep-on-extended.json
    ```
 
-2. Repeat the same paired runs against the original fixture version
-   (original-thirteen subset control), pointing `--manifest` and `--patches` at
-   the original fixture and using their own output files.
+2. Repeat the same paired runs against the committed pre-extension snapshot
+   (original-thirteen subset control) — `--manifest` and `--patches` point at
+   `tests/fixtures/recall-benchmark/original-thirteen/`, created in
+   implementation step 9 by copying `manifest.json` and `patches.json` before
+   the five new seeds were added — each configuration writing its own file:
+
+   ```bash
+   npx tsx src/cli/recall-benchmark.ts --sweep-mode off --runs 5 \
+     --manifest tests/fixtures/recall-benchmark/original-thirteen/manifest.json \
+     --patches tests/fixtures/recall-benchmark/original-thirteen/patches.json \
+     --output-file docs/testing/ronda/sweep-off-original-thirteen.json
+   npx tsx src/cli/recall-benchmark.ts --sweep-mode on --runs 5 \
+     --manifest tests/fixtures/recall-benchmark/original-thirteen/manifest.json \
+     --patches tests/fixtures/recall-benchmark/original-thirteen/patches.json \
+     --output-file docs/testing/ronda/sweep-on-original-thirteen.json
+   ```
 3. Record everything in `docs/testing/ronda/sweep-effect-evidence.md`, assembled
    from those output files — no run is hand-transcribed.
 
@@ -195,7 +209,24 @@ defined.
 **Maps to**: Acceptance Criteria 9, 10
 
 1. Run the precision fixtures the same number of times as the recall runs,
-   sweep off and sweep on, under the same effective review configuration.
+   sweep off and sweep on, under the same effective review configuration and
+   the same real model — the same commands as Step 8 plus `--quality`, each
+   writing its own file:
+
+   ```bash
+   npx tsx src/cli/recall-benchmark.ts --sweep-mode off --runs 5 --quality \
+     --output-file docs/testing/ronda/sweep-off-precision.json
+   npx tsx src/cli/recall-benchmark.ts --sweep-mode on --runs 5 --quality \
+     --output-file docs/testing/ronda/sweep-on-precision.json
+   ```
+
+   Do **not** pass `--precision-response-file`: that option is a fixture-only
+   shortcut that feeds a canned response straight to the classifier and never
+   calls the model, so a run using it measures nothing about precision under
+   the recorded model and configuration. The precision campaign must run
+   inference, which is what `--quality` alone does with the model credential
+   already required by the Prerequisites.
+
 2. Read the unexpected-finding counts and per-fixture clean status.
 
 **Expected result**: Sweep-on unexpected findings are attributed to their
