@@ -248,6 +248,15 @@ values, prompt fingerprint) blocks. A `--runs 5` file holds an **array** of five
 such records, one per run; a single-run invocation holds one summary object
 instead, so an existing consumer of the single-run summary still reads it
 unchanged.
+If a run fails mid-campaign, its array position holds a **failure record**
+instead of a run record: it carries the same `runIndex` and `fixture` /
+`configuration` blocks but a `failure` block (`reason`, redacted message,
+whether it was the pass deadline that aborted it) in place of every recall,
+per-category, and cost field, and the campaign keeps running so the array still
+holds one entry per attempted run. The command exits non-zero when any run
+failed, so check the exit code before reading a file as a clean campaign — a
+file whose entries all carry recall fields is a complete campaign; a file with
+any `failure` entry is partial evidence and is recorded as such, never dropped.
 Confirm before writing the evidence doc: the sweep-off and sweep-on files for a
 given leg have **equal** `fixture` blocks and `configuration` blocks differing
 only in `sweepMode` — that is what proves the arms differ only by the sweep
@@ -433,7 +442,7 @@ The following seed data must be present:
 | Sweep never runs with `RONDA_SWEEP_MODE` set | The effective value resolved to a recognized off value, or the value was unrecognized (recorded in the logs) | Check the logs' unrecognized-enablement record; use a recognized on/off value. Note an empty or whitespace-only value at a higher-precedence source is **not** a cause: AC18 defers it to the next non-empty source, so the sweep still runs when that source resolves to `on` |
 | `sweep-did-not-run` in logs with a valid-looking list | The list fails AC19 validation (duplicate identifier, blank field, zero count) | Read the logged reason and fix the list file |
 | Per-category record on logs but not the check run | The pass's check-run write produced no review-outcome check run (failure or superseded path) | Expected AC1 behavior — not a bug |
-| Campaign runs fail mid-way | Model outage or rate limiting | Record the partial results with timestamps and the failure reason; never silently drop attempted runs from the evidence |
+| Campaign runs fail mid-way | Model outage or rate limiting | Keep the emitted file: the failed run left a **failure record** at its array position (with its `failure.reason` and redacted message) and the other runs are intact, so the campaign is partial, not lost. Record the partial results with timestamps and the failure reason in the evidence doc; never silently drop attempted runs from the evidence. Re-run only the failed positions if the comparison needs a complete set |
 
 ---
 
