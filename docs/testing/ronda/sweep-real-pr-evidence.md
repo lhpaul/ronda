@@ -2,8 +2,7 @@
 
 Issue: [#105](https://github.com/lhpaul/ronda/issues/105) (epic #52).
 Companion documents: `sweep-categories.json` under this directory (the
-category list this record's counts accrue under; it ships with the feature,
-not with this evidence tier),
+category list this record's counts accrue under),
 [`sweep-effect-evidence.md`](sweep-effect-evidence.md) (the seeded-fixture
 evidence), [`105-category-forced-review-sweep.smoke-test.md`](105-category-forced-review-sweep.smoke-test.md)
 (the runbook).
