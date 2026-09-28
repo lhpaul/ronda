@@ -62,9 +62,10 @@ no list read, indistinguishable from the same pass before this feature.
 **Expected result**: The review summary states the sweep was active and the
 list version `sweep-categories-v1` — and nothing else about categories. The
 check-run output and the logs each carry the per-category record: every
-category on the list with `produced_findings` or `produced_none`, plus the
-uncategorized finding count. No per-category section appears in the review
-body. One review published, one check run, no push/merge.
+category on the list with `produced_findings` or `produced_none`, every
+published finding with the categories it was recorded against (or
+`uncategorized`), plus the uncategorized finding count. No per-category section
+appears in the review body. One review published, one check run, no push/merge.
 
 **Also verify the degraded records reach the same surfaces** (Steps 3 and 4
 below): a completing pass whose enablement value was unrecognized, or whose
