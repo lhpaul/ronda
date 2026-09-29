@@ -34,6 +34,15 @@ const ELIGIBLE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs
  */
 const MAX_RESOLUTION_FILE_COUNT = 500;
 const MAX_RESOLUTION_TOTAL_CHARS = 4_000_000;
+/**
+ * Same concern, applied to identification's own changed-files-only program
+ * (step a — bounded by the pass deadline alone, D5, but its parse/type-check/
+ * AST-walk is just as synchronous and just as uninterruptible). One
+ * pathologically large single changed file is capped here directly; the
+ * combined-total and file-count caps below reuse the resolution backstops
+ * above, since both programs carry the same synchronous-blocking risk.
+ */
+const MAX_CHANGED_FILE_CHARS = 1_000_000;
 
 /** The module-resolution contract's fixed compiler options. `tsconfig.json` is not read this iteration. */
 const COMPILER_OPTIONS: ts.CompilerOptions = {
@@ -131,6 +140,7 @@ export async function identifyCandidates(
   const changedSourceTexts = new Map<string, string>();
   const unreadableChangedFilePaths: string[] = [];
   let contentRequestCount = 0;
+  let combinedChangedChars = 0;
 
   for (const filePath of eligible) {
     contentRequestCount += 1;
@@ -142,7 +152,24 @@ export async function identifyCandidates(
       continue;
     }
     if (text !== undefined) {
-      changedSourceTexts.set(filePath, text);
+      // A single pathologically large changed file, or too many combined,
+      // would make the synchronous parse+type-check+AST-walk below
+      // (nothing here observes any `AbortSignal`, same concern as
+      // `resolveSymbols`'s own backstop) block the process for a long time
+      // — on the webhook ingress, potentially past the pass deadline/
+      // watchdog. Declining to include an oversized file is a deterministic
+      // fact about the head, exactly like a refused non-file type (position
+      // (b) below) — accounted for, no candidate, no drop, and `nothing_to_
+      // resolve` stays available when every other changed file also
+      // produces nothing.
+      if (
+        text.length <= MAX_CHANGED_FILE_CHARS &&
+        combinedChangedChars + text.length <= MAX_RESOLUTION_TOTAL_CHARS &&
+        changedSourceTexts.size < MAX_RESOLUTION_FILE_COUNT
+      ) {
+        changedSourceTexts.set(filePath, text);
+        combinedChangedChars += text.length;
+      }
     }
     // text === undefined: absent (404) or a refused non-file type — both are
     // "accounted for" at this position (module-resolution contract, position

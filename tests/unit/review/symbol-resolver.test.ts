@@ -624,6 +624,30 @@ test("isOwnLibPath: a sibling directory sharing TS_LIB_DIR as a string prefix is
   assert.equal(isOwnLibPath(`${TS_LIB_DIR}-evil/foo.d.ts`), false);
 });
 
+// --- Oversized-changed-file backstop (local-ai-reviewer finding, PR #130) --
+// identifyCandidates's own changed-files-only program (step a) is just as
+// synchronous and uninterruptible as resolveSymbols's closure program — a
+// single pathologically large changed file must not reach it either.
+
+test("identifyCandidates excludes a single oversized changed file, accounted for, never parsed", async () => {
+  const files = new Map([
+    ["src/huge.ts", "x".repeat(1_000_001)],
+    ["src/normal.ts", "export function helper(): void {}\n"],
+  ]);
+  const identified = await identifyCandidates(
+    ["src/huge.ts", "src/normal.ts"],
+    new Map([
+      ["src/huge.ts", new Set([1])],
+      ["src/normal.ts", new Set([1])],
+    ]),
+    readFileFrom(files),
+  );
+  assert.deepEqual(identified.requested, []);
+  assert.deepEqual(identified.unreadableChangedFilePaths, []);
+  assert.equal(identified.changedSourceTexts.has("src/huge.ts"), false);
+  assert.equal(identified.changedSourceTexts.has("src/normal.ts"), true);
+});
+
 // --- Oversized-closure backstop (local-ai-reviewer finding, PR #130) ------
 // resolveSymbols builds and type-checks the fetched closure synchronously,
 // which no AbortSignal can interrupt once started. A defensive size backstop
