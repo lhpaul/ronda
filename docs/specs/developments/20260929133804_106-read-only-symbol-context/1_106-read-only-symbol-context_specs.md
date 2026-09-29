@@ -1146,8 +1146,10 @@ Each row below is the normative summary for its gate; the prose sites named unde
   `.github/workflows/ronda-review.yml`, whose condition gates `pull_request` only, so
   a fork pull request can already reach review execution on that ingress today. This
   is pre-existing behaviour that this feature neither uses nor worsens — a fork head
-  reads no repository context — and it is recorded here as a **follow-up to file
-  separately**, not as work this item does.
+  reads no repository context — and it is filed separately as #127, not as work
+  this item does. That trigger is already restricted to an `OWNER`, `MEMBER`, or
+  `COLLABORATOR` commenter, so the follow-up is to document it, not to close an
+  exposure.
 - Setting a recall target, a variance ceiling, or a cost ceiling for repository
   context (see **Deferred Decisions**).
 - Making repository context the default for adopting repositories. It stays **off by
@@ -1194,7 +1196,7 @@ second source of truth.
 | 6 | Off by default here too? | **On for this repository's own dogfooding, off by default for adopters**, supplied so the owner can flip it from repository settings without editing a workflow or redeploying. It is switched on here only once the read-only demonstrations and resolution-correctness evidence are committed. | The demonstrations-before-the-switch business rule; the off-by-default and dogfooding business rules; AC19; Out of Scope; Deferred Decisions |
 | 7 | Does the strategy document hold an objective this spec misses? | **Still open** — a human check that cannot be performed from this repository. | Open Questions; Deferral Note D1 |
 
-A **follow-up to file separately** came out of decision 3: the `/ronda review`
+A **follow-up, filed as #127**, came out of decision 3: the `/ronda review`
 comment trigger's fork guard in `.github/workflows/ronda-review.yml` gates
 `pull_request` only, so a fork pull request can already reach review execution on that
 ingress. It is pre-existing, this feature neither uses nor worsens it, and it is
