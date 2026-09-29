@@ -823,10 +823,11 @@ Each row below is the normative summary for its gate; the prose sites named unde
 - [ ] AC3: With the amendment accepted and repository context enabled, a review
       pass that reaches review execution requests the candidates the selection
       rules produce for the changed lines and resolves them at the reviewed head
-      as far as the budgets allow and the reads succeed — a pass that resolves every
-      requested candidate is `used`, one that resolves some **but not all** is
-      `partial`, and one that resolves none is `unavailable`, all three governed by
-      AC6, AC8, and AC11 — and its check-run output — where that pass's own
+      as far as the budgets allow and the reads succeed — a pass that requests **at
+      least one** candidate and resolves every one of them is `used`, one that
+      resolves some **but not all** is `partial`, and one that resolves none is
+      `unavailable`, which includes the zero-candidate case where the selection rules
+      produced nothing to request, all three governed by AC6, AC8, and AC11 — and its check-run output — where that pass's own
       check-run write produced a check run whose outcome is a review — and its logs
       each state the pass's repository-context outcome, the candidates requested, the
       candidates resolved, and the budget utilisation. Where no such check run exists,
