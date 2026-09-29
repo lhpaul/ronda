@@ -123,6 +123,8 @@ No design assets exist for this item (the issue body has no `## Design assets` s
 
 **Maps to**: AC4, AC5, AC9
 
+> The symlink case is the one most easily got wrong: the git trees API reports a symlink as `type: "blob"`, so the inventory filter must be a mode allowlist (`100644`, `100755`), not a type check. Confirm the recorded evidence names the mode, not the type.
+
 1. Open a pull request whose head carries `tests/fixtures/repository-context/hostile-head/`.
 2. Confirm first that no `package.json` script and no workflow `paths:` list references that directory.
 3. Run a pass on it with the switch on.
