@@ -562,4 +562,3 @@ file reports `ℹ pass 60`, `ℹ fail 0`.
 | P61 | delete the `"1. missing return"` sample line | 1656, `the sample must hold at least three items in the stated formats` | the sample holds three valid items |
 | P62 | replace the prefix filter with `.filter(Boolean)` | 1660, `the patch must filter lines by a fixed prefix` | the parser filters by a fixed prefix |
 | P63 | make every sample line a `- ` item | 1662, `the parser must lose valid items: kept 3 of 3` | the parser actually loses valid items |
-
