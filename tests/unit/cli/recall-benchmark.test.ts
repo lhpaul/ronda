@@ -1,5 +1,6 @@
 import { mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -856,6 +857,77 @@ for (const stage of ["model-creation", "recall", "precision"] as const) {
     assert.equal(lines.length, 0, "the timed-out run must not log after its failure record");
   });
 }
+
+test("every record's fixture identity is the hash of the bytes the campaign loaded", async () => {
+  const manifestBytes = readFileSync(fixturePath("manifest.json"), "utf8");
+  const patchesBytes = readFileSync(fixturePath("patches.json"), "utf8");
+  const manifestPath = outputPath("identity-manifest");
+  const patchesPath = outputPath("identity-patches");
+  writeFileSync(manifestPath, manifestBytes);
+  writeFileSync(patchesPath, patchesBytes);
+  const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+
+  const { records } = await runCampaign(
+    "identity-snapshot",
+    { sweepMode: "off", runs: 3, manifestPath, patchesPath },
+    campaignDeps({
+      createModel: ({ runIndex }) => ({
+        modelName: "fixture:identity",
+        async complete() {
+          if (runIndex === 0) {
+            // Both inputs change on disk while the first run's request is in flight.
+            writeFileSync(manifestPath, `${manifestBytes}\n`);
+            writeFileSync(patchesPath, `${patchesBytes}\n`);
+          }
+          if (runIndex === 1) {
+            throw new Error("second run fails");
+          }
+          return { content: readFileSync(fixturePath("model-responses/passing.json"), "utf8") };
+        },
+      }),
+    }),
+  );
+
+  // A success record, a failure record, and a later success record all name the
+  // content that was loaded and reviewed, not what the files hold afterwards.
+  assert.deepEqual(records.map(isFailure), [false, true, false]);
+  for (const record of records) {
+    const fixture = record.fixture as { manifestSha256: string; patchesSha256: string };
+    assert.equal(fixture.manifestSha256, sha256(manifestBytes));
+    assert.equal(fixture.patchesSha256, sha256(patchesBytes));
+  }
+});
+
+test("a record states that the durability mode was not applied to the benchmark's requests", async () => {
+  const { records } = await runCampaign(
+    "durability-not-applied",
+    { sweepMode: "off", runs: 2 },
+    campaignDeps({
+      loadConfig: () => ({ ...testConfig(), durabilityMode: "on" as const }),
+      createModel: ({ runIndex }) => ({
+        modelName: "fixture:durability",
+        async complete() {
+          if (runIndex === 1) {
+            throw new Error("second run fails");
+          }
+          return { content: readFileSync(fixturePath("model-responses/passing.json"), "utf8") };
+        },
+      }),
+    }),
+  );
+
+  // The configured mode is still recorded, but a forced-on mode never reached the
+  // prompts, so success and failure records both say it was not applied.
+  assert.deepEqual(records.map(isFailure), [false, true]);
+  for (const record of records) {
+    const configuration = record.configuration as {
+      durabilityMode: string;
+      durabilityModeApplied: boolean;
+    };
+    assert.equal(configuration.durabilityMode, "on");
+    assert.equal(configuration.durabilityModeApplied, false);
+  }
+});
 
 test("a client that never settles cannot hold a run past its deadline", async () => {
   // The campaign's bounds are timers, so they must keep the process alive: an

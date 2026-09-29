@@ -181,8 +181,19 @@ export interface BenchmarkConfigurationBase {
   /** The operator attestation recorded verbatim, or null when unattested (the fail-closed case). */
   versionAttestation: string | null;
   maxPatchChars: number;
+  /**
+   * The operator's configured durability mode. It is recorded as configuration
+   * only: the benchmark's prompts carry no durability instructions or mode
+   * document, whatever this says (see `durabilityModeApplied`).
+   */
   durabilityMode: DurabilityModeSetting;
   durabilityModeDefault: boolean;
+  /**
+   * Whether the durability mode shaped this run's requests. Always false: the
+   * benchmark does not resolve or apply it, so a record must not read as
+   * matching a real pull-request review where the mode was active.
+   */
+  durabilityModeApplied: false;
   /** The effective non-prompt request parameters the client sends. */
   requestParameters: { temperature: number };
   /** SHA-256 over the composed prompt template with the sweep section excluded. */
@@ -730,13 +741,18 @@ function createFixtureModel(responsePath: string): ModelClient {
 function buildFixtureIdentity(
   options: CliOptions,
   manifest: RecallBenchmarkManifest,
+  manifestText: string,
+  patchesText: string,
 ): BenchmarkFixtureIdentity {
+  // Hashed from the bytes the campaign parsed, not from a later read of the files:
+  // a file that changes while a model request is running must not let a record
+  // claim an identity for content the campaign never reviewed.
   return {
     manifestPath: options.manifestPath,
     benchmarkId: manifest.benchmarkId,
     seedCount: manifest.seededDefects.length,
-    manifestSha256: sha256Hex(readFileSync(options.manifestPath, "utf8")),
-    patchesSha256: sha256Hex(readFileSync(options.patchesPath, "utf8")),
+    manifestSha256: sha256Hex(manifestText),
+    patchesSha256: sha256Hex(patchesText),
   };
 }
 
@@ -801,6 +817,7 @@ function buildConfigurationBase(input: {
     maxPatchChars: input.maxPatchChars,
     durabilityMode: input.config.durabilityMode,
     durabilityModeDefault: input.config.durabilityModeDefault,
+    durabilityModeApplied: false,
     requestParameters: { temperature: CHAT_COMPLETION_TEMPERATURE },
     promptFingerprint: input.promptFingerprint,
   };
@@ -882,6 +899,8 @@ interface CampaignRunContext {
   options: CliOptions;
   manifest: RecallBenchmarkManifest;
   changedFiles: ChangedFile[];
+  /** Captured once, when the inputs were loaded, and shared by every record. */
+  fixtureIdentity: BenchmarkFixtureIdentity;
   config: RondaConfig;
   sweepMode: SweepModeSetting;
   maxPatchChars: number;
@@ -925,7 +944,7 @@ function composeRunRecord(input: {
   const subset = buildOriginalThirteenSubset(input.pass.summary, input.context.manifest);
   return {
     ...input.pass.summary,
-    fixture: buildFixtureIdentity(input.context.options, input.context.manifest),
+    fixture: { ...input.context.fixtureIdentity },
     configuration: input.configuration,
     modelCallCount: input.modelCallCount,
     elapsedMs: input.elapsedMs,
@@ -1177,7 +1196,7 @@ async function runOneCampaignRun(
       : false;
     return {
       runIndex,
-      fixture: buildFixtureIdentity(context.options, context.manifest),
+      fixture: { ...context.fixtureIdentity },
       configuration: buildConfigurationBase({
         config: context.config,
         sweepMode: context.sweepMode,
@@ -1255,8 +1274,10 @@ export async function runBenchmarkCampaign(
   options: CliOptions,
   deps: BenchmarkCampaignDeps = DEFAULT_BENCHMARK_DEPS,
 ): Promise<number> {
-  const manifest = readJsonFile<RecallBenchmarkManifest>(options.manifestPath);
-  const changedFiles = readJsonFile<ChangedFile[]>(options.patchesPath);
+  const manifestText = readFileSync(options.manifestPath, "utf8");
+  const patchesText = readFileSync(options.patchesPath, "utf8");
+  const manifest = JSON.parse(manifestText) as RecallBenchmarkManifest;
+  const changedFiles = JSON.parse(patchesText) as ChangedFile[];
   const config = deps.loadConfig();
   const sweepMode = options.sweepMode ?? "off";
   const maxPatchChars = options.maxPatchChars ?? config.maxPatchChars;
@@ -1264,6 +1285,7 @@ export async function runBenchmarkCampaign(
     options,
     manifest,
     changedFiles,
+    fixtureIdentity: buildFixtureIdentity(options, manifest, manifestText, patchesText),
     config,
     sweepMode,
     maxPatchChars,

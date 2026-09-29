@@ -177,6 +177,14 @@ Every other `configuration` key is identical across both arms of every leg:
 false), and `requestParameters`
 `{"temperature": 0}`. The `configuration` block contains no credential field.
 
+`durabilityMode` and `durabilityModeDefault` are the operator's configured values,
+not a description of the requests. The benchmark's prompts carry no durability
+instructions or mode document, so a forced-on mode would not have reached them,
+and these records do not read as matching a pull-request review where the mode
+was active. The driver now states this in a `durabilityModeApplied: false` field;
+the records here were taken before that field existed and do not carry it, and
+their prompts are the same either way.
+
 Fixture version, read from each record's own `fixture` block:
 
 | Leg | `manifestPath` | `benchmarkId` | `seedCount` | `manifestSha256` | `patchesSha256` |
