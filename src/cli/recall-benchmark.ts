@@ -127,6 +127,11 @@ export interface BenchmarkRunFailure {
     message: string;
     /** True when the pass timeout aborted the run, rather than an ordinary error. */
     aborted: boolean;
+    /**
+     * Present, and true, only when the run's deadline passed and its request was
+     * still in flight after the grace period, so it may overlap the runs after it.
+     */
+    unsettledAfterDeadline?: true;
   };
 }
 
@@ -1158,9 +1163,17 @@ async function runOneCampaignRun(
     });
   };
 
+  const body = runBody();
   try {
-    return await Promise.race([runBody(), deadline]);
+    return await Promise.race([body, deadline]);
   } catch (error) {
+    // The deadline has passed and the run was aborted, but the request may still
+    // be in flight. Wait for it to settle, within a bound, so the next run does not
+    // overlap it; a request still unsettled after the grace period is recorded as
+    // such rather than held forever.
+    const unsettled = deadlineFired
+      ? !(await settledWithin(body, deps.deadlineDrainMs ?? DEFAULT_DEADLINE_DRAIN_MS))
+      : false;
     return {
       runIndex,
       fixture: buildFixtureIdentity(context.options, context.manifest),
@@ -1172,7 +1185,10 @@ async function runOneCampaignRun(
         maxPatchChars: context.maxPatchChars,
         promptFingerprint: context.promptFingerprint,
       }),
-      failure: buildFailureDetail(error, context.manifest, deadlineFired),
+      failure: {
+        ...buildFailureDetail(error, context.manifest, deadlineFired),
+        ...(unsettled ? { unsettledAfterDeadline: true as const } : {}),
+      },
     };
   } finally {
     clearTimeout(timeout);
@@ -1188,6 +1204,30 @@ export interface BenchmarkCampaignDeps {
     runIndex: number;
   }) => ModelClient | Promise<ModelClient>;
   loadSweepList: (options?: { path?: string }) => SweepListResult;
+  /** How long a timed-out run waits for its aborted request to settle. */
+  deadlineDrainMs?: number;
+}
+
+/**
+ * How long a run whose deadline passed waits for its aborted request to settle
+ * before the campaign moves on. A client that honors the abort settles at once,
+ * so the next run does not overlap it; a client that ignores it cannot hold the
+ * campaign for longer than this.
+ */
+export const DEFAULT_DEADLINE_DRAIN_MS = 5_000;
+
+/** Resolves true when `work` settles, either way, within `ms`; false if it does not. */
+async function settledWithin(work: Promise<unknown>, ms: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const grace = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), ms);
+    timer.unref?.();
+  });
+  try {
+    return await Promise.race([work.then(() => true, () => true), grace]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** The production seams; tests replace the model and the config reader. */

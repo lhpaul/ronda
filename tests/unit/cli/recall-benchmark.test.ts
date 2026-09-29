@@ -802,8 +802,6 @@ for (const stage of ["model-creation", "recall", "precision"] as const) {
     });
     const late = () => new Promise((resolve) => setTimeout(resolve, 150));
     let records: Array<Record<string, unknown>>;
-    let requestsAtReturn: [number, number];
-    let linesAtReturn: number;
     try {
       ({ records } = await runCampaign(
         `resumes-late-${stage}`,
@@ -836,8 +834,6 @@ for (const stage of ["model-creation", "recall", "precision"] as const) {
           },
         }),
       ));
-      requestsAtReturn = [recallRequests, precisionRequests];
-      linesAtReturn = lines.length;
       // Give the orphaned run time to resume and, if unguarded, carry on.
       await new Promise((resolve) => setTimeout(resolve, 250));
     } finally {
@@ -845,16 +841,19 @@ for (const stage of ["model-creation", "recall", "precision"] as const) {
     }
 
     assert.equal(isFailure(records[0]), true);
+    // A stage that resumes after the deadline goes no further: the request the
+    // late stage was about to make is never issued, and no record is logged.
+    const expectedRequests = {
+      "model-creation": [0, 0],
+      recall: [1, 0],
+      precision: [1, 1],
+    }[stage];
     assert.deepEqual(
       [recallRequests, precisionRequests],
-      requestsAtReturn,
+      expectedRequests,
       "the timed-out run must not issue requests after its failure record",
     );
-    assert.equal(
-      lines.length,
-      linesAtReturn,
-      "the timed-out run must not log after its failure record",
-    );
+    assert.equal(lines.length, 0, "the timed-out run must not log after its failure record");
   });
 }
 
@@ -863,6 +862,7 @@ test("a client that never settles cannot hold a run past its deadline", async ()
     "never-settles",
     { sweepMode: "off", runs: 2 },
     campaignDeps({
+      deadlineDrainMs: 100,
       loadConfig: () => testConfig({ passTimeoutMs: 50 }),
       createModel: ({ runIndex }) => ({
         modelName: "fixture:never-settles",
@@ -883,6 +883,42 @@ test("a client that never settles cannot hold a run past its deadline", async ()
   assert.deepEqual(records.map(isFailure), [true, false]);
   assert.equal((records[0].failure as { reason: string; aborted: boolean }).reason, "timeout");
   assert.equal((records[0].failure as { aborted: boolean }).aborted, true);
+  // It was still in flight after the grace period, and the record says so.
+  assert.equal(
+    (records[0].failure as { unsettledAfterDeadline?: boolean }).unsettledAfterDeadline,
+    true,
+  );
+});
+
+test("the next run waits for a timed-out request that settles within the grace period", async () => {
+  let firstSettledAt = 0;
+  let secondStartedAt = 0;
+  const { records } = await runCampaign(
+    "drains-then-advances",
+    { sweepMode: "off", runs: 2 },
+    campaignDeps({
+      loadConfig: () => testConfig({ passTimeoutMs: 50 }),
+      createModel: ({ runIndex }) => ({
+        modelName: "fixture:drains",
+        async complete() {
+          if (runIndex === 0) {
+            // Ignores the abort but does answer, 80 ms after the deadline.
+            await new Promise((resolve) => setTimeout(resolve, 130));
+            firstSettledAt = Date.now();
+            return { content: readFileSync(fixturePath("model-responses/passing.json"), "utf8") };
+          }
+          secondStartedAt = Date.now();
+          return { content: readFileSync(fixturePath("model-responses/passing.json"), "utf8") };
+        },
+      }),
+    }),
+  );
+
+  assert.deepEqual(records.map(isFailure), [true, false]);
+  // The second run began only after the first run's request had settled.
+  assert.ok(firstSettledAt > 0 && secondStartedAt >= firstSettledAt);
+  // It settled within the grace period, so the record carries no unsettled flag.
+  assert.equal("unsettledAfterDeadline" in (records[0].failure as object), false);
 });
 
 test("campaign records a mid-campaign failure instead of throwing and leaves the other runs undisturbed", async () => {
