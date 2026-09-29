@@ -14,6 +14,11 @@ identity. The pre-existing credential-scanner suite (`P1`–`P14`,
 removed, per shape` at line 1201) is unchanged by this PR and is not re-proved
 here; the plan's scenario-7 canary proof already covers it.
 
+The guard tests over committed artifacts — `tests/unit/testing/evidence-records.test.ts`
+and the committed-list assertions in `tests/unit/review/sweep-categories.test.ts`
+— have their own per-assertion proof set in
+[`105-planted-violation-proofs-guards.md`](105-planted-violation-proofs-guards.md).
+
 Both commands below are identical, run from the repository root:
 
 ```bash
