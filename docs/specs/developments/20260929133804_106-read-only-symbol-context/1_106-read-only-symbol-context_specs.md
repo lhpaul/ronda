@@ -274,9 +274,11 @@ work" in AC1 therefore means before any work other than that recording itself.
 3. On the webhook ingress and on the reusable-workflow ingress's manual comment
    trigger — the webhook being the fork-friendly ingress recorded in
    [`ronda-review-adoption.md`](../../../adoption/ronda-review-adoption.md) — the
-   pass reviews the head **with no repository context**. It reads no repository
-   content for that head, whatever the global switch is set to, because the fork
-   exclusion is fixed rather than configurable (AC10).
+   pass reviews the head **with no repository context**: it resolves no candidate
+   and reads no source beyond the pull request's own changed lines, whatever the
+   global switch is set to, because the fork exclusion is fixed rather than
+   configurable (AC10). The changed lines are read as they are in every review; they
+   are the diff, not repository context.
 4. On every path that reached step 3, Ronda publishes one review for the head
    exactly as it does today. The one path that publishes nothing is the
    reusable-workflow ingress's automatic trigger, because step 2 ended that pass
@@ -285,8 +287,9 @@ work" in AC1 therefore means before any work other than that recording itself.
 
 **Postconditions**:
 
-- No repository content is read for a fork-originated head on any ingress or
-  trigger, and therefore none is executed.
+- No repository **context** is read for a fork-originated head on any ingress or
+  trigger — no candidate is resolved and no source beyond the changed lines is
+  fetched — and, as on every path, nothing of the reviewed repository is executed.
 - The fork head receives exactly the review it receives today. The feature is
   invisible on this path.
 - No repository-context record is emitted for the pass, so nothing new appears on
@@ -495,8 +498,13 @@ repository.
   pull request under review or its repository, beyond the one review and check
   run it already publishes.
 - One review per head SHA, containing every finding from the pass, holds
-  unchanged with repository context active. Repository context never splits a
-  pass into multiple published reviews and never adds a model pass.
+  unchanged with repository context active. **Within a review pass**, repository
+  context never splits the pass into multiple published reviews and never adds a
+  model call: the context rides along in the single call the pass already makes.
+  The non-publishing control pass (AC22) is not an exception to this rule, because
+  it is not part of a review pass: it is a separate, operator-initiated run that
+  publishes nothing, and the pass it is compared against still makes one model call
+  and publishes one review.
 - Ronda never executes any content of the reviewed repository: no build, no
   dependency install, no test, no script, no hook, no generated tooling, on any
   ingress, for any head, fork or not.
