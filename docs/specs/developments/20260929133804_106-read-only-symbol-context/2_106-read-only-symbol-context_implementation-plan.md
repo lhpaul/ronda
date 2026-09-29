@@ -178,15 +178,17 @@ Not applicable — Ronda has no user interface; its surfaces are the GitHub revi
 
 **Unit test files** (one per new module, following `tests/unit/<area>/` convention):
 
+Every scenario 1–14 is owned by at least one file below, and where a scenario spans two files the **split is named** rather than left implicit — otherwise the residual check ("the enumeration and the test files agree, with no unmapped case") cannot be run by reading.
+
 | File | Covers |
 | --- | --- |
-| `tests/unit/review/repository-context.test.ts` | Scenarios 1, 2, 3 (outcome resolution), 13 (record shape) |
-| `tests/unit/review/symbol-resolver.test.ts` | Scenarios 9, 12, 14, and the edge-case enumeration below |
+| `tests/unit/review/repository-context.test.ts` | Scenario 1 (total, stable ordering over the three keys); scenario 2 (whole-candidate budget drops); scenario 3's **outcome-resolution function** — the ordered tests over their inputs, not the pass wiring; scenario 13's **record shape** |
+| `tests/unit/review/symbol-resolver.test.ts` | Scenario 1's **timing-variation** half (identical requested set, identical read sequence, identical ordering of resolved candidates under differing per-read latencies); scenario 9's **resolution** half; scenario 12 (AC23 precision); scenario 14's **accounted-versus-unaccounted classification**; and every case in the edge-case enumeration below |
 | `tests/unit/config/load-config-repository-context.test.ts` | Scenarios 4, 5 |
-| `tests/unit/inference/review-prompt-repository-context.test.ts` | Scenarios 6, 13 |
-| `tests/unit/core/summary-repository-context.test.ts` | Scenario 13 |
-| `tests/unit/github/repo-content-reader-tree.test.ts` | The mode allowlist excludes symlink, gitlink and tree entries; `truncated` handled (scenario 9) |
-| `tests/integration/core/review-pass-repository-context.test.ts` | Scenarios 3, 7, 8, 10, 11 end to end through `runReviewPass` with injected deps |
+| `tests/unit/inference/review-prompt-repository-context.test.ts` | Scenario 6 (diff byte-identical, context characters outside the patch measurement); scenario 13's **prompt-side** half — that no count, drop reason or budget figure reaches the rendered context section |
+| `tests/unit/core/summary-repository-context.test.ts` | Scenario 13's **review-body and check-run halves** — one activation line in the body, the full record on the check run, no excerpt body on either, and a failure-path output byte-identical to a pre-feature one |
+| `tests/unit/github/repo-content-reader-tree.test.ts` | Scenario 9's **read-seam** half: the mode allowlist keeps `100644`/`100755` and excludes `120000`, `160000` and `040000`, and a `truncated: true` response is tolerated |
+| `tests/integration/core/review-pass-repository-context.test.ts` | Scenario 3 end to end through `runReviewPass` (including the `fork_excluded`, `off` and `not_applicable` no-record paths); scenario 7; **all three** sub-cases of scenario 8; scenario 10 (no working area, and the webhook queue's unchanged one-active-job behaviour); scenario 11; and scenario 14's **outcome half** — that `nothing_to_resolve` is never recorded alongside a non-empty `unreadableChangedFilePaths` |
 
 **Smoke test runbook**: `docs/testing/ronda/106-read-only-symbol-context.smoke-test.md`
 
@@ -300,6 +302,6 @@ This plan has a pattern-completeness obligation (every reference on a changed li
 
 - **Resolution completeness**: for the AC23 fixture, the count of references identified, resolved, and dropped, with every drop carrying one of the five recorded reasons. The residual is the dropped set, and it is not a gap: an unbindable reference is *required* to be dropped. Evidence source: `docs/testing/ronda/repository-context-resolution-precision-106.md` and `tests/unit/review/symbol-resolver.test.ts`.
 - **Precision**: resolved candidates that are correct over all resolved candidates on the AC23 fixture, which must be 100%. A lower figure is a defect that blocks step 15, not a residual to report. Evidence source: the same document.
-- **Edge-case coverage**: E1–E16 each map to a named unit test; the residual check is that the enumeration and the test file agree with no unmapped case. Evidence source: `tests/unit/review/symbol-resolver.test.ts`.
+- **Edge-case coverage**: E1–E16 each map to a named unit test, and scenarios 1–14 each map to at least one file in the Testing Strategy table with any two-file split named. The residual check is that the enumeration and the test files agree with no unmapped case in either direction. Evidence source: `tests/unit/review/symbol-resolver.test.ts` and the Testing Strategy table.
 - **No-working-area claim**: the assertion is structural (D1 creates none) and is verified observationally by repeated passes leaving nothing behind and by the phase never touching `node:fs` for reviewed content. Evidence source: `tests/integration/core/review-pass-repository-context.test.ts` and the AC4 demonstration record.
 - **Switch-ordering claim (AC19)**: the residual evidence is the ordering itself — the commit timestamps of the three evidence documents against the recorded time of the repository-variable change. Evidence source: `docs/testing/ronda/repository-context-effect-evidence-106.md`.
