@@ -1,4 +1,4 @@
-import type { RondaConfig } from "../config/config.types.js";
+import type { RepositoryContextBudgetName, RondaConfig } from "../config/config.types.js";
 import type { DeadlineClock } from "../core/pass-deadline.js";
 import type { ModelClient } from "../inference/model-client.js";
 import type { SweepListResult } from "../review/sweep-categories.js";
@@ -76,6 +76,16 @@ export interface PullRequestMetadata {
   headSha: string;
   /** Head branch name (for stage resolution). Empty when unavailable. */
   headBranch: string;
+  /**
+   * `owner/repo` of the pull request head's repository (#106, D6). Empty when
+   * unavailable — an absent, empty, or unreadable head repository (a deleted
+   * fork, for instance) is treated as fork-originated, never as
+   * same-repository, so an unknown origin can never be the one
+   * configuration-independent way a fork read happens (AC10). The
+   * same-repository test compares this value case-insensitively against
+   * `${owner}/${repo}`.
+   */
+  headRepoFullName: string;
 }
 
 export interface ReviewPassInput {
@@ -306,6 +316,97 @@ export type SweepDegradedRecord =
       kind: "sweep_enablement_unrecognized";
     };
 
+/**
+ * Read-only repository context (#106). Four recorded outcomes; three further
+ * cases (`off`, `fork_excluded`, `not_applicable`) emit no record at all
+ * (Statuses / Enum Values), so they are not members of this type.
+ */
+export type RepositoryContextOutcome =
+  | "used"
+  | "partial"
+  | "unavailable"
+  | "nothing_to_resolve";
+
+/**
+ * Single-member union, kept as a named type rather than a literal so
+ * follow-up #129 (call-site context) can add `"call_site"` without reshaping
+ * the record (Post-Merge Amendment item 5).
+ */
+export type RepositoryContextCandidateKind = "definition";
+
+/** The spec's five recorded drop reasons (Context Selection Order → Dropping). Closed — no sixth is introduced. */
+export type RepositoryContextDropReason =
+  | "candidate_count_budget"
+  | "character_budget"
+  | "time_budget"
+  | "read_failed"
+  | "ambiguous_resolution";
+
+/**
+ * One resolved candidate: the definition a changed line depends on, bound by
+ * the reviewed language's own compiler (D2). `text` is the excerpt body and
+ * is the **only** field carrying one — it never reaches a record, a log, or
+ * a review (the business rule on excerpt bodies).
+ */
+export interface RepositoryContextCandidate {
+  kind: RepositoryContextCandidateKind;
+  symbolName: string;
+  path: string;
+  line: number;
+  endLine: number;
+  text: string;
+}
+
+/**
+ * One dropped candidate or reference. `path`/`line` identify the changed
+ * line's reference when the declaring file was never read (a `time_budget`
+ * drop, for instance) and the candidate's own location otherwise — never an
+ * empty or placeholder location (module-resolution contract).
+ */
+export interface RepositoryContextDrop {
+  kind: RepositoryContextCandidateKind;
+  symbolName: string;
+  path: string;
+  line: number;
+  reason: RepositoryContextDropReason;
+}
+
+/**
+ * The per-pass repository-context record (Operational Visibility). Carries
+ * counts, identifiers, and budget figures only — never an excerpt body,
+ * credential value, or operator-specific path.
+ */
+export interface RepositoryContextPassRecord {
+  outcome: RepositoryContextOutcome;
+  candidatesRequested: number;
+  candidatesResolved: number;
+  drops: RepositoryContextDrop[];
+  /**
+   * Paths of changed source files whose read failed **transiently** (past the
+   * bounded retry) — additive beyond the spec's listed record contents, so a
+   * pass whose changed file could not be read is never indistinguishable from
+   * one whose changed lines genuinely named nothing (D5, E16).
+   */
+  unreadableChangedFilePaths: string[];
+  /**
+   * Number of GitHub content requests the pass made, probes included — a
+   * probe that 404s counts (owner decision, 2026-09-29). The operator's
+   * early-warning signal for the rate-limit risk in Risks & Mitigations.
+   */
+  contentRequestCount: number;
+  charsUsed: number;
+  maxCandidates: number;
+  maxChars: number;
+  timeBudgetMs: number;
+  timeUsedMs: number;
+  budgetFallbacks: RepositoryContextBudgetName[];
+}
+
+/** AC21: a non-empty unrecognized switch value. The raw value is never carried here. */
+export type RepositoryContextDegradedRecord = {
+  kind: "repository_context_switch_unrecognized";
+};
+
 export interface ReviewPassResult {
   outcome: PassOutcome;
   failureReason?: FailureReason;
@@ -326,5 +427,15 @@ export interface ReviewPassResult {
   sweep?: {
     record?: SweepPassRecord;
     degraded?: SweepDegradedRecord;
+  };
+  /**
+   * Read-only repository context (#106). Absent for a pre-review skip, a
+   * fork-originated head, and a validly disabled switch — those three cases
+   * emit no record of any kind (AC10, AC19). Present either as a pass record
+   * or as the degraded record, mutually exclusive like `sweep`.
+   */
+  repositoryContext?: {
+    record?: RepositoryContextPassRecord;
+    degraded?: RepositoryContextDegradedRecord;
   };
 }

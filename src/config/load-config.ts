@@ -3,6 +3,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
   DurabilityModeSetting,
+  RepositoryContextBudgetName,
+  RepositoryContextModeSetting,
   RondaConfig,
   SweepModeSetting,
 } from "./config.types.js";
@@ -16,6 +18,10 @@ export const DEFAULT_MODEL_NAME = "qwen-plus";
 export const DEFAULT_MAX_PATCH_CHARS = 400_000;
 export const DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT = 4;
 export const DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS = 120_000;
+/** #106, plan decision D3. */
+export const DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES = 12;
+export const DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS = 24_000;
+export const DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS = 120_000;
 
 /**
  * Thrown when the operator config file exists but cannot be read or parsed.
@@ -45,6 +51,10 @@ interface OperatorConfigFile {
   durabilityMode?: string;
   durabilityModeDefault?: boolean | string;
   sweepMode?: string;
+  repositoryContext?: string;
+  maxRepositoryContextCandidates?: number | string;
+  maxRepositoryContextChars?: number | string;
+  repositoryContextTimeBudgetMs?: number | string;
 }
 
 export interface LoadConfigOptions {
@@ -126,6 +136,42 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
   const sweepMode = parsedSweepMode ?? "off";
   const sweepModeRaw = sweepSource !== undefined && parsedSweepMode === undefined ? sweepSource : undefined;
 
+  // Repository context enablement (#106, AC21) resolves the same way: the
+  // first non-blank source only, never an `??` chain over the parser, so an
+  // unrecognized non-empty value is carried as unrecognized rather than
+  // silently deferred to a lower-precedence source that would happen to parse.
+  const repositoryContextSource =
+    nonBlank(env.RONDA_REPOSITORY_CONTEXT) ?? nonBlank(fileConfig.repositoryContext);
+  const parsedRepositoryContextMode = parseRepositoryContextMode(repositoryContextSource);
+  const repositoryContextMode = parsedRepositoryContextMode ?? "off";
+  const repositoryContextModeRaw =
+    repositoryContextSource !== undefined && parsedRepositoryContextMode === undefined
+      ? repositoryContextSource
+      : undefined;
+
+  const repositoryContextBudgetFallbacks: RepositoryContextBudgetName[] = [];
+  const maxRepositoryContextCandidates = resolveRepositoryContextBudget(
+    "candidates",
+    env.RONDA_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+    fileConfig.maxRepositoryContextCandidates,
+    DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+    repositoryContextBudgetFallbacks,
+  );
+  const maxRepositoryContextChars = resolveRepositoryContextBudget(
+    "chars",
+    env.RONDA_MAX_REPOSITORY_CONTEXT_CHARS,
+    fileConfig.maxRepositoryContextChars,
+    DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
+    repositoryContextBudgetFallbacks,
+  );
+  const repositoryContextTimeBudgetMs = resolveRepositoryContextBudget(
+    "time",
+    env.RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
+    fileConfig.repositoryContextTimeBudgetMs,
+    DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
+    repositoryContextBudgetFallbacks,
+  );
+
   return {
     model: { apiKey, baseUrl, modelName },
     passTimeoutMs,
@@ -136,6 +182,12 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
     durabilityModeDefault,
     sweepMode,
     sweepModeRaw,
+    repositoryContextMode,
+    repositoryContextModeRaw,
+    maxRepositoryContextCandidates,
+    maxRepositoryContextChars,
+    repositoryContextTimeBudgetMs,
+    repositoryContextBudgetFallbacks,
   };
 }
 
@@ -184,6 +236,56 @@ function parseSweepMode(value: string | undefined | null): SweepModeSetting | un
     return "off";
   }
   return undefined;
+}
+
+/**
+ * Recognizes the repository-context enablement vocabulary (#106, AC21) —
+ * identical to {@link parseSweepMode}'s. `default` means off and is
+ * recognized (its raw text is not carried). Any other non-blank value is
+ * unrecognized: the caller resolves it to `off` and carries its raw text for
+ * the degraded record, never deferring it to another source.
+ */
+function parseRepositoryContextMode(
+  value: string | undefined | null,
+): RepositoryContextModeSetting | undefined {
+  const raw = nonBlank(value)?.toLowerCase();
+  if (raw === "on" || raw === "1" || raw === "true") {
+    return "on";
+  }
+  if (raw === "off" || raw === "0" || raw === "false" || raw === "default") {
+    return "off";
+  }
+  return undefined;
+}
+
+/**
+ * Resolves one repository-context budget over the first non-blank source
+ * (env, then the operator config file) and never yields an unlimited budget
+ * (#106, AC21). An absent, empty, or whitespace-only value at both sources
+ * falls back to `defaultValue` without being recorded as a fallback — no
+ * operator value was ever supplied. A present value that is not a positive
+ * number is a configuration error: `defaultValue` applies and `name` is
+ * appended to `fallbacks`, without carrying the unusable raw value anywhere.
+ */
+function resolveRepositoryContextBudget(
+  name: RepositoryContextBudgetName,
+  envValue: string | undefined,
+  fileValue: number | string | undefined,
+  defaultValue: number,
+  fallbacks: RepositoryContextBudgetName[],
+): number {
+  const envSource = nonBlank(envValue);
+  const source =
+    envSource ?? (typeof fileValue === "number" ? fileValue : nonBlank(fileValue));
+  if (source === undefined) {
+    return defaultValue;
+  }
+  const parsed = typeof source === "number" ? source : parseInt(source, 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  fallbacks.push(name);
+  return defaultValue;
 }
 
 function parseBooleanFlag(value: string | boolean | undefined | null): boolean | undefined {

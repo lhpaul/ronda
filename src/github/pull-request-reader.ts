@@ -32,6 +32,10 @@ export async function readPullRequest(
     draft: Boolean(data.draft),
     headSha: data.head.sha,
     headBranch: data.head.ref ?? "",
+    // #106, D6: an absent head repository (a deleted fork) reads as "" —
+    // fork-originated by the fail-closed same-repository test, never
+    // same-repository.
+    headRepoFullName: data.head.repo?.full_name ?? "",
   };
 }
 

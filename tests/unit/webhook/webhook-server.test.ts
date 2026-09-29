@@ -80,6 +80,7 @@ function pullRequestMetadata(headSha = "a".repeat(40)): PullRequestMetadata {
     draft: false,
     headSha,
     headBranch: "feature/test",
+    headRepoFullName: "lhpaul/example",
   };
 }
 
