@@ -3,6 +3,9 @@ import {
   REVIEW_COMMAND,
   type FailureReason,
   type Finding,
+  type RepositoryContextDegradedRecord,
+  type RepositoryContextOutcome,
+  type RepositoryContextPassRecord,
   type SweepDegradedRecord,
   type SweepPassRecord,
   type TriggerMode,
@@ -36,7 +39,21 @@ export interface ReviewSummaryInput {
    * labels never appear here.
    */
   sweep?: { listVersion: string };
+  /**
+   * Read-only repository context (#106, AC3). The review body states only
+   * the outcome, in the same one-line form existing mode activations take —
+   * no count, identifier, drop reason, or budget figure ever reaches it.
+   */
+  repositoryContext?: { outcome: RepositoryContextOutcome };
 }
+
+/** The spec's display labels for a repository-context outcome (Statuses / Enum Values). */
+const REPOSITORY_CONTEXT_OUTCOME_LABELS: Record<RepositoryContextOutcome, string> = {
+  used: "Repository context used",
+  partial: "Repository context partial",
+  unavailable: "Repository context unavailable",
+  nothing_to_resolve: "Repository context: nothing to resolve",
+};
 
 export function countBySeverity(findings: Finding[]): SeverityCounts {
   const counts: SeverityCounts = { blocking: 0, important: 0, nit: 0 };
@@ -78,6 +95,11 @@ export function buildReviewSummary(input: ReviewSummaryInput): string {
     lines.push("### Category-forced sweep");
     lines.push("");
     lines.push(`Sweep active. Category list version: \`${input.sweep.listVersion}\``);
+    lines.push("");
+  }
+
+  if (input.repositoryContext) {
+    lines.push(`Repository context: ${REPOSITORY_CONTEXT_OUTCOME_LABELS[input.repositoryContext.outcome]}.`);
     lines.push("");
   }
 
@@ -167,6 +189,16 @@ export interface CheckRunOutputInput {
   sweep?: SweepPassRecord;
   /** The degraded states (AC18, AC19) — never both with `sweep`, since a degraded pass classified nothing. */
   sweepDegraded?: SweepDegradedRecord;
+  /**
+   * The per-pass repository-context record (#106, AC3). Only a check run
+   * whose outcome is a review carries it; the failure path never receives
+   * this field, so a failure check-run output is byte-identical to a
+   * pre-feature one. Never carries an excerpt body — only identifiers,
+   * counts, and budget figures.
+   */
+  repositoryContext?: RepositoryContextPassRecord;
+  /** AC21: an unrecognized switch value — never both with `repositoryContext`. */
+  repositoryContextDegraded?: RepositoryContextDegradedRecord;
 }
 
 export interface CheckRunOutput {
@@ -188,6 +220,7 @@ export function buildCheckRunOutput(input: CheckRunOutputInput): CheckRunOutput 
       `Duration: ${formatDuration(input.durationMs)}`,
       `${severityLabel("blocking")}: ${input.findingCounts.blocking}, ${severityLabel("important")}: ${input.findingCounts.important}, ${severityLabel("nit")}: ${input.findingCounts.nit}`,
       ...renderSweepCheckRunLines(input),
+      ...renderRepositoryContextCheckRunLines(input),
     ].join("\n");
     return { title, summary };
   }
@@ -243,6 +276,41 @@ function renderSweepCheckRunLines(input: CheckRunOutputInput): string[] {
   return [
     "Category-forced sweep: an unrecognized enablement value was supplied; no sweep ran.",
   ];
+}
+
+/**
+ * The repository-context check-run lines (#106, AC3, AC19, AC21). Carries
+ * the outcome, the counts, every drop as `kind symbolName path:line —
+ * reason`, the budget utilisation, the content-request count, and any
+ * budget fallback — never an excerpt body and never the raw unrecognized
+ * switch value.
+ */
+function renderRepositoryContextCheckRunLines(input: CheckRunOutputInput): string[] {
+  if (input.repositoryContext) {
+    const record = input.repositoryContext;
+    const lines = [
+      `Repository context: ${REPOSITORY_CONTEXT_OUTCOME_LABELS[record.outcome]}`,
+      `Candidates requested: ${record.candidatesRequested}, resolved: ${record.candidatesResolved}`,
+      `Budget: ${record.maxCandidates} candidates / ${record.maxChars} chars / ${record.timeBudgetMs}ms — used ${record.charsUsed} chars, ${record.timeUsedMs}ms`,
+      `Content requests: ${record.contentRequestCount}`,
+    ];
+    for (const drop of record.drops) {
+      lines.push(`- drop: ${drop.kind} ${drop.symbolName} ${drop.path}:${drop.line} — ${drop.reason}`);
+    }
+    for (const path of record.unreadableChangedFilePaths) {
+      lines.push(`- unreadable changed file: ${path}`);
+    }
+    for (const fallback of record.budgetFallbacks) {
+      lines.push(`- budget fallback: ${fallback}`);
+    }
+    return lines;
+  }
+
+  if (!input.repositoryContextDegraded) {
+    return [];
+  }
+
+  return ["Repository context: an unrecognized enablement value was supplied; repository context did not run."];
 }
 
 function describeFailureReason(reason?: FailureReason): string {
