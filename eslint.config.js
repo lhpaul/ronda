@@ -14,6 +14,10 @@ export default tseslint.config(
       "e2e/**",
       "template/**",
       "docs/**",
+      // Deliberately hostile fixture content (#106, AC4) — never meant to
+      // pass lint, and never executed or imported by this project's own
+      // code; only read as inert text by the read-only demonstration test.
+      "tests/fixtures/repository-context/hostile-head/**",
     ],
   },
   js.configs.recommended,

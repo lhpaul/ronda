@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   buildSourceFileSet,
   candidatePathsFor,
@@ -504,4 +507,93 @@ test("scenario 9: every read goes through the injected readFile seam; no path is
   // are ever read — never a directory listing, never a duplicate read of an
   // already-resolved path.
   assert.deepEqual(requestedPaths, ["src/caller.ts", "src/other.js", "src/other.ts"]);
+});
+
+// --- Scenario 12: AC23 measured resolution precision -----------------------
+
+interface ExpectedReference {
+  symbolName: string;
+  changedLine: number;
+  expected: { path: string; line: number; endLine: number } | "ambiguous_resolution";
+}
+
+interface ExpectedFixture {
+  changedFile: string;
+  references: ExpectedReference[];
+}
+
+const FIXTURE_DIR = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "fixtures",
+  "repository-context",
+  "resolution",
+);
+
+test("scenario 12 (AC23): resolution precision on the recorded fixture is 100%", async () => {
+  const expected: ExpectedFixture = JSON.parse(readFileSync(join(FIXTURE_DIR, "expected.json"), "utf8"));
+
+  const fileNames = ["types.ts", "shared.ts", "inner.ts", "reexport.ts", "overload.ts", "changed.ts"];
+  const files = new Map(fileNames.map((name) => [name, readFileSync(join(FIXTURE_DIR, name), "utf8")]));
+  const readFile: RepositoryContextReadFile = async (path) => files.get(path);
+
+  const changedPath = expected.changedFile;
+  const changedText = files.get(changedPath);
+  assert.ok(changedText, "the fixture's changed file must exist");
+  const totalLines = changedText.split("\n").length;
+  const changedLines = new Map([[changedPath, new Set(Array.from({ length: totalLines }, (_, i) => i + 1))]]);
+
+  const identified = await identifyCandidates([changedPath], changedLines, readFile);
+  const closure = await buildSourceFileSet(identified.changedSourceTexts, readFile, 60_000);
+  const resolutions = resolveSymbols(closure.fileSet, identified.requested, closure);
+  const built = buildRepositoryContextCandidates(identified.requested, resolutions);
+
+  // Every reference the fixture names must be accounted for as either a
+  // resolved candidate or an ambiguous_resolution drop — nothing silently
+  // missing, and nothing silently guessed. Two expected entries can share the
+  // same (symbolName, changedLine) key (A's and B's same-named `read` call,
+  // both on the same line) — a queue per key, consumed in `expected.json`'s
+  // own declared order against candidates sorted by declaration position,
+  // disambiguates them without relying on array-find's first-match.
+  const candidateQueues = new Map<string, typeof built.candidates>();
+  for (const candidate of [...built.candidates].sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line)) {
+    const key = `${candidate.symbolName}@${candidate.changedLine}`;
+    const queue = candidateQueues.get(key) ?? [];
+    queue.push(candidate);
+    candidateQueues.set(key, queue);
+  }
+  const dropQueues = new Map<string, typeof built.drops>();
+  for (const drop of built.drops) {
+    const key = `${drop.symbolName}@${drop.line}`;
+    const queue = dropQueues.get(key) ?? [];
+    queue.push(drop);
+    dropQueues.set(key, queue);
+  }
+
+  for (const ref of expected.references) {
+    const key = `${ref.symbolName}@${ref.changedLine}`;
+    if (ref.expected === "ambiguous_resolution") {
+      const drop = dropQueues.get(key)?.shift();
+      assert.ok(drop, `expected an ambiguous_resolution drop for ${key}`);
+      assert.equal(drop?.reason, "ambiguous_resolution");
+    } else {
+      const candidate = candidateQueues.get(key)?.shift();
+      assert.ok(candidate, `expected a resolved candidate for ${key}`);
+      assert.equal(candidate?.path, ref.expected.path);
+      assert.equal(candidate?.line, ref.expected.line);
+      assert.equal(candidate?.endLine, ref.expected.endLine);
+    }
+  }
+
+  // Precision: resolved candidates that are correct over all resolved
+  // candidates (AC23). Every resolved candidate above already matched its
+  // expected declaration exactly, so precision is 100% by construction of
+  // the assertions above; this second pass restates it as the measured
+  // figure the evidence document cites.
+  const expectedResolvedCount = expected.references.filter((r) => r.expected !== "ambiguous_resolution").length;
+  assert.equal(built.candidates.length, expectedResolvedCount);
+  assert.equal(built.drops.filter((d) => d.reason === "ambiguous_resolution").length, 1);
+  const precision = built.candidates.length / built.candidates.length; // resolved-correct / resolved-total
+  assert.equal(precision, 1);
 });

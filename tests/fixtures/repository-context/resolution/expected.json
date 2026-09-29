@@ -1,0 +1,50 @@
+{
+  "fixtureVersion": "1",
+  "changedFile": "changed.ts",
+  "notes": [
+    "withShadow's local `const sharedHelper` shadow (changed.ts line 20) is deliberately absent from this list: its declaration is in the changed file itself, so it is excluded as a candidate before resolution (E8) — there is nothing to resolve, and nothing to record here. Its correctness (that the resolver never confuses it with the imported sharedHelper) is covered by the dedicated shadowing test in tests/unit/review/symbol-resolver.test.ts (E2).",
+    "The parameter type annotations `a: A` and `b: B` on changed.ts line 8 are themselves requested references (a changed line depends on the type it names, not only on values it calls) and are included below for completeness."
+  ],
+  "references": [
+    {
+      "symbolName": "A",
+      "changedLine": 8,
+      "expected": { "path": "types.ts", "line": 4, "endLine": 8 }
+    },
+    {
+      "symbolName": "B",
+      "changedLine": 8,
+      "expected": { "path": "types.ts", "line": 10, "endLine": 14 }
+    },
+    {
+      "symbolName": "read",
+      "changedLine": 9,
+      "note": "a.read(\"x\") — must bind to A's read, never B's",
+      "expected": { "path": "types.ts", "line": 5, "endLine": 7 }
+    },
+    {
+      "symbolName": "read",
+      "changedLine": 9,
+      "note": "b.read(\"y\") — must bind to B's read, never A's",
+      "expected": { "path": "types.ts", "line": 11, "endLine": 13 }
+    },
+    {
+      "symbolName": "outer",
+      "changedLine": 13,
+      "note": "reached through reexport.ts's re-export of inner.ts's inner",
+      "expected": { "path": "inner.ts", "line": 3, "endLine": 5 }
+    },
+    {
+      "symbolName": "overlap",
+      "changedLine": 17,
+      "note": "the overloaded symbol has three declarations (two signatures, one implementation) — unbindable to exactly one",
+      "expected": "ambiguous_resolution"
+    },
+    {
+      "symbolName": "sharedHelper",
+      "changedLine": 26,
+      "note": "withoutShadow's call — must resolve to the import, unaffected by the unrelated local shadow in withShadow above",
+      "expected": { "path": "shared.ts", "line": 4, "endLine": 6 }
+    }
+  ]
+}
