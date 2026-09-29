@@ -15,7 +15,7 @@ import type {
   PullRequestMetadata,
   ReviewPassDeps,
 } from "../../../src/domain/review-pass.types.js";
-import type { ModelClient } from "../../../src/inference/model-client.js";
+import type { ModelClient, ModelCompletion } from "../../../src/inference/model-client.js";
 import type { RondaConfig } from "../../../src/config/config.types.js";
 import {
   DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
@@ -229,10 +229,10 @@ function createFakeModel(options: {
   let calls = 0;
   const model: ModelClient = {
     modelName: options.modelName ?? "fake-model",
-    async complete(_request, signal) {
+    async complete(_request, signal): Promise<ModelCompletion> {
       calls += 1;
       if (options.hangUntilAborted) {
-        return await new Promise<string>((_resolve, reject) => {
+        return await new Promise<ModelCompletion>((_resolve, reject) => {
           signal.addEventListener(
             "abort",
             () => reject(new ModelClientError("timed_out", "aborted before completion")),
@@ -243,7 +243,7 @@ function createFakeModel(options: {
       if (options.error) {
         throw options.error;
       }
-      return options.response ?? '{"findings":[]}';
+      return { content: options.response ?? '{"findings":[]}' };
     },
   };
   return { model, callCount: () => calls };
@@ -258,6 +258,8 @@ function createConfig(overrides: Partial<RondaConfig> = {}): RondaConfig {
     maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
     durabilityMode: "default",
     durabilityModeDefault: false,
+    sweepMode: "off",
+    sweepModeRaw: undefined,
     ...overrides,
   };
 }
@@ -576,6 +578,66 @@ test("a check-run write that fails after a successful review is retried once and
   assert.equal(github.checkRunAttempts.length, 2);
   assert.equal(github.publishedCheckRuns.length, 1);
   assert.equal(github.publishedCheckRuns[0].conclusion, "success");
+});
+
+test("sweep AC1: a failing recovery callback after publication still leaves the per-category record on the logs", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+
+  await assert.rejects(
+    () =>
+      runReviewPass(
+        { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+        baseDeps({
+          github: github.ops,
+          model,
+          logger: createRecordingLogger(events),
+          config: createConfig({ sweepMode: "on" }),
+          loadSweepList: loadValidSweepList(),
+          onReviewPublished: () => {
+            throw new Error("recovery state could not be persisted");
+          },
+        }),
+      ),
+    ReviewPublishedCheckRunError,
+  );
+
+  // The review is public and the classification was established, so the record it
+  // owes the logs is emitted once, before the callback that failed.
+  assert.equal(github.publishedReviews.length, 1);
+  assert.equal(events.filter((entry) => entry.name === "sweep_pass_record").length, 1);
+});
+
+test("sweep AC1: a check-run write that keeps failing after publication still leaves the per-category record on the logs", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+    publishCheckRunFailTimes: 2,
+    publishCheckRunError: new Error("network blip"),
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+
+  await assert.rejects(
+    () =>
+      runReviewPass(
+        { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+        baseDeps({
+          github: github.ops,
+          model,
+          logger: createRecordingLogger(events),
+          config: createConfig({ sweepMode: "on" }),
+          loadSweepList: loadValidSweepList(),
+        }),
+      ),
+    ReviewPublishedCheckRunError,
+  );
+
+  assert.equal(events.filter((entry) => entry.name === "sweep_pass_record").length, 1);
 });
 
 test("a check-run write that keeps failing after a successful review rejects instead of publishing a contradictory 'Review failed' check run", async () => {
@@ -995,6 +1057,541 @@ test("authoritative docs: irrelevant paths stay diff-only without doc fetch erro
   assert.equal(result.outcome, "succeeded");
   assert.equal(readFileCalls, 0);
   assert.doesNotMatch(lastUserPrompt, /Authoritative repository documentation/);
+});
+
+interface LogEvent {
+  name: string;
+  fields: Record<string, unknown>;
+}
+
+function createRecordingLogger(events: LogEvent[]): Logger {
+  return {
+    event(name, fields) {
+      events.push({ name, fields });
+    },
+  };
+}
+
+function sweepEvents(events: LogEvent[]): LogEvent[] {
+  return events.filter(
+    (entry) => entry.name === "sweep_pass_record" || entry.name.startsWith("sweep"),
+  );
+}
+
+const sweepRecord = {
+  version: "sweep-categories-v1",
+  categories: [
+    {
+      identifier: "unbounded-retry",
+      displayLabel: "Unbounded retry",
+      description: "A retry loop with no bound.",
+      failureShape: "The loop never terminates.",
+      evidenceSource: "PR #1",
+      findingInstanceCount: 2,
+      matchTerms: ["bug"],
+    },
+    {
+      identifier: "silent-swallow",
+      displayLabel: "Silent swallow",
+      description: "An error swallowed without a record.",
+      failureShape: "No log line.",
+      evidenceSource: "PR #2",
+      findingInstanceCount: 1,
+      // Matches nothing in the fixture responses below.
+      matchTerms: ["never-matches-anything"],
+    },
+  ],
+};
+
+function loadValidSweepList(): () => Promise<{ ok: true; list: typeof sweepRecord }> {
+  return async () => ({ ok: true, list: sweepRecord });
+}
+
+test("sweep AC1: an enabled pass with a valid list records the per-category outcome on both surfaces", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      logger: createRecordingLogger(events),
+      config: createConfig({ sweepMode: "on" }),
+      loadSweepList: loadValidSweepList(),
+    }),
+  );
+
+  assert.equal(result.outcome, "succeeded");
+  // One review published, as an enabled pass must still publish.
+  assert.equal(github.publishedReviews.length, 1);
+  // The record names the list version and every category's outcome: matched
+  // by the "bug" term, and unmatched by the term nothing carries.
+  assert.deepEqual(result.sweep?.record?.categories, [
+    { identifier: "unbounded-retry", outcome: "produced_findings" },
+    { identifier: "silent-swallow", outcome: "produced_none" },
+  ]);
+  // Attribution is per published finding, by publication index — never the
+  // finding's own text.
+  assert.deepEqual(result.sweep?.record?.findings, [
+    { publicationIndex: 0, categories: ["unbounded-retry"] },
+    { publicationIndex: 1, categories: [] },
+    { publicationIndex: 2, categories: [] },
+  ]);
+  assert.equal(result.sweep?.record?.uncategorizedFindingCount, 2);
+  assert.equal(result.sweep?.degraded, undefined);
+
+  // Both surfaces carry it: the check-run output and the logs.
+  const checkRun = github.publishedCheckRuns[0];
+  assert.match(checkRun.summary, /Category-forced sweep:/);
+  assert.match(checkRun.summary, /- unbounded-retry: produced_findings/);
+  assert.match(checkRun.summary, /- silent-swallow: produced_none/);
+  assert.match(checkRun.summary, /Uncategorized findings: 2/);
+  const logged = events.find((entry) => entry.name === "sweep_pass_record");
+  assert.ok(logged, "the per-category record is logged");
+  assert.equal(logged.fields.listVersion, "sweep-categories-v1");
+  // The log line carries identifiers and indexes, never finding text.
+  const serialized = JSON.stringify(logged.fields);
+  assert.doesNotMatch(serialized, /Fix this/);
+  assert.doesNotMatch(serialized, /nit pick/);
+
+  // AC3: the published body states only that the sweep ran and its version.
+  const review = github.publishedReviews[0];
+  assert.match(review.summaryBody, /Category list version: `sweep-categories-v1`/);
+  assert.doesNotMatch(review.summaryBody, /unbounded-retry/);
+  assert.doesNotMatch(review.summaryBody, /Unbounded retry/);
+});
+
+test("sweep AC19: an enabled pass with a malformed list publishes normally and records sweep-did-not-run on both surfaces", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      logger: createRecordingLogger(events),
+      config: createConfig({ sweepMode: "on" }),
+      loadSweepList: async () => ({
+        ok: false,
+        reason: "malformed",
+        detail: "categories[0].matchTerms must be a non-empty array",
+      }),
+    }),
+  );
+
+  assert.equal(result.outcome, "succeeded");
+  assert.equal(github.publishedReviews.length, 1);
+  assert.deepEqual(result.sweep, {
+    degraded: {
+      kind: "sweep-did-not-run",
+      reason: "malformed",
+      detail: "categories[0].matchTerms must be a non-empty array",
+    },
+  });
+  assert.equal(result.sweep?.record, undefined);
+  // No list version is reported as used: the pass used none.
+  assert.doesNotMatch(github.publishedReviews[0].summaryBody, /Category list version/);
+  assert.doesNotMatch(github.publishedCheckRuns[0].summary, /Category list version/);
+  assert.match(github.publishedCheckRuns[0].summary, /Category-forced sweep: sweep-did-not-run/);
+  assert.match(github.publishedCheckRuns[0].summary, /Reason: malformed/);
+  const logged = events.find((entry) => entry.name === "sweep-did-not-run");
+  assert.ok(logged, "the degraded record is logged");
+  assert.equal(logged.fields.reason, "malformed");
+});
+
+test("sweep AC19: a list loader that throws degrades to an unreadable record instead of failing the pass", async () => {
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      config: createConfig({ sweepMode: "on" }),
+      loadSweepList: async () => {
+        throw new Error("the loader threw");
+      },
+    }),
+  );
+
+  assert.equal(result.outcome, "succeeded");
+  assert.deepEqual(result.sweep, {
+    degraded: {
+      kind: "sweep-did-not-run",
+      reason: "unreadable",
+      detail: "the list loader threw before returning a result",
+    },
+  });
+});
+
+test("sweep AC19: a thrown loader error's own text reaches no surface", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      logger: createRecordingLogger(events),
+      config: createConfig({ sweepMode: "on" }),
+      loadSweepList: async () => {
+        throw new Error("loader exploded at /home/operator/private/list.json");
+      },
+    }),
+  );
+
+  // The error's text can carry a local path, so it is never copied into the
+  // record: not the check run, not the review, not any log field.
+  for (const surface of [
+    github.publishedCheckRuns[0].summary,
+    github.publishedReviews[0].summaryBody,
+    JSON.stringify(events),
+  ]) {
+    assert.doesNotMatch(surface, /operator|exploded/);
+  }
+});
+
+test("sweep AC18: an unrecognized enablement value reviews without the sweep and records the fact, never the value", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      logger: createRecordingLogger(events),
+      config: createConfig({ sweepMode: "off", sweepModeRaw: "sometime" }),
+      loadSweepList: async () => {
+        throw new Error("the list must never load when enablement is unrecognized");
+      },
+    }),
+  );
+
+  assert.equal(result.outcome, "succeeded");
+  assert.equal(github.publishedReviews.length, 1);
+  assert.deepEqual(result.sweep, { degraded: { kind: "sweep_enablement_unrecognized" } });
+  assert.match(
+    github.publishedCheckRuns[0].summary,
+    /Category-forced sweep: an unrecognized enablement value was supplied; no sweep ran\./,
+  );
+  // The review body never carries a degraded state at all.
+  assert.doesNotMatch(github.publishedReviews[0].summaryBody, /Category-forced sweep/);
+  // The raw operator value appears on no surface: not the check run, not the
+  // review, not any log field.
+  for (const surface of [
+    github.publishedCheckRuns[0].summary,
+    github.publishedReviews[0].summaryBody,
+    JSON.stringify(events),
+  ]) {
+    assert.doesNotMatch(surface, /sometime/);
+  }
+  assert.ok(events.some((entry) => entry.name === "sweep_enablement_unrecognized"));
+});
+
+test("sweep AC1: a failure after the list load but before the review request emits no sweep metadata at all", async () => {
+  // The authoritative-doc fetch runs after the list load and before
+  // `deps.model.complete`, so throwing there lands exactly in the window AC1
+  // says owes nothing: this pass never issued a review request.
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: [
+      {
+        path: "src/webhook/webhook-server.ts",
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        patch: "+// webhook tweak",
+      },
+    ],
+    readFileAtRef: async () => {
+      throw new Error("authoritative doc fetch failed");
+    },
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      logger: createRecordingLogger(events),
+      config: createConfig({ sweepMode: "on" }),
+      loadSweepList: loadValidSweepList(),
+    }),
+  );
+
+  assert.equal(result.outcome, "failed");
+  assert.equal(result.sweep, undefined);
+  assert.deepEqual(sweepEvents(events), []);
+  assert.doesNotMatch(github.publishedCheckRuns[0].summary, /Category-forced sweep/);
+
+  // Byte for byte the same as the identical failure with the sweep off: this
+  // pass owes no sweep metadata, so nothing about it may differ from a
+  // pre-feature run.
+  const withoutSweepEvents: LogEvent[] = [];
+  const withoutSweepGithub = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: [
+      {
+        path: "src/webhook/webhook-server.ts",
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        patch: "+// webhook tweak",
+      },
+    ],
+    readFileAtRef: async () => {
+      throw new Error("authoritative doc fetch failed");
+    },
+  });
+  const withoutSweep = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: withoutSweepGithub.ops,
+      model: createFakeModel({ response: multiFindingResponse }).model,
+      logger: createRecordingLogger(withoutSweepEvents),
+      config: createConfig({ sweepMode: "off", sweepModeRaw: undefined }),
+    }),
+  );
+  assert.equal(withoutSweep.outcome, "failed");
+  assert.equal(
+    github.publishedCheckRuns[0].summary,
+    withoutSweepGithub.publishedCheckRuns[0].summary,
+  );
+  assert.equal(github.publishedCheckRuns[0].title, withoutSweepGithub.publishedCheckRuns[0].title);
+  assert.deepEqual(sweepEvents(withoutSweepEvents), []);
+});
+
+test("sweep AC1: a degraded pass that dies before the review request also emits nothing", async () => {
+  // Same window, unrecognized-enablement branch: the degraded record is held
+  // pending and must not be emitted for a pass that never issued its request.
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: [
+      {
+        path: "src/webhook/webhook-server.ts",
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        patch: "+// webhook tweak",
+      },
+    ],
+    readFileAtRef: async () => {
+      throw new Error("authoritative doc fetch failed");
+    },
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      logger: createRecordingLogger(events),
+      config: createConfig({ sweepMode: "off", sweepModeRaw: "sometime" }),
+    }),
+  );
+
+  assert.equal(result.outcome, "failed");
+  assert.equal(result.sweep, undefined);
+  assert.deepEqual(sweepEvents(events), []);
+});
+
+test("sweep AC1: a failure with no finding result records not_determined on the logs only", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({
+    error: new ModelClientError("model_unavailable", "model is down"),
+  });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      logger: createRecordingLogger(events),
+      config: createConfig({ sweepMode: "on" }),
+      loadSweepList: loadValidSweepList(),
+    }),
+  );
+
+  assert.equal(result.outcome, "failed");
+  assert.equal(result.failureReason, "model_unavailable");
+  // The check run is the failure check run, whose outcome is not a review, so
+  // the record is logs-only (AC1).
+  assert.doesNotMatch(github.publishedCheckRuns[0].summary, /Category-forced sweep/);
+  const logged = events.find((entry) => entry.name === "sweep_pass_record");
+  assert.ok(logged);
+  assert.deepEqual(logged.fields.categories, [
+    { identifier: "unbounded-retry", outcome: "not_determined" },
+    { identifier: "silent-swallow", outcome: "not_determined" },
+  ]);
+});
+
+test("sweep AC1: a failure after the response is parsed but before publication keeps the ordinary outcomes", async () => {
+  // The request went out and the response classified, so the pass reached
+  // every category it carried. It fails before publication, so the record is
+  // logs-only — but the outcomes are the ordinary ones, not `not_determined`.
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+    publishReviewError: new Error("publication exploded"),
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      logger: createRecordingLogger(events),
+      config: createConfig({ sweepMode: "on" }),
+      loadSweepList: loadValidSweepList(),
+    }),
+  );
+
+  assert.equal(result.outcome, "failed");
+  const logged = events.find((entry) => entry.name === "sweep_pass_record");
+  assert.ok(logged);
+  assert.deepEqual(logged.fields.categories, [
+    { identifier: "unbounded-retry", outcome: "produced_findings" },
+    { identifier: "silent-swallow", outcome: "produced_none" },
+  ]);
+  assert.doesNotMatch(github.publishedCheckRuns[0].summary, /Category-forced sweep/);
+});
+
+test("sweep AC1: a superseded pass logs its per-category record and publishes nothing", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+    supersedeOnReRead: true,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      logger: createRecordingLogger(events),
+      config: createConfig({ sweepMode: "on" }),
+      loadSweepList: loadValidSweepList(),
+    }),
+  );
+
+  assert.equal(result.outcome, "skipped");
+  assert.equal(result.skipReason, "superseded_head_sha");
+  assert.equal(github.publishedReviews.length, 0);
+  assert.equal(github.publishedCheckRuns.length, 0);
+  const logged = events.find((entry) => entry.name === "sweep_pass_record");
+  assert.ok(logged, "a superseded pass still owes its record");
+  assert.equal(logged.fields.headSha, HEAD_SHA);
+  assert.deepEqual(result.sweep?.record?.categories, [
+    { identifier: "unbounded-retry", outcome: "produced_findings" },
+    { identifier: "silent-swallow", outcome: "produced_none" },
+  ]);
+});
+
+test("sweep AC1: a pre-review skip emits no sweep metadata of any kind", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest({ draft: true }),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      logger: createRecordingLogger(events),
+      config: createConfig({ sweepMode: "on" }),
+      loadSweepList: loadValidSweepList(),
+    }),
+  );
+
+  assert.equal(result.outcome, "skipped");
+  assert.equal(result.skipReason, "draft_pull_request");
+  assert.equal(result.sweep, undefined);
+  assert.deepEqual(sweepEvents(events), []);
+});
+
+test("sweep AC1: an already-reviewed automatic skip emits no sweep metadata of any kind", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+    existingCheckRunId: 42,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      logger: createRecordingLogger(events),
+      config: createConfig({ sweepMode: "on" }),
+      loadSweepList: loadValidSweepList(),
+    }),
+  );
+
+  assert.equal(result.outcome, "skipped");
+  assert.equal(result.skipReason, "already_reviewed_automatically");
+  assert.equal(result.sweep, undefined);
+  assert.deepEqual(sweepEvents(events), []);
+  assert.equal(github.publishedCheckRuns.length, 0);
+});
+
+test("sweep AC1: a sweep-off pass emits no sweep metadata and no sweep prompt section", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  let lastUserPrompt = "";
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const originalComplete = model.complete.bind(model);
+  model.complete = async (request, signal) => {
+    lastUserPrompt = request.userPrompt;
+    return originalComplete(request, signal);
+  };
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      logger: createRecordingLogger(events),
+      config: createConfig({ sweepMode: "off", sweepModeRaw: undefined }),
+    }),
+  );
+
+  assert.equal(result.outcome, "succeeded");
+  assert.equal(result.sweep, undefined);
+  assert.deepEqual(sweepEvents(events), []);
+  assert.doesNotMatch(github.publishedCheckRuns[0].summary, /Category-forced sweep/);
+  assert.doesNotMatch(github.publishedReviews[0].summaryBody, /Category-forced sweep/);
+  assert.doesNotMatch(lastUserPrompt, /Category-forced sweep/);
 });
 
 test("authoritative docs: missing catalog file content still completes the pass", async () => {

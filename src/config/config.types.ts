@@ -6,6 +6,9 @@ export interface ModelConfig {
 
 export type DurabilityModeSetting = "on" | "off" | "default";
 
+/** Resolved enablement for the category-forced review sweep (#105). */
+export type SweepModeSetting = "on" | "off";
+
 export interface RondaConfig {
   model: ModelConfig;
   passTimeoutMs: number;
@@ -22,6 +25,19 @@ export interface RondaConfig {
   durabilityMode: DurabilityModeSetting;
   /** When true, activate durability mode on every implementation review without automatic match. */
   durabilityModeDefault: boolean;
+  /**
+   * Operator enablement for the category-forced review sweep (#105). Resolved
+   * from the first non-blank source; a non-empty value that is neither a
+   * recognized on/off word nor `default` resolves to `off` and is carried in
+   * {@link sweepModeRaw} rather than deferred to a lower-precedence source.
+   */
+  sweepMode: SweepModeSetting;
+  /**
+   * The unrecognized non-blank enablement value, when the resolved source was
+   * not recognized. Carried for the degraded record's *fact* only — never
+   * logged, published, or echoed into a review body.
+   */
+  sweepModeRaw: string | undefined;
   /**
    * Set only by the CLI entrypoint when the operator config file existed but
    * could not be read or parsed. Carries a message naming the file path —

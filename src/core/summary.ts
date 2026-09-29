@@ -3,6 +3,8 @@ import {
   REVIEW_COMMAND,
   type FailureReason,
   type Finding,
+  type SweepDegradedRecord,
+  type SweepPassRecord,
   type TriggerMode,
 } from "../domain/review-pass.types.js";
 import type { DurabilityModeResolution } from "../review/durability-mode.js";
@@ -27,6 +29,13 @@ export interface ReviewSummaryInput {
   coercedSeverityCount: number;
   duplicateCount: number;
   durabilityMode?: DurabilityModeResolution;
+  /**
+   * The active category-forced sweep (#105, AC3). The review body states only
+   * that the sweep ran and which list version it used — the per-category record
+   * and its attribution never reach the published review (AC1), and display
+   * labels never appear here.
+   */
+  sweep?: { listVersion: string };
 }
 
 export function countBySeverity(findings: Finding[]): SeverityCounts {
@@ -62,6 +71,13 @@ export function buildReviewSummary(input: ReviewSummaryInput): string {
 
   if (input.durabilityMode) {
     lines.push(...renderDurabilityModeSection(input.durabilityMode));
+    lines.push("");
+  }
+
+  if (input.sweep) {
+    lines.push("### Category-forced sweep");
+    lines.push("");
+    lines.push(`Sweep active. Category list version: \`${input.sweep.listVersion}\``);
     lines.push("");
   }
 
@@ -143,6 +159,14 @@ export interface CheckRunOutputInput {
   modelName: string;
   durationMs: number;
   failureReason?: FailureReason;
+  /**
+   * The per-category record (#105, AC1). Only a check run whose outcome is a
+   * review carries it; the failure path never receives sweep fields, so a
+   * failure check-run output is byte-identical to a pre-feature one.
+   */
+  sweep?: SweepPassRecord;
+  /** The degraded states (AC18, AC19) — never both with `sweep`, since a degraded pass classified nothing. */
+  sweepDegraded?: SweepDegradedRecord;
 }
 
 export interface CheckRunOutput {
@@ -163,6 +187,7 @@ export function buildCheckRunOutput(input: CheckRunOutputInput): CheckRunOutput 
       `Model: ${input.modelName}`,
       `Duration: ${formatDuration(input.durationMs)}`,
       `${severityLabel("blocking")}: ${input.findingCounts.blocking}, ${severityLabel("important")}: ${input.findingCounts.important}, ${severityLabel("nit")}: ${input.findingCounts.nit}`,
+      ...renderSweepCheckRunLines(input),
     ].join("\n");
     return { title, summary };
   }
@@ -176,6 +201,48 @@ export function buildCheckRunOutput(input: CheckRunOutputInput): CheckRunOutput 
     `Ask for another pass with \`${REVIEW_COMMAND}\`.`,
   ].join("\n");
   return { title, summary };
+}
+
+/**
+ * The sweep lines the successful check-run output carries (#105, AC1, AC18,
+ * AC19). Exactly one of `sweep` / `sweepDegraded` is rendered, because a
+ * degraded pass classified nothing. Neither variant states a finding's text:
+ * the record deliberately carries no finding title or body, so nothing here
+ * can echo model-generated content onto a log-adjacent surface.
+ */
+function renderSweepCheckRunLines(input: CheckRunOutputInput): string[] {
+  if (input.sweep) {
+    const lines = ["Category-forced sweep:"];
+    for (const category of input.sweep.categories) {
+      lines.push(`- ${category.identifier}: ${category.outcome}`);
+    }
+    for (const finding of input.sweep.findings) {
+      const categories =
+        finding.categories.length > 0 ? finding.categories.join(", ") : "uncategorized";
+      lines.push(`- finding ${finding.publicationIndex}: ${categories}`);
+    }
+    lines.push(`Uncategorized findings: ${input.sweep.uncategorizedFindingCount}`);
+    return lines;
+  }
+
+  if (!input.sweepDegraded) {
+    return [];
+  }
+
+  if (input.sweepDegraded.kind === "sweep-did-not-run") {
+    // No list version: the pass used none, and stating one it never loaded
+    // would be the false claim AC19's degraded record exists to avoid.
+    return [
+      "Category-forced sweep: sweep-did-not-run",
+      `Reason: ${input.sweepDegraded.reason}`,
+    ];
+  }
+
+  // The unrecognized enablement value itself is deliberately absent (AC18):
+  // it is operator input and the check-run output is user-facing.
+  return [
+    "Category-forced sweep: an unrecognized enablement value was supplied; no sweep ran.",
+  ];
 }
 
 function describeFailureReason(reason?: FailureReason): string {

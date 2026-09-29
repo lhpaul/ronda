@@ -28,7 +28,16 @@ import type {
   ReviewPassDeps,
   ReviewPassInput,
   ReviewPassResult,
+  SweepCategoryList,
+  SweepDegradedRecord,
+  SweepPassRecord,
 } from "../domain/review-pass.types.js";
+import {
+  classifyFindings,
+  loadSweepList,
+  type SweepClassification,
+  type SweepListResult,
+} from "../review/sweep-categories.js";
 import { buildCheckRunOutput, buildReviewSummary, countBySeverity } from "./summary.js";
 import { createPassDeadline } from "./pass-deadline.js";
 import {
@@ -129,6 +138,31 @@ export async function runReviewPass(
   // left pending, not about manufacturing a false outcome once the truth
   // (the published review) is already public.
   let reviewPublished = false;
+  // Populated once the sweep is enabled and its list loads, before
+  // `readChangedFiles`; read by the prompt, the classifier, and the record
+  // builders. Undefined when the sweep is off, unrecognized, or the list
+  // failed to load (AC18, AC19).
+  let sweepList: SweepCategoryList | undefined;
+  // The enablement/load decision, computed before the changed-files read but
+  // deliberately not emitted there (AC1): the sweep record belongs to a pass
+  // that reaches review execution, and AC1 draws that line at the review
+  // request the pass issued. A pass that dies between the read and the model
+  // call reached nothing and owes no record at all, degraded included.
+  let sweepDegraded: SweepDegradedRecord | undefined;
+  // Set the moment `classifyFindings` returns for the parsed response —
+  // independently of any GitHub call, so it stays set even if the pass then
+  // fails (AC1: a pass that issued its request and then failed has reached
+  // every category its request carried).
+  let classified = false;
+  let classification: SweepClassification | undefined;
+  // Set the instant before `deps.model.complete` is called. A pass that never
+  // got that far reached none of its categories and owes no sweep metadata at
+  // all — not even a degraded record — while a pass that did has reached
+  // every category its request carried (AC1).
+  let requestIssued = false;
+  // Guards the one-time release of the held degraded record, so the shared
+  // `catch` does not log it a second time after the success path logged it.
+  let sweepDegradedReleased = false;
 
   try {
     pr = await deps.github.readPullRequest(
@@ -196,6 +230,48 @@ export async function runReviewPass(
         reason: "credential_missing",
         logMessage: "RONDA_MODEL_API_KEY (or the operator config file's modelApiKey) is not set",
       });
+    }
+
+    // Sweep enablement resolution (#105, AC18). Resolved here — after the
+    // credential gate, before the changed-files read — but nothing is emitted
+    // from this point: AC1 ties the record to review execution, so both the
+    // unrecognized-enablement and invalid-list records are held in
+    // `sweepDegraded` and released only once the pass issues its review
+    // request. A pass that dies in between (an authoritative-document fetch,
+    // any other GitHub error) is indistinguishable from the same failure
+    // without the sweep and owes no sweep record at all.
+    if (deps.config.sweepMode === "on") {
+      // AC19: a list that cannot be loaded never fails the pass, whatever the
+      // loader does. The bundled loader returns a result rather than throwing,
+      // but the seam is injectable, so a throw is degraded to `unreadable` here
+      // instead of escaping to the shared failure path. The detail is fixed
+      // text: a thrown error's own message is not carried into the record.
+      let listResult: SweepListResult;
+      try {
+        listResult = await (deps.loadSweepList ?? loadSweepList)();
+      } catch {
+        listResult = {
+          ok: false,
+          reason: "unreadable",
+          detail: "the list loader threw before returning a result",
+        };
+      }
+      if (listResult.ok) {
+        sweepList = listResult.list;
+      } else {
+        // AC19: no list version is reported as used — the pass used none, and
+        // stating one it never loaded is the false claim this record avoids.
+        sweepDegraded = {
+          kind: "sweep-did-not-run",
+          reason: listResult.reason,
+          detail: listResult.detail,
+        };
+      }
+    } else if (deps.config.sweepModeRaw !== undefined) {
+      // AC18: a non-empty enablement value was unrecognized. The raw value is
+      // carried on `deps.config` for this fact alone and never reaches the
+      // record, the logs, or the review (see `config.types.ts`).
+      sweepDegraded = { kind: "sweep_enablement_unrecognized" };
     }
 
     const changedFiles = await deps.github.readChangedFiles(
@@ -357,10 +433,28 @@ export async function runReviewPass(
       maxAuthoritativeDocCount: deps.config.maxAuthoritativeDocCount,
       maxAuthoritativeDocChars: deps.config.maxAuthoritativeDocChars,
       durabilityMode,
+      ...(sweepList ? { sweepCategories: sweepList.categories } : {}),
     });
 
-    const raw = await deps.model.complete(prompt, deadline.signal);
-    const parsed = parseModelResponse(raw, changedFiles);
+    // Set before the call, not after: a request that is issued and then
+    // fails still reached every category it carried (AC1), and the model
+    // call's own failure modes (timeout, unavailable) are exactly that case.
+    requestIssued = true;
+    const completion = await deps.model.complete(prompt, deadline.signal);
+    // The review request has now been issued, so the sweep record for this
+    // pass — classified or degraded — is owed from here on. Release the held
+    // degraded record as its own log event now, so a later failure in this
+    // pass does not report it as though the request had never gone out.
+    if (sweepDegraded) {
+      logSweepDegraded(deps, sweepDegraded);
+      sweepDegradedReleased = true;
+    }
+    const parsed = parseModelResponse(completion.content, changedFiles);
+    if (sweepList) {
+      // Set the moment this returns, independently of any GitHub call below.
+      classification = classifyFindings(parsed.findings, sweepList);
+      classified = true;
+    }
 
     const commentableByFile = buildCommentableLinesByFile(changedFiles);
     const inlineComments: InlineComment[] = [];
@@ -392,7 +486,10 @@ export async function runReviewPass(
         headSha: pr.headSha,
         newHeadSha: latest.headSha,
       });
-      return skippedResult("superseded_head_sha", startMs, deps, pr.headSha);
+      // This pass issued its review request, so it owes its per-category
+      // record — but it publishes nothing, so the record is logs-only (AC1).
+      const sweep = sweepMetadata(classification, sweepList, sweepDegraded, deps, pr.headSha);
+      return skippedResult("superseded_head_sha", startMs, deps, pr.headSha, sweep);
     }
 
     const totals = fileTotals(changedFiles);
@@ -409,6 +506,10 @@ export async function runReviewPass(
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
       durabilityMode,
+      // AC3: the body states only that the sweep ran and which list version it
+      // used. A degraded pass states nothing — it classified nothing, and the
+      // record belongs to the surfaces AC1 assigns it (AC18, AC19).
+      ...(sweepList ? { sweep: { listVersion: sweepList.version } } : {}),
     });
     const fallbackSummaryBody = buildReviewSummary({
       changedFileCount: changedFiles.length,
@@ -423,6 +524,7 @@ export async function runReviewPass(
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
       durabilityMode,
+      ...(sweepList ? { sweep: { listVersion: sweepList.version } } : {}),
     });
 
     deadline.markPublishing();
@@ -445,11 +547,16 @@ export async function runReviewPass(
 
     const findingCounts = countBySeverity(parsed.findings);
     const durationMs = deps.clock.now() - startMs;
+    // The record and the degraded record are never both: a degraded pass
+    // classified nothing, so it has no per-category record to carry.
+    const sweep = sweepMetadata(classification, sweepList, sweepDegraded, deps, pr.headSha);
     const checkRunOutput = buildCheckRunOutput({
       outcome: "succeeded",
       findingCounts,
       modelName: deps.model.modelName,
       durationMs,
+      ...(sweep.record ? { sweep: sweep.record } : {}),
+      ...(sweep.degraded ? { sweepDegraded: sweep.degraded } : {}),
     });
 
     const checkRunInput: PublishCheckRunInput = {
@@ -508,12 +615,29 @@ export async function runReviewPass(
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
       durationMs,
+      ...(sweep.record || sweep.degraded ? { sweep } : {}),
     };
   } catch (error) {
     if (reviewPublished) {
       throw error;
     }
     const reason = mapErrorToFailureReason(error, deadline.expired());
+    // AC1: the sweep metadata this pass owes is decided here, by whether it
+    // issued its review request — not by how far it got past that. A pass
+    // that never issued one logs nothing sweep-related; the failure check run
+    // below is `finalizeFailure`'s and deliberately carries no sweep fields,
+    // so this record is logs-only.
+    if (requestIssued) {
+      if (classified && classification && sweepList) {
+        logSweepPassRecord(deps, classification, sweepList.version);
+      } else if (sweepList) {
+        // The request went out carrying the list, but the response never
+        // classified, so nothing about these categories was established.
+        logSweepPassRecord(deps, notDetermined(sweepList), sweepList.version);
+      } else if (sweepDegraded && !sweepDegradedReleased) {
+        logSweepDegraded(deps, sweepDegraded);
+      }
+    }
     // Best known head SHA: the one `readPullRequest` returned, if it got
     // that far, else the one carried by the triggering webhook event (only
     // ever present for `pull_request` events — `issue_comment` payloads
@@ -628,16 +752,95 @@ function fileTotals(files: Array<{ additions: number; deletions: number }>): {
   );
 }
 
+/**
+ * The sweep metadata a pass owes (AC1). Classified and degraded are mutually
+ * exclusive: a degraded pass never loaded a list, so it has no per-category
+ * record; a classified pass loads one, so it has no degraded record.
+ */
+function sweepMetadata(
+  classification: SweepClassification | undefined,
+  sweepList: SweepCategoryList | undefined,
+  degraded: SweepDegradedRecord | undefined,
+  deps: ReviewPassDeps,
+  headSha: string,
+): {
+  record?: SweepPassRecord;
+  degraded?: SweepDegradedRecord;
+} {
+  if (classification && sweepList) {
+    const record = passRecord(classification, sweepList.version);
+    logSweepPassRecord(deps, classification, sweepList.version, headSha);
+    return { record };
+  }
+  return degraded ? { degraded } : {};
+}
+
+/** The `not_determined` record for a pass whose request carried the list but never classified. */
+function notDetermined(list: SweepCategoryList): SweepClassification {
+  return {
+    categories: list.categories.map((category) => ({
+      identifier: category.identifier,
+      outcome: "not_determined" as const,
+    })),
+    findings: [],
+    uncategorizedFindingCount: 0,
+  };
+}
+
+function passRecord(classification: SweepClassification, listVersion: string): SweepPassRecord {
+  return {
+    listVersion,
+    categories: classification.categories,
+    findings: classification.findings,
+    uncategorizedFindingCount: classification.uncategorizedFindingCount,
+  };
+}
+
+/**
+ * Logs the per-category record through `sweep_pass_record`. Carries counts and
+ * category identifiers only — never a finding's title or body, which is
+ * model-generated text the parser's limited redaction may not cover (AC20).
+ */
+function logSweepPassRecord(
+  deps: ReviewPassDeps,
+  classification: SweepClassification,
+  listVersion: string,
+  headSha?: string,
+): void {
+  deps.logger.event("sweep_pass_record", {
+    listVersion,
+    ...(headSha !== undefined ? { headSha } : {}),
+    categories: classification.categories,
+    findings: classification.findings,
+    uncategorizedFindingCount: classification.uncategorizedFindingCount,
+  });
+}
+
+function logSweepDegraded(deps: ReviewPassDeps, degraded: SweepDegradedRecord): void {
+  if (degraded.kind === "sweep_enablement_unrecognized") {
+    // The unrecognized value itself is deliberately absent (AC18) — it is
+    // operator input, and only the fact of the unrecognized value is recorded.
+    deps.logger.event("sweep_enablement_unrecognized", { unrecognized: true });
+    return;
+  }
+  deps.logger.event("sweep-did-not-run", {
+    reason: degraded.reason,
+    detail: degraded.detail,
+  });
+}
+
 function skippedResult(
   skipReason: ReviewPassResult["skipReason"],
   startMs: number,
   deps: ReviewPassDeps,
   reviewedHeadSha?: string,
+  sweep?: ReviewPassResult["sweep"],
 ): ReviewPassResult {
   return {
     outcome: "skipped",
     skipReason,
     ...(reviewedHeadSha !== undefined ? { reviewedHeadSha } : {}),
+    ...(sweep ? { sweep } : {}),
     terminalCheckRunPublished: false,
     findings: [],
     malformedCount: 0,

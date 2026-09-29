@@ -85,6 +85,8 @@ export async function main(): Promise<number> {
       maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
       durabilityMode: "default",
       durabilityModeDefault: false,
+      sweepMode: "off",
+      sweepModeRaw: undefined,
       loadError: `Failed to load Ronda config file at ${path}`,
     };
   }

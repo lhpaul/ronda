@@ -1,7 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { DurabilityModeSetting, RondaConfig } from "./config.types.js";
+import type {
+  DurabilityModeSetting,
+  RondaConfig,
+  SweepModeSetting,
+} from "./config.types.js";
 
 /** Ten minutes, per the constitution's "timeout in minutes, not hours" rule. */
 export const DEFAULT_PASS_TIMEOUT_MS = 600_000;
@@ -40,6 +44,7 @@ interface OperatorConfigFile {
   maxAuthoritativeDocChars?: number | string;
   durabilityMode?: string;
   durabilityModeDefault?: boolean | string;
+  sweepMode?: string;
 }
 
 export interface LoadConfigOptions {
@@ -112,6 +117,14 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
     parseBooleanFlag(env.RONDA_DURABILITY_MODE_DEFAULT) ??
     parseBooleanFlag(fileConfig.durabilityModeDefault) ??
     false;
+  // Sweep enablement resolves from the first non-blank source only. Deliberately
+  // not an `??` chain over `parseSweepMode`: an unrecognized non-empty value must
+  // be carried as unrecognized, not silently deferred to a lower-precedence
+  // source that would happen to parse (AC18).
+  const sweepSource = nonBlank(env.RONDA_SWEEP_MODE) ?? nonBlank(fileConfig.sweepMode);
+  const parsedSweepMode = parseSweepMode(sweepSource);
+  const sweepMode = parsedSweepMode ?? "off";
+  const sweepModeRaw = sweepSource !== undefined && parsedSweepMode === undefined ? sweepSource : undefined;
 
   return {
     model: { apiKey, baseUrl, modelName },
@@ -121,6 +134,8 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
     maxAuthoritativeDocChars,
     durabilityMode,
     durabilityModeDefault,
+    sweepMode,
+    sweepModeRaw,
   };
 }
 
@@ -150,6 +165,23 @@ function parseDurabilityMode(value: string | undefined | null): DurabilityModeSe
   }
   if (raw === "default") {
     return "default";
+  }
+  return undefined;
+}
+
+/**
+ * Recognizes the sweep's enablement vocabulary. `default` means off and is
+ * recognized (its raw text is not carried). Any other non-blank value is
+ * unrecognized: the caller resolves it to `off` and carries its raw text for
+ * the degraded record, never deferring it to another source (AC18).
+ */
+function parseSweepMode(value: string | undefined | null): SweepModeSetting | undefined {
+  const raw = nonBlank(value)?.toLowerCase();
+  if (raw === "on" || raw === "1" || raw === "true") {
+    return "on";
+  }
+  if (raw === "off" || raw === "0" || raw === "false" || raw === "default") {
+    return "off";
   }
   return undefined;
 }

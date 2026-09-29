@@ -82,40 +82,5 @@
     "additions": 7,
     "deletions": 0,
     "patch": "@@ -0,0 +1,7 @@\n+export async function publishReview(eventHeadSha: string, currentHeadSha: string, publish: (sha: string) => Promise<void>): Promise<void> {\n+  if (!currentHeadSha) throw new Error(\"missing head\");\n+  await publish(eventHeadSha);\n+}\n+"
-  },
-  {
-    "path": "src/benchmark/git-history.ts",
-    "status": "added",
-    "additions": 8,
-    "deletions": 0,
-    "patch": "@@ -0,0 +1,8 @@\n+export async function branchWasHead(\n+  client: { listCommits: (branch: string) => Promise<string[]> },\n+  branch: string,\n+  sha: string,\n+): Promise<boolean> {\n+  const commits = await client.listCommits(branch);\n+  return commits.includes(sha);\n+}\n+"
-  },
-  {
-    "path": "src/benchmark/output.ts",
-    "status": "added",
-    "additions": 19,
-    "deletions": 0,
-    "patch": "@@ -0,0 +1,20 @@\n+// The external linter prints one finding per line as \"- text\", \"* text\" or \"1. text\",\n+// and wraps a long finding onto an indented continuation line.\n+const SAMPLE = [\n+  \"- unused import\",\n+  \"* shadowed variable\",\n+  \"1. missing return\",\n+  \"   detail wrapped from the previous finding\",\n+];\n+\n+export function classifyItems(output: string): string[] {\n+  return output\n+    .split(\"\\n\")\n+    .filter((line) => line.startsWith(\"- \"))\n+    .map((line) => line.slice(2).trim());\n+}\n+\n+export function describeSample(): number {\n+  return classifyItems(SAMPLE.join(\"\\n\")).length;\n+}\n+"
-  },
-  {
-    "path": "src/benchmark/guard.ts",
-    "status": "added",
-    "additions": 12,
-    "deletions": 0,
-    "patch": "@@ -0,0 +1,12 @@\n+export async function enforcePolicy(\n+  loadRules: () => Promise<string[]>,\n+  action: string,\n+): Promise<boolean> {\n+  let rules: string[] = [];\n+  try {\n+    rules = await loadRules();\n+  } catch {\n+    return true;\n+  }\n+  return rules.includes(action);\n+}\n+"
-  },
-  {
-    "path": "src/benchmark/records.ts",
-    "status": "added",
-    "additions": 4,
-    "deletions": 0,
-    "patch": "@@ -0,0 +1,4 @@\n+export function recordId(records: Array<{ name: string }>, index: number): string {\n+  const alias = records[index].name.toLowerCase().replace(/[^a-z0-9]/g, \"\");\n+  return `${index}:${alias}`;\n+}\n+"
-  },
-  {
-    "path": "src/benchmark/credentials.ts",
-    "status": "added",
-    "additions": 15,
-    "deletions": 0,
-    "patch": "@@ -0,0 +1,16 @@\n+// Recognizes a credential by its canonical name form only.\n+const CANONICAL_CREDENTIAL_NAME = /^token$/;\n+\n+export function redactCredentials(fields: Record<string, string>): Record<string, string> {\n+  return Object.fromEntries(\n+    Object.entries(fields).map(([name, value]) => [\n+      name,\n+      CANONICAL_CREDENTIAL_NAME.test(name) ? \"<redacted>\" : value,\n+    ]),\n+  );\n+}\n+\n+export function describeRequest(authToken: string): Record<string, string> {\n+  return redactCredentials({ authToken });\n+}\n+"
   }
 ]

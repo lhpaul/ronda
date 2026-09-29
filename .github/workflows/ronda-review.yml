@@ -35,6 +35,13 @@ on:
         type: string
         required: false
         default: ""
+      sweep_mode:
+        description: >-
+          Force the category-forced review sweep on or off for this run
+          (`on` / `off`). Leave empty to leave the sweep off.
+        type: string
+        required: false
+        default: ""
       ronda_ref:
         description: Ref of lhpaul/ronda to check out and run.
         type: string
@@ -143,4 +150,5 @@ jobs:
           RONDA_PASS_TIMEOUT_MS: ${{ needs.setup.outputs.pass_timeout_ms }}
           RONDA_DURABILITY_MODE: ${{ inputs.durability_mode }}
           RONDA_DURABILITY_MODE_DEFAULT: ${{ inputs.durability_mode_default }}
+          RONDA_SWEEP_MODE: ${{ inputs.sweep_mode }}
         run: npm run review
