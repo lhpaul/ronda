@@ -8,6 +8,7 @@ import {
   buildQualityBenchmarkSummary,
   classifyPrecisionFixture,
   classifyFindings,
+  main,
   runBenchmarkCampaign,
   runRecallBenchmark,
   runPrecisionFixture,
@@ -640,6 +641,18 @@ test("campaign original-thirteen snapshot differs by path and hash while sharing
     campaignDeps(),
   );
   assert.equal("originalThirteenSubset" in partial.records[0], false);
+});
+
+test("a count argument must be a whole positive integer, not a parsed prefix", async () => {
+  for (const flag of ["--runs", "--max-patch-chars"]) {
+    for (const bad of ["5x", "5.9", "0", "-1", " 5", "1e3"]) {
+      await assert.rejects(
+        () => main([flag, bad]),
+        new RegExp(`${flag} must be a positive integer`),
+        `${flag} ${JSON.stringify(bad)} must be rejected`,
+      );
+    }
+  }
 });
 
 test("campaign --runs 2 writes two per-run records, each carrying both identity blocks", async () => {

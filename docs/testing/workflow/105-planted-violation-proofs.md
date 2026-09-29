@@ -296,3 +296,20 @@ nor any log field. It is a different test from the one P21 fails.
 
 Unplanted outcome for all three: `./node_modules/.bin/tsx --test
 tests/unit/core/run-review-pass.test.ts` reports `ℹ pass 42`, `ℹ fail 0`.
+
+## P23 — a count argument is read by its numeric prefix
+
+**Plant**: `src/cli/recall-benchmark.ts:687` — replace `const parsed =
+/^\d+$/.test(value) ? Number(value) : Number.NaN;` with `const parsed =
+Number.parseInt(value, 10);`, so `--runs 5x` or `--runs 5.9` runs five times.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Missing expected rejection: --runs
+"5x" must be rejected`. Isolates the `assert.rejects` in `a count argument must
+be a whole positive integer, not a parsed prefix` (test line 649), which
+walks `5x`, `5.9`, `0`, `-1`, ` 5`, and `1e3` for both `--runs` and
+`--max-patch-chars`. An empty value is not in the list: it takes the separate
+"incomplete argument" path.
+
+Unplanted outcome: `./node_modules/.bin/tsx --test
+--test-name-pattern="a count argument" tests/unit/cli/recall-benchmark.test.ts`
+reports `ℹ pass 1`, `ℹ fail 0`.

@@ -681,8 +681,11 @@ function parseArgs(argv: string[]): CliOptions {
 }
 
 function parsePositiveInt(value: string, name: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
+  // The whole argument must be digits: `Number.parseInt` alone would read the
+  // prefix of `5x` or `5.9` and run a different count than the operator gave,
+  // and the sample count is part of a campaign's evidence contract.
+  const parsed = /^\d+$/.test(value) ? Number(value) : Number.NaN;
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     throw new Error(`${name} must be a positive integer`);
   }
   return parsed;
