@@ -1,0 +1,269 @@
+# Read-Only Repository Context With Symbol-Level Resolution — Implementation Plan
+
+**Spec**: [`1_106-read-only-symbol-context_specs.md`](1_106-read-only-symbol-context_specs.md)
+**Smoke test runbook**: [`../../../testing/ronda/106-read-only-symbol-context.smoke-test.md`](../../../testing/ronda/106-read-only-symbol-context.smoke-test.md)
+
+---
+
+## Summary
+
+**Approach**: Record the architecture amendment first (in **both** `docs/project/3-software-architecture.md` and `docs/constitution.md` — see **Spec amendment carried by this plan PR**), then add repository context as a bounded, in-pass phase of `runReviewPass` that mirrors the two-phase shape `select-authoritative-docs.ts` already uses: identify candidates from the changed lines, resolve them at the reviewed head, apply budgets, attach a labelled untrusted prompt section, record the outcome. Reads go through the **existing** GitHub contents seam (`GithubOperations.readFileAtRef`, backed by `src/github/repo-content-reader.ts`) plus one new recursive git-tree read — **no checkout, no working area, no `git` subprocess, no filesystem write** (plan decision **D1**). References are bound with the **TypeScript compiler API in-process** over the in-memory file set the reads produced (plan decision **D2**), so a candidate is the declaration the reviewed language's own checker binds to and an unbindable reference is dropped as `ambiguous_resolution` rather than guessed. Enablement and the three budgets ride the operator-configuration precedence the `#105` sweep switch already established. This repository's own value is supplied as a **repository variable** and is set on only after the AC4, AC5 and AC23 evidence is committed.
+
+**Estimated complexity**: L
+
+**Rationale**: The wiring is medium (one config group, one selection module, one resolver module, one prompt section, two renderers, one fork gate, one non-publishing control-pass entrypoint), but the item's bulk is correctness and evidence: a compiler-accurate resolver with a 100%-precision bar on a recorded fixture (AC23), a hostile-head read-only demonstration with structural and observational parts labelled apart (AC4, AC5), a paired interleaved recall/precision/cost campaign under one immutable model version (AC13–AC16), an evidence-tier ledger (AC17), and an ordering rule that gates this repository's switch on the evidence commits (AC19).
+
+**Dependencies**: None blocking. The spec names #105 (merged — the three target seeds `api-evidence-state-reconstruction`, `external-output-parsing-lossy`, `guard-fails-open` exist in `tests/fixtures/recall-benchmark/manifest.json`), #53 and #55 (merged) as evidence and surface lineage. #127 is a documentation follow-up and is **not** touched here. If the three seeds are absent from `manifest.json` when implementation begins, step 13 stops and raises it rather than reconstructing seeds.
+
+---
+
+## Verification Log
+
+> Recorded at plan-write time on branch `implementation-plan/106-read-only-symbol-context`, repo revision `5e1e095` (= `origin/develop` after `git fetch origin`).
+
+| Check | Command / query | Result |
+| --- | --- | --- |
+| Repo revision | `git rev-parse --short HEAD` | `5e1e095` (equals `git rev-parse --short origin/develop`) |
+| No pre-existing repository-context surface | `grep -rn "repositoryContext\|repository_context" src/ .github/ \| wc -l` | `0` — every file listed below is a new edit, none a rename |
+| Non-blob content is already refused structurally | `src/github/repo-content-reader.ts` (`Array.isArray(data)` → `directory`; `data.type !== "file"` → `type:<type>`) | The one content seam already refuses a directory, a **symlink**, and a **submodule** entry before decoding; AC4/AC9's read-side refusals are therefore a property of code that exists, not a new guard |
+| Operator switch precedent | `src/config/load-config.ts` (`sweepSource = nonBlank(env.RONDA_SWEEP_MODE) ?? nonBlank(fileConfig.sweepMode)`, `parseSweepMode`, `sweepModeRaw`) | Exactly AC21's shape: first non-blank source wins, an unrecognized non-blank value resolves off and is **not** deferred to the lower source, its raw text is carried for the record's *fact* only |
+| Existing diff budget is separate from any doc/context budget | `DEFAULT_MAX_PATCH_CHARS = 400_000` in `src/config/load-config.ts`; `buildReviewPrompt` checks the combined patch text alone against `maxPatchChars` | AC7 holds by construction: repository context is a separate prompt section with its own budget and never enters the patch measurement |
+| Actions ingress knob mapping | `.github/workflows/ronda-review.yml` (`workflow_call` inputs → `RONDA_*` env on the `Run review pass` step) | Four new inputs map to four new env names; no other indirection exists |
+| Dogfood caller supplies no repository variable today | `.github/workflows/ronda-review-dogfood.yml` passes only `secrets.model_api_key` | AC19's "flip it from repository settings" needs one new `with:` line reading `vars.RONDA_REPOSITORY_CONTEXT`; an unset variable renders as the empty string, which resolves fail-closed to off |
+| No source-level fork awareness exists | `grep -rn "fork\|head.repo\|headRepo" src/` | `0` matches in `src/`; the only fork guard is the workflow `if:` in `ronda-review.yml`, which gates `pull_request` only — so AC10 needs `headRepoFullName` on `PullRequestMetadata` |
+| `typescript` is a devDependency | `package.json` → `devDependencies.typescript: 5.8.3` | D2 needs it at runtime; step 4 moves it to `dependencies` at the same pinned version |
+| Reviewed-language inventory size on this repository | `find src -name "*.ts" \| wc -l` | `45` — the call-site phase's inventory read is small here, which is why D1's per-file reads fit the time budget on the dogfood cohort |
+| Target seeds exist | `python3 -c "import json;print([d['id'] for d in json.load(open('tests/fixtures/recall-benchmark/manifest.json'))['seededDefects']])"` | 18 seeds including the three AC13 targets; the fixture is **patch-only** — it carries no surrounding source tree, which is why step 13 must build one before any AC13 figure is admissible |
+| Same-surface open PRs | `gh pr list --state open --json number` | `[]` — no open PR touches the plan's artifact branch, the spec directory, `docs/constitution.md`, or the architecture document |
+| Pre-create nested-artifact guard | `run-nested-artifact-guard.sh --mode pre-create --issue 106 --expected-branch implementation-plan/106-read-only-symbol-context --approved-base develop` | `RESULT=clean`, `UNEXPECTED_COUNT=0` |
+
+---
+
+## Cross-Cutting Operational Assumption Check
+
+### Applicable
+
+| Assumption surface | Recorded value | Authoritative source | Verified at | Bounded cross-check scope | Result |
+| --- | --- | --- | --- | --- | --- |
+| Plan artifact base branch | `develop` | Parent handoff (`base=develop`); `AGENTS.md` ("Default branch: `develop`"); `git rev-parse HEAD == origin/develop == 5e1e095` | 2026-09-29, `5e1e095` | Current invocation item (#106 only); `gh pr list --state open` returned `[]` | `Verified` |
+| Where the amendment is recorded | **Both** `docs/project/3-software-architecture.md` (Key Architectural Decisions) **and** `docs/constitution.md` | Repository-owner decision of 2026-09-29, relayed with this plan's dispatch and corroborated by strategy §4.A1 (2026-09-23, reaffirmed 2026-09-29: *"dejar escrito en la constitución el invariante que reemplaza al anterior"*). This **supersedes** the merged spec, which says the constitution is not amended | 2026-09-29, `5e1e095` | Same-surface evidence: no open PR touches `docs/constitution.md` or the spec directory; the merged spec text (PR #126) is the only competing evidence | `Resolved` — decision owner: repository owner. Resolution: this plan PR carries a **minimal, labelled spec amendment** aligning AC1, "Where the decision is recorded", Coverage row O5, and the amendment-recording gate row with the two-document requirement; implementation step 1 records both documents |
+| Resolution method (AC23 requires it recorded as a plan decision) | TypeScript compiler API, in-process, over the files the pass read | Repository-owner decision of 2026-09-29 relayed with this plan's dispatch; strategy §4.A2 lists `ast-grep` + `ripgrep` as its *preference*, which the owner overrode for AC23's binding requirement | 2026-09-29, `5e1e095` | Same-surface evidence: none — no open PR or sibling item changes Ronda's resolution surface | `Resolved` — decision owner: repository owner. Recorded as plan decision **D2** with the rejection rationale |
+| Fork-exclusion scope | Both ingresses, per trigger, per the merged spec — **not** narrowed to the webhook/dedicated machine | Spec AC10 and Use Case 4 (merged, PR #126) | 2026-09-29, `5e1e095` | Strategy §4.A1 scopes its checkout note to the dedicated machine (webhook ingress) only; the spec is broader and is the contract | `Resolved` — decision owner: repository owner. The spec's two-ingress scope stands; the strategy document's narrower framing is noted and not followed |
+
+---
+
+## Spec amendment carried by this plan PR
+
+This plan PR contains one **minimal, clearly-labelled amendment** to the merged spec, resolving the spec's own Open Question 1 / Deferral Note D1 with owner decisions taken on 2026-09-29 *after* PR #126 merged. Four edits, no other spec change:
+
+1. **AC1** — the amendment text is recorded in the Key Architectural Decisions section of `docs/project/3-software-architecture.md` **and** the replacement invariant ("the reviewed repository is read, never installed, built or executed") is recorded in `docs/constitution.md`. The sentence "`docs/constitution.md` does not carry this decision and is not amended by this item" is replaced.
+2. **Where the decision is recorded** — names both documents and which part each carries: the architecture document carries the full amended decision (context, decision, consequences); the constitution carries the one-line replacement invariant in its **Surface** section, where the comment-only and one-review-per-SHA commitments already live.
+3. **Coverage Matrix row O5** and the **Amendment recording (AC1, AC2)** gate row — both updated to the two-document requirement. AC2's three substantive commitments are unchanged, so the gate's "recorded but weakening one of the three commitments" branch is untouched.
+4. **Open Questions / Deferral Note D1 / Recorded Decisions row 7** — closed as **checked on 2026-09-29** against strategy §4.A1, §4.A2 and §5, with two recorded results: the Brief Objective List is complete for §4.A1/§5 (the strategy document's §4.A1 also asks for the constitution entry, which edit 1 above absorbs), and §4.A2's fourth context kind — **the matching test file** — is *deferred*, added to **Out of Scope (MVP)** and **Deferred Decisions** as a follow-up to be reconsidered once the first cohort shows whether two candidate kinds help. The spec's two candidate kinds (AC6, **Context Selection Order**) are unchanged by this plan.
+
+Everything else in the spec — every AC, the selection order, the outcome enum, the budgets, the fork exclusion — is the contract this plan implements and is not restated here. Rules are referenced by AC number and spec section name rather than re-worded, deliberately: the spec's own review loop thrashed on cross-site consistency, and a plan that paraphrases a frozen rule creates a second site to keep in sync.
+
+---
+
+## Recorded plan decisions
+
+| # | Decision | Rationale | Spec hook |
+| --- | --- | --- | --- |
+| **D1** | **Read mechanism: GitHub API reads, in memory. No checkout, no working area, no `git` subprocess, no filesystem write for reviewed content.** One recursive git-tree read at the reviewed head for the source-file inventory (`GET /repos/{o}/{r}/git/trees/{sha}?recursive=1`), then per-file text through the existing `readFileAtRef` contents seam. | The amendment leaves the mechanism open and the guarantees are written over the *reads*, so the cheapest mechanism that makes the guarantees **structural** wins. (a) AC4's three read-side attacks cannot arise: nothing is materialised on a filesystem, so no `.gitattributes` filter or driver has anything to act on; a symlink and a submodule are tree/contents entries the existing reader refuses before decoding (Verification Log), never paths something follows. (b) AC9's "no repository other than the reviewed head's own" is enforced at one seam bound to `(owner, repo, headSha)`. (c) AC12 becomes vacuous **on both ingresses**: no working area is ever created, so nothing can outlive a pass, be shared between passes, or need removing on any of the five settlement paths — which removes the largest risk the long-lived webhook process would otherwise take on. (d) No new token scope and no second git identity — the two costs the decision being amended cited as its reason. The tradeoff is HTTP round trips instead of one fetch; bounded by D3's time budget and small on the dogfood cohort (45 `src` files). A shallow fetch was rejected because it re-acquires exactly the materialisation surface (a), (b) and (c) are free of, and would have to buy each of them back with hardened `git` invocation flags and a cleanup path on five settlement paths. | Amendment decision text; AC4, AC9, AC12 |
+| **D2** | **Resolution method: the TypeScript compiler API (`typescript@5.8.3`), in-process, over a virtual `CompilerHost` backed by the in-memory file set D1's reads produced.** A depended-on candidate is the single declaration `checker.getSymbolAtLocation(...)` binds the reference to; a call-site candidate is an identifier whose symbol resolves back to a changed declaration. Zero or more than one declaration → dropped `ambiguous_resolution`. | AC23 requires the excerpt to be what the reviewed language's *own* compiler binds to, measured at 100% precision on a fixture that deliberately contains same-named declarations on different types, a shadowed name, and a re-export. `ast-grep` + `ripgrep` — the strategy document's stated preference (§4.A2) — is **syntactic**: it matches shapes and text, and has no type information, so it cannot tell a same-named method on a different type from the right one, cannot see a shadowed local, and cannot follow a re-export to the declaration a reference actually binds to. It would produce reproducibly wrong excerpts, which **Context Selection Order** names as worse than none. It would also add two binaries to a repository whose only runtime dependency is `@octokit/rest`, whereas `typescript` is already pinned here. A language server or navigation MCP was rejected for the reason §4.A2 itself gives: Ronda is a deadline-bounded server, and an agent loop breaks that guarantee. | AC23; **Context Selection Order** → Resolution correctness |
+| **D3** | **Four operator-configuration values and no more**, with these starting defaults: `maxRepositoryContextCandidates` **12**, `maxRepositoryContextChars` **24_000**, `repositoryContextTimeBudgetMs` **120_000** (two minutes inside the ten-minute pass budget), and the switch itself, off unless a recognized on value resolves. The resolver has **no separate read-count knob**: reads stop when the time budget is exhausted, and the resulting drops carry the spec's `time budget` reason. | The spec's business rules fix the count at four ("and no others"), so an extra read budget would be a contract change. 24_000 characters is ~6% of the existing 400_000-character diff budget, which keeps AC7 uncontested even at the loosest setting. Two minutes leaves eight for the model call and publication inside the default budget AC8 must fit within. All three are operator-tunable from the first version, and the Deferred Decisions table hands the final defaults to the owner after the first measured passes. | Business rules on the four values; AC6, AC7, AC8, AC21 |
+| **D4** | **Language scope: TypeScript and JavaScript only** (`.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs`). A changed file of any other extension contributes no candidate. | Out of Scope (MVP) limits coverage to "what the reviewed repository's own primary language needs for the three target sub-themes", and all three live in this repository's TypeScript. A pass whose changed lines are all non-TypeScript therefore resolves to `nothing_to_resolve`, which is the outcome the spec created for exactly that everyday case — not `unavailable`. | Out of Scope (MVP); AC3 |
+| **D5** | **The resolver runs its phases in the priority order, so the time budget degrades from the tail.** Definitions are resolved to completion before any call site is attempted, and within each kind the work proceeds in the **Context Selection Order** key order. | AC20 requires selection to depend only on the head, the changed lines, and the configuration, while AC8 requires a time budget that can end the work early. Ordering the phases by the same keys the priority order uses is what reconciles them: an unexhausted budget gives a byte-identical selection across passes, and an exhausted one always drops the *lowest*-priority candidates, so the highest-value kind is never the casualty of latency. The record names every `time budget` drop, which is what keeps "why did Ronda not see that?" answerable. | AC8, AC20; **Context Selection Order** → Priority, Reproducibility |
+| **D6** | **Fail-closed fork detection.** `PullRequestMetadata` gains `headRepoFullName`; the head is treated as same-repository only when it equals `${owner}/${repo}` compared case-insensitively. An absent, empty, or unreadable head repository (a deleted fork, for instance) is treated as **fork-originated**. | AC10 makes the exclusion fixed and verifiable at the most permissive configuration. An unknown head origin resolving to "not a fork" would be the one configuration-independent way a fork read could still happen. | AC10; Use Case 4 |
+
+---
+
+## Layer-by-Layer Changes
+
+### Database / Data Layer
+
+Not applicable — this repository has no database (`docs/project/4-database-model.md`).
+
+### Recorded artifacts (data-layer equivalent)
+
+- [ ] `docs/project/3-software-architecture.md` — replace the **Diffs are read over the REST API; the reviewed repository is never checked out** decision with the spec's agreed replacement text, word for word in its three substantive commitments, attributed to the repository owner, dated 2026-09-29, recorded as **accepted with changes**, referencing #106, and naming which of the two bundled commitments it keeps and which it changes. Also extend the existing **Authoritative documentation in review passes** subsection with the repository-context modules. **AC1, AC2**
+- [ ] `docs/constitution.md` — add the replacement invariant to the **Surface** section: *the reviewed repository is read, never installed, built or executed*. One bullet, alongside the existing comment-only and one-review-per-SHA commitments. Owner decision of 2026-09-29; see **Spec amendment carried by this plan PR**. **AC1**
+- [ ] `tests/fixtures/repository-context/resolution/` — the AC23 precision fixture: a small TypeScript tree whose references include (a) two same-named methods on different types, (b) a name shadowed by a local, (c) a symbol reached through a re-export, (d) a reference that cannot be bound to exactly one declaration, plus a committed `expected.json` naming, per reference, the expected `path`, `line`, and `kind` — or `ambiguous_resolution`. **AC23**
+- [ ] `tests/fixtures/repository-context/hostile-head/` — the AC4/AC5 hostile content: a nested `package.json` with a `postinstall`, a `Makefile`, a test file that would write, a hook-shaped script, a generated-tooling script, a symlink pointing outside the repository, a second symlink to a sibling directory, a `.gitmodules` entry plus its gitlink, a `.gitattributes` naming a `filter` and a `diff` driver, and a source file whose comments are written as instructions to a reviewer. **Nothing in this directory is referenced by any `package.json` script or workflow `paths:` list**, so no repository tooling can invoke it; the developer confirms that before opening the demonstration pull request. **AC4, AC5**
+- [ ] `tests/fixtures/recall-benchmark/repository-context/` — a resolvable source tree providing the definitions and callers for the symbols named in the changed lines of the three target seeds (`api-evidence-state-reconstruction`, `external-output-parsing-lossy`, `guard-fails-open`). Without it the existing patch-only fixture provides no surrounding source and AC13 admits no figure at all. **AC13**
+- [ ] `docs/testing/ronda/repository-context-read-only-evidence-106.md` — the demonstration record: hostile cases attempted, what was observed, version and date, and each item labelled **structural** or **observational**. **AC4, AC5**
+- [ ] `docs/testing/ronda/repository-context-resolution-precision-106.md` — D2's measured precision on the AC23 fixture (resolved candidates that are correct over all resolved candidates), the method, and the fixture version. **AC23**
+- [ ] `docs/testing/ronda/repository-context-effect-evidence-106.md` — the recall, precision and cost campaign plus the **evidence-tier ledger** (tier, counted pull requests, the configuration the count accrues under, the date). Carries AC13's admissibility statement *before* any figure, AC14's comparative-versus-descriptive-reference labelling, AC15's pairing statement, AC16's precision result, AC17's tier/independence/own-repository labels, and AC18's statement that the `guard-fails-open` movement already observed under the #105 sweep is not attributed here. **AC13–AC18**
+
+### Backend / core
+
+- [ ] `src/config/config.types.ts` — add to `RondaConfig`: `repositoryContextMode: "on" | "off"`, `repositoryContextModeRaw: string | undefined`, `maxRepositoryContextCandidates: number`, `maxRepositoryContextChars: number`, `repositoryContextTimeBudgetMs: number`, and `repositoryContextBudgetFallbacks: RepositoryContextBudgetName[]` where `RepositoryContextBudgetName = "candidates" | "chars" | "time"`. **AC19, AC21**
+- [ ] `src/config/load-config.ts` — add `DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES = 12`, `DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS = 24_000`, `DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS = 120_000` (D3). Resolve the switch with a `parseRepositoryContextMode` that copies `parseSweepMode`'s vocabulary and its **first-non-blank-source** discipline — deliberately not an `??` chain over the parser, so a non-blank unrecognized value resolves off and is carried in `repositoryContextModeRaw` instead of deferring to the lower source. Resolve each budget over the same two sources; a present-but-not-positive-number value falls back to its recorded default and appends its name to `repositoryContextBudgetFallbacks`. No path yields an unlimited budget. Add the four file keys: `repositoryContext`, `maxRepositoryContextCandidates`, `maxRepositoryContextChars`, `repositoryContextTimeBudgetMs`. **AC19, AC21**
+- [ ] `src/domain/review-pass.types.ts` — add `headRepoFullName: string` to `PullRequestMetadata` (D6); `RepositoryContextOutcome = "used" | "partial" | "unavailable" | "nothing_to_resolve"`; `RepositoryContextCandidateKind = "definition" | "call_site"`; `RepositoryContextDropReason = "candidate_count_budget" | "character_budget" | "time_budget" | "read_failed" | "ambiguous_resolution"` (the spec's five reasons, closed — no sixth is introduced); `RepositoryContextCandidate { kind, symbolName, path, line, endLine, text }`; `RepositoryContextDrop { kind, symbolName, path, line, reason }`; `RepositoryContextPassRecord { outcome, candidatesRequested, candidatesResolved, drops, charsUsed, maxCandidates, maxChars, timeBudgetMs, timeUsedMs, budgetFallbacks }`; and `RepositoryContextDegradedRecord = { kind: "repository_context_switch_unrecognized" }`. Extend `ReviewPassResult` with an optional `repositoryContext?: { record?: RepositoryContextPassRecord; degraded?: RepositoryContextDegradedRecord }`, the same mutually-exclusive shape `sweep` already uses. `RepositoryContextCandidate.text` is the **only** field carrying an excerpt body and never reaches a record, a log, or a review. Add `readRepositoryTreeAtRef` to `GithubOperations`. **AC3, AC6, AC10, AC21**
+- [ ] `src/github/pull-request-reader.ts` — return `headRepoFullName: data.head.repo?.full_name ?? ""` from `readPullRequest`. **AC10, D6**
+- [ ] `src/github/repo-content-reader.ts` — add `readRepositoryTreeAtRef(octokit, owner, repo, ref, signal)` returning `{ entries: Array<{ path: string; mode: string; sha: string; size?: number }>, truncated: boolean }`, keeping **only** entries whose type is `blob`, so a `tree`, a `commit` (submodule gitlink, mode `160000`), and a symlink blob (mode `120000`) are excluded from the inventory at the inventory step as well as at the content step. A `truncated: true` response is not an error: the inventory is used as far as it goes and the shortfall surfaces as `read_failed` drops. **AC4, AC9, AC11**
+- [ ] `src/review/repository-context.ts` — pure, no I/O: `selectRepositoryContextCandidates(changedFiles, resolved)` producing the candidate list; `compareRepositoryContextCandidates(a, b)` implementing the spec's four priority keys in order (kind, then changed-line position by changed file path ascending then line ascending, then candidate location by path ascending then line ascending, then symbol name ascending); `applyRepositoryContextBudgets(ordered, { maxCandidates, maxChars })` taking candidates in order and dropping the remainder **whole**, never truncating, including a single candidate that alone exceeds the character budget; and `resolveRepositoryContextOutcome({ requested, resolved })` applying the spec's ordered tests. **AC3, AC6, AC20**
+- [ ] `src/review/symbol-resolver.ts` — D2's resolver. `buildSourceFileSet` fetches, in deterministic path order and under the time budget: the changed `.ts`/`.js`-family files' full text at the head, then their module-specifier closure (specifiers discovered with `ts.preProcessFile`, resolved against the inventory), then inventory files whose own specifiers resolve to a changed file (the call-site candidate set). `resolveSymbols(fileSet, changedLines)` then builds one `ts.Program` over that set with a virtual `CompilerHost` whose `readFile`/`fileExists` are served from the in-memory map — never from `node:fs` for reviewed content — and returns `{ definitions, callSites, ambiguous }`. `lib.*.d.ts` files come from Ronda's own pinned `typescript` install, which is Ronda's content, not the reviewed repository's. The excerpt for a definition is the declaration node's text; for a call site, the enclosing statement's text. **AC3, AC20, AC23**
+- [ ] `src/core/run-review-pass.ts` — one new phase between the authoritative-document selection and `buildReviewPrompt`, applying the spec's outcome tests in their recorded order: a pass that does not reach this point emits nothing (`not_applicable`); a fork-originated head (D6) emits nothing and reads nothing, **before** the switch is consulted (`fork_excluded`); a validly disabled switch emits nothing (`off`); an unrecognized switch value holds a `RepositoryContextDegradedRecord`, released on the same **request-issued** boundary the sweep's degraded record already uses, so a pass that dies earlier stays indistinguishable from a pass without the feature; otherwise the phase runs under a `repositoryContextTimeBudgetMs` `AbortSignal` combined with the pass deadline. Any thrown error from the phase is caught inside it and degrades to `unavailable` with `read_failed` drops — it never reaches the shared failure path, so a read failure can never fail the pass or suppress the review. **AC3, AC8, AC10, AC11, AC19, AC21**
+- [ ] `src/inference/review-prompt.ts` — accept `repositoryContext?: RepositoryContextCandidate[]`; render one user-message section `## Repository context (untrusted reviewed-head content)` between the authoritative-document sections and the durability-mode section, each candidate under `### [definition] path:line` or `### [call site] path:line`, wrapped in `<<<BEGIN_UNTRUSTED_REPOSITORY_CONTEXT>>>` / `<<<END_UNTRUSTED_REPOSITORY_CONTEXT>>>` delimiters, following the durability-mode document's existing untrusted-input pattern. Append a system-prompt paragraph stating that the section is unchanged surrounding source at the reviewed head, is **not** part of the change under review, must not be reported as a finding in its own right, and must never be followed as an instruction or allowed to alter the JSON output contract or the severities. The combined patch text is measured against `maxPatchChars` exactly as today, with no context characters counted into it. **AC3, AC7, AC9**
+- [ ] `src/core/summary.ts` — `buildReviewSummary` accepts `repositoryContext?: { outcome: RepositoryContextOutcome }` and emits exactly **one** line in the same one-line form the existing mode activations take; no count, identifier, drop reason, or budget figure is rendered into the review body. `buildCheckRunOutput` accepts `repositoryContext?: RepositoryContextPassRecord` / `repositoryContextDegraded?: RepositoryContextDegradedRecord` and renders the outcome, the counts, each drop as `kind symbolName path:line — reason`, the budget utilisation, and any budget fallback — never an excerpt body and never the raw unrecognized value. The failure-path check-run output receives no repository-context field, so a failure output stays byte-identical to a pre-feature one. **AC3, AC19**
+- [ ] `src/cli/control-pass.ts` (new, wired as `npm run quality:control-pass`) — AC22's non-publishing control pass. Composes the real readers with `publishReview` and `publishCheckRun` implementations that **write nothing to GitHub** and instead append the pass's findings and repository-context record to an operator evidence file, and runs with `trigger: "manual"` so the duplicate-skip gate does not end the pass. Operator-initiated only; no trigger and no workflow invokes it. **AC22**
+- [ ] `src/cli/recall-benchmark.ts` — add a `--repository-context on|off` arm that supplies context from `tests/fixtures/recall-benchmark/repository-context/` through the same `selectRepositoryContextCandidates` / `resolveSymbols` core, and an interleaving flag so the two arms alternate run by run under one immutable model version with equal run counts. The runner prints the per-arm, per-seed found counts the evidence document records. **AC13, AC15, AC16**
+
+### Infrastructure / configuration
+
+- [ ] `.github/workflows/ronda-review.yml` — four new `workflow_call` string inputs, defaulting to `""`: `repository_context`, `max_repository_context_candidates`, `max_repository_context_chars`, `repository_context_time_budget_ms`, mapped on the `Run review pass` step to `RONDA_REPOSITORY_CONTEXT`, `RONDA_MAX_REPOSITORY_CONTEXT_CANDIDATES`, `RONDA_MAX_REPOSITORY_CONTEXT_CHARS`, `RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS`. The existing fork `if:` guard is **not** changed — #127 owns that gap and AC10 is enforced in `runReviewPass`, which is what makes the exclusion hold on the manual comment trigger too. **AC19, AC21**
+- [ ] `.github/workflows/ronda-review-dogfood.yml` — pass `repository_context: ${{ vars.RONDA_REPOSITORY_CONTEXT }}`. An unset variable renders as the empty string and resolves fail-closed to off, so this line is safe to land before the evidence exists; the value itself is set in step 15. **AC19**
+- [ ] `ronda.config.example.json` — add the four file keys with empty/default values, documenting the webhook ingress's deployment-scoped source. **AC21**
+- [ ] `package.json` — move `typescript@5.8.3` from `devDependencies` to `dependencies` (D2 needs it at runtime on both ingresses; the reusable workflow runs `npm ci` and would otherwise install it only as a dev dependency, which is true today but is not a contract to rely on) and add the `quality:control-pass` script. **AC22, D2**
+
+### Frontend / UI
+
+Not applicable — Ronda has no user interface; its surfaces are the GitHub review, the check run, and the logs.
+
+---
+
+## Testing Strategy
+
+**Test types**: Unit, integration, demonstration (recorded evidence), smoke.
+
+**Key scenarios to test**:
+
+1. Selection order is total and stable: two candidates identical under each key in turn are ordered by the next key; the same input yields the same order every time — AC20.
+2. Budgets drop whole candidates in reverse priority order; a single candidate exceeding the character budget is dropped, not truncated; every drop carries one of the five recorded reasons — AC6.
+3. Outcome tests apply in the recorded order: pre-review-execution → `not_applicable` and no record; fork head with the switch on and every budget at its most permissive → `fork_excluded`, no record, no activation line, no budget figure; validly disabled → `off` and no record; enabled with zero candidates → `nothing_to_resolve`; all resolved → `used`; some → `partial`; at least one requested and none resolved → `unavailable` — AC3, AC10, AC19.
+4. Switch resolution: blank at the higher source defers to the lower; both blank → off, nothing recorded; a recognized off value → off, nothing recorded; a non-blank unrecognized value at the higher source → off even with a recognized on value at the lower source, and the degraded record is emitted **only** on a same-repository pass that reached review execution, without the raw value — AC21.
+5. Budget resolution: a non-numeric or non-positive value falls back to the recorded default and records the fallback; no source combination yields an unlimited budget — AC21.
+6. The diff is byte-identical in the prompt with the feature off and with it on at every budget setting, and context characters never enter the `maxPatchChars` measurement — AC7.
+7. A time budget forced low enough to expire before the first candidate resolves yields `unavailable`, publishes the review, and neither extends the pass deadline nor raises the job backstop; expiry after some candidates yields `partial` with `time_budget` drops on the tail only — AC8, D5.
+8. Every read denied (the injected reader throws or returns `undefined`) yields `unavailable` and still publishes the review; no read failure reaches the shared failure path — AC11.
+9. No reviewed-repository read is attempted through any path but the injected `readFileAtRef` / `readRepositoryTreeAtRef` seam, and neither the phase nor the resolver touches `node:fs` or spawns a process for reviewed content — AC4, AC9, AC12.
+10. Repeated passes create no working area and leave nothing behind; a pass aborted mid-read publishes no second review for the head — AC12 (the assertion is that no temp path is created at all, which is D1's structural guarantee).
+11. The control pass publishes no review, no check run, and no comment, and a head that already carries a published review still has exactly one afterwards — AC22.
+12. Resolution precision on the AC23 fixture is 100%: every resolved candidate matches `expected.json`, and the unbindable reference is dropped `ambiguous_resolution` — AC23.
+13. Review body content: the summary carries exactly one repository-context line naming the outcome, and no count, identifier, drop reason, or budget figure appears anywhere in the body; the check-run output carries the full record and no excerpt body — AC3.
+
+**Unit test files** (one per new module, following `tests/unit/<area>/` convention):
+
+| File | Covers |
+| --- | --- |
+| `tests/unit/review/repository-context.test.ts` | Scenarios 1, 2, 3 (outcome resolution), 13 (record shape) |
+| `tests/unit/review/symbol-resolver.test.ts` | Scenarios 9, 12, and the edge-case enumeration below |
+| `tests/unit/config/load-config-repository-context.test.ts` | Scenarios 4, 5 |
+| `tests/unit/inference/review-prompt-repository-context.test.ts` | Scenarios 6, 13 |
+| `tests/unit/core/summary-repository-context.test.ts` | Scenario 13 |
+| `tests/unit/github/repo-content-reader-tree.test.ts` | Non-blob entries excluded from the inventory; `truncated` handled (scenario 9) |
+| `tests/integration/core/review-pass-repository-context.test.ts` | Scenarios 3, 7, 8, 10, 11 end to end through `runReviewPass` with injected deps |
+
+**Smoke test runbook**: `docs/testing/ronda/106-read-only-symbol-context.smoke-test.md`
+
+**Regression suite**: the existing `npm test` suite is the regression suite; the files above join it. `npm run benchmark:quality` gains the `--repository-context` arm, and `docs/testing/ronda/repository-context-resolution-precision-106.md` records the AC23 figure the suite reproduces.
+
+### Parser-risk addendum
+
+This plan is parser-risk: `src/review/symbol-resolver.ts` parses source text and binds references, and AC23 sets a 100%-precision bar, so wrong parsing produces confidently false evidence rather than a visible failure.
+
+**Edge-case enumeration** — concrete inputs, each mapped to a test in `tests/unit/review/symbol-resolver.test.ts`:
+
+| # | Input | Expected |
+| --- | --- | --- |
+| E1 | Two types each declaring a method `read(path)`; a changed line calls `a.read(p)` where `a` has the first type | Exactly the first type's declaration; the same-named method on the other type is never a candidate |
+| E2 | A module-level `resolve` shadowed by a local `const resolve` inside the changed function | The local declaration, not the module-level one |
+| E3 | `export { inner as outer } from "./inner.js"`; a changed line imports `outer` and calls it | The declaration in `inner.ts`, reached through the re-export |
+| E4 | A changed line referencing a name declared in a file the time budget stopped before reading | Dropped `time_budget` — never bound to a same-named declaration in a file that *was* read |
+| E5 | A reference whose symbol has two declarations (a declaration-merged interface, or an ambient plus a local declaration) | Dropped `ambiguous_resolution` — not the first, not both |
+| E6 | Two references to different symbols on the same changed line, plus one reference appearing twice on that line | Two distinct candidates; the repeated reference contributes one candidate, not two |
+| E7 | An identifier inside a string literal, a comment, or a template-literal text span that spells a changed symbol's name | No candidate — the identifier is not a reference (this is the negative case a text-based resolver would fail, and the direct evidence for D2) |
+| E8 | A symbol declared *and* called within the same changed hunk | The definition is not re-attached as a depended-on candidate for its own declaration site; its call sites in the same file are still call-site candidates |
+| E9 | A changed symbol with seven call sites, under a candidate count budget of 3 | Three call-site candidates by the priority keys, four drops recorded `candidate_count_budget` — confirming **Context Selection Order**'s rule that each call site is its own candidate |
+| E10 | A changed `.md`, `.json`, or `.yml` file only (D4) | No candidate, outcome `nothing_to_resolve`, never `unavailable` |
+| E11 | A syntactically invalid changed file at the head (mid-edit head, or a partial file) | The resolver reports no candidate for that file and records `read_failed`; it never throws out of the phase |
+| E12 | A tree entry that is a symlink (mode `120000`), a submodule gitlink (mode `160000`), or a directory | Excluded from the inventory; if named directly by a changed path, recorded `read_failed`, and nothing outside the repository is read |
+| E13 | A `.d.ts`-only declaration for a symbol whose implementation is not in the read set | Bound to the `.d.ts` declaration when that is the single declaration; excerpt is that declaration |
+
+**Suppression semantics**: not applicable — the feature recognizes no inline or directive suppressions. Whether a candidate is included is decided only by the selection order and the budgets.
+
+### Concurrent-event-source addendum
+
+**Not applicable.** Each of the three classifier signals is absent: (a) the feature adds no event listener, socket callback, timer, or async queue — the repository-context phase is a sequential `await` sequence inside the single existing review pass, under the pass deadline's `AbortSignal`; (b) it adds no mutable state shared across execution contexts — the file set, the candidate list, and the record are created and consumed inside one `runReviewPass` invocation and referenced by nothing outside it; (c) it adds no initialization or teardown sequence that could race with incoming events, because D1 creates no working area and the webhook ingress's existing one-active-review-job rule and bounded queue are untouched (AC12). The one abort path the phase adds — the time budget's signal — resolves inside the phase, which returns `partial` or `unavailable` rather than propagating.
+
+---
+
+## Seed Data
+
+| Entity | Values / Scenario | File |
+| --- | --- | --- |
+| Resolution fixture | References covering E1–E3, E5, E7, E13 plus a deliberately unbindable reference; per-reference expected binding | `tests/fixtures/repository-context/resolution/` + `expected.json` |
+| Hostile head | Executable-if-invoked content, symlink out of the repository, symlink to a sibling, submodule reference, `.gitattributes` filter/driver, instruction-shaped source | `tests/fixtures/repository-context/hostile-head/` |
+| Benchmark surrounding source | Definitions and callers for the symbols named in the changed lines of `api-evidence-state-reconstruction`, `external-output-parsing-lossy`, and `guard-fails-open` | `tests/fixtures/recall-benchmark/repository-context/` |
+| Budget-pressure case | One candidate whose excerpt alone exceeds a 200-character budget; one symbol with seven call sites (E9) | `tests/unit/review/repository-context.test.ts` inline fixtures |
+
+---
+
+## Documentation Updates
+
+To be performed by the developer **after** implementation (not in the Plan Ready stage):
+
+- [ ] `docs/constitution.md` — the replacement invariant (also listed under Recorded artifacts; it is implementation **step 1**, not a post-implementation doc edit, because AC1 gates all other work on it).
+- [ ] `docs/project/3-software-architecture.md` — the amended decision (implementation step 1, same reason) plus the repository-context modules in the **Authoritative documentation in review passes** subsection.
+- [ ] `docs/adoption/ronda-review-adoption.md` — the four new workflow inputs in the inputs table (near `sweep_mode`), the four `RONDA_*` environment names in the environment section, the repository-context outcome values on the check-run output, the statement that repository context is off by default for adopting repositories, and the fixed fork exclusion.
+- [ ] `docs/adoption/ronda-local-webhook.md` — the four operator-config-file keys as the webhook ingress's deployment-scoped source, and the statement that no working area is created (D1) so nothing accumulates in the long-lived process.
+- [ ] `docs/project/2-repo-architecture.md` — the two new `src/review/` modules and the new CLI entrypoint in the package/module map.
+- [ ] `AGENTS.md` — add `npm run quality:control-pass` to **Common Commands** with its non-publishing caveat.
+- [ ] `docs/project/1-business-domain.md` — the repository-context outcome vocabulary, alongside the existing pass vocabulary.
+- [ ] `changelog.d/106.added.read-only-repository-context.md` — new fragment (step 17), body: `- **Read-only repository context with symbol-level resolution** (#106): a review pass may read definitions and call sites at the reviewed head, bounded by operator budgets, off by default for adopting repositories and never for a fork-originated head.`
+
+---
+
+## Risks & Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+| --- | --- | --- | --- |
+| Resolution precision below 100% on the AC23 fixture | Med | High | AC23 makes it a defect to fix before this repository's switch is set on, not a figure to report. E1–E13 are unit-tested before the fixture is measured, and step 15 is gated on the committed precision figure. |
+| The call-site phase's inventory reads dominate the time budget on a large reviewed repository | High | Med | D5 resolves definitions first, so call sites are the only casualty; the drop is recorded `time_budget`; the outcome degrades to `partial`, never to a failure. AC14 records how many passes exhausted the budget, which is the signal for tuning D3's default. |
+| The prompt's new untrusted section steers the model | Med | Med | The section is delimited and labelled as unchanged, not-under-review source, with an explicit system-prompt instruction not to follow it; AC5's demonstration is the check that it did not, and AC9 fixes the output contract regardless. |
+| An incomplete read set makes the checker bind a reference to the wrong declaration rather than dropping it | Med | High | The resolver drops on zero **or** more than one declaration, and E4 asserts that a reference whose declaring file was never read is dropped `time_budget` rather than bound to a same-named declaration in a file that was. |
+| The `typescript` runtime move increases install time on the Actions ingress | Low | Low | `typescript` is already installed by `npm ci` today as a dev dependency; the move changes the dependency class, not the install. |
+| The hostile-head fixture is executed by repository tooling | Low | High | Nothing under `tests/fixtures/repository-context/hostile-head/` is referenced by any `package.json` script or workflow `paths:` list, and the developer confirms that before opening the demonstration pull request. `npm test` collects only `find tests -name '*.test.ts'`, a suffix the fixture's file names deliberately avoid. |
+| AC13's fixture turns out unable to test the feature even with a surrounding source tree | Med | Low | AC13 requires the admissibility statement **before** any figure; step 13 records "unable to test this feature" and the claim falls to the real-pull-request cohort, which is the recorded fallback in Use Case 5. |
+
+---
+
+## Code Samples
+
+None. Every module above is described by its signature and behaviour; the production code belongs in the implementation pull request.
+
+---
+
+## Implementation Order
+
+1. **Record the amendment.** Write the agreed replacement decision into the **Key Architectural Decisions** section of `docs/project/3-software-architecture.md` (accepted with changes, attributed to the repository owner, dated 2026-09-29, referencing #106, naming which bundled commitment it keeps and which it changes) **and** the replacement invariant into `docs/constitution.md`'s **Surface** section. Verify the recorded text against AC2's three substantive commitments — reads only with the mechanism left open, the reviewed repository's code never executed, fork-originated heads excluded. **No other work in this list may start before this step is committed** (AC1, AC2, and the spec's closing business rule). If the recorded text would weaken any of the three, stop: that is a new owner decision.
+2. Add the domain types and the `headRepoFullName` field, and update every `PullRequestMetadata` construction site (production and test fakes) so `npm run typecheck` is clean.
+3. Add the configuration group and its parser; land `tests/unit/config/load-config-repository-context.test.ts` covering scenarios 4 and 5. Run `npm test` and confirm the new tests pass and no existing test changes behaviour.
+4. Move `typescript` to `dependencies` and add the `quality:control-pass` script placeholder; run `npm ci` and confirm `npm run typecheck` still passes.
+5. Add `readRepositoryTreeAtRef` and its unit test; confirm non-blob entries are excluded and a `truncated` response is tolerated.
+6. Build `src/review/repository-context.ts` (selection order, budgets, outcome resolution) with its unit test. This module is pure, so it is complete and green before any resolver exists.
+7. Build `src/review/symbol-resolver.ts` against the AC23 fixture and E1–E13. Do not proceed until every enumerated edge case has a passing test.
+8. Wire the phase into `run-review-pass.ts`, including the fork gate before the switch (D6), the held-and-released degraded record, and the catch-inside-the-phase degradation. Land `tests/integration/core/review-pass-repository-context.test.ts`.
+9. Add the prompt section and the two renderers with their unit tests; confirm scenario 6 (diff byte-identical) and scenario 13 (review body carries one line only).
+10. Add the four workflow inputs to `ronda-review.yml` and the `vars.RONDA_REPOSITORY_CONTEXT` pass-through in `ronda-review-dogfood.yml`; add the four keys to `ronda.config.example.json`. Run `npm run lint`, `npm run typecheck`, `npm test`, and the repository's `actionlint` workflow locally if available. The repository variable is deliberately **not** created yet, so the feature stays off here.
+11. Implement `src/cli/control-pass.ts` and prove AC22 on a head that already carries a published review: after the control pass the head still has exactly one published review and its single check run, both from the original pass.
+12. Produce the AC4 and AC5 demonstrations against `tests/fixtures/repository-context/hostile-head/`, and commit `docs/testing/ronda/repository-context-read-only-evidence-106.md` with each item labelled structural or observational. Measure and commit the AC23 precision figure in `docs/testing/ronda/repository-context-resolution-precision-106.md`.
+13. Add `tests/fixtures/recall-benchmark/repository-context/` and the benchmark's `--repository-context` arm. **Before recording any figure**, record AC13's admissibility statement: whether the fixture target provides resolvable surrounding source for the symbols in its changed lines. Then run the interleaved arms under one immutable model version with equal run counts, plus the paired precision fixtures.
+14. Measure the cost arms on real passes (AC14), and open `docs/testing/ronda/repository-context-effect-evidence-106.md` with the recall, precision and cost figures, the comparative-versus-descriptive-reference labelling, the evidence-tier ledger, and AC18's statement about the `guard-fails-open` movement.
+15. **Only after steps 12, 13 and 14 have committed the AC4, AC5 and AC23 evidence**, set this repository's `RONDA_REPOSITORY_CONTEXT` repository variable to `on` and record the date and time of that settings change in the evidence document, so AC19's ordering is verifiable from the commit order and the setting's change. Setting it earlier violates the spec's demonstrations-before-the-switch business rule.
+16. Update the project documentation listed under **Documentation Updates**.
+17. Add `changelog.d/106.added.read-only-repository-context.md` with the literal body given in **Documentation Updates**.
+18. Execute the smoke test runbook and record the results in it.
+
+---
+
+## Residual verification strategy
+
+This plan has a pattern-completeness obligation (every reference on a changed line must be resolved or explicitly dropped) and a numeric target (AC23's 100% precision). The evidence the implementation must produce before `ready-for-human-review`:
+
+- **Resolution completeness**: for the AC23 fixture, the count of references identified, resolved, and dropped, with every drop carrying one of the five recorded reasons. The residual is the dropped set, and it is not a gap: an unbindable reference is *required* to be dropped. Evidence source: `docs/testing/ronda/repository-context-resolution-precision-106.md` and `tests/unit/review/symbol-resolver.test.ts`.
+- **Precision**: resolved candidates that are correct over all resolved candidates on the AC23 fixture, which must be 100%. A lower figure is a defect that blocks step 15, not a residual to report. Evidence source: the same document.
+- **Edge-case coverage**: E1–E13 each map to a named unit test; the residual check is that the enumeration and the test file agree with no unmapped case. Evidence source: `tests/unit/review/symbol-resolver.test.ts`.
+- **No-working-area claim**: the assertion is structural (D1 creates none) and is verified observationally by repeated passes leaving nothing behind and by the phase never touching `node:fs` for reviewed content. Evidence source: `tests/integration/core/review-pass-repository-context.test.ts` and the AC4 demonstration record.
+- **Switch-ordering claim (AC19)**: the residual evidence is the ordering itself — the commit timestamps of the three evidence documents against the recorded time of the repository-variable change. Evidence source: `docs/testing/ronda/repository-context-effect-evidence-106.md`.

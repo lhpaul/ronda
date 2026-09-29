@@ -36,6 +36,35 @@ never pushing a fix.
 
 ---
 
+## Post-Merge Amendment (recorded 2026-09-29, in the plan-stage pull request)
+
+This spec was merged in pull request #126. The repository owner then took three
+further decisions **after** that merge, which this amendment folds in. It is
+deliberately minimal: nothing below changes an acceptance criterion's substance
+except AC1's recording surface.
+
+1. **The replacement invariant also goes into `docs/constitution.md`.** The owner
+   decided (2026-09-23, reaffirmed 2026-09-29) that the constitution must carry the
+   invariant that replaces the old one — *the reviewed repository is read, never
+   installed, built or executed* — in addition to the amended entry in the Key
+   Architectural Decisions section of `docs/project/3-software-architecture.md`. The
+   merged text said the constitution was not amended by this item; that is now
+   superseded. Affected sites, all updated below: **Where the decision is recorded**,
+   AC1, Coverage Matrix row O5, and the **Amendment recording** row of the
+   decision-gate matrix. AC2's three substantive commitments are unchanged.
+2. **Test-file context is deferred.** A fourth context kind — the test file matching
+   a changed symbol — was considered and deferred, not adopted. The two candidate
+   kinds in **Context Selection Order** stand unchanged for this iteration. Recorded
+   in **Out of Scope (MVP)** and **Deferred Decisions** below.
+3. **Open Question 1 is closed as checked.** The strategy-document coverage check was
+   performed on 2026-09-29 (see **Recorded Decisions** row 7 and **Deferral Note D1**).
+   It produced decisions 1 and 2 above and no other missing objective.
+
+The resolution method, which AC23 requires to be a recorded plan decision rather
+than a spec decision, is recorded in the implementation plan, not here.
+
+---
+
 ## Amendment To The Locked Architecture Decision (accepted with changes, 2026-09-29)
 
 The current locked decision is **"Diffs are read over the REST API; the reviewed
@@ -81,21 +110,31 @@ text for the decision:
 
 ### Where the decision is recorded
 
-The **Key Architectural Decisions** section of
-[`3-software-architecture.md`](../../../project/3-software-architecture.md) is the
-authoritative surface, because that is where the decision being amended lives.
-`docs/constitution.md` does not carry this decision and is not amended by this
-item. The same document already carries a precedent for the form: the dated,
-owner-attributed scope-change note recorded there for #103.
+The decision is recorded in **two** documents, and each carries a different part of
+it (owner decision of 2026-09-29; see **Post-Merge Amendment**):
+
+- The **Key Architectural Decisions** section of
+  [`3-software-architecture.md`](../../../project/3-software-architecture.md) carries
+  the **full** amended decision — context, decision, and consequences — because that
+  is where the decision being amended lives. The same document already carries a
+  precedent for the form: the dated, owner-attributed scope-change note recorded
+  there for #103.
+- [`constitution.md`](../../../constitution.md) carries the **one-line replacement
+  invariant** — *the reviewed repository is read, never installed, built or executed*
+  — in its **Surface** section, alongside the comment-only and one-review-per-head-SHA
+  commitments already locked there. Without that replacement written where the
+  contract lives, relaxing the no-checkout mechanism would leave the old invariant
+  standing unreplaced.
 
 The existing decision is replaced by the agreed text above, attributed to the
 repository owner, dated 2026-09-29, recorded as **accepted with changes**, and
-referencing this item. That edit is **the first step of this item's implementation
-stage**, completed before any capability work begins, and it is deliberately **not**
-made in this spec's pull request — which is why neither architecture document nor the
-constitution appears in this PR's diff. The text recorded there, which must match the
-text above, is what implementation follows (AC1, AC2). "Before any implementation
-work" in AC1 therefore means before any work other than that recording itself.
+referencing this item. Both edits are **the first step of this item's implementation
+stage**, completed before any capability work begins, and they are deliberately **not**
+made in this spec's pull request — which is why neither the architecture document nor the
+constitution appears in that PR's diff. The text recorded there, which must match the
+text above in its three substantive commitments, is what implementation follows (AC1,
+AC2). "Before any implementation work" in AC1 therefore means before any work other
+than that recording itself.
 
 ---
 
@@ -647,7 +686,8 @@ repository.
   by assertion in a document.
 - No implementation work on this feature begins before the amendment above is
   recorded as accepted or rejected in the Key Architectural Decisions section of
-  `docs/project/3-software-architecture.md`.
+  `docs/project/3-software-architecture.md` **and**, on acceptance, the replacement
+  invariant is recorded in the **Surface** section of `docs/constitution.md` (AC1).
 
 ---
 
@@ -796,7 +836,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
 
 | Gate | Inputs | Allowed outcomes | Required next action | Mirror surfaces | Example |
 | --- | --- | --- | --- | --- | --- |
-| Amendment recording (AC1, AC2) | The owner's decision, which is **accepted with changes, 2026-09-29**; whether the text has been written into the Key Architectural Decisions section of `docs/project/3-software-architecture.md`; whether that recorded text matches the three substantive commitments of the text in this spec | Not yet recorded; recorded and matching; recorded but weakening one of the three commitments | Not yet recorded: record it as the first implementation step, before any capability work. Recorded and matching: implementation proceeds against it. Recorded but weakening reads-only-with-mechanism-open, never-executed, or the fork exclusion: stop — that is a new owner decision, not an implementation choice, and nothing may be built against it until the new decision is recorded (AC2) | Amendment section, including **Where the decision is recorded**; AC1; AC2; the closing business rule; Recorded Decisions | A recorded text that permits reading a fork head's content, or that names one mechanism as mandatory, weakens a commitment the owner accepted and stops the item for a fresh decision rather than being absorbed as an implementation detail. |
+| Amendment recording (AC1, AC2) | The owner's decision, which is **accepted with changes, 2026-09-29**; whether the full text has been written into the Key Architectural Decisions section of `docs/project/3-software-architecture.md`; whether the one-line replacement invariant has been written into the **Surface** section of `docs/constitution.md`; whether the recorded text matches the three substantive commitments of the text in this spec | Not yet recorded; recorded in one document only; recorded in both and matching; recorded but weakening one of the three commitments | Not yet recorded, or recorded in one document only: complete both recordings as the first implementation step, before any capability work — AC1 is satisfied only by both. Recorded in both and matching: implementation proceeds against it. Recorded but weakening reads-only-with-mechanism-open, never-executed, or the fork exclusion: stop — that is a new owner decision, not an implementation choice, and nothing may be built against it until the new decision is recorded (AC2) | Amendment section, including **Where the decision is recorded**; **Post-Merge Amendment**; AC1; AC2; the closing business rule; Recorded Decisions | A recorded text that permits reading a fork head's content, or that names one mechanism as mandatory, weakens a commitment the owner accepted and stops the item for a fresh decision rather than being absorbed as an implementation detail. An architecture entry recorded without the constitution's replacement invariant is the "recorded in one document only" outcome: the item continues the first step rather than starting capability work. |
 | Configuration resolution (AC19, AC21) | The repository-context switch value, read from the highest-precedence source that supplies a non-empty value, and separately each of the three budget values (candidate count, character budget, context time budget) over the same sources. The fork exclusion is not a configuration value and is not resolved here (AC10) | Off — absent, empty, or whitespace-only at both sources (nothing recorded); Off — a recognised off value (nothing recorded); Off — a non-empty unrecognised value (record that a value was unrecognised, without the raw value); On — a recognised on value | Every off outcome runs the ordinary review with no repository context and no record, except that the unrecognised case additionally records that a value was unrecognised; on: proceed to candidate selection for a same-repository head, and read nothing for a fork-originated head (AC10). A budget that is absent or unusable falls back to its recorded default, records the fallback, and never becomes unlimited | Business rules on the four configuration values, on switch and budget resolution, on the fork exclusion, and on this repository's dogfooding value; AC19; AC21; AC10; the fork-behaviour row below | An empty value at a higher-precedence source defers to the next source rather than forcing off. A non-empty unrecognised value at a higher-precedence source is the effective value and is not replaced by a recognised value below it. The global switch set on, at this repository's own on-value, still leaves a fork-originated head with no repository context. A character budget set to `many` is unusable, so the recorded default applies and the fallback is recorded — it does not become unlimited. |
 | Repository-context outcome resolution (AC3, AC10, AC11, AC19) | Whether the pass reached review execution; whether the reviewed head is fork-originated; whether the feature was enabled; how many requested candidates were resolved. The tests apply in that order, so an earlier one wins | Not applicable — did not reach review execution (no record); Repository context excluded (fork head) — the head is fork-originated, whatever the switch says (no record); Off — same-repository head, reached review execution, validly disabled (no record); Nothing to resolve — enabled, but the changed lines produced no candidate; Used — at least one candidate requested and all resolved; Partial — some resolved; Unavailable — at least one requested and none resolved | The **per-pass record** for the four recorded outcomes is always written to the logs, and additionally to the check-run output where the pass's own check-run write produced a check run whose outcome is a review. That record — the counts, the identifiers of what was read, the drops and their reasons, and the budget utilisation — is never written to the review body. The review body carries exactly one thing about repository context: the summary's activation statement naming the outcome value, and nothing more (AC3). The three unrecorded outcomes — Not applicable, Repository context excluded (fork head), and Off — write nothing anywhere, in the review body or out of it | Statuses / Enum Values → Repository-context pass outcome; AC3; AC10; AC11; AC19; Use Case 1 steps 1 and 6; Use Case 4 | A draft pull request is Not applicable and writes nothing, so it is indistinguishable from the same skip with the feature absent. A pass whose every read is denied is Unavailable and still publishes its review. A documentation-only pass whose changed lines produce no candidate is Nothing to resolve, not Unavailable, so it is told apart from a pass whose reads failed by its outcome rather than by a count. A fork head with the switch on is Repository context excluded (fork head), not Used and not Off, and writes no record at all. |
 | Budget conflict resolution (AC6, AC7) | The candidate count budget; the character budget; the existing diff budget; the authoritative-document budgets; how much context the selection rules requested | Within every budget — all requested context retained; over a context budget — lower-priority repository context dropped by the recorded selection order, with the drops recorded; the diff would have to give way — not permitted | Retain the diff in full, drop repository context, record every drop and its reason, and record the outcome as Partial — or Unavailable where every candidate was dropped and none resolved, which the budgets alone can cause | Business rules on budgets and on the diff never giving way; AC6; AC7; Use Case 2 | A change naming more candidates than the count budget allows drops the lowest-priority candidates and records Partial. A character budget too small for even the first candidate drops every candidate and records Unavailable, not Partial. A budget setting large enough that repository context would displace the diff is resolved by dropping context, never by truncating the diff — the recorded reviewer that reached a token limit and pruned the diff published nothing, which is the failure this row forbids. |
@@ -850,8 +890,13 @@ Each row below is the normative summary for its gate; the prose sites named unde
       repository owner, dated 2026-09-29, and referencing this item — as the first
       step of the implementation stage, before any capability work starts. The
       recorded decision names which of the two commitments in the current locked
-      decision it changes and which it keeps. `docs/constitution.md` does not carry
-      this decision and is not amended by this item.
+      decision it changes and which it keeps. **In the same first step**, the one-line
+      replacement invariant — *the reviewed repository is read, never installed, built
+      or executed* — is written into the **Surface** section of
+      `docs/constitution.md`, so the contract document carries the invariant that
+      replaces the old one rather than leaving it standing unreplaced (owner decision
+      of 2026-09-29; see **Post-Merge Amendment**). AC1 is satisfied only when **both**
+      documents are recorded.
 - [ ] AC2: The decision text recorded under AC1 matches the amendment text above
       word for word in its three substantive commitments: reads only with the
       mechanism left open, the reviewed repository's code never executed, and
@@ -1081,7 +1126,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
 | O2: Cost against the recorded figures, and the pass budget | AC8, AC14 | AC8 makes repository context fit inside the pass budget in effect (`pass_timeout_minutes`, default 10, job backstop that plus two) rather than require a larger one; AC14 compares measured passes against the committed 2026-09-23 baseline and the measured dogfood pass, and reports budget exhaustion. Whether the default budget should rise is an open question for the owner. |
 | O3: Symbol selection and context budget | AC3, AC6, AC7, AC20, AC23 | Selection resolves the definitions the changed lines depend on and the call sites of what the change defines, in the recorded order defined in **Context Selection Order** — candidates one step from the changed lines only, **one candidate being one excerpt** (a definition, or a single call site) so the budgets count excerpts rather than distinct symbols, ordered by kind, then changed-line position, then candidate location, then symbol name, with whole-candidate drops and no mid-excerpt truncation; two budgets bound it, in addition to the existing diff and authoritative-document budgets; the diff is never displaced (AC7), which is the direct answer to the recorded 32,000-token pruning observation; selection is reproducible (AC20); and resolution is correct — a candidate is what the language's own compiler binds the reference to, an ambiguous reference is dropped rather than guessed, and the plan's resolution method is a recorded decision with measured precision (AC23). |
 | O4: Webhook path, concurrency and cleanup | AC12, plus the working-area and one-active-job business rules | No added concurrency, cleanup on every settlement path including watchdog abort and startup reconciliation, no working area shared between passes, and a cleanup failure never publishes a second review. |
-| O5: Recorded amendment or decision not to proceed | AC1, AC2, plus **Where the decision is recorded** | The amendment text is proposed here and decided by the owner, and the decision is recorded in the Key Architectural Decisions section of `docs/project/3-software-architecture.md` — the document that carries the decision being amended; `docs/constitution.md` does not carry it and is not amended. Rejection terminates the item with a dated rejection note as its only outcome. |
+| O5: Recorded amendment or decision not to proceed | AC1, AC2, plus **Where the decision is recorded** | The amendment text is proposed here and decided by the owner, and the decision is recorded in **two** places: the full amended decision in the Key Architectural Decisions section of `docs/project/3-software-architecture.md` — the document that carries the decision being amended — and the one-line replacement invariant in the **Surface** section of `docs/constitution.md`, so the contract document does not keep an invariant this item replaces (owner decision of 2026-09-29; see **Post-Merge Amendment**). Rejection terminates the item with a dated rejection note as its only outcome. |
 | O6: Context available, read-only demonstrated | AC3, AC4, AC5, AC11, AC19, AC21 | The capability ships off by default for adopters and on for this repository's own dogfooding, resolves its switch and its three budgets fail-closed so that an absent or unusable value never enables the feature and never yields an unlimited budget (AC21), degrades rather than failing, and has its read-only property demonstrated rather than asserted. |
 | O7: Recall evidence on the three sub-themes | AC13, AC15, AC16, AC18 | Per-seed recall for both arms on the seeds added by the sweep item; the fixture's ability to test this feature at all is stated before any figure; precision evidence is mandatory for a recall claim; the guard-fails-open movement already observed under the sweep is not re-attributed here. |
 | O8: Cost and pass-duration evidence | AC14, AC15 | Measured rather than projected. Two kinds of figure, labelled apart: the comparative context-off against context-on arms, which AC15 requires to be paired, interleaved, under one immutable model version with equal run counts; and the committed 2026-09-23 baseline and the measured dogfood pass as descriptive references, which are not arms, cannot be paired because they predate the feature, and carry no effect claim. |
@@ -1095,9 +1140,15 @@ Each row below is the normative summary for its gate; the prose sites named unde
   §2.4 and §5."** Rationale: that document is outside this repository and is not
   readable from it, so no requirement in this spec may depend on it. Everything
   this spec relies on is drawn from committed evidence in this repository. Human
-  confirmation **still requested** as of 2026-09-29: confirm that no objective in that
-  strategy document is missing from the Brief Objective List above. This is the one
-  remaining open question.
+  confirmation **received on 2026-09-29**, checked against §4.A1, §4.A2 and §5 of
+  that document. Two results, both folded in by the **Post-Merge Amendment**: §4.A1
+  also requires the replacement invariant to be written into `docs/constitution.md`,
+  which AC1 now requires; and §4.A2 lists a fourth context kind — the test file
+  matching a changed symbol — which is **deferred**, not adopted (see **Out of Scope
+  (MVP)** and **Deferred Decisions**). §4.A1 scopes its checkout note to the dedicated
+  machine, that is, the webhook ingress; this spec deliberately keeps the broader
+  two-ingress scope AC10 and Use Case 4 define. No other objective in that document is
+  missing from the Brief Objective List above. No open question remains.
 - **D2 — "A checkout plus symbol resolution per pass" as literally a checkout.**
   Rationale: the issue names a read-only checkout, and the spec's guarantees are
   stated over the *reads* rather than over the mechanism, so that a locally
@@ -1122,6 +1173,12 @@ Each row below is the normative summary for its gate; the prose sites named unde
 - Transitive context: the definition of a symbol that only a candidate names, and
   the callers of a caller. Candidates stay one step from the changed lines (see
   **Context Selection Order**).
+- A **third candidate kind: the test file matching a changed symbol.** Considered on
+  2026-09-29 and **deferred** by owner decision, not rejected: this iteration ships the
+  two kinds **Context Selection Order** defines, and a test file competes for the same
+  budgets as the definitions and call sites that answer the dominant finding cluster.
+  It is revisited once the first cohort shows whether two kinds help (see **Deferred
+  Decisions**).
 - Whole-repository or whole-package context, repository-wide indexing, and
   cross-pull-request or cross-pass carried context. Each pass reads afresh, within
   budget.
@@ -1183,6 +1240,7 @@ owner **did** make on 2026-09-29 are recorded in **Recorded Decisions**, not her
 | Whether repository context becomes the default for adopting repositories | Human (issue owner) | A `real_pr_measured` tier with an admissible comparative claim exists | It stays off by default for adopters, and on for this repository's own dogfooding (owner decision, 2026-09-29). |
 | Whether repository context is ever permitted for a fork-originated head | Human (issue owner) | A separate item proposes it, with its own read-only evidence for untrusted heads | Fork heads are excluded, and the exclusion is fixed rather than a switch (AC10). |
 | The default values of the candidate count and character budgets | Human (issue owner), informed by the first measured passes | The first passes report budget utilisation | The implementation plan proposes starting values; they are operator-configurable from the first version. |
+| Whether a third candidate kind — the test file matching a changed symbol — is added | Human (issue owner), informed by the first cohort | The first cohort shows whether the two existing kinds moved the target sub-themes | Two kinds only, per **Context Selection Order** (owner decision, 2026-09-29). A test file is not a candidate and consumes none of the budgets. |
 
 ---
 
@@ -1200,7 +1258,7 @@ second source of truth.
 | 4 | Should the pass budget rise above ten minutes? | **No.** Keep the ten-minute default and rely on AC8's degrade-rather-than-extend rule; revisit only if the measured cohort shows passes degrading against it. Acceptable cost increase is whatever fits inside that budget. | AC8; AC14; Out of Scope; Deferred Decisions |
 | 5 | Minimum cohort for `real_pr_measured`? | **Ten** terminally adjudicated pull requests, reusing the figure settled for the sweep item so both ledgers count on the same basis. | Evidence tier enum and transitions; the claim-admissibility gate row |
 | 6 | Off by default here too? | **On for this repository's own dogfooding, off by default for adopters**, supplied so the owner can flip it from repository settings without editing a workflow or redeploying. It is switched on here only once the read-only demonstrations and resolution-correctness evidence are committed. | The demonstrations-before-the-switch business rule; the off-by-default and dogfooding business rules; AC19; Out of Scope; Deferred Decisions |
-| 7 | Does the strategy document hold an objective this spec misses? | **Still open** — a human check that cannot be performed from this repository. | Open Questions; Deferral Note D1 |
+| 7 | Does the strategy document hold an objective this spec misses? | **Checked on 2026-09-29** against §4.A1, §4.A2 and §5. Two results: the replacement invariant also goes into `docs/constitution.md`, and test-file context is deferred. No other objective is missing. | **Post-Merge Amendment**; AC1; Deferral Note D1; Out of Scope; Deferred Decisions |
 
 A **follow-up, filed as #127**, came out of decision 3: the `/ronda review`
 comment trigger's fork guard in `.github/workflows/ronda-review.yml` gates
@@ -1212,14 +1270,11 @@ explicitly not fixed here (see **Out of Scope (MVP)**).
 
 ## Open Questions
 
-One question remains, and it is a **human verification** rather than a product
-decision: nothing in this spec waits on it, and it cannot be answered from this
-repository.
-
-1. **Does the strategy document named in the issue contain any objective missing from
-   the Brief Objective List?** — *human-verify*. The issue cites §2.4 and §5 of
-   `~/Git/Cerebro/LH/docs/agents/ronda-estrategia-revision.md`, which is outside this
-   repository and unreadable from it, so no requirement here depends on it and its
-   coverage cannot be checked mechanically (Deferral Note D1). If it holds an
-   objective the Brief Objective List misses, that objective needs adding before the
-   implementation plan is written.
+**None remain.** The one question that stood at merge — whether the strategy document
+named in the issue holds an objective missing from the Brief Objective List — was
+**checked on 2026-09-29** against §4.A1, §4.A2 and §5 of
+`~/Git/Cerebro/LH/docs/agents/ronda-estrategia-revision.md` and closed. It produced
+two results, both recorded in the **Post-Merge Amendment**: the replacement invariant
+also goes into `docs/constitution.md` (AC1), and test-file context is deferred rather
+than adopted. Nothing else in that document is missing from the Brief Objective List.
+See Deferral Note D1 and **Recorded Decisions** row 7.
