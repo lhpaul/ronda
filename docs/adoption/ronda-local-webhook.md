@@ -78,6 +78,21 @@ server for supervisor recovery. `RONDA_WEBHOOK_QUEUE_PATH` stores accepted jobs
 until they complete, so queued work can be recovered by the supervisor-started
 process after a fail-stop restart.
 
+Read-only repository context's four operator-configuration values
+(`repositoryContext`, `maxRepositoryContextCandidates`,
+`maxRepositoryContextChars`, `repositoryContextTimeBudgetMs`) resolve from the
+environment first, then from the **operator config file**
+(`~/.config/ronda/config.json` or `RONDA_CONFIG_FILE`) — the webhook
+ingress's deployment-scoped source, since there is no per-request workflow
+input here the way the reusable Action has. See
+`docs/adoption/ronda-review-adoption.md` for the full vocabulary and budget
+defaults; both ingresses resolve the same four values the same way. The
+mechanism creates **no working area** for reviewed content on either ingress
+(plan decision D1: every read goes through the existing GitHub contents seam,
+in memory, never a local checkout), so nothing accumulates in this long-lived
+process across passes and there is nothing for the startup reconciliation
+sweep above to clean up on this feature's behalf.
+
 ## MacBook and Tunnel Dogfood
 
 Start the service locally:

@@ -196,6 +196,26 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   category with no matching finding is recorded as "produced no findings".
   Outcomes are recorded on the pass record and the logs; activation and the list
   version appear in the review summary. No finding text enters the records.
+- **Read-only repository context** (`src/review/repository-context.ts`,
+  `src/review/symbol-resolver.ts`): off by default for adopting repositories,
+  on for this repository's own dogfooding (`RONDA_REPOSITORY_CONTEXT` /
+  `repositoryContext`, #106). When enabled on a same-repository head,
+  `symbol-resolver.ts` reads the changed TypeScript/JavaScript-family files and
+  their module-specifier closure through the existing `readFileAtRef` seam
+  only — no repository-wide listing, no checkout, no working area — parses
+  them with the TypeScript compiler API, and binds each changed-line reference
+  to the declaration the checker resolves it to, following a re-export's alias
+  chain; an unbindable reference is dropped `ambiguous_resolution` rather than
+  guessed. `repository-context.ts` orders the resolved candidates by the
+  recorded priority keys, applies the operator's candidate-count and
+  character budgets (never displacing the diff), and resolves the pass's
+  outcome (`used` / `partial` / `unavailable` / `nothing_to_resolve`). The
+  selected excerpts ride the same single model call as one more labelled,
+  untrusted prompt section (`src/inference/review-prompt.ts`) — no extra pass
+  or request. A fork-originated head is excluded before the switch is even
+  consulted, fixed rather than configurable. The full record (counts, drops,
+  budget utilisation) is recorded on the logs and the check-run output; the
+  review summary states only the outcome, one line.
 
 ## Security
 

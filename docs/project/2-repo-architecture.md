@@ -25,7 +25,8 @@ ronda/
 │   ├── github/                   # Octokit wrapper, PR reader, diff parser, publishers
 │   ├── inference/                # ModelClient seam, OpenAI-compatible client, prompt, parser
 │   ├── core/                     # runReviewPass orchestration, deadline, summary, logger
-│   ├── cli/                      # Action entrypoint (review-pr.ts), trigger resolution
+│   ├── review/                   # durability-mode, sweep-categories, repository-context, symbol-resolver
+│   ├── cli/                      # Action entrypoint (review-pr.ts), control-pass.ts, trigger resolution
 │   └── webhook/                  # Local GitHub App webhook service
 ├── tests/
 │   ├── unit/
@@ -59,6 +60,7 @@ Local, never committed:
 | GitHub poster | Submit review + check run | `@octokit/rest` | `src/github/review-publisher.ts`, `src/github/check-run-publisher.ts` |
 | Action entrypoint | Translate GitHub Actions env vars into one `runReviewPass` call | TypeScript via `tsx` | `src/cli/review-pr.ts` |
 | Local webhook service | Verify GitHub App webhooks, mint installation tokens, run one in-flight `runReviewPass` job | TypeScript on Node `http` | `src/webhook/webhook-server.ts` |
+| Non-publishing control pass | Review a real head under an explicit repository-context arm and record findings + the record to a committed evidence file only — never to GitHub (#106, AC22) | TypeScript via `tsx`, operator-initiated only | `src/cli/control-pass.ts` (`npm run quality:control-pass`) |
 
 The reusable Action and local webhook paths are alternate ingresses. A
 repository should not enable both for the same trigger without an external

@@ -207,6 +207,10 @@ installation token instead.
 | `durability_mode` | _(empty)_ | Force durability mode `on` or `off` for the run; leave empty for automatic path rules |
 | `durability_mode_default` | _(empty)_ | Set to `on` to activate durability mode for every implementation-stage review |
 | `sweep_mode` | _(empty)_ | Force the category-forced review sweep `on` or `off` for the run; leave empty to leave the sweep off |
+| `repository_context` | _(empty)_ | Enable read-only repository context `on` or `off` for the run; leave empty to leave it off. Same-repository heads only — a fork-originated head never reads it whatever this is set to |
+| `max_repository_context_candidates` | _(empty → `12`)_ | Maximum candidates (excerpts) a pass may resolve for repository context |
+| `max_repository_context_chars` | _(empty → `24000`)_ | Maximum combined characters of repository-context excerpts |
+| `repository_context_time_budget_ms` | _(empty → `120000`)_ | Time budget, in milliseconds, for the repository-context phase inside the pass budget in effect |
 | `ronda_ref` | `main` | Ref of `lhpaul/ronda` to check out and run |
 
 ## 2. Add the required secret
@@ -293,7 +297,10 @@ file is never committed — see `.gitignore`. Environment variables
 (`RONDA_MODEL_API_KEY`, `RONDA_MODEL_BASE_URL`, `RONDA_MODEL_NAME`,
 `RONDA_PASS_TIMEOUT_MS`, `RONDA_MAX_PATCH_CHARS`,
 `RONDA_MAX_AUTHORITATIVE_DOC_COUNT`, `RONDA_MAX_AUTHORITATIVE_DOC_CHARS`,
-`RONDA_DURABILITY_MODE`, `RONDA_DURABILITY_MODE_DEFAULT`) take
+`RONDA_DURABILITY_MODE`, `RONDA_DURABILITY_MODE_DEFAULT`,
+`RONDA_SWEEP_MODE`, `RONDA_REPOSITORY_CONTEXT`,
+`RONDA_MAX_REPOSITORY_CONTEXT_CANDIDATES`, `RONDA_MAX_REPOSITORY_CONTEXT_CHARS`,
+`RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS`) take
 precedence over the config file, which takes precedence over Ronda's built-in
 defaults.
 
@@ -321,6 +328,29 @@ no category outcome and no list version. Both degraded forms appear on the
 review check run's summary and in the logs; neither appears in the review
 body. Sweep activation and the list version appear in the published review
 summary when the sweep actually ran.
+
+`RONDA_REPOSITORY_CONTEXT=on|off` enables read-only repository context for a
+run (or set `repositoryContext` in the config file): a review pass may read,
+at the reviewed head, the definitions the changed lines depend on, bounded by
+operator budgets (`maxRepositoryContextCandidates`, default `12`;
+`maxRepositoryContextChars`, default `24000`; `repositoryContextTimeBudgetMs`,
+default `120000`). It is **off by default for every adopting repository**;
+this repository's own dogfooding is the recorded exception (see
+`docs/project/3-software-architecture.md`'s Key Architectural Decisions).
+Same recognized-value vocabulary and fail-closed resolution as
+`RONDA_SWEEP_MODE` above. **A fork-originated head never reads repository
+context, whatever this is set to** — the exclusion is fixed this iteration,
+not a switch, and it applies on every ingress and trigger (the reusable
+workflow's automatic trigger, its manual `/ronda review` comment trigger, and
+the local webhook path). The repository-context outcome — `used`, `partial`,
+`unavailable`, or `nothing_to_resolve` — appears as one line in the published
+review summary; the full record (candidates requested/resolved, every drop
+and its reason, budget utilisation, content-request count) appears only on
+the check-run output and the logs, never in the review body. A validly
+disabled switch, a fork-originated head, and a pass that never reaches review
+execution (a draft pull request, or an automatic run that finds an existing
+check run) all record nothing at all on any surface — indistinguishable from
+a version without the feature.
 
 When a pull request touches governed surfaces (webhook ingress, review
 publication, inference, operator config, or workflow review contract paths),
@@ -361,3 +391,8 @@ retrospectives. `quality:summary` remains a legacy comparison-only rollup.
   fresh; there is no deduplication against an earlier review's findings.
 - **One dogfood repository.** v0 adopts `lhpaul/ai-dev-framework-template`
   only; installing Ronda across many repositories is out of scope.
+- **Repository context is same-repository heads only.** A fork-originated
+  head never reads repository context in this iteration, on any ingress or
+  trigger, whatever the operator's switch is set to (#106, AC10). Lifting
+  this is a separate future item with its own read-only evidence for
+  untrusted heads.
