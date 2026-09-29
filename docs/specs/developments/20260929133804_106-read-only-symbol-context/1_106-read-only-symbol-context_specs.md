@@ -468,7 +468,8 @@ repository.
   counted pull requests. A time-ordered before-and-after would also confound
   model drift with the change. The comparison this feature makes is therefore a
   **paired context-off and context-on comparison on the same heads**, not a
-  before-and-after in time (AC15).
+  before-and-after in time (AC15), with the second arm run as the non-publishing
+  control pass AC22 defines so the head keeps exactly one published review.
 - Ronda's evidence is drawn from Ronda's own repository, by the same project that
   wrote the review configuration and the seeds. Every claim carries the
   independence caveat and the own-repository label already recorded for the
@@ -566,6 +567,13 @@ repository.
   Quoting the reviewed code inside a published finding, as reviews already do, is
   not affected by this rule either, because a finding is not a log or a pass
   record.
+- The other arm of a real-pull-request comparison is a **non-publishing control
+  pass**: it reviews the same head under the opposite context setting and publishes
+  **nothing** to GitHub — no review, no check run, no comment — so the
+  one-review-per-head-SHA contract is untouched and the existing duplicate-skip
+  behaviour never sees a second pass to skip. Its result lives only in the
+  operator's evidence record, exactly as a benchmark run's does. A control pass is
+  always operator-initiated; no trigger starts one automatically.
 - Every recorded effect claim states its evidence tier, carries the independence
   caveat and the own-repository label, and is drawn from a paired comparison under
   one immutable model version with equal run counts per arm.
@@ -694,7 +702,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
 | Budget conflict resolution (AC6, AC7) | The symbol count budget; the character budget; the existing diff budget; the authoritative-document budgets; how much context the selection rules requested | Within every budget — all requested context retained; over a context budget — lower-priority repository context dropped by the recorded selection order, with the drops recorded; the diff would have to give way — not permitted | Retain the diff in full, drop repository context, record every drop and its reason, and record the outcome as Partial — or Unavailable where every candidate was dropped and none resolved, which the budgets alone can cause | Business rules on budgets and on the diff never giving way; AC6; AC7; Use Case 2 | A change naming more symbols than the count budget allows drops the lowest-priority symbols and records Partial. A character budget too small for even the first candidate drops every candidate and records Unavailable, not Partial. A budget setting large enough that repository context would displace the diff is resolved by dropping context, never by truncating the diff — the recorded reviewer that reached a token limit and pruned the diff published nothing, which is the failure this row forbids. |
 | Context time budget exhaustion (AC8) | The context time budget; the pass budget in effect; whether the time budget was exhausted before selection finished | Not exhausted — proceed with the full selection; exhausted — proceed with the context already gathered | Proceed to review execution, publish the review, record Partial or Unavailable, and never extend the pass deadline or the job backstop | Business rule on the context time budget; AC8; Use Case 6 | A time budget forced low enough to be exhausted before any symbol resolves records Unavailable and still publishes one review for the head. |
 | Fork-head behaviour per ingress (AC10) | The ingress; whether the reviewed head belongs to a fork; the resolved global switch; which form of the fork switch shipped (operator-settable, or fixed off per Open Question 3) and, in the operator-settable form, its resolved value | Reusable-workflow ingress with a fork head — the pass is skipped before any repository content is read, unchanged from today; webhook ingress with a fork head, the global switch on and the fork switch on — repository context is read from that head's own repository only, as untrusted data, never executed; webhook ingress with a fork head and the global switch off — no repository context, whatever the fork switch says, because the fork switch can only withhold; webhook ingress with a fork head, the global switch on and the fork switch off, whether by its value or because it shipped fixed off — the pass reviews the head with no repository context; non-fork head — the global switch alone decides | Publish a review exactly as today in every case where a review is published, and record the fork marker wherever a repository-context record is emitted | AC9; AC10; Use Case 4; the untrusted-data and never-executed business rules | With the fork switch off, a fork head on the webhook ingress still receives its ordinary review; only the repository context is withheld, the outcome is Off, and no repository-context record and therefore no fork marker is written. |
-| Evidence-tier transition and claim admissibility (AC13, AC15, AC16, AC17, AC18) | Whether any real-pull-request review with repository context enabled is recorded; the count of terminally adjudicated pull requests under the current configuration against the agreed minimum; whether the configuration changed; for a claim, whether it is paired, interleaved, under one immutable model version, with equal run counts, and — for a recall claim — whether paired precision evidence with its regression result exists | `fixture_only`, `real_pr_provisional`, or `real_pr_measured` per the transitions above. For a claim: fixture claim permitted at any tier only where AC13's fixture-capability statement admits it; descriptive real-PR claim permitted at `real_pr_provisional` and above; comparative claim permitted at `real_pr_measured` and only with AC15's pairing and, for recall, AC16's precision evidence | Label every published claim with its tier, the independence caveat, and the own-repository label; omit a claim the tier or its own evidence does not admit rather than publishing it hedged; never attribute the guard-fails-open movement already observed under the sweep to repository context (AC18) | Statuses / Enum Values → Evidence tier; AC13; AC15; AC16; AC17; AC18; Use Case 5; Use Case 7 | A comparative recall claim on ten adjudicated pull requests but with the two arms run weeks apart under different model versions is not admissible: the tier permits comparative claims, AC15's interleaving under one immutable model version does not — the recorded sweep comparison failed on exactly this. A fixture whose target has no resolvable surrounding source yields no claim at all, not a zero effect. |
+| Evidence-tier transition and claim admissibility (AC13, AC15, AC16, AC17, AC18) | Whether any real-pull-request review with repository context enabled is recorded; the count of terminally adjudicated pull requests under the current configuration against the agreed minimum; whether the configuration changed; for a claim, whether it is paired — its second arm being the non-publishing control pass AC22 defines — interleaved, under one immutable model version, with equal run counts, and — for a recall claim — whether paired precision evidence with its regression result exists | `fixture_only`, `real_pr_provisional`, or `real_pr_measured` per the transitions above. For a claim: fixture claim permitted at any tier only where AC13's fixture-capability statement admits it; descriptive real-PR claim permitted at `real_pr_provisional` and above; comparative claim permitted at `real_pr_measured` and only with AC15's pairing and, for recall, AC16's precision evidence | Label every published claim with its tier, the independence caveat, and the own-repository label; omit a claim the tier or its own evidence does not admit rather than publishing it hedged; never attribute the guard-fails-open movement already observed under the sweep to repository context (AC18) | Statuses / Enum Values → Evidence tier; AC13; AC15; AC16; AC17; AC18; Use Case 5; Use Case 7 | A comparative recall claim on ten adjudicated pull requests but with the two arms run weeks apart under different model versions is not admissible: the tier permits comparative claims, AC15's interleaving under one immutable model version does not — the recorded sweep comparison failed on exactly this. A fixture whose target has no resolvable surrounding source yields no claim at all, not a zero effect. |
 
 ---
 
@@ -720,6 +728,9 @@ Each row below is the normative summary for its gate; the prose sites named unde
   precision result, per-pass elapsed time and billed minutes per arm, model calls
   per pass, run counts, immutable model version, reviewed target, fixture version,
   timestamps, and the evidence-tier label.
+- **Control-pass results**: recorded only in the operator's evidence record. A
+  control pass writes nothing to GitHub, so it has no review, check-run, or comment
+  surface (AC22).
 - **Evidence-tier ledger**: the tier, the counted pull requests, the configuration
   the count accrues under, and the date the state was recorded.
 - **Logs**: the outcome, the counts, the budget utilisation, and cleanup
@@ -743,7 +754,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
       unamended with a dated note. `docs/constitution.md` is not amended by this
       item.
 - [ ] AC2: If the amendment is rejected, this item terminates with that recorded
-      decision as its only outcome, and **none of AC3 to AC21 is built** — no
+      decision as its only outcome, and **none of AC3 to AC22 is built** — no
       repository-context capability, no switch, no budget, no record, and no
       evidence artifact of any kind, including the off-by-default and
       reproducibility criteria, which exist only as properties of a capability
@@ -888,6 +899,14 @@ Each row below is the normative summary for its gate; the prose sites named unde
       does not cover, because an unrecognised value is a configuration error rather
       than a valid disablement; only a recognised on value at the effective source
       turns the switch on.
+- [ ] AC22: A real-pull-request comparison's second arm runs as a non-publishing
+      control pass on the same head: it produces a reviewable result recorded in the
+      operator's evidence record and publishes no review, no check run, and no
+      comment to GitHub. Verifiable on a head that already carries a published
+      review: after the control pass, that head still has exactly one published
+      review and one check run, both from the original pass, and the control's result
+      is present only in the evidence record. No trigger starts a control pass
+      automatically.
 
 ---
 
@@ -930,7 +949,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
 | O7: Recall evidence on the three sub-themes | AC13, AC15, AC16, AC18 | Per-seed recall for both arms on the seeds added by the sweep item; the fixture's ability to test this feature at all is stated before any figure; precision evidence is mandatory for a recall claim; the guard-fails-open movement already observed under the sweep is not re-attributed here. |
 | O8: Cost and pass-duration evidence | AC14, AC15 | Measured rather than projected. Two kinds of figure, labelled apart: the comparative context-off against context-on arms, which AC15 requires to be paired, interleaved, under one immutable model version with equal run counts; and the committed 2026-09-23 baseline and the measured dogfood pass as descriptive references, which are not arms, cannot be paired because they predate the feature, and carry no effect claim. |
 | O9: No implementation before the amendment | AC1, AC2, plus the closing business rule | Stated as a gate on starting work, verifiable from the recorded decision's date. |
-| O10: Measurement needs accumulated reviews; no "before" exists | AC15, AC17, plus Use Case 7 | The comparison is paired context-off against context-on on the same heads, never a before-and-after in time; the tier ledger governs what may be claimed while the cohort accumulates. #103 is closed, so passes accrue from now, but no pre-dogfood Ronda review exists to compare against and the recorded sweep ledger still stands at fixture-only with zero counted pull requests. |
+| O10: Measurement needs accumulated reviews; no "before" exists | AC15, AC17, AC22, plus Use Case 7 | The comparison is paired context-off against context-on on the same heads, never a before-and-after in time; the tier ledger governs what may be claimed while the cohort accumulates. #103 is closed, so passes accrue from now, but no pre-dogfood Ronda review exists to compare against and the recorded sweep ledger still stands at fixture-only with zero counted pull requests. |
 | O11: Sequence after the sweep; let its results inform the lever | AC18, plus Use Case 5 | The recorded sweep evidence is cited in both directions: the state-reconstruction and lossy-parsing seeds were not solved by the sweep, which is the case for this lever; the guard-fails-open seed moved under the sweep, so AC18 forbids claiming that movement here. The sweep's own paired comparison was recorded as inadmissible for model drift, which is why AC15 requires interleaved arms under one immutable model version. |
 
 ### Deferral Notes
@@ -974,6 +993,8 @@ Each row below is the normative summary for its gate; the prose sites named unde
   recorded selection order and operator budgets.
 - Changing the reusable-workflow fork behaviour. Fork heads stay unreviewed on
   that ingress; the webhook ingress remains the fork-friendly one.
+- An automatic control pass. The non-publishing control pass (AC22) is
+  operator-initiated only; no trigger starts one.
 - Raising the default pass budget or the job backstop (see **Open Questions**).
 - Setting a recall target, a variance ceiling, or a cost ceiling for repository
   context (see **Deferred Decisions**).
