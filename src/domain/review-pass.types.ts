@@ -268,7 +268,10 @@ export type SweepCategoryPassOutcome =
 export interface SweepFindingAttribution {
   /** Position of the finding in the pass's published findings. */
   publicationIndex: number;
-  /** One or more swept category identifiers, or `["uncategorized"]`. */
+  /**
+   * One or more swept category identifiers, or an empty array when the finding
+   * matches none of them, which the review summary reports as uncategorized.
+   */
   categories: string[];
 }
 
