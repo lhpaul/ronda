@@ -335,9 +335,10 @@ at the reviewed head, the definitions the changed lines depend on, bounded by
 operator budgets (`maxRepositoryContextCandidates`, default `12`;
 `maxRepositoryContextChars`, default `24000`; `repositoryContextTimeBudgetMs`,
 default `120000`). It is **off by default for every adopting repository**;
-this repository's own dogfooding is the recorded exception (see
-`docs/project/3-software-architecture.md`'s Key Architectural Decisions).
-Same recognized-value vocabulary and fail-closed resolution as
+this repository's own dogfooding is the recorded exception once the owner
+sets the repository variable (see `docs/project/3-software-architecture.md`'s
+Key Architectural Decisions) — **it remains off here too until then**. Same
+recognized-value vocabulary and fail-closed resolution as
 `RONDA_SWEEP_MODE` above. **A fork-originated head never reads repository
 context, whatever this is set to** — the exclusion is fixed this iteration,
 not a switch, and it applies on every ingress and trigger (the reusable

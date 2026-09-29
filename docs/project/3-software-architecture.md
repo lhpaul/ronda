@@ -198,8 +198,14 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   version appear in the review summary. No finding text enters the records.
 - **Read-only repository context** (`src/review/repository-context.ts`,
   `src/review/symbol-resolver.ts`): off by default for adopting repositories,
-  on for this repository's own dogfooding (`RONDA_REPOSITORY_CONTEXT` /
-  `repositoryContext`, #106). When enabled on a same-repository head,
+  and this repository's own dogfooding is the recorded exception once the
+  owner sets it (`RONDA_REPOSITORY_CONTEXT` / `repositoryContext`, #106).
+  **It remains off here too, for now**: the repository variable is
+  deliberately not set by this feature's own implementation pull request
+  (see `docs/testing/ronda/repository-context-effect-evidence-106.md`) —
+  only the repository owner sets it, after the read-only demonstrations
+  (AC4, AC5) and the resolution-correctness evidence (AC23) are committed.
+  When enabled on a same-repository head,
   `symbol-resolver.ts` reads the changed TypeScript/JavaScript-family files and
   their module-specifier closure through the existing `readFileAtRef` seam
   only — no repository-wide listing, no checkout, no working area — parses
