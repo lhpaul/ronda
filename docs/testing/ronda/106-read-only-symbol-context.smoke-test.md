@@ -128,18 +128,18 @@ No design assets exist for this item (the issue body has no `## Design assets` s
 3. Run a pass on it with the switch on.
 4. Inspect the logs, the pass record, the published review, and the filesystem of the host that ran the pass.
 
-**Expected result**: Nothing from the reviewed repository was executed — no build, install, test, script, hook, or generated tooling. Nothing was written to the reviewed repository beyond the one review and its check run. The symlink pointing outside the repository was not followed and nothing outside the repository was read through it; the submodule reference was not fetched; the `.gitattributes` filter and diff drivers caused nothing to run — each recorded as `read_failed` where the entry was named by a changed path. No working area was created on the host. The instruction-shaped source produced no action: the pass published exactly one review for the head, in the same JSON-derived shape, and took no action outside it.
+**Expected result**: Nothing from the reviewed repository was executed — no build, install, test, script, hook, or generated tooling. Nothing was written to the reviewed repository beyond the one review and its check run. The symlink pointing outside the repository was not followed and nothing outside the repository was read through it; the submodule reference was not fetched; the `.gitattributes` filter and diff drivers caused nothing to run. Per the plan's unreadable-and-refused-paths contract: a refused entry that was a **candidate target** appears as a `read_failed` drop, while one that was a **changed path** yields no candidate and therefore no drop — so a hostile head whose every changed path is refused records `nothing_to_resolve`, not a drop list. No working area was created on the host. The instruction-shaped source produced no action: the pass published exactly one review for the head, in the same JSON-derived shape, and took no action outside it.
 
 ### Step 9: Non-publishing control pass
 
 **Maps to**: AC22
 
 1. Pick a head that already carries exactly one published Ronda review plus its single check run.
-2. Run `npm run quality:control-pass` against it under the opposite switch value.
+2. Run `npm run quality:control-pass -- --pr <number> --repository-context <opposite arm>` against it. Both flags are required; a fork head is refused before any read.
 3. Re-read the pull request's reviews, its check runs, and its comments.
-4. Read the operator evidence record the control pass wrote.
+4. Read the appended line in `docs/testing/ronda/repository-context-control-passes.jsonl` (or the `--out` path used).
 
-**Expected result**: The head still has exactly one published review and one check run, both from the original pass. No comment was added. The control pass's result is present only in the evidence record. No trigger started the control pass.
+**Expected result**: The head still has exactly one published review and one check run, both from the original pass. No comment was added. The control pass's result is present only in the evidence record, as one appended JSON line. The command's own write counter was zero, which is the mechanism the guarantee rests on. No trigger started the control pass.
 
 ### Step 10: No record survives a pre-review-execution end
 
@@ -240,6 +240,7 @@ report.
 | --- | --- | --- |
 | Step 3 records `nothing_to_resolve` on a TypeScript change | The changed lines name no symbol declared elsewhere, or the changed file's extension is outside the plan's D4 language scope | Pick a pull request whose changed lines call a symbol defined in another file |
 | Step 3 records `unavailable` with `read_failed` drops | The token lacks `contents: read` at the reviewed head, or the tree read returned `truncated` | Confirm the token scope; a truncated tree is expected on a very large repository and is recorded, not an error |
+| Step 9 exits non-zero with a usage message | `--pr` or `--repository-context` was omitted, or the head is fork-originated | Both flags are required by the control pass's invocation contract, and a fork head is refused because it reads no context on either arm |
 | Step 7 shows a repository-context line on a fork head | The fork gate did not run before the switch, or `headRepoFullName` was empty and treated as same-repository | This is an AC10 defect, not a configuration problem — the gate must precede the switch and an unknown head origin must be treated as a fork |
 | Step 4 shows the diff truncated | Repository-context characters were counted into the patch budget | This is an AC7 defect: the context section has its own budget and must never enter the `maxPatchChars` measurement |
 | Step 11 reports precision below 100% | The resolver bound a reference the checker would not, or guessed where it should have dropped | Fix before step 15 of the implementation order; AC23 makes this a defect, not a figure to report |
