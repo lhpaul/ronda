@@ -274,15 +274,17 @@ built.
    repository context. With it on, Ronda reads repository context for that head
    only from the reviewed head's own repository, treats every byte of it as
    untrusted data rather than instructions, and never executes any of it.
-4. On the webhook ingress, Ronda publishes one review for the head, and — where it
-   emitted a repository-context record — that record states that the head was
-   fork-originated. On the reusable-workflow ingress no review is published,
-   because step 2 already ended the pass; that is today's behaviour and this
-   feature does not change it.
+4. On every path that reached step 3 — the webhook ingress and the
+   reusable-workflow ingress's manual comment trigger — Ronda publishes one review
+   for the head exactly as it does today, and, where it emitted a
+   repository-context record, that record states that the head was fork-originated.
+   The one path that publishes nothing is the reusable-workflow ingress's automatic
+   trigger, because step 2 ended that pass before review execution; that is today's
+   behaviour and this feature does not change it.
 
 **Postconditions**:
 
-- No fork content is executed on either ingress.
+- No fork content is executed on any ingress or trigger.
 - Where repository context is read for a fork head at all, it is read from that
   head's own repository and from no other repository. Where the fork switch
   withholds it, no repository content is read for that head.
