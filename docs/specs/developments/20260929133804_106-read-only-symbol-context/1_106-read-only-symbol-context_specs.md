@@ -71,8 +71,28 @@ replacement text for the decision, for the owner to accept, amend, or reject:
 >   model input that must be budgeted and reported, and every pass must be able to
 >   show that it read and never wrote.
 
-If the owner rejects the amendment, this item's outcome is the recorded decision
-not to proceed (AC2), and nothing else in this spec is built.
+### Where the decision is recorded
+
+The **Key Architectural Decisions** section of
+[`3-software-architecture.md`](../../../project/3-software-architecture.md) is the
+authoritative surface, because that is where the decision being amended lives.
+`docs/constitution.md` does not carry this decision and is not amended by this
+item. The same document already carries a precedent for the form: the dated,
+owner-attributed scope-change note recorded there for #103.
+
+- **Accepted**, or **accepted with changes**: the existing decision is replaced by
+  the agreed text, attributed to the repository owner with the date of the
+  decision and a reference to this item. The text recorded there — not this spec's
+  proposal — is what implementation follows.
+- **Rejected**: the existing decision stands unamended, and a dated,
+  owner-attributed note under it records that the amendment was proposed by this
+  item and declined, so a later reader does not re-litigate it.
+
+Either way the recording happens as part of this item's implementation stage, not
+in the spec pull request: this spec proposes the text, and the owner's merge of the
+spec is the agreement to that text (AC1). If the owner rejects the amendment, this
+item's outcome is the rejection note alone (AC2), and nothing else in this spec is
+built.
 
 ---
 
@@ -519,17 +539,24 @@ repository.
 - The webhook ingress keeps its existing one-active-review-job rule and its
   bounded queue. Repository context adds no concurrency to it.
 - A cleanup failure is recorded and never publishes a second review for the head.
-- No repository content, credential value, credential name, or operator-specific
-  path is written to the logs, the pass record, or any committed evidence
-  document. Quoting the reviewed code inside a published finding, as reviews
-  already do, is not affected by this rule.
+- No **excerpt of repository content**, credential value, credential name, or
+  operator-specific path is written to the logs, the pass record, or any committed
+  evidence document. The pass record and the logs carry only **identifiers** of
+  what was read — symbol name, file path within the reviewed repository, and line
+  number — which say what was looked at without reproducing it, together with
+  counts, budget figures, and drop reasons. That identifier set is the explicit and
+  only exception to this rule; an excerpt body never appears on either surface.
+  Quoting the reviewed code inside a published finding, as reviews already do, is
+  not affected by this rule either, because a finding is not a log or a pass
+  record.
 - Every recorded effect claim states its evidence tier, carries the independence
   caveat and the own-repository label, and is drawn from a paired comparison under
   one immutable model version with equal run counts per arm.
 - The read-only property is established by demonstration on a hostile case, not
   by assertion in a document.
 - No implementation work on this feature begins before the amendment above is
-  recorded as accepted or rejected.
+  recorded as accepted or rejected in the Key Architectural Decisions section of
+  `docs/project/3-software-architecture.md`.
 
 ---
 
@@ -642,10 +669,10 @@ Each row below is the normative summary for its gate; the prose sites named unde
 
 | Gate | Inputs | Allowed outcomes | Required next action | Mirror surfaces | Example |
 | --- | --- | --- | --- | --- | --- |
-| Amendment decision (AC1, AC2) | The repository owner's recorded decision on the proposed amendment | Accepted; accepted with changes; rejected; not yet recorded | Accepted or accepted with changes: implementation may start, against the recorded text. Rejected: terminate the item with that record as its only outcome (AC2). Not yet recorded: no implementation work starts | Proposed Amendment section; AC1; AC2; the closing business rule; Open Question 1 | A partial acceptance that keeps the no-checkout mechanism but permits content reads is an "accepted with changes" outcome, and the recorded text is what implementation follows — not this spec's proposed wording. |
+| Amendment decision (AC1, AC2) | The repository owner's recorded decision on the proposed amendment, recorded in the Key Architectural Decisions section of `docs/project/3-software-architecture.md` | Accepted; accepted with changes; rejected; not yet recorded | Accepted or accepted with changes: replace the decision text there, attributed and dated, and implementation may start against that recorded text. Rejected: leave the decision unamended, add the dated rejection note, and terminate the item with that note as its only outcome (AC2). Not yet recorded: no implementation work starts | Proposed Amendment section, including **Where the decision is recorded**; AC1; AC2; the closing business rule; Open Question 1 | A partial acceptance that keeps the no-checkout mechanism but permits content reads is an "accepted with changes" outcome, and the recorded text is what implementation follows — not this spec's proposed wording. |
 | Switch resolution (AC19, AC21) | The global repository-context switch value and, on the webhook ingress, the fork switch value, each read from the highest-precedence source that supplies a non-empty value | Off — absent, empty, or whitespace-only at both sources (nothing recorded); Off — a recognised off value (nothing recorded); Off — a non-empty unrecognised value (record that a value was unrecognised, without the raw value); On — a recognised on value | Every off outcome runs the ordinary review with no repository context and no record, except that the unrecognised case additionally records that a value was unrecognised; on: proceed to candidate selection. The fork switch can only move the result from on to off, never the reverse | Business rules on switch resolution and on the fork switch; AC19; AC21; AC10 | An empty value at a higher-precedence source defers to the next source rather than forcing off. A non-empty unrecognised value at a higher-precedence source is the effective value and is not replaced by a recognised value below it. A fork switch set on while the global switch is off leaves the pass with no repository context. |
 | Repository-context outcome resolution (AC3, AC11, AC19) | Whether the pass reached review execution; whether the feature was enabled; how many requested symbols were resolved | Not applicable — did not reach review execution (no record); Off — reached review execution, not enabled (no record); Used — all requested symbols resolved; Partial — some resolved; Unavailable — none resolved | The three recorded outcomes are always written to the logs, and additionally to the check-run output where the pass's own check-run write produced a check run whose outcome is a review; never to the review body (AC3). The two unrecorded outcomes write nothing anywhere | Statuses / Enum Values → Repository-context pass outcome; AC3; AC11; AC19; Use Case 1 steps 1 and 6 | A draft pull request is Not applicable and writes nothing, so it is indistinguishable from the same skip with the feature absent. A pass whose every read is denied is Unavailable and still publishes its review. |
-| Budget conflict resolution (AC6, AC7) | The symbol count budget; the character budget; the existing diff budget; the authoritative-document budgets; how much context the selection rules requested | Within every budget — all requested context retained; over a context budget — lower-priority repository context dropped by the recorded selection order, with the drops recorded; the diff would have to give way — not permitted | Retain the diff in full, drop repository context, record every drop and its reason, and record the outcome as Partial | Business rules on budgets and on the diff never giving way; AC6; AC7; Use Case 2 | A change naming more symbols than the count budget allows drops the lowest-priority symbols and records Partial. A budget setting large enough that repository context would displace the diff is resolved by dropping context, never by truncating the diff — the recorded reviewer that reached a token limit and pruned the diff published nothing, which is the failure this row forbids. |
+| Budget conflict resolution (AC6, AC7) | The symbol count budget; the character budget; the existing diff budget; the authoritative-document budgets; how much context the selection rules requested | Within every budget — all requested context retained; over a context budget — lower-priority repository context dropped by the recorded selection order, with the drops recorded; the diff would have to give way — not permitted | Retain the diff in full, drop repository context, record every drop and its reason, and record the outcome as Partial — or Unavailable where every candidate was dropped and none resolved, which the budgets alone can cause | Business rules on budgets and on the diff never giving way; AC6; AC7; Use Case 2 | A change naming more symbols than the count budget allows drops the lowest-priority symbols and records Partial. A character budget too small for even the first candidate drops every candidate and records Unavailable, not Partial. A budget setting large enough that repository context would displace the diff is resolved by dropping context, never by truncating the diff — the recorded reviewer that reached a token limit and pruned the diff published nothing, which is the failure this row forbids. |
 | Context time budget exhaustion (AC8) | The context time budget; the pass budget in effect; whether the time budget was exhausted before selection finished | Not exhausted — proceed with the full selection; exhausted — proceed with the context already gathered | Proceed to review execution, publish the review, record Partial or Unavailable, and never extend the pass deadline or the job backstop | Business rule on the context time budget; AC8; Use Case 6 | A time budget forced low enough to be exhausted before any symbol resolves records Unavailable and still publishes one review for the head. |
 | Fork-head behaviour per ingress (AC10) | The ingress; whether the reviewed head belongs to a fork; which form of the fork switch shipped (operator-settable, or fixed off per Open Question 3) and its value | Reusable-workflow ingress with a fork head — the pass is skipped before any repository content is read, unchanged from today; webhook ingress with a fork head and the fork switch on — repository context is read from that head's own repository only, as untrusted data, never executed; webhook ingress with a fork head and the fork switch off, whether by its value or because it shipped fixed off — the pass reviews the head with no repository context; non-fork head — the global switch alone decides | Publish a review exactly as today in every case where a review is published, and record the fork marker wherever a repository-context record is emitted | AC9; AC10; Use Case 4; the untrusted-data and never-executed business rules | With the fork switch off, a fork head on the webhook ingress still receives its ordinary review; only the repository context is withheld, the outcome is Off, and no repository-context record and therefore no fork marker is written. |
 | Evidence-tier transition and claim admissibility (AC13, AC15, AC16, AC17, AC18) | Whether any real-pull-request review with repository context enabled is recorded; the count of terminally adjudicated pull requests under the current configuration against the agreed minimum; whether the configuration changed; for a claim, whether it is paired, interleaved, under one immutable model version, with equal run counts, and — for a recall claim — whether paired precision evidence with its regression result exists | `fixture_only`, `real_pr_provisional`, or `real_pr_measured` per the transitions above. For a claim: fixture claim permitted at any tier only where AC13's fixture-capability statement admits it; descriptive real-PR claim permitted at `real_pr_provisional` and above; comparative claim permitted at `real_pr_measured` and only with AC15's pairing and, for recall, AC16's precision evidence | Label every published claim with its tier, the independence caveat, and the own-repository label; omit a claim the tier or its own evidence does not admit rather than publishing it hedged; never attribute the guard-fails-open movement already observed under the sweep to repository context (AC18) | Statuses / Enum Values → Evidence tier; AC13; AC15; AC16; AC17; AC18; Use Case 5; Use Case 7 | A comparative recall claim on ten adjudicated pull requests but with the two arms run weeks apart under different model versions is not admissible: the tier permits comparative claims, AC15's interleaving under one immutable model version does not — the recorded sweep comparison failed on exactly this. A fixture whose target has no resolvable surrounding source yields no claim at all, not a zero effect. |
@@ -687,9 +714,14 @@ Each row below is the normative summary for its gate; the prose sites named unde
 
 - [ ] AC1: The proposed amendment above is recorded as a decision by the
       repository owner — accepted, accepted with changes, or rejected — with the
-      date, before any implementation work on this feature starts. The recorded
-      decision names which of the two commitments in the current locked decision
-      it changes and which it keeps.
+      date, in the **Key Architectural Decisions** section of
+      `docs/project/3-software-architecture.md` as **Where the decision is
+      recorded** specifies, before any implementation work on this feature starts.
+      The recorded decision names which of the two commitments in the current
+      locked decision it changes and which it keeps, and is attributed to the
+      repository owner. Acceptance replaces the decision text; rejection leaves it
+      unamended with a dated note. `docs/constitution.md` is not amended by this
+      item.
 - [ ] AC2: If the amendment is rejected, this item terminates with that recorded
       decision as its only outcome, and **none of AC3 to AC21 is built** — no
       repository-context capability, no switch, no budget, no record, and no
@@ -724,7 +756,10 @@ Each row below is the normative summary for its gate; the prose sites named unde
 - [ ] AC6: A pass never exceeds its configured maximum symbol count or maximum
       combined character budget for repository context. With more symbols requested
       than the budgets allow, the pass records which symbols were dropped and why,
-      and the retained context follows the recorded selection order.
+      and the retained context follows the recorded selection order. A pass that
+      retains some candidates records `partial`; a pass whose budgets are small
+      enough to drop every candidate records `unavailable`, and both still publish
+      their review.
 - [ ] AC7: With repository context enabled at any budget setting, the pull
       request's own changed lines are present in the review input in full, to the
       same extent as with the feature off. A budget decision never drops or
@@ -862,7 +897,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
 | O2: Cost against the recorded figures, and the pass budget | AC8, AC14 | AC8 makes repository context fit inside the pass budget in effect (`pass_timeout_minutes`, default 10, job backstop that plus two) rather than require a larger one; AC14 compares measured passes against the committed 2026-09-23 baseline and the measured dogfood pass, and reports budget exhaustion. Whether the default budget should rise is an open question for the owner. |
 | O3: Symbol selection and context budget | AC3, AC6, AC7, AC20 | Selection resolves the definitions the changed lines depend on and the call sites of what the change defines, in the recorded order defined in **Context Selection Order** — candidates one step from the changed lines only, ordered by kind, then changed-line position, then candidate location, then symbol name, with whole-candidate drops and no mid-excerpt truncation; two budgets bound it, in addition to the existing diff and authoritative-document budgets; the diff is never displaced (AC7), which is the direct answer to the recorded 32,000-token pruning observation; selection is reproducible (AC20). |
 | O4: Webhook path, concurrency and cleanup | AC12, plus the working-area and one-active-job business rules | No added concurrency, cleanup on every settlement path including watchdog abort and startup reconciliation, no working area shared between passes, and a cleanup failure never publishes a second review. |
-| O5: Recorded amendment or decision not to proceed | AC1, AC2 | The amendment text is proposed here and decided by the owner; rejection terminates the item with that record as its outcome. |
+| O5: Recorded amendment or decision not to proceed | AC1, AC2, plus **Where the decision is recorded** | The amendment text is proposed here and decided by the owner, and the decision is recorded in the Key Architectural Decisions section of `docs/project/3-software-architecture.md` — the document that carries the decision being amended; `docs/constitution.md` does not carry it and is not amended. Rejection terminates the item with a dated rejection note as its only outcome. |
 | O6: Context available, read-only demonstrated | AC3, AC4, AC5, AC11, AC19, AC21 | The capability ships off by default, resolves its switches fail-closed so an absent or unrecognised value never enables it (AC21), degrades rather than failing, and has its read-only property demonstrated. |
 | O7: Recall evidence on the three sub-themes | AC13, AC15, AC16, AC18 | Per-seed recall for both arms on the seeds added by the sweep item; the fixture's ability to test this feature at all is stated before any figure; precision evidence is mandatory for a recall claim; the guard-fails-open movement already observed under the sweep is not re-attributed here. |
 | O8: Cost and pass-duration evidence | AC14, AC15 | Measured rather than projected. Two kinds of figure, labelled apart: the comparative context-off against context-on arms, which AC15 requires to be paired, interleaved, under one immutable model version with equal run counts; and the committed 2026-09-23 baseline and the measured dogfood pass as descriptive references, which are not arms, cannot be paired because they predate the feature, and carry no effect claim. |
