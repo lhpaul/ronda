@@ -106,7 +106,7 @@ No design assets exist for this item (the issue body has no `## Design assets` s
 2. Set `RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS=1` and run again.
 3. Note each pass's elapsed time against the pass budget in effect and the job's own `timeout-minutes`.
 
-**Expected result**: Both passes publish exactly one review for the head. Run 1 records `unavailable` with `read_failed` drops; run 2 records `unavailable` (or `partial` if a candidate resolved first) with `time_budget` drops. Neither pass fails, neither suppresses the review, and neither exceeds the pass deadline or the job backstop.
+**Expected result**: Both passes publish exactly one review for the head. Run 1 records `unavailable` with `read_failed` drops; run 2 records `unavailable` with `time_budget` drops covering **every** requested candidate — the phase is atomic (plan decision D5), so an exhausted time budget never retains a prefix. Neither pass fails, neither suppresses the review, and neither exceeds the pass deadline or the job backstop.
 
 ### Step 7: A fork-originated head reads no repository context, at the most permissive configuration
 
