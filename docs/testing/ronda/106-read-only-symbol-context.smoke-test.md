@@ -157,7 +157,7 @@ No design assets exist for this item (the issue body has no `## Design assets` s
 1. Run `npm test -- tests/unit/review/symbol-resolver.test.ts` (or the repository's equivalent single-file invocation).
 2. Read `docs/testing/ronda/repository-context-resolution-precision-106.md`.
 
-**Expected result**: Every edge case E1–E13 from the plan's parser-risk addendum has a passing test. The recorded precision on the resolution fixture is **100%**: every resolved candidate is the declaration or call site the TypeScript checker binds the reference to, and every reference that cannot be bound to exactly one declaration is dropped with the reason `ambiguous_resolution`. A figure below 100% is a defect to fix before step 15 of the
+**Expected result**: Every edge case E1–E15 from the plan's parser-risk addendum has a passing test. The recorded precision on the resolution fixture is **100%**: every resolved candidate is the declaration or call site the TypeScript checker binds the reference to, and every reference that cannot be bound to exactly one declaration is dropped with the reason `ambiguous_resolution`. A figure below 100% is a defect to fix before step 15 of the
 implementation order — the step that sets this repository's switch on — not a figure to
 report.
 
