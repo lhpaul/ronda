@@ -205,53 +205,53 @@ fixture, which is the collection every other assertion in the test addresses.
 
 ## P16 — recall gate applied to the runs of a campaign
 
-**Plant**: `src/cli/recall-benchmark.ts:1204` — drop the `&& runs === 1`
+**Plant**: `src/cli/recall-benchmark.ts:1256` — drop the `&& runs === 1`
 condition from `if (only !== undefined && isFailureRecord(only) === false &&
 runs === 1) {`, so the recall gate judges the first record of a multi-run
 campaign too.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: 1, expected: 0`. Isolates `assert.equal(campaign.exitCode, 0)`
-(line 679) — a two-run campaign whose runs fail the recall gate still exits
+(line 692) — a two-run campaign whose runs fail the recall gate still exits
 zero, because per-run recall is the measurement and only a failure record may
 turn a campaign's exit code non-zero. The single-run assertion beside it
 (`assert.equal(single.exitCode, 1)`) keeps the gate itself proven.
 
 ## P17 — a rejected precision request does not cancel its siblings
 
-**Plant**: `src/cli/recall-benchmark.ts:1008` — replace `await
+**Plant**: `src/cli/recall-benchmark.ts:1019` — replace `await
 settleOrAbort(controller, …)` with `await Promise.all(…)`, so a rejection
 neither aborts the run's controller nor waits for the other requests.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: false, expected: true`. Isolates
-`assert.equal(siblingSawAbort, true)` (test line 739) — the in-flight sibling
+`assert.equal(siblingSawAbort, true)` (test line 752) — the in-flight sibling
 observes its request being aborted.
 
 ## P18 — the run does not wait for a cancelled sibling to settle
 
-**Plant**: `src/cli/recall-benchmark.ts:946-965` — replace the body of
+**Plant**: `src/cli/recall-benchmark.ts:945-964` — replace the body of
 `settleOrAbort` with `return Promise.all(requests.map((request) =>
 request.catch((error) => { controller.abort(); throw error; })));`, which
 aborts the controller but rejects at once instead of awaiting every request.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: false, expected: true`. Isolates
-`assert.equal(siblingSettled, true)` (test line 740). The abort assertion
-above it (line 739) stays green under this plant, so it is not masked by it:
+`assert.equal(siblingSettled, true)` (test line 753). The abort assertion
+above it (line 752) stays green under this plant, so it is not masked by it:
 the sibling winds down 30 ms after the abort, and only a run that awaits it
 sees `siblingSettled`.
 
 ## P19 — the run's own cancellation reads as a timeout
 
-**Plant**: `src/cli/recall-benchmark.ts:1152` — replace `deadlineFired` with
+**Plant**: `src/cli/recall-benchmark.ts:1167` — replace `deadlineFired` with
 `controller.signal.aborted` in `buildFailureDetail(error, context.manifest,
 deadlineFired)`.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: true, expected: false`. Isolates
 `assert.equal((records[0].failure as { aborted: boolean }).aborted, false)`
-(test line 742) — the run aborting its own sibling after an ordinary error is
+(test line 755) — the run aborting its own sibling after an ordinary error is
 not recorded as a `passTimeoutMs` abort.
 
 Unplanted outcome for all three: `./node_modules/.bin/tsx --test
@@ -326,13 +326,35 @@ the file then reports `ℹ pass 49`, `ℹ fail 0`.
 
 | Proof | Plant in `patches.json` (`credentials.ts` entry) | Fails at | Isolates |
 | --- | --- | --- | --- |
-| P24 | rename `const CANONICAL_CREDENTIAL_NAME = ` to `const OTHER_NAME = ` | test line 1250, `must define the canonical-name guard the defect is about` | the patch defines the guard the seed is about |
-| P25 | change the guard `/^token$/` to `/^tokenX$/` | test line 1252, `the guard must recognize the canonical name token` | the guard recognizes the canonical form |
-| P26 | change `return redactCredentials({ authToken });` to `return { authToken };` | test line 1259, `must pass a credential-named value to the guard` | the variant goes through the guard |
-| P27 | change `redactCredentials({ authToken })` to `redactCredentials({ token })` | test line 1260, `Expected "actual" to be strictly unequal` | the value passed is not the canonical name |
-| P28 | broaden the guard to `/[Tt]oken$/` | test line 1261, `the guard must miss the variant authToken, or the seeded defect is not in the patch` | the guard misses the variant, which is the defect |
+| P24 | rename `const CANONICAL_CREDENTIAL_NAME = ` to `const OTHER_NAME = ` | test line 1281, `must define the canonical-name guard the defect is about` | the patch defines the guard the seed is about |
+| P25 | change the guard `/^token$/` to `/^tokenX$/` | test line 1283, `the guard must recognize the canonical name token` | the guard recognizes the canonical form |
+| P26 | change `return redactCredentials({ authToken });` to `return { authToken };` | test line 1290, `must pass a credential-named value to the guard` | the variant goes through the guard |
+| P27 | change `redactCredentials({ authToken })` to `redactCredentials({ token })` | test line 1291, `Expected "actual" to be strictly unequal` | the value passed is not the canonical name |
+| P28 | broaden the guard to `/[Tt]oken$/` | test line 1292, `the guard must miss the variant authToken, or the seeded defect is not in the patch` | the guard misses the variant, which is the defect |
 
 All five fail as `AssertionError [ERR_ASSERTION]`. A guard broadened with a
 regex flag (`/token$/i`) is not a P28 plant: the extraction pattern stops
-matching it, so it fails at line 1250 first and would be masked, which is why
+matching it, so it fails at line 1281 first and would be masked, which is why
 P28 broadens the character class instead.
+
+## P29–P32 — a run's deadline is not enforced against a client that ignores the abort
+
+`runOneCampaignRun` races the run's body against a deadline promise, so a
+client that ignores the abort signal, or never settles, becomes a timeout
+failure record at the deadline instead of holding the run and the runs after it.
+Two tests hold this: `campaign gives each run its own pass deadline` (changed:
+the run that outlives its deadline is now a timeout record, exit code 1) and the
+new `a client that never settles cannot hold a run past its deadline`. Each plant
+is restored afterwards and the file reports `ℹ pass 50`, `ℹ fail 0`. Run with
+`--test-timeout=4000` so a hang fails instead of stalling the runner.
+
+| Proof | Plant in `src/cli/recall-benchmark.ts` | Fails at | Isolates |
+| --- | --- | --- | --- |
+| P29 | `return await Promise.race([runBody(), deadline]);` becomes `return await runBody();` (line 1154) | changed test line 785 `assert.equal(exitCode, 1)`; the new test never returns and fails with `test timed out after 4000ms` | the run is bounded by its deadline, not by the client |
+| P30 | pass `false` instead of `deadlineFired` to `buildFailureDetail` | changed test line 788, new test line 818 (`reason` is `"timeout"`), and the existing timeout test line 923 | a deadline expiry is classified as a timeout |
+| P31 | `aborted,` becomes `aborted: false,` in `buildFailureDetail` (line 871) | new test line 819 (`aborted` is true) and the existing test line 923; the `reason` assertion above it stays green | the record says the deadline aborted the run |
+| P32 | add `if (runIndex > 0) throw new Error("planted");` at the top of `runBody` | changed test line 787 and new test line 817 (`records.map(isFailure)` is `[true, false]`); the `exitCode` and length assertions above them stay green | a hung run does not take the next run down with it |
+
+P32 also fails other multi-run tests, which legitimately read the same second
+run. The elapsed-time assertion an earlier draft carried is dropped: the test
+only completes at all if the race works, which P29 proves.

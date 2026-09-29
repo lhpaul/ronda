@@ -780,12 +780,43 @@ test("campaign gives each run its own pass deadline", async () => {
     }),
   );
 
-  assert.equal(exitCode, 0);
+  // The first run outlived its deadline while ignoring the abort, so it is a
+  // timeout failure record; the second run, with its own deadline, is unaffected.
+  assert.equal(exitCode, 1);
   assert.equal(records.length, 2);
+  assert.deepEqual(records.map(isFailure), [true, false]);
+  assert.equal((records[0].failure as { reason: string }).reason, "timeout");
   assert.notEqual(signals[0], signals[1]);
   assert.deepEqual(abortedAtEntry, [false, false]);
   assert.equal(signals[0].aborted, true);
   assert.equal(signals[1].aborted, false);
+});
+
+test("a client that never settles cannot hold a run past its deadline", async () => {
+  const { exitCode, records } = await runCampaign(
+    "never-settles",
+    { sweepMode: "off", runs: 2 },
+    campaignDeps({
+      loadConfig: () => testConfig({ passTimeoutMs: 50 }),
+      createModel: ({ runIndex }) => ({
+        modelName: "fixture:never-settles",
+        async complete() {
+          if (runIndex === 0) {
+            // Ignores the abort and never answers.
+            return new Promise<never>(() => undefined);
+          }
+          return { content: readFileSync(fixturePath("model-responses/passing.json"), "utf8") };
+        },
+      }),
+    }),
+  );
+
+  // The hung run becomes a timeout record at its deadline and the campaign
+  // moves on, instead of waiting on the client forever.
+  assert.equal(exitCode, 1);
+  assert.deepEqual(records.map(isFailure), [true, false]);
+  assert.equal((records[0].failure as { reason: string; aborted: boolean }).reason, "timeout");
+  assert.equal((records[0].failure as { aborted: boolean }).aborted, true);
 });
 
 test("campaign records a mid-campaign failure instead of throwing and leaves the other runs undisturbed", async () => {

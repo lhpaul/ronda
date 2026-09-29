@@ -982,15 +982,23 @@ async function runOneCampaignRun(
   // aborts its own controller to cancel sibling requests after an ordinary
   // error, and that must not read as a `passTimeoutMs` timeout.
   let deadlineFired = false;
+  let expireDeadline: (error: Error) => void = () => undefined;
+  // Rejects when the deadline fires, so a client or provider that ignores the
+  // abort cannot hold the run, its failure record, or the runs after it hostage.
+  const deadline = new Promise<never>((_resolve, reject) => {
+    expireDeadline = reject;
+  });
+  deadline.catch(() => undefined);
   const timeout = setTimeout(() => {
     deadlineFired = true;
     controller.abort();
+    expireDeadline(new Error(`the pass exceeded its ${context.config.passTimeoutMs} ms deadline`));
   }, context.config.passTimeoutMs);
   timeout.unref?.();
   const counter = createModelCallCounter();
   const sweepCategories = list !== undefined ? list.categories : undefined;
 
-  try {
+  const runBody = async (): Promise<BenchmarkRunRecord> => {
     const model = counter.wrap(
       await deps.createModel({ options: context.options, config: context.config, runIndex }),
     );
@@ -1140,6 +1148,10 @@ async function runOneCampaignRun(
         ? readJsonFile<RecallBenchmarkSummary>(context.options.previousSummaryPath)
         : undefined,
     });
+  };
+
+  try {
+    return await Promise.race([runBody(), deadline]);
   } catch (error) {
     return {
       runIndex,
