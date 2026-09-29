@@ -10,9 +10,20 @@ prescribes.
 
 Every figure below is read from the committed campaign records named in
 [Provenance](#provenance). Nothing is re-typed from a run's own `fixture` or
-`configuration` block, and nothing is carried over from a run that failed. The
-records replace an earlier campaign that ran against the mutable alias
-`qwen-plus`; no figure from those superseded records is used here.
+`configuration` block, and nothing is carried over from a run that failed.
+
+**This set replaces an earlier set.** The earlier records ran the same
+campaign, on the same pinned snapshot, against an older fixture: the harder
+credential seed `credential-pattern-gap-camel` says a guard that recognizes only the
+canonical credential name misses a camelCase variant, but its patch did not
+contain that guard, so its defect was not in the earlier patch. The patch was
+rewritten (feature commit `0542d9e`), which changed the extended fixture's
+`patchesSha256`, and the whole campaign was re-recorded. In the earlier set that
+seed was found in 0 of the 20 runs that contain it (the earlier set had 30 runs
+in all), so it is superseded, and no figure or seed-level statement from it is
+used here. The original-thirteen control's inputs did not change. The records
+also replace a still earlier campaign that ran against the mutable alias
+`qwen-plus`; nothing from those is used either.
 
 This document is also the single authoritative home of the regression-gate
 status statement required by AC17 — see
@@ -69,43 +80,43 @@ by their array index, which is also the pairing position.
 
 | File | SHA-256 |
 | --- | --- |
-| `sweep-off-extended.json` | `193cc37bed0e38a155f60a221cd7bef7788511627052b1f99adffa9e869ba4bc` |
-| `sweep-on-extended.json` | `3276c3d358703228bf4b3a1284da6431964dfe17da8ec422c24c74308b98fa2e` |
-| `sweep-off-original-thirteen.json` | `ad980022cb6f5c43b1d63f08fc9cdfe0d6be1147d7b6727fae562f07307f5415` |
-| `sweep-on-original-thirteen.json` | `f716fa15dd4314d6daecbc38c94dcc2adfe7baa5b32307cefdb9407acfd0ff2f` |
-| `sweep-off-precision.json` | `a87f0b59bc3e534d060c3b41f93c2f711e64f5ca87047c6adb26729a7db28d39` |
-| `sweep-on-precision.json` | `e0f94025998814dbe4c484025fe712774f76ba6808329a6f8048a6b8b43324a3` |
+| `sweep-off-extended.json` | `91d3f17a9e3e662b054a07bd7ee31ac01f65cb0d0baa3ab205f2acf2acd67b0a` |
+| `sweep-on-extended.json` | `26bbced763c2c75d8caf21501508308aa646eb691001837c25ee3f7afc6f3db5` |
+| `sweep-off-original-thirteen.json` | `1673fe8d801c0e5038f68a014f78230a4367a87074f03e10907082256cfe05fc` |
+| `sweep-on-original-thirteen.json` | `086faacbde83b4b2ca728b9ca635a2afcc47152b39d46f41ece03590285629a6` |
+| `sweep-off-precision.json` | `cc8d3f71c869157769b9cf9f5895099c7908ef626705428a4272aa1f89ab6ae7` |
+| `sweep-on-precision.json` | `5130f5ffac724c43f3cdcdee1b57a6de927ca191114c4197f079faa33e50155f` |
 
 Run timestamps (first–last record per file, in array order), read from each
 record's `timestamp`:
 
 | File | First | Last |
 | --- | --- | --- |
-| `sweep-off-extended.json` | 2026-09-28T21:32:05.895Z | 2026-09-28T21:33:04.903Z |
-| `sweep-on-extended.json` | 2026-09-28T21:32:05.895Z | 2026-09-28T21:33:09.765Z |
-| `sweep-off-original-thirteen.json` | 2026-09-28T21:32:05.906Z | 2026-09-28T21:33:00.441Z |
-| `sweep-on-original-thirteen.json` | 2026-09-28T21:32:05.895Z | 2026-09-28T21:32:55.910Z |
-| `sweep-off-precision.json` | 2026-09-28T21:32:05.896Z | 2026-09-28T21:33:03.434Z |
-| `sweep-on-precision.json` | 2026-09-28T21:32:05.895Z | 2026-09-28T21:33:01.215Z |
+| `sweep-off-extended.json` | 2026-09-29T08:39:24.382Z | 2026-09-29T08:40:32.497Z |
+| `sweep-on-extended.json` | 2026-09-29T08:39:24.386Z | 2026-09-29T08:40:25.263Z |
+| `sweep-off-original-thirteen.json` | 2026-09-29T08:39:24.382Z | 2026-09-29T08:40:24.215Z |
+| `sweep-on-original-thirteen.json` | 2026-09-29T08:39:24.383Z | 2026-09-29T08:40:20.566Z |
+| `sweep-off-precision.json` | 2026-09-29T08:39:24.382Z | 2026-09-29T08:40:30.103Z |
+| `sweep-on-precision.json` | 2026-09-29T08:39:24.382Z | 2026-09-29T08:40:29.262Z |
 
-The six files' first records are stamped within 11 ms of one another
-(2026-09-28T21:32:05.895Z to 2026-09-28T21:32:05.906Z), and the whole campaign spans 2026-09-28T21:32:05.895Z to
-2026-09-28T21:33:09.765Z. That is consistent with the six legs having run concurrently, not
+The six files' first records are stamped within 4 ms of one another
+(2026-09-29T08:39:24.382Z to 2026-09-29T08:39:24.386Z), and the whole campaign spans 2026-09-29T08:39:24.382Z to
+2026-09-29T08:40:32.497Z. That is consistent with the six legs having run concurrently, not
 one after another as the command listing reads; the five runs inside each file
-are sequential. Concurrent legs would share the provider endpoint, so the elapsed-time
-figures under [Cost evidence](#cost-evidence-ac11) were likely taken under that
-shared load. It applies to both arms alike, and it is stated here because it bears on
-how far those figures can be read.
+are sequential. The legs appear to have run concurrently against one provider
+endpoint, so the elapsed-time figures under [Cost evidence](#cost-evidence-ac11)
+were likely taken under that shared load. It applies to both arms alike, and it
+is stated here because it bears on how far those figures can be read.
 
 Reviewed target: `issue-15-recall-benchmark` on every record in every file.
 
-Driver commit: the campaign ran from `b35aa63`, the local head of the feature
-branch. `git diff --stat 6bb5d37 b35aa63` shows a single changed file, the
-release-note fragment `changelog.d/105.added.category-forced-review-sweep.md`
-(1 line), so the executable source, the fixtures, and the recorded category list
-are identical to the runbook's tested commit `6bb5d37`. The fixture hashes
-recorded in each record's own `fixture` block match the content of the manifest
-and patch files at `6bb5d37`.
+Driver commit: the campaign ran from `0542d9e`, the head of the feature branch
+`feature/105-category-forced-review-sweep` ([#118](https://github.com/lhpaul/ronda/pull/118))
+at run time, so the executable source, the fixtures, and the recorded category
+list the campaign ran are the ones at that commit. The fixture hashes recorded in
+each record's own `fixture` block match the content of the manifest and patch
+files at `0542d9e`. The extended fixture's `patchesSha256` differs from the
+superseded set's because that commit rewrote the `credential-pattern-gap-camel` seed's patch.
 
 ## Model identity and version attestation
 
@@ -170,7 +181,7 @@ Fixture version, read from each record's own `fixture` block:
 
 | Leg | `manifestPath` | `benchmarkId` | `seedCount` | `manifestSha256` | `patchesSha256` |
 | --- | --- | --- | --- | --- | --- |
-| Extended / precision | `tests/fixtures/recall-benchmark/manifest.json` | `issue-15-recall-benchmark` | 18 | `8c8a8e3b5300d458239a5c02784b14dd58bfc513106095e8a534b9524a1ab325` | `76ed1583caadd7088864a54d814244d06ddf29961c9b18d33579295831faf81a` |
+| Extended / precision | `tests/fixtures/recall-benchmark/manifest.json` | `issue-15-recall-benchmark` | 18 | `8c8a8e3b5300d458239a5c02784b14dd58bfc513106095e8a534b9524a1ab325` | `cd9526be7cffdd926300403edbb69bce4714dd2252cb1423f1d90330e32994eb` |
 | Original-thirteen control | `tests/fixtures/recall-benchmark/original-thirteen/manifest.json` | `issue-15-recall-benchmark` | 13 | `1ff80de715d320db744f0b866b51df1c7501e952fce63dfa48ef60a1529eb497` | `e548bd03e17accf6f003d16c361c941fb26d57cddd23e2f8999443d98f0e1b61` |
 
 The original-thirteen control shares the extended fixture's `benchmarkId` (the
@@ -178,7 +189,7 @@ snapshot is a byte-identical copy) and is nonetheless distinct evidence: it
 differs by `manifestPath`, by `seedCount`, and by both content hashes, so it is
 demonstrably not the extended fixture re-run. Note that it also carries a
 different `promptFingerprint` (`42c6d53f…`) than the
-extended and precision legs (`1f76380e…`), because the prompt embeds
+extended and precision legs (`6f64eb67…`), because the prompt embeds
 the reviewed patch set; that difference is a property of the fixture, not a
 configuration difference between the sweep arms.
 
@@ -216,8 +227,7 @@ attestation that the endpoint pins the snapshot; re-running the campaign would
 not change that. The figures below are campaign evidence, not a
 same-configuration claim, and they are not a claim that the sweep had an effect:
 see [What the recall evidence shows](#what-the-recall-evidence-shows), which
-finds no consistent overall recall difference, and treats every between-arm
-comparison as inconclusive.
+treats every between-arm comparison as inconclusive.
 
 ## Recall evidence (AC8)
 
@@ -233,8 +243,8 @@ outcome**.
 
 | Arm | Per-run found (of 18) | Per-run recall | Low | High | Population SD | Mean |
 | --- | --- | --- | --- | --- | --- | --- |
-| Sweep off | 8, 8, 8, 7, 7 | 0.444444, 0.444444, 0.444444, 0.388889, 0.388889 | 0.388889 | 0.444444 | 0.027217 | 0.422222 |
-| Sweep on | 9, 11, 7, 7, 7 | 0.500000, 0.611111, 0.388889, 0.388889, 0.388889 | 0.388889 | 0.611111 | 0.088889 | 0.455556 |
+| Sweep off | 10, 8, 9, 8, 9 | 0.555556, 0.444444, 0.500000, 0.444444, 0.500000 | 0.444444 | 0.555556 | 0.041574 | 0.488889 |
+| Sweep on | 10, 8, 7, 7, 11 | 0.555556, 0.444444, 0.388889, 0.388889, 0.611111 | 0.388889 | 0.611111 | 0.090267 | 0.477778 |
 
 All 18 seeds were present in every run of both arms (no seed reported absent
 from the fixture), so the denominator is 18 throughout.
@@ -243,8 +253,8 @@ from the fixture), so the denominator is 18 throughout.
 
 | Arm | Per-run found (of 13) | Per-run recall | Low | High | Population SD | Mean |
 | --- | --- | --- | --- | --- | --- | --- |
-| Sweep off | 9, 6, 7, 8, 8 | 0.692308, 0.461538, 0.538462, 0.615385, 0.615385 | 0.461538 | 0.692308 | 0.078446 | 0.584615 |
-| Sweep on | 8, 7, 8, 6, 8 | 0.615385, 0.538462, 0.615385, 0.461538, 0.615385 | 0.461538 | 0.615385 | 0.061538 | 0.569231 |
+| Sweep off | 11, 8, 8, 8, 8 | 0.846154, 0.615385, 0.615385, 0.615385, 0.615385 | 0.615385 | 0.846154 | 0.092308 | 0.661538 |
+| Sweep on | 8, 9, 7, 9, 7 | 0.615385, 0.692308, 0.538462, 0.692308, 0.538462 | 0.538462 | 0.692308 | 0.068802 | 0.615385 |
 
 The recall denominator here is the fixture's 13 seeds, not the confirmed-defect
 denominator AC15(d)'s real-pull-request tier uses, so this fixture comparison is
@@ -258,8 +268,8 @@ the same fields as above.
 
 | Arm | Per-run found (of 18) | Per-run recall | Low | High | Population SD | Mean |
 | --- | --- | --- | --- | --- | --- | --- |
-| Sweep off | 8, 8, 9, 8, 7 | 0.444444, 0.444444, 0.500000, 0.444444, 0.388889 | 0.388889 | 0.500000 | 0.035136 | 0.444444 |
-| Sweep on | 6, 7, 8, 6, 9 | 0.333333, 0.388889, 0.444444, 0.333333, 0.500000 | 0.333333 | 0.500000 | 0.064788 | 0.400000 |
+| Sweep off | 8, 7, 8, 10, 8 | 0.444444, 0.388889, 0.444444, 0.555556, 0.444444 | 0.388889 | 0.555556 | 0.054433 | 0.455556 |
+| Sweep on | 8, 8, 8, 8, 8 | 0.444444, 0.444444, 0.444444, 0.444444, 0.444444 | 0.444444 | 0.444444 | 0.000000 | 0.444444 |
 
 ### Original-thirteen subset, read from the extended runs
 
@@ -269,10 +279,10 @@ This is reported separately from the standalone original-thirteen control
 above, because the two answer different questions — the subset holds the patch
 set fixed and narrows the seed list, while the control changes both.
 
-| Arm | Subset run positions 0–4 (seeds) | Subset run positions 0–4 (misses) | Subset recall (of 13) |
-| --- | --- | --- | --- |
-| Sweep off (extended) | 8, 8, 8, 7, 7 | 5, 5, 5, 6, 6 | 0.615385, 0.615385, 0.615385, 0.538462, 0.538462 |
-| Sweep on (extended) | 8, 9, 6, 5, 6 | 5, 4, 7, 8, 7 | 0.615385, 0.692308, 0.461538, 0.384615, 0.461538 |
+| Arm | Subset run positions 0–4 (seeds) | Subset run positions 0–4 (found) | Subset run positions 0–4 (misses) | Subset recall (of 13) |
+| --- | --- | --- | --- | --- |
+| Sweep off (extended) | 13, 13, 13, 13, 13 | 9, 8, 9, 8, 9 | 4, 5, 4, 5, 4 | 0.692308, 0.615385, 0.692308, 0.615385, 0.692308 |
+| Sweep on (extended) | 13, 13, 13, 13, 13 | 8, 6, 7, 6, 8 | 5, 7, 6, 7, 5 | 0.615385, 0.461538, 0.538462, 0.461538, 0.615385 |
 
 ### Per-defect found and missed counts
 
@@ -283,8 +293,49 @@ Counts are out of the 5 runs of the leg, read from each record's
 
 | Seed | Off found | Off missed | On found | On missed |
 | --- | --- | --- | --- | --- |
-| `expired-session-inversion` | 0 | 5 | 2 | 3 |
-| `sensitive-value-exposure` | 5 | 0 | 2 | 3 |
+| `expired-session-inversion` | 4 | 1 | 0 | 5 |
+| `sensitive-value-exposure` | 5 | 0 | 5 | 0 |
+| `cache-capacity-off-by-one` | 5 | 0 | 5 | 0 |
+| `sql-interpolation` | 5 | 0 | 5 | 0 |
+| `invalid-range-parsing` | 0 | 5 | 0 | 5 |
+| `lexicographic-numeric-sort` | 5 | 0 | 5 | 0 |
+| `lower-element-median` | 5 | 0 | 5 | 0 |
+| `empty-word-title-casing` | 5 | 0 | 3 | 2 |
+| `authorization-bypass` | 0 | 5 | 0 | 5 |
+| `data-loss-overwrite` | 0 | 5 | 0 | 5 |
+| `async-race-duplicate-processing` | 4 | 1 | 4 | 1 |
+| `configuration-debug-default` | 0 | 5 | 0 | 5 |
+| `stale-sha-review-publication` | 5 | 0 | 3 | 2 |
+| `api-evidence-state-reconstruction` | 0 | 5 | 2 | 3 |
+| `external-output-parsing-lossy` | 0 | 5 | 0 | 5 |
+| `guard-fails-open` | 0 | 5 | 4 | 1 |
+| `record-identity-drift` | 0 | 5 | 0 | 5 |
+| `credential-pattern-gap-camel` | 1 | 4 | 2 | 3 |
+
+#### Original-thirteen control
+
+| Seed | Off found | Off missed | On found | On missed |
+| --- | --- | --- | --- | --- |
+| `expired-session-inversion` | 3 | 2 | 2 | 3 |
+| `sensitive-value-exposure` | 5 | 0 | 4 | 1 |
+| `cache-capacity-off-by-one` | 5 | 0 | 5 | 0 |
+| `sql-interpolation` | 5 | 0 | 5 | 0 |
+| `invalid-range-parsing` | 1 | 4 | 1 | 4 |
+| `lexicographic-numeric-sort` | 5 | 0 | 5 | 0 |
+| `lower-element-median` | 5 | 0 | 5 | 0 |
+| `empty-word-title-casing` | 5 | 0 | 5 | 0 |
+| `authorization-bypass` | 0 | 5 | 0 | 5 |
+| `data-loss-overwrite` | 1 | 4 | 0 | 5 |
+| `async-race-duplicate-processing` | 4 | 1 | 4 | 1 |
+| `configuration-debug-default` | 0 | 5 | 0 | 5 |
+| `stale-sha-review-publication` | 4 | 1 | 4 | 1 |
+
+#### Paired precision legs
+
+| Seed | Off found | Off missed | On found | On missed |
+| --- | --- | --- | --- | --- |
+| `expired-session-inversion` | 1 | 4 | 1 | 4 |
+| `sensitive-value-exposure` | 5 | 0 | 3 | 2 |
 | `cache-capacity-off-by-one` | 5 | 0 | 5 | 0 |
 | `sql-interpolation` | 5 | 0 | 5 | 0 |
 | `invalid-range-parsing` | 0 | 5 | 0 | 5 |
@@ -292,141 +343,127 @@ Counts are out of the 5 runs of the leg, read from each record's
 | `lower-element-median` | 5 | 0 | 5 | 0 |
 | `empty-word-title-casing` | 5 | 0 | 2 | 3 |
 | `authorization-bypass` | 0 | 5 | 0 | 5 |
-| `data-loss-overwrite` | 0 | 5 | 1 | 4 |
-| `async-race-duplicate-processing` | 5 | 0 | 2 | 3 |
+| `data-loss-overwrite` | 0 | 5 | 0 | 5 |
+| `async-race-duplicate-processing` | 4 | 1 | 1 | 4 |
 | `configuration-debug-default` | 0 | 5 | 0 | 5 |
-| `stale-sha-review-publication` | 3 | 2 | 5 | 0 |
-| `api-evidence-state-reconstruction` | 0 | 5 | 2 | 3 |
+| `stale-sha-review-publication` | 5 | 0 | 4 | 1 |
+| `api-evidence-state-reconstruction` | 0 | 5 | 0 | 5 |
 | `external-output-parsing-lossy` | 0 | 5 | 0 | 5 |
 | `guard-fails-open` | 0 | 5 | 5 | 0 |
 | `record-identity-drift` | 0 | 5 | 0 | 5 |
-| `credential-pattern-gap-camel` | 0 | 5 | 0 | 5 |
-
-#### Original-thirteen control
-
-| Seed | Off found | Off missed | On found | On missed |
-| --- | --- | --- | --- | --- |
-| `expired-session-inversion` | 2 | 3 | 0 | 5 |
-| `sensitive-value-exposure` | 5 | 0 | 4 | 1 |
-| `cache-capacity-off-by-one` | 5 | 0 | 5 | 0 |
-| `sql-interpolation` | 5 | 0 | 5 | 0 |
-| `invalid-range-parsing` | 0 | 5 | 0 | 5 |
-| `lexicographic-numeric-sort` | 5 | 0 | 5 | 0 |
-| `lower-element-median` | 5 | 0 | 5 | 0 |
-| `empty-word-title-casing` | 3 | 2 | 4 | 1 |
-| `authorization-bypass` | 0 | 5 | 0 | 5 |
-| `data-loss-overwrite` | 0 | 5 | 0 | 5 |
-| `async-race-duplicate-processing` | 4 | 1 | 4 | 1 |
-| `configuration-debug-default` | 0 | 5 | 0 | 5 |
-| `stale-sha-review-publication` | 4 | 1 | 5 | 0 |
-
-#### Paired precision legs
-
-| Seed | Off found | Off missed | On found | On missed |
-| --- | --- | --- | --- | --- |
-| `expired-session-inversion` | 0 | 5 | 1 | 4 |
-| `sensitive-value-exposure` | 5 | 0 | 0 | 5 |
-| `cache-capacity-off-by-one` | 5 | 0 | 5 | 0 |
-| `sql-interpolation` | 5 | 0 | 5 | 0 |
-| `invalid-range-parsing` | 0 | 5 | 0 | 5 |
-| `lexicographic-numeric-sort` | 5 | 0 | 5 | 0 |
-| `lower-element-median` | 5 | 0 | 5 | 0 |
-| `empty-word-title-casing` | 4 | 1 | 0 | 5 |
-| `authorization-bypass` | 0 | 5 | 0 | 5 |
-| `data-loss-overwrite` | 1 | 4 | 0 | 5 |
-| `async-race-duplicate-processing` | 5 | 0 | 1 | 4 |
-| `configuration-debug-default` | 0 | 5 | 0 | 5 |
-| `stale-sha-review-publication` | 5 | 0 | 5 | 0 |
-| `api-evidence-state-reconstruction` | 0 | 5 | 3 | 2 |
-| `external-output-parsing-lossy` | 0 | 5 | 0 | 5 |
-| `guard-fails-open` | 0 | 5 | 5 | 0 |
-| `record-identity-drift` | 0 | 5 | 1 | 4 |
-| `credential-pattern-gap-camel` | 0 | 5 | 0 | 5 |
+| `credential-pattern-gap-camel` | 1 | 4 | 4 | 1 |
 
 ### What the recall evidence shows
 
-- **Overall recall: inconclusive, and no consistent difference is observed in
-  either direction.** The mean recall difference (sweep on minus sweep off) is
-  +0.033333 on the extended fixture, −0.015385 on the original-thirteen
-  control, and −0.044444 on the recall pass of the precision legs: positive on one leg,
-  negative on the other two. In defects per run that is +0.6,
-  −0.2, and −0.8. Within a leg the run-by-run
-  differences are also mixed in sign: 1, 3, −1, 0, 0 (extended),
-  −1, 1, 1, −2, 0 (original-thirteen), −2, −1, −1, −2, 2 (precision), in found defects by
+- **Overall recall: inconclusive, and no consistent difference is supported.**
+  The mean recall difference (sweep on minus sweep off) is
+  −0.011111 on the extended fixture, −0.046154 on the
+  original-thirteen control, and −0.011111 on the recall pass of the
+  precision legs: negative on all three, by 0.011111 to 0.046154
+  in absolute value. In defects per run that is −0.2,
+  −0.6, and −0.2. Within a leg the run-by-run
+  differences are mixed in sign: 0, 0, −2, −1, +2 (extended),
+  −3, +1, −1, +1, −1 (original-thirteen), 0, +1, 0, −2, 0 (precision), in found defects by
   run position. The two 18-seed legs share a recall-pass prompt, so pooling
   their 10 runs per arm is a descriptive convenience: mean recall
-  0.433333 sweep off against 0.427778 sweep on.
-  Sweep-on recall is not uniformly higher than sweep-off: the extended fixture's
-  sweep-on range is 0.388889–0.611111 against sweep-off
-  0.388889–0.444444, and the original-thirteen control's
-  sweep-on range is 0.461538–0.615385 against sweep-off
-  0.461538–0.692308.
-- **Spread: inconclusive, and no consistent difference either.** The population SD of per-run recall
-  moves 0.027217 → 0.088889 on the extended fixture (wider),
-  0.078446 → 0.061538 on the original-thirteen control (narrower), and
-  0.035136 → 0.064788 on the recall pass of the precision legs (wider). The
-  widest sweep-on figure comes from a single extended run that found 11 of 18
-  (run position 1), which also carries the leg's highest recall-pass false-positive
-  count.
+  0.472222 sweep off against 0.461111 sweep on. The per-run ranges of the
+  two arms overlap on every leg: extended sweep-on
+  0.388889–0.611111 against sweep-off
+  0.444444–0.555556, original-thirteen control
+  sweep-on 0.538462–0.692308 against sweep-off
+  0.615385–0.846154, precision-leg recall pass
+  sweep-on 0.444444–0.444444 against sweep-off
+  0.388889–0.555556.
+- **Spread: inconclusive, and no consistent difference either.** The population
+  SD of per-run recall moves 0.041574 → 0.090267 on
+  the extended fixture (wider),
+  0.092308 → 0.068802 on the original-thirteen
+  control (narrower), and
+  0.054433 → 0.000000 on the recall pass of the
+  precision legs (narrower). The widest sweep-on
+  figure is the extended leg's (found 10, 8, 7, 7, 11 of 18, the high of
+  11 at run position 4); the sweep-on precision-leg recall pass found
+  8 of 18 in every run, which is why its SD is
+  0.000000.
 - **What a 5-run sample can and cannot show.** The between-arm mean differences
-  (0.015385 to 0.044444 in absolute value) are of the same order as
-  the within-arm spread (population SD 0.027217 to 0.088889), and the per-run ranges of the
-  two arms overlap on every leg. Five runs per arm at this spread cannot tell a
-  real change of a fraction of a defect per run from run-to-run variation, and
-  a standard deviation estimated from five runs is itself imprecise, so neither a
-  recall improvement nor a recall loss, nor a change in variance, is supported.
-  What five runs can show is a large, repeatable, seed-specific change, and
-  there is one (next point).
-- **The one large seed-level difference observed is `guard-fails-open`.** It was found in 5
-  of 5 sweep-on runs on the extended fixture and 5 of 5 on the precision legs
-  (10 of 10), and in 0 of 10 sweep-off runs. That is the largest
-  repeatable seed-level change in these tables. It is an observation, not an
-  attributed effect: the arms are not an admissible same-configuration
+  (0.011111 to 0.046154 in absolute value) are smaller than or of the same order as
+  the within-arm spread (population SD 0.041574 to 0.092308
+  where non-zero), and the per-run ranges of the two arms overlap on every leg.
+  Five runs per arm at this spread cannot tell a real change of a fraction of a
+  defect per run from run-to-run variation, and a standard deviation estimated
+  from five runs is itself imprecise, so neither a recall improvement nor a
+  recall loss, nor a change in variance, is supported. What five runs can show
+  is a large, repeatable, seed-specific change, and there is one (next point).
+- **The largest seed-level movement observed is `guard-fails-open`.** It was
+  found in 4 of 5 sweep-on runs on the extended
+  fixture and 5 of 5 on the precision legs
+  (9 of 10), and in 0 of 10 sweep-off runs. That is the
+  largest repeatable seed-level change in these tables. It is an observation,
+  not an attributed effect: the arms are not an admissible same-configuration
   comparison, so model drift between the arms can explain any between-arm
   difference here, this one included. It comes from a fixture in Ronda's own
-  repository and says nothing about real pull requests. `api-evidence-state-reconstruction` moves 0/5 → 2/5 on the
-  extended fixture and 0/5 → 3/5 on the precision legs, and
-  `stale-sha-review-publication` moves 3/5 → 5/5 on the extended fixture, 4/5 →
-  5/5 on the control, and stays 5/5 on the precision legs; these are smaller
-  moves that five runs cannot separate from variation.
-- **The sweep-on arm found some seeds less often, and this is recorded as
-  observed, not as a finding of harm.** `sensitive-value-exposure` was found in
-  5 of 5 sweep-off runs on all three legs and in 2, 4, and
-  0 of 5 sweep-on runs on the extended, original-thirteen, and precision
-  legs respectively. Every one of the 9 sweep-on runs that missed it also
-  carries an unmatched finding on the seed's own file (`src/benchmark/auth.ts`,
-  line 2), titled as a hardcoded sensitive credential, secret, or value; no
-  sweep-off run has one. The seed's matcher credits particular wording, so
-  this is consistent with the reviewer raising the finding in wording the
-  lexical matcher does not credit, and not with the reviewer failing to see it.
-  That reading was not adjudicated finding by finding; it means the recall
-  figures count only the findings the matcher credits, and the drop on this
-  seed may reflect matcher wording rather than a lost finding.
-  `empty-word-title-casing` (5 → 2 and 4 → 0 on the two 18-seed legs; 3 → 4
-  on the control) and `async-race-duplicate-processing` (5 → 2 and 5 → 1; 4 → 4 on the control) show
-  no such same-file unmatched finding in their sweep-on misses, so those
-  drops stand as measured. Whether the sweep displaced those findings or the
-  runs varied cannot be settled from five runs per arm; it is the observation a
-  larger sample should test first.
-- **Five seeds were found in no run of either arm on any leg that contains
-  them:** `invalid-range-parsing`, `authorization-bypass`, and
-  `configuration-debug-default` (all three legs), and
-  `external-output-parsing-lossy` and `credential-pattern-gap-camel` (the two
-  18-seed legs). Three of these are among the four defect kinds the 2026-09-10
-  baseline's calibration note identified as consistently missed; the fourth,
-  `data-loss-overwrite`, was found in 2 of the 30 runs that contain it (one
-  sweep-on extended run and one sweep-off precision-leg run) and missed in the
-  rest. The sweep does not change the never-found set.
+  repository and says nothing about real pull requests. The harder credential
+  seed moves less: `credential-pattern-gap-camel` was found in 1 of 5 sweep-off and 2 of 5
+  sweep-on extended runs, and in 1 of 5 and 4 of 5 on the precision
+  legs (2 of 10 against 6 of 10). `api-evidence-state-reconstruction`
+  was found in 0 of 10 sweep-off and 2 of 10 sweep-on 18-seed runs
+  (extended 0/5 to 2/5,
+  precision legs 0/5 to 0/5).
+  These are moves five runs cannot separate from variation, and the same non-attribution applies.
+- **Some seeds were found less often in the sweep-on arm on some legs, recorded
+  as observed, not as a finding of harm.** Found counts out of 5, sweep off to
+  sweep on, on the extended / original-thirteen / precision legs (every seed
+  listed is on all three legs):
+
+  | Seed | Extended | Original-thirteen | Precision legs |
+  | --- | --- | --- | --- |
+  | `expired-session-inversion` | 4 to 0 | 3 to 2 | 1 to 1 |
+  | `sensitive-value-exposure` | 5 to 5 | 5 to 4 | 5 to 3 |
+  | `empty-word-title-casing` | 5 to 3 | 5 to 5 | 5 to 2 |
+  | `data-loss-overwrite` | 0 to 0 | 1 to 0 | 0 to 0 |
+  | `async-race-duplicate-processing` | 4 to 4 | 4 to 4 | 4 to 1 |
+  | `stale-sha-review-publication` | 5 to 3 | 4 to 4 | 5 to 4 |
+
+  The seed-level picture is mixed and these are small counts. Whether the sweep
+  displaced those findings or the runs varied cannot be settled from five runs
+  per arm; it is the observation a larger sample should test first.
+- **Misses that coincide with an unmatched finding on the seed's own file occur
+  in both arms.** Across the three legs, 23 of 117 sweep-off and 13 of 122 sweep-on
+  seed misses (a seed missed in a run) carry a same-file finding among that run's
+  unmatched findings. All 3 sweep-on runs that missed `sensitive-value-exposure` are of this kind
+  (`src/benchmark/auth.ts`, line 3, titled as a hardcoded sensitive credential or secret);
+  no sweep-off run missed it. For `credential-pattern-gap-camel` (`src/benchmark/credentials.ts`),
+  6 of 8 sweep-off misses and 4 of 4 sweep-on misses
+  carry a same-file unmatched finding: on the sweep-off arm at lines
+  12 and 13 and on the sweep-on arm at line 3, each titled as
+  a credential-redaction or credential-pattern gap. The seed's matcher credits
+  particular wording, so this is consistent with the reviewer raising the finding
+  in wording the lexical matcher does not credit, and it is not established that
+  the reviewer failed to see the defect. That reading was not adjudicated finding by finding; it
+  means the recall figures count only the findings the matcher credits, and the
+  measured figure for these seeds may reflect matcher wording rather than a
+  missing finding.
+- **Four seeds were found in no run of either arm on any leg that contains
+  them:** `authorization-bypass` and `configuration-debug-default` (all three
+  legs, 0 of 30 runs each), and `external-output-parsing-lossy` and
+  `record-identity-drift` (the two 18-seed legs, 0 of 20 runs each). Of the four
+  defect kinds the 2026-09-10 baseline's calibration note identified as
+  consistently missed, `authorization-bypass` and `configuration-debug-default`
+  are found in none of these runs, `data-loss-overwrite` was found in 1 of the 30 runs that
+  contain it (a sweep-off original-thirteen control run) and `invalid-range-parsing` in 2 of 30
+  (one sweep-off and one sweep-on control run), so all four remain almost never found.
+  The never-found set is the same under both arms.
 - **Of the five AC12/AC13 seeds, two are never found under either arm:**
-  `credential-pattern-gap-camel` and `external-output-parsing-lossy`. They match
-  the `credential-pattern-gap` and `external-output-parsing` categories, which
-  produced findings in none of the 15 sweep-on runs (see
-  [Per-category attribution](#per-category-attribution-ac9)), so the sweep did
-  not bring out either seeded defect. `record-identity-drift` was found in 1 of
-  the 10 sweep-on 18-seed runs (precision leg) and in none of the 10 sweep-off
-  runs; no finding in any sweep-on run was attributed to the `record-identity`
-  category. This is recorded as it stands: these seeds reflect the reviewer on
-  this model, not the fixture.
+  `external-output-parsing-lossy` and `record-identity-drift`. The category
+  `external-output-parsing` produced findings in none of the 15 sweep-on runs,
+  and `record-identity` in 1 (a run of the
+  original-thirteen control, whose fixture has no record-identity seed; see
+  [Per-category attribution](#per-category-attribution-ac9)), so the sweep did not
+  bring out either seeded defect. The other three are found only in some runs:
+  `guard-fails-open` (0 of 10 sweep-off, 9 of 10 sweep-on),
+  `credential-pattern-gap-camel` (2 of 10, 6 of 10), and
+  `api-evidence-state-reconstruction` (0 of 10, 2 of 10). This is recorded
+  as it stands: these seeds reflect the reviewer on this model, not the fixture.
 
 ## Precision evidence and the strict regression result (AC9)
 
@@ -511,55 +548,56 @@ precision-fixture findings, and they do not enter the strict test above.
 
 | Arm | Run position | Recall-pass false positives |
 | --- | --- | --- |
-| Sweep off | 0 | 1 |
-| Sweep off | 1 | 0 |
-| Sweep off | 2 | 0 |
-| Sweep off | 3 | 1 |
-| Sweep off | 4 | 3 |
-| **Sweep off total** | | **5** |
-| Sweep on | 0 | 2 |
-| Sweep on | 1 | 1 |
+| Sweep off | 0 | 2 |
+| Sweep off | 1 | 3 |
+| Sweep off | 2 | 1 |
+| Sweep off | 3 | 2 |
+| Sweep off | 4 | 1 |
+| **Sweep off total** | | **9** |
+| Sweep on | 0 | 0 |
+| Sweep on | 1 | 2 |
 | Sweep on | 2 | 1 |
-| Sweep on | 3 | 2 |
+| Sweep on | 3 | 0 |
 | Sweep on | 4 | 1 |
-| **Sweep on total** | | **7** |
+| **Sweep on total** | | **4** |
 
 The other two legs' recall passes record the same field:
 
 | Leg | Sweep off per run | Sweep off total | Sweep on per run | Sweep on total |
 | --- | --- | --- | --- | --- |
-| Extended fixture | 1, 2, 2, 1, 2 | 8 | 1, 4, 1, 1, 1 | 8 |
-| Original-thirteen control | 0, 0, 1, 0, 0 | 1 | 0, 1, 0, 0, 0 | 1 |
-| Paired precision | 1, 0, 0, 1, 3 | 5 | 2, 1, 1, 2, 1 | 7 |
+| Extended fixture | 3, 4, 2, 2, 2 | 13 | 1, 1, 2, 1, 1 | 6 |
+| Original-thirteen control | 1, 1, 1, 0, 0 | 3 | 0, 0, 1, 2, 0 | 3 |
+| Paired precision | 2, 3, 1, 2, 1 | 9 | 0, 2, 1, 0, 1 | 4 |
 
 These totals are descriptive. No test in the spec is stated over them, and no
-regression claim is made from them. On the precision legs the sweep-on total is
-higher (7 against 5); on the extended fixture the totals are equal
-(8 against 8), and on the control they are 1 against 1. At these counts
-five runs cannot separate the arms.
+regression claim is made from them. The sweep-on total is lower on the precision legs
+(4 against 9) and on the extended fixture (6 against
+13), and equal on the control (3 against 3). Those are
+observations, not a claim that the sweep reduces noise: five runs cannot separate the
+arms, and the between-arm comparison is inconclusive.
 
 #### Recall-pass false positives, by run
 
 | Arm | Run position | Path | Line | Severity | Title |
 | --- | --- | --- | --- | --- | --- |
 | Sweep off | 0 | `src/benchmark/storage.ts` | 3 | important | Unsafe type assertion bypasses type safety |
+| Sweep off | 0 | `src/benchmark/guard.ts` | 10 | important | Policy failure defaults to permissive behavior |
+| Sweep off | 1 | `src/benchmark/storage.ts` | 3 | important | Unsafe type assertion bypasses type safety |
+| Sweep off | 1 | `src/benchmark/jobs.ts` | 5 | important | Race condition in job processing |
+| Sweep off | 1 | `src/benchmark/credentials.ts` | 12 | important | Insufficient credential redaction pattern |
+| Sweep off | 2 | `src/benchmark/credentials.ts` | 13 | important | Insufficient credential redaction pattern |
 | Sweep off | 3 | `src/benchmark/storage.ts` | 3 | important | Unsafe type assertion bypasses type safety |
-| Sweep off | 4 | `src/benchmark/title.ts` | 2 | nit | Unsafe string indexing on empty word |
-| Sweep off | 4 | `src/benchmark/storage.ts` | 3 | important | Unsafe type assertion bypasses type safety |
-| Sweep off | 4 | `src/benchmark/guard.ts` | 9 | important | Overly permissive fallback on rule load failure |
-| Sweep on | 0 | `src/benchmark/auth.ts` | 2 | blocking | Hardcoded sensitive credential exposed |
-| Sweep on | 0 | `src/benchmark/records.ts` | 2 | important | Unsafe array indexing without bounds check |
-| Sweep on | 1 | `src/benchmark/auth.ts` | 2 | blocking | Hardcoded secret exposed in logging |
-| Sweep on | 2 | `src/benchmark/auth.ts` | 2 | blocking | Hardcoded sensitive credential exposed in logging |
-| Sweep on | 3 | `src/benchmark/auth.ts` | 2 | blocking | Hardcoded sensitive credential exposed in logging |
-| Sweep on | 3 | `src/benchmark/records.ts` | 2 | important | Unsafe indexing without bounds check |
-| Sweep on | 4 | `src/benchmark/auth.ts` | 2 | blocking | Hardcoded sensitive credential value |
+| Sweep off | 3 | `src/benchmark/credentials.ts` | 14 | blocking | Credentials leaked in describeRequest output |
+| Sweep off | 4 | `src/benchmark/credentials.ts` | 12 | important | Credential redaction only checks key name, not value content |
+| Sweep on | 1 | `src/benchmark/git-history.ts` | 7 | important | Branch head inference from commit list is unreliable |
+| Sweep on | 1 | `src/benchmark/credentials.ts` | 3 | important | Credential redaction pattern matches only exact 'token' name |
+| Sweep on | 2 | `src/benchmark/auth.ts` | 3 | blocking | Hardcoded sensitive credential exposed in logging |
+| Sweep on | 4 | `src/benchmark/auth.ts` | 3 | blocking | Hardcoded sensitive credential exposed in logging |
 
 Every title above is a finding description. None contains a credential value,
-token, or authorization value; the `auth.ts` entries, where present, describe a
-hardcoded credential as a class, not its contents. The AC14 scan in plan step 14
-runs over these artifacts and must come back green; this list is not a
-substitute for it.
+token, or authorization value; a title that mentions `token` names the field the
+finding is about, not a value. The AC14 scan in plan step 14 runs over these
+artifacts and must come back green; this list is not a substitute for it.
 
 ## Per-category attribution (AC9)
 
@@ -576,38 +614,42 @@ finding is reported as unattributed.**
 | Category identifier | Runs producing findings | Runs producing none |
 | --- | --- | --- |
 | `pr-head-push-order` | 4 | 11 |
-| `credential-pattern-gap` | 0 | 15 |
+| `credential-pattern-gap` | 4 | 11 |
 | `external-output-parsing` | 0 | 15 |
-| `record-identity` | 0 | 15 |
+| `record-identity` | 1 | 14 |
 | `guard-fails-open` | 10 | 5 |
 
 ### Published findings attributed
 
-Across the 15 sweep-on runs, 130 findings were published: 14 were attributed to
-at least one category and 116 were uncategorized. Per-category attribution of
+Across the 15 sweep-on runs, 136 findings were published: 19 were attributed to
+at least one category and 117 were uncategorized. Per-category attribution of
 published findings:
 
 | Category identifier | Published findings attributed |
 | --- | --- |
 | `guard-fails-open` | 10 |
 | `pr-head-push-order` | 4 |
-| `credential-pattern-gap` | 0 |
+| `credential-pattern-gap` | 4 |
+| `record-identity` | 1 |
 | `external-output-parsing` | 0 |
-| `record-identity` | 0 |
 
 No published finding in this campaign was attributed to more than one category,
-so the attribution total and the attributed-finding total coincide at 14. The
+so the attribution total and the attributed-finding total coincide at 19. The
 record carries each finding's publication index and its category identifiers,
 never the finding's own text. These are the recall passes' findings; the
 precision fixture's passes published none (see above).
 
 **Reading the two tables together:** `guard-fails-open` produced findings in
-10 of 15 sweep-on runs, and `pr-head-push-order` in 4 of 15, so those two
-categories are doing attribution work on these fixtures. `credential-pattern-gap`,
-`external-output-parsing`, and `record-identity` produced none in any of the 15
-runs — the reviewer raised no finding on either fixture that matched them. That
-is a statement about these fixtures, not about the categories' value on real
-pull requests.
+10 of 15 sweep-on runs, `pr-head-push-order` and `credential-pattern-gap`
+in 4 of 15 each, and `record-identity` in 1, so those categories are doing
+attribution work on these fixtures. `external-output-parsing` produced none in any of
+the 15 runs. The one `record-identity` run is on the original-thirteen control, whose
+fixture has no record-identity seed, and none of the 10 sweep-on 18-seed runs (which
+do contain that seed) produced one, so the seed was not brought out. `credential-pattern-gap`
+produced findings in 4 of the 10 sweep-on 18-seed runs, and `credential-pattern-gap-camel` was found in
+6 of those 10; both were true together in 3 runs, so the category record and
+the seed's matcher do not line up run by run. That is a statement about these fixtures, not about the
+categories' value on real pull requests.
 
 ## Cost evidence (AC11)
 
@@ -634,27 +676,28 @@ that identically.
 
 | Leg | Sweep off per run (ms) | Sweep on per run (ms) | Paired differences (on − off, ms) | Paired mean (ms) |
 | --- | --- | --- | --- | --- |
-| Extended fixture | 14311, 15836, 15636, 13221, 12605 | 15169, 23071, 12289, 13338, 15190 | 858, 7235, −3347, 117, 2585 | +1489.6 |
-| Original-thirteen control | 17502, 9549, 11770, 15710, 12172 | 14584, 12326, 13525, 9577, 11749 | −2918, 2777, 1755, −6133, −423 | −988.4 |
-| Paired precision | 15327, 13237, 14748, 14219, 15796 | 15287, 13495, 13045, 13488, 16981 | −40, 258, −1703, −731, 1185 | −206.2 |
+| Extended fixture | 21246, 16284, 14641, 15942, 16383 | 18409, 14475, 15897, 12095, 18877 | −2837, −1809, +1256, −3847, +2494 | −948.6 |
+| Original-thirteen control | 20379, 12948, 14307, 12198, 13127 | 13858, 14685, 11025, 16612, 10893 | −6521, +1737, −3282, +4414, −2234 | −1177.2 |
+| Paired precision | 17218, 15533, 15108, 17858, 14951 | 15732, 20293, 14652, 14201, 14682 | −1486, +4760, −456, −3657, −269 | −221.6 |
 
 Per-arm figures for each leg, read from the same records:
 
 | Leg | Arm | Mean (ms) | Min (ms) | Max (ms) |
 | --- | --- | --- | --- | --- |
-| Extended fixture | Sweep off | 14321.8 | 12605 | 15836 |
-| Extended fixture | Sweep on | 15811.4 | 12289 | 23071 |
-| Original-thirteen control | Sweep off | 13340.6 | 9549 | 17502 |
-| Original-thirteen control | Sweep on | 12352.2 | 9577 | 14584 |
-| Paired precision | Sweep off | 14665.4 | 13237 | 15796 |
-| Paired precision | Sweep on | 14459.2 | 13045 | 16981 |
+| Extended fixture | Sweep off | 16899.2 | 14641 | 21246 |
+| Extended fixture | Sweep on | 15950.6 | 12095 | 18877 |
+| Original-thirteen control | Sweep off | 14591.8 | 12198 | 20379 |
+| Original-thirteen control | Sweep on | 13414.6 | 10893 | 16612 |
+| Paired precision | Sweep off | 16133.6 | 14951 | 17858 |
+| Paired precision | Sweep on | 15912 | 14201 | 20293 |
 
-Both configurations' figures are recorded above. The paired means are of
-opposite sign across legs (+1489.6, −988.4, and −206.2 ms) and are small against the
-run-to-run spread within each arm, so no consistent elapsed-time difference is observed, and the
-comparison is inconclusive. The largest single figure, 23071 ms, is a sweep-on extended run (position 1), the same run
-that found 11 of 18; without that position the leg's paired mean would be +53.25 ms, against +1489.6 ms with it. The
-six legs appear to have run concurrently against one provider endpoint (see
+Both configurations' figures are recorded above. The paired means are negative on
+all three legs (−948.6, −1177.2, and −221.6 ms), but the paired differences within each leg
+are mixed in sign and each mean is smaller than the population SD of its own paired differences
+(2426, 3843, 2767 ms), so no consistent elapsed-time difference is observed, and the
+comparison is inconclusive. The largest single figure, 21246 ms, is a sweep-off extended run
+(position 0). The six legs
+appear to have run concurrently (see
 [Provenance](#provenance)), so these figures were likely taken under shared
 load and are not a quiet measurement of per-pass latency.
 
@@ -734,7 +777,7 @@ is a human decision that is recorded with the evidence.
   dated snapshot, reported consistently on every request, with the provider's
   naming as the only basis for treating it as frozen. AC8 and AC9 stay open on
   that point.
-- **A 5-run sample cannot resolve small effects.** The campaign observed one large
-  seed-level difference (`guard-fails-open`), not an attributed effect, and no
+- **A 5-run sample cannot resolve small effects.** The campaign observed
+  seed-level movements (notably `guard-fails-open`), not attributed effects, and no
   consistent overall recall, variance, or elapsed-time difference; it does not show that the sweep leaves
   recall unchanged either.
