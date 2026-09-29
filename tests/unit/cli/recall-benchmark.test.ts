@@ -858,24 +858,42 @@ for (const stage of ["model-creation", "recall", "precision"] as const) {
 }
 
 test("a client that never settles cannot hold a run past its deadline", async () => {
-  const { exitCode, records } = await runCampaign(
-    "never-settles",
-    { sweepMode: "off", runs: 2 },
-    campaignDeps({
-      deadlineDrainMs: 100,
-      loadConfig: () => testConfig({ passTimeoutMs: 50 }),
-      createModel: ({ runIndex }) => ({
-        modelName: "fixture:never-settles",
-        async complete() {
-          if (runIndex === 0) {
-            // Ignores the abort and never answers.
-            return new Promise<never>(() => undefined);
-          }
-          return { content: readFileSync(fixturePath("model-responses/passing.json"), "utf8") };
-        },
+  // The campaign's bounds are timers, so they must keep the process alive: an
+  // unref'd deadline or grace timer lets a hung client exit the CLI mid-campaign.
+  const timers: Array<{ delay: number; timer: NodeJS.Timeout }> = [];
+  const realSetTimeout = globalThis.setTimeout;
+  const spy = mock.method(globalThis, "setTimeout", ((
+    handler: () => void,
+    delay?: number,
+  ): NodeJS.Timeout => {
+    const timer = realSetTimeout(handler, delay);
+    timers.push({ delay: delay ?? 0, timer });
+    return timer;
+  }) as unknown as typeof setTimeout);
+  let exitCode: number;
+  let records: Array<Record<string, unknown>>;
+  try {
+    ({ exitCode, records } = await runCampaign(
+      "never-settles",
+      { sweepMode: "off", runs: 2 },
+      campaignDeps({
+        deadlineDrainMs: 100,
+        loadConfig: () => testConfig({ passTimeoutMs: 50 }),
+        createModel: ({ runIndex }) => ({
+          modelName: "fixture:never-settles",
+          async complete() {
+            if (runIndex === 0) {
+              // Ignores the abort and never answers.
+              return new Promise<never>(() => undefined);
+            }
+            return { content: readFileSync(fixturePath("model-responses/passing.json"), "utf8") };
+          },
+        }),
       }),
-    }),
-  );
+    ));
+  } finally {
+    spy.mock.restore();
+  }
 
   // The hung run becomes a timeout record at its deadline and the campaign
   // moves on, instead of waiting on the client forever.
@@ -888,6 +906,13 @@ test("a client that never settles cannot hold a run past its deadline", async ()
     (records[0].failure as { unsettledAfterDeadline?: boolean }).unsettledAfterDeadline,
     true,
   );
+  // The run deadline (50 ms) and the grace period (100 ms) are the campaign's own
+  // clock; neither may be unref'd.
+  const bounds = timers.filter(({ delay }) => delay === 50 || delay === 100);
+  assert.ok(bounds.length >= 3, "the deadline and grace timers must have been created");
+  for (const { delay, timer } of bounds) {
+    assert.equal(timer.hasRef(), true, `the ${delay} ms timer must keep the process alive`);
+  }
 });
 
 test("the next run waits for a timed-out request that settles within the grace period", async () => {

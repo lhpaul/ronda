@@ -7,11 +7,11 @@ command/outcome, restore, pass command/outcome.
 Scope: the seventeen assertions this PR adds to
 `tests/unit/cli/recall-benchmark.test.ts` under
 `campaign attributes each precision finding under AC9 independently of the
-recall pass` (line 1078) — the coverage that answers the two review findings
+recall pass` (line 1103) — the coverage that answers the two review findings
 routed against the precision sweep records and the per-request prompt
 identity. The pre-existing credential-scanner suite (`P1`–`P14`,
 `the credential scan fails on a planted canary and passes once it is
-removed, per shape` at line 1463) is unchanged by this PR and is not re-proved
+removed, per shape` at line 1488) is unchanged by this PR and is not re-proved
 here; the plan's scenario-7 canary proof already covers it.
 
 The guard tests over committed artifacts — `tests/unit/testing/evidence-records.test.ts`
@@ -31,7 +31,7 @@ Unplanted outcome (`**Pass**` for every proof): `ℹ pass 1`, `ℹ fail 0`.
 
 ## P1 — precision record classifies the recall pass's findings
 
-**Plant**: `src/cli/recall-benchmark.ts:1074` — replace
+**Plant**: `src/cli/recall-benchmark.ts:1075` — replace
 `...classifySweepFindings(result.findings, list),` with
 `...classifySweepFindings(pass.findings, list),` so the per-fixture record is
 built from the recall pass's findings instead of the precision request's own.
@@ -40,17 +40,17 @@ built from the recall pass's findings instead of the precision request's own.
 equal: actual: 13, expected: 1` — the precision record's
 `uncategorizedFindingCount` becomes the recall pass's count. Isolates the
 independence of the two classifications
-(`assert.equal(precisionRecord.uncategorizedFindingCount, 1)`, line 925).
+(`assert.equal(precisionRecord.uncategorizedFindingCount, 1)`, line 950).
 
 ## P2 — precision request's own fingerprint omitted
 
-**Plant**: `src/cli/recall-benchmark.ts:1106-1108` — delete the
+**Plant**: `src/cli/recall-benchmark.ts:1107-1109` — delete the
 `...(result.promptFingerprint !== undefined ? { promptFingerprint: … } : {})`
 spread from the precision entry of `requests[]`.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy
 value: actual: undefined, expected: true`. Isolates
-`assert.ok(onRequests[1].promptFingerprint)` (line 1144).
+`assert.ok(onRequests[1].promptFingerprint)` (line 1169).
 
 ## P3 — sweep section not stripped from the prompt fingerprint
 
@@ -62,75 +62,75 @@ so `fingerprintPrompt` hashes the swept system prompt.
 deep-equal: actual: [ '128da42b…', 'abaa2c96…' ], expected: [ '1f76380e…',
 '41593c7c…' ]` — the two arms stop agreeing, because the sweep section is the
 only difference between them. Isolates the arm-equality deep-equal of
-`promptFingerprint` across sweep-off and sweep-on (line 1152).
+`promptFingerprint` across sweep-off and sweep-on (line 1177).
 
 ## P4 — precision per-fixture record not published
 
-**Plant**: `src/cli/recall-benchmark.ts:1076-1082` — delete the `console.error(
+**Plant**: `src/cli/recall-benchmark.ts:1077-1083` — delete the `console.error(
 JSON.stringify({ event: "sweep_pass_record", runIndex,
 ...result.summary.sweepPassRecord }))` call.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: 1, expected: 2` — only the recall pass's line remains on the
 `benchmark-output` surface. Isolates `assert.equal(published.length, 2)`
-(line 1160).
+(line 1185).
 
 ## P5 — sweep-off run admitted to the per-fixture record
 
-**Plant**: `src/cli/recall-benchmark.ts:1070-1075` — change the guard to
+**Plant**: `src/cli/recall-benchmark.ts:1071-1076` — change the guard to
 `if (list !== undefined || context.options.quality) {` and default the
 `listVersion`/classification to a synthetic list when `list` is absent.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: true, expected: false`. Isolates
-`assert.equal("sweepPassRecord" in offFixtures[0], false)` (line 1133) — the
+`assert.equal("sweepPassRecord" in offFixtures[0], false)` (line 1158) — the
 sweep-off arm must publish no per-fixture record.
 
 ## P6 — precision per-fixture record never assigned
 
-**Plant**: `src/cli/recall-benchmark.ts:1072-1075` — replace the whole
+**Plant**: `src/cli/recall-benchmark.ts:1073-1076` — replace the whole
 `result.summary.sweepPassRecord = { … }` assignment with `void
 result.findings;`.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy
 value: actual: undefined, expected: true`. Isolates `assert.ok(precisionRecord)`
-(line 1112).
+(line 1137).
 
 ## P7 — precision record carries a different list version
 
-**Plant**: `src/cli/recall-benchmark.ts:1073` — replace `listVersion:
+**Plant**: `src/cli/recall-benchmark.ts:1074` — replace `listVersion:
 list.version,` with `listVersion: \`${list.version}-planted\`,`.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: 'sweep-categories-v1-planted', expected: 'sweep-categories-v1'`.
 Isolates `assert.equal(precisionRecord.listVersion, recalled.listVersion)`
-(line 1113) — one list, one version, across both request kinds.
+(line 1138) — one list, one version, across both request kinds.
 
 ## P8 — precision entries dropped from the request identity list
 
-**Plant**: `src/cli/recall-benchmark.ts:1103` — replace
+**Plant**: `src/cli/recall-benchmark.ts:1104` — replace
 `...precisionResults.map((result, index) => ({` with
 `...precisionResults.slice(0, 0).map((result, index) => ({`.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: 1, expected: 2`. Isolates `assert.equal(onRequests.length, 2)`
-(line 1142).
+(line 1167).
 
 ## P9 — precision entry reuses the recall fingerprint
 
-**Plant**: `src/cli/recall-benchmark.ts:1106-1108` — replace
+**Plant**: `src/cli/recall-benchmark.ts:1107-1109` — replace
 `result.promptFingerprint` with `pass.promptFingerprint` in the precision
 entry's spread.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly
 unequal to: actual: '1f76380e…', expected: '1f76380e…'`. Isolates
 `assert.notEqual(onRequests[0].promptFingerprint,
-onRequests[1].promptFingerprint)` (line 1145) — each request's entry must
+onRequests[1].promptFingerprint)` (line 1170) — each request's entry must
 reflect that request's own prompt.
 
 ## P10 — recall stderr line gains a seventh key
 
-**Plant**: `src/cli/recall-benchmark.ts:1135` — insert `plantedExtra: 1,` into
+**Plant**: `src/cli/recall-benchmark.ts:1136` — insert `plantedExtra: 1,` into
 the recall `sweep_pass_record` object literal.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
@@ -138,23 +138,23 @@ deep-equal: actual: [ 'categories', 'event', 'findings', 'listVersion',
 'plantedExtra', 'runIndex', 'uncategorizedFindingCount' ], expected: [
 'categories', 'event', 'findings', 'listVersion', 'runIndex',
 'uncategorizedFindingCount' ]`. Isolates `assert.deepEqual(keySets[0], […])`
-(line 1162).
+(line 1187).
 
 ## P11 — precision stderr line gains a seventh key
 
-**Plant**: `src/cli/recall-benchmark.ts:1078-1080` — insert `plantedExtra: 1,`
+**Plant**: `src/cli/recall-benchmark.ts:1079-1081` — insert `plantedExtra: 1,`
 into the precision `sweep_pass_record` object literal.
 
 **Fail**: same deep-equal failure as P10, on the precision line. Together
 P10 and P11 isolate both halves of the schema check: P10 breaks the recall
-line's key set (`keySets[0]`, line 968), P11 breaks the precision line's —
-which only the final `assert.deepEqual(keySets[1], keySets[0])` (line 1170)
+line's key set (`keySets[0]`, line 993), P11 breaks the precision line's —
+which only the final `assert.deepEqual(keySets[1], keySets[0])` (line 1195)
 catches, since `keySets[1]` is otherwise never compared to a literal. Remove
 either plant and its line matches the six-key literal again.
 
 ## P12 — precision per-category outcomes copied from the recall pass
 
-**Plant**: `src/cli/recall-benchmark.ts:1074` — after the
+**Plant**: `src/cli/recall-benchmark.ts:1075` — after the
 `classifySweepFindings(result.findings, list)` spread, add `categories:
 classifySweepFindings(pass.findings, list).categories,` so the per-category
 outcomes are the recall pass's.
@@ -164,48 +164,48 @@ deep-equal: actual: [ 'produced_findings', 'produced_findings',
 'produced_none', 'produced_findings', 'produced_findings' ], expected: [
 'produced_none', 'produced_none', 'produced_none', 'produced_none',
 'produced_none' ]`. Isolates `assert.notDeepEqual(precisionRecord.categories,
-recalled.categories)` (line 1128) — each request records its own per-category
+recalled.categories)` (line 1153) — each request records its own per-category
 outcome.
 
 ## P13 — recall request's own fingerprint omitted
 
-**Plant**: `src/cli/recall-benchmark.ts:1098-1100` — delete the
+**Plant**: `src/cli/recall-benchmark.ts:1099-1101` — delete the
 `...(pass.promptFingerprint !== undefined ? { promptFingerprint: … } : {})`
 spread from the recall entry of `requests[]`.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy
 value: actual: undefined, expected: true`. Isolates
-`assert.ok(onRequests[0].promptFingerprint)` (line 1143), the pairing that
+`assert.ok(onRequests[0].promptFingerprint)` (line 1168), the pairing that
 proves P2 and P9 fail for the reason stated rather than because the whole
 array is malformed.
 
 ## P14 — sweep-off recall record admitted
 
-**Plant**: `src/cli/recall-benchmark.ts:1143` — replace `sweep: sweepRecord,`
+**Plant**: `src/cli/recall-benchmark.ts:1144` — replace `sweep: sweepRecord,`
 with a synthetic record stand-in, `sweep: sweepRecord ?? ({ listVersion:
 "planted", categories: [], findings: [], uncategorizedFindingCount: 0 } as
 typeof sweepRecord),`.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: true, expected: false`. Isolates
-`assert.equal("sweepPassRecord" in offRecord, false)` (line 1134) — a
+`assert.equal("sweepPassRecord" in offRecord, false)` (line 1159) — a
 sweep-off run publishes no recall-side record either, not only no per-fixture
 record.
 
 ## P15 — per-fixture summaries dropped from the quality summary
 
-**Plant**: `src/cli/recall-benchmark.ts:1154` — replace `precisionFixtures:
+**Plant**: `src/cli/recall-benchmark.ts:1155` — replace `precisionFixtures:
 precisionResults.map((result) => result.summary),` with `precisionFixtures:
 [],`.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: 0, expected: 1`. Isolates `assert.equal(fixtures.length, 1)`
-(line 1102) — the quality summary carries one entry per configured precision
+(line 1127) — the quality summary carries one entry per configured precision
 fixture, which is the collection every other assertion in the test addresses.
 
 ## P16 — recall gate applied to the runs of a campaign
 
-**Plant**: `src/cli/recall-benchmark.ts:1304` — drop the `&& runs === 1`
+**Plant**: `src/cli/recall-benchmark.ts:1305` — drop the `&& runs === 1`
 condition from `if (only !== undefined && isFailureRecord(only) === false &&
 runs === 1) {`, so the recall gate judges the first record of a multi-run
 campaign too.
@@ -219,7 +219,7 @@ turn a campaign's exit code non-zero. The single-run assertion beside it
 
 ## P17 — a rejected precision request does not cancel its siblings
 
-**Plant**: `src/cli/recall-benchmark.ts:1031` — replace `await
+**Plant**: `src/cli/recall-benchmark.ts:1032` — replace `await
 settleOrAbort(controller, …)` with `await Promise.all(…)`, so a rejection
 neither aborts the run's controller nor waits for the other requests.
 
@@ -244,7 +244,7 @@ sees `siblingSettled`.
 
 ## P19 — the run's own cancellation reads as a timeout
 
-**Plant**: `src/cli/recall-benchmark.ts:1189` — replace `deadlineFired` with
+**Plant**: `src/cli/recall-benchmark.ts:1190` — replace `deadlineFired` with
 `controller.signal.aborted` in `buildFailureDetail(error, context.manifest,
 deadlineFired)`.
 
@@ -326,15 +326,15 @@ the file then reports `ℹ pass 49`, `ℹ fail 0`.
 
 | Proof | Plant in `patches.json` (`credentials.ts` entry) | Fails at | Isolates |
 | --- | --- | --- | --- |
-| P24 | rename `const CANONICAL_CREDENTIAL_NAME = ` to `const OTHER_NAME = ` | test line 1383, `must define the canonical-name guard the defect is about` | the patch defines the guard the seed is about |
-| P25 | change the guard `/^token$/` to `/^tokenX$/` | test line 1385, `the guard must recognize the canonical name token` | the guard recognizes the canonical form |
-| P26 | change `return redactCredentials({ authToken });` to `return { authToken };` | test line 1392, `must pass a credential-named value to the guard` | the variant goes through the guard |
-| P27 | change `redactCredentials({ authToken })` to `redactCredentials({ token })` | test line 1393, `Expected "actual" to be strictly unequal` | the value passed is not the canonical name |
-| P28 | broaden the guard to `/[Tt]oken$/` | test line 1394, `the guard must miss the variant authToken, or the seeded defect is not in the patch` | the guard misses the variant, which is the defect |
+| P24 | rename `const CANONICAL_CREDENTIAL_NAME = ` to `const OTHER_NAME = ` | test line 1408, `must define the canonical-name guard the defect is about` | the patch defines the guard the seed is about |
+| P25 | change the guard `/^token$/` to `/^tokenX$/` | test line 1410, `the guard must recognize the canonical name token` | the guard recognizes the canonical form |
+| P26 | change `return redactCredentials({ authToken });` to `return { authToken };` | test line 1417, `must pass a credential-named value to the guard` | the variant goes through the guard |
+| P27 | change `redactCredentials({ authToken })` to `redactCredentials({ token })` | test line 1418, `Expected "actual" to be strictly unequal` | the value passed is not the canonical name |
+| P28 | broaden the guard to `/[Tt]oken$/` | test line 1419, `the guard must miss the variant authToken, or the seeded defect is not in the patch` | the guard misses the variant, which is the defect |
 
 All five fail as `AssertionError [ERR_ASSERTION]`. A guard broadened with a
 regex flag (`/token$/i`) is not a P28 plant: the extraction pattern stops
-matching it, so it fails at line 1383 first and would be masked, which is why
+matching it, so it fails at line 1408 first and would be masked, which is why
 P28 broadens the character class instead.
 
 ## P29–P32 — a run's deadline is not enforced against a client that ignores the abort
@@ -350,10 +350,10 @@ is restored afterwards and the file reports `ℹ pass 50`, `ℹ fail 0`. Run wit
 
 | Proof | Plant in `src/cli/recall-benchmark.ts` | Fails at | Isolates |
 | --- | --- | --- | --- |
-| P29 | `return await Promise.race([body, deadline]);` becomes `return await body;` (line 1168) | changed test line 785 `assert.equal(exitCode, 1)`; the new test never returns and fails with `test timed out after 4000ms` | the run is bounded by its deadline, not by the client |
-| P30 | pass `false` instead of `deadlineFired` to `buildFailureDetail` | changed test line 788, new test line 884 (`reason` is `"timeout"`), and the existing timeout test line 1025 | a deadline expiry is classified as a timeout |
-| P31 | `aborted,` becomes `aborted: false,` in `buildFailureDetail` (line 876) | new test line 885 (`aborted` is true) and the existing test line 1025; the `reason` assertion above it stays green | the record says the deadline aborted the run |
-| P32 | add `if (runIndex > 0) throw new Error("planted");` at the top of `runBody` | changed test line 787 and new test line 883 (`records.map(isFailure)` is `[true, false]`); the `exitCode` and length assertions above them stay green | a hung run does not take the next run down with it |
+| P29 | `return await Promise.race([body, deadline]);` becomes `return await body;` (`src/cli/recall-benchmark.ts:1169`) | changed test line 785 `assert.equal(exitCode, 1)`; the new test never returns and fails with `test timed out after 4000ms` | the run is bounded by its deadline, not by the client |
+| P30 | pass `false` instead of `deadlineFired` to `buildFailureDetail` | changed test line 788, new test line 902 (`reason` is `"timeout"`), and the existing timeout test line 1050 | a deadline expiry is classified as a timeout |
+| P31 | `aborted,` becomes `aborted: false,` in `buildFailureDetail` (`src/cli/recall-benchmark.ts:876`) | new test line 903 (`aborted` is true) and the existing test line 1050; the `reason` assertion above it stays green | the record says the deadline aborted the run |
+| P32 | add `if (runIndex > 0) throw new Error("planted");` at the top of `runBody` | changed test line 787 and new test line 901 (`records.map(isFailure)` is `[true, false]`); the `exitCode` and length assertions above them stay green | a hung run does not take the next run down with it |
 
 P32 also fails other multi-run tests, which legitimately read the same second
 run. The elapsed-time assertion an earlier draft carried is dropped: the test
@@ -374,9 +374,9 @@ plant removes one check, is restored, and the file reports `ℹ pass 54`,
 
 | Proof | Plant in `src/cli/recall-benchmark.ts` (remove `controller.signal.throwIfAborted();`) | Fails | Isolates |
 | --- | --- | --- | --- |
-| P33 | the check before `runRecallPass`, line 1015 | the `model-creation` test, line 851, `the timed-out run must not issue requests after its failure record`; the other two stay green | a run resuming from model creation issues no recall request |
-| P34 | the check after `runRecallPass`, line 1027 | the `recall` test, line 851, same message; the other two stay green | a run resuming from the recall request issues no precision request |
-| P35 | the check after the precision requests, line 1060 | the `precision` test, line 856, `the timed-out run must not log after its failure record`; the other two stay green | a run resuming from a precision request emits no per-category record |
+| P33 | the check before `runRecallPass`, line 1040 | the `model-creation` test, line 851, `the timed-out run must not issue requests after its failure record`; the other two stay green | a run resuming from model creation issues no recall request |
+| P34 | the check after `runRecallPass`, line 1052 | the `recall` test, line 851, same message; the other two stay green | a run resuming from the recall request issues no precision request |
+| P35 | the check after the precision requests, line 1085 | the `precision` test, line 856, `the timed-out run must not log after its failure record`; the other two stay green | a run resuming from a precision request emits no per-category record |
 
 ## P36–P39 — the next run overlaps a timed-out request, or waits on it forever
 
@@ -390,7 +390,32 @@ deadline`. Each plant is restored and the file reports `ℹ pass 54`, `ℹ fail 
 
 | Proof | Plant in `src/cli/recall-benchmark.ts` | Fails | Isolates |
 | --- | --- | --- | --- |
-| P36 | replace the `const unsettled = deadlineFired ? … : false;` expression (line 1174) with `const unsettled = false;`, so nothing waits | the waits test, line 919, `assert.ok(firstSettledAt > 0 && secondStartedAt >= firstSettledAt)`; the never-settles test also fails at its flag assertion, line 887 | the next run starts only after a timed-out request settles |
-| P37 | replace `!(await settledWithin(body, …))` (line 1175) with `(await body.then(() => false, () => false))`, an unbounded wait | the never-settles test fails with `test timed out after 8000ms`; the waits test stays green | the wait is bounded, so a client that never settles cannot hold the campaign |
-| P38 | replace the `...(unsettled ? { unsettledAfterDeadline: true } : {}),` spread (line 1190) with an empty object | the never-settles test, line 887, `unsettledAfterDeadline` is `true`; the waits test stays green | a request still in flight after the grace period is recorded as such |
-| P39 | make `unsettled` true whenever the deadline fired, after still waiting (line 1174) | the waits test, line 921, the record carries no unsettled flag; the never-settles test stays green | a request that settled within the grace period is not recorded as unsettled |
+| P36 | replace the `const unsettled = deadlineFired ? … : false;` expression (`src/cli/recall-benchmark.ts:1175`) with `const unsettled = false;`, so nothing waits | the waits test, line 944, `assert.ok(firstSettledAt > 0 && secondStartedAt >= firstSettledAt)`; the never-settles test also fails at its flag assertion, line 905 | the next run starts only after a timed-out request settles |
+| P37 | replace `!(await settledWithin(body, …))` (`src/cli/recall-benchmark.ts:1176`) with `(await body.then(() => false, () => false))`, an unbounded wait | the never-settles test fails with `test timed out after 8000ms`; the waits test stays green | the wait is bounded, so a client that never settles cannot hold the campaign |
+| P38 | replace the `...(unsettled ? { unsettledAfterDeadline: true } : {}),` spread (`src/cli/recall-benchmark.ts:1191`) with an empty object | the never-settles test, line 905, `unsettledAfterDeadline` is `true`; the waits test stays green | a request still in flight after the grace period is recorded as such |
+| P39 | make `unsettled` true whenever the deadline fired, after still waiting (`src/cli/recall-benchmark.ts:1175`) | the waits test, line 946, the record carries no unsettled flag; the never-settles test stays green | a request that settled within the grace period is not recorded as unsettled |
+
+## P40–P41 — a campaign timer lets the process exit under a hung client
+
+The run's deadline and the drain's grace period are the campaign's own clock. If
+either timer is `unref`'d, a client that never settles leaves nothing keeping the
+process alive: the runtime detects an unsettled top-level await and exits with
+code 13 and no result, and the Node 20 test runner reports `Promise resolution is
+still pending but the event loop has already resolved`. The pull request's CI
+failed exactly that way while a Node 26 run passed. The test `a client that never
+settles cannot hold a run past its deadline` records every timer the campaign
+creates and asserts the 50 ms deadline and 100 ms grace timers are ref'd.
+
+Reproduced outside the test runner with a script that runs one campaign against a
+client whose request never settles: with both timers `unref`'d the process exits
+with code 13 and prints `Detected unsettled top-level await`; with the fix it
+finishes and reports the campaign's exit code 1.
+
+| Proof | Plant in `src/cli/recall-benchmark.ts` | Fails | Isolates |
+| --- | --- | --- | --- |
+| P40 | add `timeout.unref?.();` after the run's deadline timer (`src/cli/recall-benchmark.ts:1001`) | test line 914, `the 50 ms timer must keep the process alive` | the run's deadline timer keeps the process alive |
+| P41 | add `timer.unref?.();` after the grace timer (`src/cli/recall-benchmark.ts:1225`) | test line 914, `the 100 ms timer must keep the process alive`; the 50 ms case stays green | the drain's grace timer keeps the process alive |
+
+The `bounds.length >= 3` assertion (test line 912) guards the loop above it from
+passing vacuously: it fails if the timers were never created, which would also fail
+the other assertions in the test.

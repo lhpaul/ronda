@@ -999,7 +999,8 @@ async function runOneCampaignRun(
     controller.abort();
     expireDeadline(new Error(`the pass exceeded its ${context.config.passTimeoutMs} ms deadline`));
   }, context.config.passTimeoutMs);
-  timeout.unref?.();
+  // Not unref'd: the campaign's own progress depends on this timer, so a client
+  // that never settles must not let the process exit with the run unresolved.
   const counter = createModelCallCounter();
   const sweepCategories = list !== undefined ? list.categories : undefined;
 
@@ -1220,8 +1221,8 @@ export const DEFAULT_DEADLINE_DRAIN_MS = 5_000;
 async function settledWithin(work: Promise<unknown>, ms: number): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const grace = new Promise<false>((resolve) => {
+    // Not unref'd, for the same reason as the run's deadline timer.
     timer = setTimeout(() => resolve(false), ms);
-    timer.unref?.();
   });
   try {
     return await Promise.race([work.then(() => true, () => true), grace]);
