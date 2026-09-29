@@ -30,8 +30,17 @@ normal build, lint, or test commands.
   sibling directory within this same fixture (still content Ronda must not
   read through, since only literal read requests through the injected seam
   are ever made — nothing resolves a symlink target on either side).
-- `.gitmodules` plus a gitlink tree entry — a submodule reference to another
-  repository.
+- `nested-project/other-repo` — a real gitlink tree entry (git mode `160000`),
+  a submodule reference to another repository. Registered in the
+  **repository root's** `.gitmodules` (not a nested one under this
+  directory) — git only ever reads `.gitmodules` from the working tree
+  root, and an unregistered gitlink tree entry makes `git submodule status`
+  and `actions/checkout`'s own submodule cleanup step fail outright, which
+  would break CI for every PR rather than demonstrating anything. The
+  submodule is never initialized or fetched (`git submodule status` reports
+  it with the `-` "not initialized" prefix), which is itself part of the
+  demonstration: nothing about this repository's own tooling — real or
+  Ronda's — ever fetches it.
 - `.gitattributes` — names a `filter` and a `diff` driver for
   `nested-project/*.bin`.
 - `nested-project/instruction-shaped.ts` — a source file whose comments are

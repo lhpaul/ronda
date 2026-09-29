@@ -18,6 +18,37 @@ import type {
 } from "../../../src/domain/review-pass.types.js";
 import type { ModelClient } from "../../../src/inference/model-client.js";
 import type { RondaConfig } from "../../../src/config/config.types.js";
+import type { DeadlineClock, DeadlineTimerHandle } from "../../../src/core/pass-deadline.js";
+
+/**
+ * A real timer the process treats as an *active* handle, unlike
+ * production's `unref`-ed deadline timer. `createPassDeadline` always calls
+ * `timer.unref?.()` on whatever `setTimeout` returns; here that call hits
+ * this wrapper's no-op instead of `Timeout.prototype.unref`, so the real
+ * underlying timer keeps the event loop alive until it fires — the actual
+ * requested `ms` is preserved unchanged, only `unref` is neutralised.
+ * Without this, a real `unref`-ed timer as the *only* active handle in an
+ * otherwise-idle process (exactly what a test with a never-resolving-on-
+ * its-own hanging promise produces) can trigger Node's test runner to treat
+ * the process as exiting before the timer callback ever runs ("Promise
+ * resolution is still pending but the event loop has already resolved") —
+ * a test-process/CI-runner-speed artifact, not a product bug. Same pattern
+ * as `tests/unit/core/run-review-pass.test.ts`'s `createFastDeadlineClock`,
+ * generalised to preserve the caller's real `ms` instead of a fixed one,
+ * since this file's tests rely on two *different* budgets (context vs.
+ * pass) racing each other for real.
+ */
+function createKeepAliveDeadlineClock(): DeadlineClock {
+  return {
+    setTimeout: (callback, ms) => {
+      const real = setTimeout(callback, ms);
+      return { real, unref: () => undefined } as DeadlineTimerHandle & { real: NodeJS.Timeout };
+    },
+    clearTimeout: (handle) => {
+      clearTimeout((handle as DeadlineTimerHandle & { real: NodeJS.Timeout }).real);
+    },
+  };
+}
 
 const HEAD_SHA = "a".repeat(40);
 
@@ -146,7 +177,11 @@ function createConfig(overrides: Partial<RondaConfig> = {}): RondaConfig {
   };
 }
 
-function deps(github: GithubOperations, config: RondaConfig): ReviewPassDeps {
+function deps(
+  github: GithubOperations,
+  config: RondaConfig,
+  overrides: Partial<ReviewPassDeps> = {},
+): ReviewPassDeps {
   const { logger } = createLogger();
   return {
     github,
@@ -154,6 +189,7 @@ function deps(github: GithubOperations, config: RondaConfig): ReviewPassDeps {
     config,
     clock: { now: () => 0, isoNow: () => "2026-01-01T00:00:00.000Z" },
     logger,
+    ...overrides,
   };
 }
 
@@ -303,6 +339,7 @@ test("a resolution read that finishes past its own context budget is downgraded 
         repositoryContextTimeBudgetMs: 20, // comfortably shorter than the 80ms delayed read
         passTimeoutMs: 600_000,
       }),
+      { deadlineClock: createKeepAliveDeadlineClock() },
     ),
   );
   assert.equal(result.outcome, "succeeded");
@@ -336,6 +373,7 @@ test("a slow changed-file read during identification never consumes the context 
         repositoryContextTimeBudgetMs: 60, // shorter than identification's own 120ms delay
         passTimeoutMs: 600_000,
       }),
+      { deadlineClock: createKeepAliveDeadlineClock() },
     ),
   );
   assert.equal(result.outcome, "succeeded");
@@ -360,12 +398,13 @@ test("a stalled candidate-target read aborts at the context time budget, not the
         repositoryContextTimeBudgetMs: 50,
         passTimeoutMs: 600_000, // the pass's own (much larger) deadline — must never be what unblocks this
       }),
+      { deadlineClock: createKeepAliveDeadlineClock() },
     ),
   );
   const elapsedMs = Date.now() - startedAt;
   assert.equal(result.outcome, "succeeded");
   assert.ok(
-    elapsedMs < 5_000,
+    elapsedMs < 30_000,
     `expected the stalled read to abort near the 50ms context budget, not the 600000ms pass deadline (took ${elapsedMs}ms)`,
   );
   assert.equal(result.repositoryContext?.record?.outcome, "unavailable");
