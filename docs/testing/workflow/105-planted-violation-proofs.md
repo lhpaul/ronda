@@ -40,7 +40,7 @@ built from the recall pass's findings instead of the precision request's own.
 equal: actual: 13, expected: 1` — the precision record's
 `uncategorizedFindingCount` becomes the recall pass's count. Isolates the
 independence of the two classifications
-(`assert.equal(precisionRecord.uncategorizedFindingCount, 1)`, line 950).
+(`assert.equal(precisionRecord.uncategorizedFindingCount, 1)`, line 1144).
 
 ## P2 — precision request's own fingerprint omitted
 
@@ -374,9 +374,9 @@ plant removes one check, is restored, and the file reports `ℹ pass 54`,
 
 | Proof | Plant in `src/cli/recall-benchmark.ts` (remove `controller.signal.throwIfAborted();`) | Fails | Isolates |
 | --- | --- | --- | --- |
-| P33 | the check before `runRecallPass`, line 1040 | the `model-creation` test, line 851, `the timed-out run must not issue requests after its failure record`; the other two stay green | a run resuming from model creation issues no recall request |
-| P34 | the check after `runRecallPass`, line 1052 | the `recall` test, line 851, same message; the other two stay green | a run resuming from the recall request issues no precision request |
-| P35 | the check after the precision requests, line 1085 | the `precision` test, line 856, `the timed-out run must not log after its failure record`; the other two stay green | a run resuming from a precision request emits no per-category record |
+| P33 | the check before `runRecallPass` (`src/cli/recall-benchmark.ts:1016`) | the `model-creation` test, line 851, `the timed-out run must not issue requests after its failure record`; the other two stay green | a run resuming from model creation issues no recall request |
+| P34 | the check after `runRecallPass` (`src/cli/recall-benchmark.ts:1028`) | the `recall` test, line 851, same message; the other two stay green | a run resuming from the recall request issues no precision request |
+| P35 | the check after the precision requests (`src/cli/recall-benchmark.ts:1061`) | the `precision` test, line 856, `the timed-out run must not log after its failure record`; the other two stay green | a run resuming from a precision request emits no per-category record |
 
 ## P36–P39 — the next run overlaps a timed-out request, or waits on it forever
 
