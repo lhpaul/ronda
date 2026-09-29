@@ -159,7 +159,7 @@ No design assets exist for this item (the issue body has no `## Design assets` s
 1. Run `npm test -- tests/unit/review/symbol-resolver.test.ts` (or the repository's equivalent single-file invocation).
 2. Read `docs/testing/ronda/repository-context-resolution-precision-106.md`.
 
-**Expected result**: Every edge case E1–E15 from the plan's parser-risk addendum has a passing test. The recorded precision on the resolution fixture is **100%**: every resolved candidate is the declaration or call site the TypeScript checker binds the reference to, and every reference that cannot be bound to exactly one declaration is dropped with the reason `ambiguous_resolution`. A figure below 100% is a defect to fix before step 15 of the
+**Expected result**: Every edge case E1–E16 from the plan's parser-risk addendum has a passing test. The recorded precision on the resolution fixture is **100%**: every resolved candidate is the declaration or call site the TypeScript checker binds the reference to, and every reference that cannot be bound to exactly one declaration is dropped with the reason `ambiguous_resolution`. A figure below 100% is a defect to fix before step 15 of the
 implementation order — the step that sets this repository's switch on — not a figure to
 report.
 
@@ -241,6 +241,7 @@ report.
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | Step 3 records `nothing_to_resolve` on a TypeScript change | The changed lines name no symbol declared elsewhere, or the changed file's extension is outside the plan's D4 language scope | Pick a pull request whose changed lines call a symbol defined in another file |
+| Step 3 records `nothing_to_resolve` while the record lists an unreadable changed file path | A defect: that combination is forbidden — an unaccounted changed file must yield `used`, `partial` or `unavailable`, never a claim that the changed lines named nothing | Report it against plan decision D5's identification rule |
 | Step 3 records `unavailable` with `read_failed` drops | The token lacks `contents: read` at the reviewed head, or the tree read returned `truncated` | Confirm the token scope; a truncated tree is expected on a very large repository and is recorded, not an error |
 | Step 9 exits non-zero with a usage message | `--pr` or `--repository-context` was omitted, or the head is fork-originated | Both flags are required by the control pass's invocation contract, and a fork head is refused because it reads no context on either arm |
 | Step 7 shows a repository-context line on a fork head | The fork gate did not run before the switch, or `headRepoFullName` was empty and treated as same-repository | This is an AC10 defect, not a configuration problem — the gate must precede the switch and an unknown head origin must be treated as a fork |
