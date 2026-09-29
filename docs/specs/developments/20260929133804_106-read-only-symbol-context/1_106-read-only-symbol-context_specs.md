@@ -254,8 +254,9 @@ not to proceed (AC2), and nothing else in this spec is built.
 **Postconditions**:
 
 - No fork content is executed on either ingress.
-- Repository context for a fork head is read from that head's repository and from
-  no other repository.
+- Where repository context is read for a fork head at all, it is read from that
+  head's own repository and from no other repository. Where the fork switch
+  withholds it, no repository content is read for that head.
 - Where a repository-context record exists for the pass, it states that the head
   was fork-originated, so an operator reading the evidence can tell fork passes
   from same-repository passes.
@@ -333,7 +334,7 @@ not to proceed (AC2), and nothing else in this spec is built.
 - The recorded 2026-09-28 sweep evidence is the cautionary precedent: its two arms
   were found **not admissible** as a paired comparison because model drift between
   the arms could explain any difference. Interleaving the arms under one immutable
-  model version, required by AC12, exists to avoid repeating that.
+  model version, required by AC15, exists to avoid repeating that.
 - That same evidence is also why this lever is worth measuring at all, and the
   spec reports it honestly in both directions: the state-reconstruction seed was
   found in none of the ten recorded sweep-off runs and 3 of 10 sweep-on runs, and
@@ -472,7 +473,17 @@ repository.
   same source and applying only on the webhook ingress. It can only withhold
   repository context from fork-originated heads; it can never grant context that
   the global switch has not already enabled, and it never affects non-fork heads.
-  Its default is Open Question 3.
+  Which of its two forms ships is Open Question 3 (AC10).
+- Both switches resolve fail-closed, and the rule is the same for each. An absent,
+  empty, or whitespace-only value is not a value: it defers to the next
+  lower-precedence source, and where no source supplies one, the switch is off and
+  nothing is recorded — an absent switch must be indistinguishable from a version
+  without the feature (AC19). A non-empty value that is not a recognised on or off
+  value is the effective value and resolves to **off**; it is not replaced by a
+  recognised value at a lower-precedence source, and that a value was unrecognised
+  is recorded on the surfaces the pass record uses, without the raw value. A
+  recognised off value resolves to off and records nothing, exactly as an absent
+  value does.
 - Repository context is read at the reviewed head, and only at the reviewed head,
   so the context and the diff describe the same state of the code.
 - A pass never exceeds its configured symbol count budget or character budget,
@@ -616,17 +627,18 @@ answered the ledger records the count and the tier stays `real_pr_provisional`.
 
 ### Decision-gate consistency matrix
 
-This feature adds six decisions whose outcome depends on more than one input.
+This feature adds seven decisions whose outcome depends on more than one input.
 Each row below is the normative summary for its gate; the prose sites named under
 **Mirror surfaces** state the same rule and must not contradict this table.
 
 | Gate | Inputs | Allowed outcomes | Required next action | Mirror surfaces | Example |
 | --- | --- | --- | --- | --- | --- |
 | Amendment decision (AC1, AC2) | The repository owner's recorded decision on the proposed amendment | Accepted; accepted with changes; rejected; not yet recorded | Accepted or accepted with changes: implementation may start, against the recorded text. Rejected: terminate the item with that record as its only outcome (AC2). Not yet recorded: no implementation work starts | Proposed Amendment section; AC1; AC2; the closing business rule; Open Question 1 | A partial acceptance that keeps the no-checkout mechanism but permits content reads is an "accepted with changes" outcome, and the recorded text is what implementation follows — not this spec's proposed wording. |
+| Switch resolution (AC19, AC21) | The global repository-context switch value and, on the webhook ingress, the fork switch value, each read from the highest-precedence source that supplies a non-empty value | Off — absent, empty, or whitespace-only at every source (nothing recorded); Off — a recognised off value (nothing recorded); Off — a non-empty unrecognised value (record that a value was unrecognised, without the raw value); On — a recognised on value | Every off outcome runs the ordinary review with no repository context and no record, except that the unrecognised case additionally records that a value was unrecognised; on: proceed to candidate selection. The fork switch can only move the result from on to off, never the reverse | Business rules on switch resolution and on the fork switch; AC19; AC21; AC10 | An empty value at a higher-precedence source defers to the next source rather than forcing off. A non-empty unrecognised value at a higher-precedence source is the effective value and is not replaced by a recognised value below it. A fork switch set on while the global switch is off leaves the pass with no repository context. |
 | Repository-context outcome resolution (AC3, AC11, AC19) | Whether the pass reached review execution; whether the feature was enabled; how many requested symbols were resolved | Not applicable — did not reach review execution (no record); Off — reached review execution, not enabled (no record); Used — all requested symbols resolved; Partial — some resolved; Unavailable — none resolved | The three recorded outcomes are written to the check-run output where the pass's own check-run write produced a check run whose outcome is a review, and to the logs otherwise; never to the review body. The two unrecorded outcomes write nothing anywhere | Statuses / Enum Values → Repository-context pass outcome; AC3; AC11; AC19; Use Case 1 steps 1 and 6 | A draft pull request is Not applicable and writes nothing, so it is indistinguishable from the same skip with the feature absent. A pass whose every read is denied is Unavailable and still publishes its review. |
 | Budget conflict resolution (AC6, AC7) | The symbol count budget; the character budget; the existing diff budget; the authoritative-document budgets; how much context the selection rules requested | Within every budget — all requested context retained; over a context budget — lower-priority repository context dropped by the recorded selection order, with the drops recorded; the diff would have to give way — not permitted | Retain the diff in full, drop repository context, record every drop and its reason, and record the outcome as Partial | Business rules on budgets and on the diff never giving way; AC6; AC7; Use Case 2 | A change naming more symbols than the count budget allows drops the lowest-priority symbols and records Partial. A budget setting large enough that repository context would displace the diff is resolved by dropping context, never by truncating the diff — the recorded reviewer that reached a token limit and pruned the diff published nothing, which is the failure this row forbids. |
 | Context time budget exhaustion (AC8) | The context time budget; the pass budget in effect; whether the time budget was exhausted before selection finished | Not exhausted — proceed with the full selection; exhausted — proceed with the context already gathered | Proceed to review execution, publish the review, record Partial or Unavailable, and never extend the pass deadline or the job backstop | Business rule on the context time budget; AC8; Use Case 6 | A time budget forced low enough to be exhausted before any symbol resolves records Unavailable and still publishes one review for the head. |
-| Fork-head behaviour per ingress (AC10) | The ingress; whether the reviewed head belongs to a fork; the fork switch setting on the webhook ingress | Reusable-workflow ingress with a fork head — the pass is skipped before any repository content is read, unchanged from today; webhook ingress with a fork head and the fork switch on — repository context is read from that head's own repository only, as untrusted data, never executed; webhook ingress with a fork head and the fork switch off — the pass reviews the head with no repository context; non-fork head — the global switch alone decides | Publish a review exactly as today in every case where a review is published, and record the fork marker wherever a repository-context record is emitted | AC9; AC10; Use Case 4; the untrusted-data and never-executed business rules | With the fork switch off, a fork head on the webhook ingress still receives its ordinary review; only the repository context is withheld, the outcome is Off, and no repository-context record and therefore no fork marker is written. |
+| Fork-head behaviour per ingress (AC10) | The ingress; whether the reviewed head belongs to a fork; which form of the fork switch shipped (operator-settable, or fixed off per Open Question 3) and its value | Reusable-workflow ingress with a fork head — the pass is skipped before any repository content is read, unchanged from today; webhook ingress with a fork head and the fork switch on — repository context is read from that head's own repository only, as untrusted data, never executed; webhook ingress with a fork head and the fork switch off, whether by its value or because it shipped fixed off — the pass reviews the head with no repository context; non-fork head — the global switch alone decides | Publish a review exactly as today in every case where a review is published, and record the fork marker wherever a repository-context record is emitted | AC9; AC10; Use Case 4; the untrusted-data and never-executed business rules | With the fork switch off, a fork head on the webhook ingress still receives its ordinary review; only the repository context is withheld, the outcome is Off, and no repository-context record and therefore no fork marker is written. |
 | Evidence-tier transition and claim admissibility (AC13, AC15, AC16, AC17, AC18) | Whether any real-pull-request review with repository context enabled is recorded; the count of terminally adjudicated pull requests under the current configuration against the agreed minimum; whether the configuration changed; for a claim, whether it is paired, interleaved, under one immutable model version, with equal run counts, and — for a recall claim — whether paired precision evidence with its regression result exists | `fixture_only`, `real_pr_provisional`, or `real_pr_measured` per the transitions above. For a claim: fixture claim permitted at any tier only where AC13's fixture-capability statement admits it; descriptive real-PR claim permitted at `real_pr_provisional` and above; comparative claim permitted at `real_pr_measured` and only with AC15's pairing and, for recall, AC16's precision evidence | Label every published claim with its tier, the independence caveat, and the own-repository label; omit a claim the tier or its own evidence does not admit rather than publishing it hedged; never attribute the guard-fails-open movement already observed under the sweep to repository context (AC18) | Statuses / Enum Values → Evidence tier; AC13; AC15; AC16; AC17; AC18; Use Case 5; Use Case 7 | A comparative recall claim on ten adjudicated pull requests but with the two arms run weeks apart under different model versions is not admissible: the tier permits comparative claims, AC15's interleaving under one immutable model version does not — the recorded sweep comparison failed on exactly this. A fixture whose target has no resolvable surrounding source yields no claim at all, not a zero effect. |
 
 ---
@@ -669,7 +681,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
       decision names which of the two commitments in the current locked decision
       it changes and which it keeps.
 - [ ] AC2: If the amendment is rejected, this item terminates with that recorded
-      decision as its only outcome, and **none of AC3 to AC20 is built** — no
+      decision as its only outcome, and **none of AC3 to AC21 is built** — no
       repository-context capability, no switch, no budget, no record, and no
       evidence artifact of any kind, including the off-by-default and
       reproducibility criteria, which exist only as properties of a capability
@@ -719,10 +731,17 @@ Each row below is the normative summary for its gate; the prose sites named unde
       reviewed head's own.
 - [ ] AC10: Fork-originated heads behave as follows and are verifiable per
       ingress: on the reusable-workflow ingress the pass is skipped before any
-      repository content is read, unchanged from today; on the webhook ingress the
-      operator can enable or disable repository context for fork-originated heads
-      independently of the global switch, and either setting publishes a review as
-      it does today. Every pass that emits a repository-context record states
+      repository content is read, unchanged from today; on the webhook ingress
+      repository context for a fork-originated head is governed by the fork switch,
+      which can only **withhold** context and can never grant context the global
+      switch has not enabled. The switch has two recorded forms, and Open Question 3
+      decides which ships: **fork reads permitted** — the switch is
+      operator-settable, with its default recorded; or **fork reads not permitted in
+      this iteration** — the switch is fixed off, no configuration value of any kind
+      can enable fork-head reads, and that is verifiable by attempting to enable it
+      and observing that no repository content is read. Under either form a fork head
+      still receives the review it receives today. Every pass that emits a
+      repository-context record states
       whether the head was fork-originated; a pass that emits no such record —
       because the feature or the fork switch was off, or because the pass did not
       reach review execution — states nothing, preserving AC19.
@@ -786,6 +805,13 @@ Each row below is the normative summary for its gate; the prose sites named unde
 - [ ] AC20: Repository-context selection is reproducible: the same head with the
       same configuration selects the same symbols, and the pass record is sufficient
       to explain why a given symbol was or was not included.
+- [ ] AC21: Each switch resolves fail-closed and is verifiable by setting it to
+      each case: absent, empty, and whitespace-only values leave the switch off and
+      record nothing; a recognised off value leaves it off and records nothing; a
+      non-empty unrecognised value leaves it off, is not overridden by a recognised
+      value at a lower-precedence source, and records that a value was unrecognised
+      without recording the raw value; only a recognised on value turns the switch
+      on.
 
 ---
 
@@ -824,7 +850,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
 | O3: Symbol selection and context budget | AC3, AC6, AC7, AC20 | Selection resolves the definitions the changed lines depend on and the call sites of what the change defines, in the recorded order defined in **Context Selection Order** — candidates one step from the changed lines only, ordered by kind, then changed-line position, then candidate location, then symbol name, with whole-candidate drops and no mid-excerpt truncation; two budgets bound it, in addition to the existing diff and authoritative-document budgets; the diff is never displaced (AC7), which is the direct answer to the recorded 32,000-token pruning observation; selection is reproducible (AC20). |
 | O4: Webhook path, concurrency and cleanup | AC12, plus the working-area and one-active-job business rules | No added concurrency, cleanup on every settlement path including watchdog abort and startup reconciliation, no working area shared between passes, and a cleanup failure never publishes a second review. |
 | O5: Recorded amendment or decision not to proceed | AC1, AC2 | The amendment text is proposed here and decided by the owner; rejection terminates the item with that record as its outcome. |
-| O6: Context available, read-only demonstrated | AC3, AC4, AC5, AC11, AC19 | The capability ships off by default and degrades rather than failing; the read-only property is demonstrated. |
+| O6: Context available, read-only demonstrated | AC3, AC4, AC5, AC11, AC19, AC21 | The capability ships off by default, resolves its switches fail-closed so an absent or unrecognised value never enables it (AC21), degrades rather than failing, and has its read-only property demonstrated. |
 | O7: Recall evidence on the three sub-themes | AC13, AC15, AC16, AC18 | Per-seed recall for both arms on the seeds added by the sweep item; the fixture's ability to test this feature at all is stated before any figure; precision evidence is mandatory for a recall claim; the guard-fails-open movement already observed under the sweep is not re-attributed here. |
 | O8: Cost and pass-duration evidence | AC14, AC15 | Measured rather than projected. Two kinds of figure, labelled apart: the comparative context-off against context-on arms, which AC15 requires to be paired, interleaved, under one immutable model version with equal run counts; and the committed 2026-09-23 baseline and the measured dogfood pass as descriptive references, which are not arms, cannot be paired because they predate the feature, and carry no effect claim. |
 | O9: No implementation before the amendment | AC1, AC2, plus the closing business rule | Stated as a gate on starting work, verifiable from the recorded decision's date. |
