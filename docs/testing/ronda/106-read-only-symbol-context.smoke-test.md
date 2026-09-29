@@ -106,7 +106,7 @@ No design assets exist for this item (the issue body has no `## Design assets` s
 2. Set `RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS=1` and run again.
 3. Note each pass's elapsed time against the pass budget in effect and the job's own `timeout-minutes`.
 
-**Expected result**: Both passes publish exactly one review for the head. Run 1 records `unavailable` with `read_failed` drops; run 2 records `unavailable` with `time_budget` drops covering **every** requested candidate — the phase is atomic (plan decision D5), so an exhausted time budget never retains a prefix. Neither pass fails, neither suppresses the review, and neither exceeds the pass deadline or the job backstop.
+**Expected result**: Both passes publish exactly one review for the head. Run 1 records `unavailable` with `read_failed` drops; run 2 records `unavailable` when the budget expired before the first candidate resolved, or `partial` when it expired part-way — in which case exactly the resolved prefix of the priority order is retained and the remainder carries `time_budget` drops (plan decision D5). Neither pass fails, neither suppresses the review, and neither exceeds the pass deadline or the job backstop.
 
 ### Step 7: A fork-originated head reads no repository context, at the most permissive configuration
 
@@ -241,7 +241,7 @@ report.
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | Step 3 records `nothing_to_resolve` on a TypeScript change | The changed lines name no symbol declared elsewhere, or the changed file's extension is outside the plan's D4 language scope | Pick a pull request whose changed lines call a symbol defined in another file |
-| Step 3 records `nothing_to_resolve` while the record lists an unreadable changed file path | A defect: that combination is forbidden — an unaccounted changed file must yield `used`, `partial` or `unavailable`, never a claim that the changed lines named nothing | Report it against plan decision D5's identification rule |
+| Step 3 records `nothing_to_resolve` while `unreadableChangedFilePaths` is non-empty | A defect: that combination is forbidden — a transiently unreadable changed file must yield `used`, `partial` or `unavailable`, never a claim that the changed lines named nothing. A file refused by content type, absent, or unparseable is *accounted for* and does not populate that field | Report it against plan decision D5's identification rule |
 | Step 3 records `unavailable` with `read_failed` drops | The token lacks `contents: read` at the reviewed head, or the tree read returned `truncated` | Confirm the token scope; a truncated tree is expected on a very large repository and is recorded, not an error |
 | Step 9 exits non-zero with a usage message | `--pr` or `--repository-context` was omitted, or the head is fork-originated | Both flags are required by the control pass's invocation contract, and a fork head is refused because it reads no context on either arm |
 | Step 7 shows a repository-context line on a fork head | The fork gate did not run before the switch, or `headRepoFullName` was empty and treated as same-repository | This is an AC10 defect, not a configuration problem — the gate must precede the switch and an unknown head origin must be treated as a fork |
