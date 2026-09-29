@@ -18,6 +18,23 @@ import type {
 /** D4: the reviewed repository's TypeScript/JavaScript family, and nothing else. */
 const ELIGIBLE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 
+/**
+ * Defensive backstops on the fetched closure `resolveSymbols` will
+ * synchronously parse and type-check. `buildSourceFileSet`'s time budget
+ * already bounds how much *network* time is spent fetching, but a small
+ * number of pathologically large or type-complex files could still make the
+ * synchronous compiler pass itself run long after every read has already
+ * returned — and unlike a GitHub read, a synchronous `ts.Program`/checker
+ * call cannot be interrupted by an `AbortSignal` once started, which could
+ * otherwise block a long-lived webhook worker past its own watchdog
+ * recovery. When either backstop is exceeded, resolution is skipped
+ * entirely and every requested reference is dropped `time_budget` — the
+ * same reason an exhausted context time budget already uses, since this is
+ * the same budget-protection concern, not a sixth drop reason.
+ */
+const MAX_RESOLUTION_FILE_COUNT = 500;
+const MAX_RESOLUTION_TOTAL_CHARS = 4_000_000;
+
 /** The module-resolution contract's fixed compiler options. `tsconfig.json` is not read this iteration. */
 const COMPILER_OPTIONS: ts.CompilerOptions = {
   target: ts.ScriptTarget.ES2022,
@@ -485,6 +502,21 @@ export function candidatePathsFor(fromFile: string, specifier: string): string[]
   return candidates;
 }
 
+/** Exported for testing only — the backstop check `resolveSymbols` applies before ever building a `ts.Program`. */
+export function isResolutionFileSetOversized(fileSet: Map<string, string>): boolean {
+  if (fileSet.size > MAX_RESOLUTION_FILE_COUNT) {
+    return true;
+  }
+  let totalChars = 0;
+  for (const text of fileSet.values()) {
+    totalChars += text.length;
+    if (totalChars > MAX_RESOLUTION_TOTAL_CHARS) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export interface ResolveSymbolsBookkeeping {
   resolvedSpecifierKeys: Set<string>;
   refusedSpecifierKeys: Set<string>;
@@ -503,6 +535,10 @@ export function resolveSymbols(
   requested: InternalRequestedReference[],
   bookkeeping: ResolveSymbolsBookkeeping,
 ): RepositoryContextResolution[] {
+  if (isResolutionFileSetOversized(fileSet)) {
+    return requested.map((ref) => ({ id: ref.id, reason: "time_budget" as const }));
+  }
+
   const host = createVirtualCompilerHost(fileSet);
   const program = ts.createProgram({ rootNames: [...fileSet.keys()], options: COMPILER_OPTIONS, host });
   const checker = program.getTypeChecker();

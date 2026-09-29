@@ -8,6 +8,7 @@ import {
   candidatePathsFor,
   identifyCandidates,
   isRepositoryContextEligiblePath,
+  isResolutionFileSetOversized,
   resolveSymbols,
   RepositoryContextUnusableContentError,
   type RepositoryContextReadFile,
@@ -596,4 +597,48 @@ test("scenario 12 (AC23): resolution precision on the recorded fixture is 100%",
   assert.equal(built.drops.filter((d) => d.reason === "ambiguous_resolution").length, 1);
   const precision = built.candidates.length / built.candidates.length; // resolved-correct / resolved-total
   assert.equal(precision, 1);
+});
+
+// --- Oversized-closure backstop (local-ai-reviewer finding, PR #130) ------
+// resolveSymbols builds and type-checks the fetched closure synchronously,
+// which no AbortSignal can interrupt once started. A defensive size backstop
+// skips compilation entirely for a pathologically large fetched set, rather
+// than letting an unbounded synchronous compile block the process.
+
+test("isResolutionFileSetOversized: within both backstops is false", () => {
+  const fileSet = new Map([["a.ts", "x".repeat(100)]]);
+  assert.equal(isResolutionFileSetOversized(fileSet), false);
+});
+
+test("isResolutionFileSetOversized: over the file-count backstop is true", () => {
+  const fileSet = new Map<string, string>();
+  for (let i = 0; i < 501; i += 1) {
+    fileSet.set(`file-${i}.ts`, "x");
+  }
+  assert.equal(isResolutionFileSetOversized(fileSet), true);
+});
+
+test("isResolutionFileSetOversized: over the combined-character backstop is true", () => {
+  const fileSet = new Map([["huge.ts", "x".repeat(4_000_001)]]);
+  assert.equal(isResolutionFileSetOversized(fileSet), true);
+});
+
+test("resolveSymbols skips compilation and drops every requested reference time_budget when the fetched set is oversized", () => {
+  const fileSet = new Map([["src/caller.ts", "x".repeat(4_000_001)]]);
+  const requested = [
+    {
+      id: 0,
+      kind: "definition" as const,
+      symbolName: "helper",
+      changedPath: "src/caller.ts",
+      changedLine: 1,
+      anchorPos: 0,
+    },
+  ];
+  const results = resolveSymbols(fileSet, requested, {
+    resolvedSpecifierKeys: new Set(),
+    refusedSpecifierKeys: new Set(),
+    attemptedSpecifierKeys: new Set(),
+  });
+  assert.deepEqual(results, [{ id: 0, reason: "time_budget" }]);
 });
