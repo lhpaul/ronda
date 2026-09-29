@@ -681,6 +681,67 @@ test("the recall gate judges a single run but not the runs of a campaign", async
   assert.deepEqual(campaign.records.map(isFailure), [false, false]);
 });
 
+test("a rejected precision request cancels its siblings and the run waits for them", async () => {
+  const manifest = JSON.parse(readFileSync(fixturePath("manifest.json"), "utf8")) as {
+    precisionFixtures: Array<Record<string, unknown>>;
+  };
+  manifest.precisionFixtures = [
+    manifest.precisionFixtures[0],
+    { ...manifest.precisionFixtures[0], id: "second-precision-fixture" },
+  ];
+  const manifestPath = outputPath("two-precision-manifest");
+  writeFileSync(manifestPath, JSON.stringify(manifest));
+
+  let siblingSawAbort = false;
+  let siblingSettled = false;
+  let precisionCalls = 0;
+  const deps = campaignDeps({
+    createModel: () => ({
+      modelName: "fixture:sibling-cancel",
+      async complete(request, signal) {
+        if (request.userPrompt.includes("Recall benchmark")) {
+          return { content: readFileSync(fixturePath("model-responses/passing.json"), "utf8") };
+        }
+        precisionCalls += 1;
+        if (precisionCalls === 1) {
+          throw new Error("first precision request rejected");
+        }
+        // The sibling stays in flight until the run cancels it, then takes a
+        // moment to wind down, so a run that does not wait for it is visible.
+        await new Promise<void>((resolve) => {
+          signal.addEventListener(
+            "abort",
+            () => {
+              siblingSawAbort = true;
+              resolve();
+            },
+            { once: true },
+          );
+        });
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        siblingSettled = true;
+        return { content: JSON.stringify({ findings: [] }) };
+      },
+    }),
+  });
+
+  const { exitCode, records } = await runCampaign(
+    "sibling-cancel",
+    { sweepMode: "off", quality: true, manifestPath },
+    deps,
+  );
+
+  assert.equal(exitCode, 1);
+  assert.equal(records.length, 1);
+  assert.equal(isFailure(records[0]), true);
+  // The sibling was cancelled and had settled before the run returned, so it
+  // cannot outlive the run's deadline or overlap the next run.
+  assert.equal(siblingSawAbort, true);
+  assert.equal(siblingSettled, true);
+  // The run cancelled its own sibling; that is not a `passTimeoutMs` timeout.
+  assert.equal((records[0].failure as { aborted: boolean }).aborted, false);
+});
+
 test("campaign gives each run its own pass deadline", async () => {
   const signals: AbortSignal[] = [];
   const abortedAtEntry: boolean[] = [];

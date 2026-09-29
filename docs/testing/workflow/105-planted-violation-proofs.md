@@ -211,3 +211,44 @@ equal: actual: 1, expected: 0`. Isolates `assert.equal(campaign.exitCode, 0)`
 zero, because per-run recall is the measurement and only a failure record may
 turn a campaign's exit code non-zero. The single-run assertion beside it
 (`assert.equal(single.exitCode, 1)`) keeps the gate itself proven.
+
+## P17 — a rejected precision request does not cancel its siblings
+
+**Plant**: `src/cli/recall-benchmark.ts:1008` — replace `await
+settleOrAbort(controller, …)` with `await Promise.all(…)`, so a rejection
+neither aborts the run's controller nor waits for the other requests.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+equal: actual: false, expected: true`. Isolates
+`assert.equal(siblingSawAbort, true)` (test line 739) — the in-flight sibling
+observes its request being aborted.
+
+## P18 — the run does not wait for a cancelled sibling to settle
+
+**Plant**: `src/cli/recall-benchmark.ts:946-965` — replace the body of
+`settleOrAbort` with `return Promise.all(requests.map((request) =>
+request.catch((error) => { controller.abort(); throw error; })));`, which
+aborts the controller but rejects at once instead of awaiting every request.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+equal: actual: false, expected: true`. Isolates
+`assert.equal(siblingSettled, true)` (test line 740). The abort assertion
+above it (line 739) stays green under this plant, so it is not masked by it:
+the sibling winds down 30 ms after the abort, and only a run that awaits it
+sees `siblingSettled`.
+
+## P19 — the run's own cancellation reads as a timeout
+
+**Plant**: `src/cli/recall-benchmark.ts:1152` — replace `deadlineFired` with
+`controller.signal.aborted` in `buildFailureDetail(error, context.manifest,
+deadlineFired)`.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+equal: actual: true, expected: false`. Isolates
+`assert.equal((records[0].failure as { aborted: boolean }).aborted, false)`
+(test line 742) — the run aborting its own sibling after an ordinary error is
+not recorded as a `passTimeoutMs` abort.
+
+Unplanted outcome for all three: `./node_modules/.bin/tsx --test
+--test-name-pattern="a rejected precision request" tests/unit/cli/recall-benchmark.test.ts`
+reports `ℹ pass 1`, `ℹ fail 0`.

@@ -932,6 +932,35 @@ function composeRunRecord(input: {
 }
 
 /**
+ * Await every request of one run, cancelling the siblings when one rejects and
+ * waiting for them to settle before the run completes. `Promise.all` alone would
+ * reject at once, and the run's `finally` would then clear its deadline while a
+ * sibling request was still in flight, letting it outlive `passTimeoutMs` and
+ * overlap the next run of the campaign. The first rejection is rethrown once
+ * every request has settled.
+ */
+async function settleOrAbort<T>(
+  controller: AbortController,
+  requests: Array<Promise<T>>,
+): Promise<T[]> {
+  const settled = await Promise.allSettled(
+    requests.map((request) =>
+      request.catch((error: unknown) => {
+        controller.abort();
+        throw error;
+      }),
+    ),
+  );
+  const rejected = settled.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (rejected !== undefined) {
+    throw rejected.reason;
+  }
+  return settled.map((result) => (result as PromiseFulfilledResult<T>).value);
+}
+
+/**
  * One campaign run. Its `AbortController` and `passTimeoutMs` timer are
  * constructed here and disposed in `finally`, so each run's timeout is its own
  * and a recorded failure cannot leave a pending timer behind. A throw becomes a
@@ -946,7 +975,14 @@ async function runOneCampaignRun(
 ): Promise<BenchmarkRunRecord> {
   const startedAt = Date.now();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), context.config.passTimeoutMs);
+  // Whether the deadline fired is tracked apart from the signal: the run also
+  // aborts its own controller to cancel sibling requests after an ordinary
+  // error, and that must not read as a `passTimeoutMs` timeout.
+  let deadlineFired = false;
+  const timeout = setTimeout(() => {
+    deadlineFired = true;
+    controller.abort();
+  }, context.config.passTimeoutMs);
   timeout.unref?.();
   const counter = createModelCallCounter();
   const sweepCategories = list !== undefined ? list.categories : undefined;
@@ -969,7 +1005,8 @@ async function runOneCampaignRun(
 
     const precisionResults: PrecisionFixtureRun[] =
       context.options.quality && context.manifest.precisionFixtures
-        ? await Promise.all(
+        ? await settleOrAbort(
+            controller,
             context.manifest.precisionFixtures.map((fixture): Promise<PrecisionFixtureRun> =>
               context.options.precisionResponsePath
                 ? Promise.resolve(
@@ -1112,7 +1149,7 @@ async function runOneCampaignRun(
         maxPatchChars: context.maxPatchChars,
         promptFingerprint: context.promptFingerprint,
       }),
-      failure: buildFailureDetail(error, context.manifest, controller.signal.aborted),
+      failure: buildFailureDetail(error, context.manifest, deadlineFired),
     };
   } finally {
     clearTimeout(timeout);
