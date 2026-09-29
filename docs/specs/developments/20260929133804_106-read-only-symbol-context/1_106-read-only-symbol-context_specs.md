@@ -60,6 +60,18 @@ except AC1's recording surface.
    performed on 2026-09-29 (see **Recorded Decisions** row 7 and **Deferral Note D1**).
    It produced decisions 1 and 2 above and no other missing objective.
 
+4. **Two mechanism-dependent surfaces are made conditional.** This spec deliberately
+   leaves the read mechanism open, so a surface that only exists for a mechanism
+   which materialises content cannot be stated unconditionally. The **Logs** entry in
+   **Operational Visibility** and the cleanup-failure business rule are therefore
+   conditioned on the chosen mechanism creating a working area. This is a plan-stage
+   reconciliation, not an owner decision: AC12 already reads "any working area a pass
+   **created**", and the working-area business rule already accepts satisfaction by
+   construction on the reusable-workflow ingress. The implementation plan chooses a
+   mechanism that creates no working area on either ingress, so both surfaces are
+   vacuous there and a log line claiming a cleanup that never happened would be a
+   false record.
+
 The resolution method, which AC23 requires to be a recorded plan decision rather
 than a spec decision, is recorded in the implementation plan, not here.
 
@@ -661,7 +673,10 @@ repository.
   pass.
 - The webhook ingress keeps its existing one-active-review-job rule and its
   bounded queue. Repository context adds no concurrency to it.
-- A cleanup failure is recorded and never publishes a second review for the head.
+- Where the chosen read mechanism creates a working area, a cleanup failure is
+  recorded and never publishes a second review for the head. A mechanism that creates
+  no working area cannot fail a cleanup, and records none (see **Post-Merge
+  Amendment** item 4).
 - No **excerpt of repository content**, credential value, credential name, or
   operator-specific path is written to the logs, the pass record, or any committed
   evidence document. The pass record and the logs carry only **identifiers** of
@@ -874,9 +889,11 @@ Each row below is the normative summary for its gate; the prose sites named unde
   surface (AC22).
 - **Evidence-tier ledger**: the tier, the counted pull requests, the configuration
   the count accrues under, and the date the state was recorded.
-- **Logs**: the outcome, the counts, the budget utilisation, and cleanup
-  completion. Logs never record repository content, credential values, or
-  operator-specific paths.
+- **Logs**: the outcome, the counts, the budget utilisation, and — **only where the
+  chosen read mechanism creates a working area** — cleanup completion. A mechanism
+  that creates none emits no cleanup line, because a line claiming a cleanup that
+  never happened would be a false record (see **Post-Merge Amendment** item 4). Logs
+  never record repository content, credential values, or operator-specific paths.
 - **Notifications**: none beyond the existing GitHub review and check-run
   surfaces.
 
