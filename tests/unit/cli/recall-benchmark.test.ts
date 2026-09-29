@@ -929,6 +929,112 @@ test("a record states that the durability mode was not applied to the benchmark'
   }
 });
 
+function twoPrecisionManifest(): string {
+  const manifest = JSON.parse(readFileSync(fixturePath("manifest.json"), "utf8")) as {
+    precisionFixtures: Array<Record<string, unknown>>;
+  };
+  manifest.precisionFixtures = [
+    manifest.precisionFixtures[0],
+    { ...manifest.precisionFixtures[0], id: "second-precision-fixture" },
+  ];
+  const path = outputPath("two-precision-manifest-shared");
+  writeFileSync(path, JSON.stringify(manifest));
+  return path;
+}
+
+test("the rejection that starts a sibling cancellation is the one recorded", async () => {
+  const manifestPath = twoPrecisionManifest();
+  let precisionCalls = 0;
+  const { records } = await runCampaign(
+    "first-rejection",
+    { sweepMode: "off", quality: true, manifestPath },
+    campaignDeps({
+      createModel: () => ({
+        modelName: "fixture:first-rejection",
+        async complete(request, signal) {
+          if (request.userPrompt.includes("Recall benchmark")) {
+            return { content: readFileSync(fixturePath("model-responses/passing.json"), "utf8") };
+          }
+          precisionCalls += 1;
+          if (precisionCalls === 1) {
+            // The earlier fixture's request only rejects once it is cancelled.
+            await new Promise<void>((resolve) =>
+              signal.addEventListener("abort", () => resolve(), { once: true }),
+            );
+            throw new ModelClientError("timed_out", "cancelled by the run");
+          }
+          // The later fixture's request fails first, for a real reason.
+          throw new ModelClientError("model_unavailable", "the provider is down");
+        },
+      }),
+    }),
+  );
+
+  // The provider failure caused the cancellation; the sibling's `timed_out` is only
+  // its consequence, so the record must name the cause, not the consequence.
+  assert.equal(isFailure(records[0]), true);
+  assert.equal((records[0].failure as { reason: string }).reason, "model");
+  assert.match((records[0].failure as { message: string }).message, /provider is down/);
+});
+
+test("each precision log line names its kind and the fixture it belongs to", async () => {
+  const manifestPath = twoPrecisionManifest();
+  const lines: string[] = [];
+  const spy = mock.method(console, "error", (...args: unknown[]) => {
+    lines.push(args.map((value) => String(value)).join(" "));
+  });
+  try {
+    await runCampaign(
+      "precision-log-attribution",
+      { sweepMode: "on", quality: true, manifestPath },
+      campaignDeps(),
+    );
+  } finally {
+    spy.mock.restore();
+  }
+
+  const parsed = lines
+    .filter((line) => line.includes('"event":"sweep_pass_record"'))
+    .map((line) => JSON.parse(line) as { kind: string; fixtureId?: string });
+  const precision = parsed.filter((line) => line.kind === "precision");
+  assert.deepEqual(precision.map((line) => line.fixtureId).sort(), [
+    "harmless-session-refactor",
+    "second-precision-fixture",
+  ]);
+  assert.equal(parsed.filter((line) => line.kind === "recall").length, 1);
+});
+
+test("the original-thirteen subset needs every original id, not thirteen matching entries", async () => {
+  const original = "original-thirteen";
+  const manifest = JSON.parse(
+    readFileSync(fixturePath(`${original}/manifest.json`), "utf8"),
+  ) as { seededDefects: Array<{ id: string }> };
+  // Thirteen entries that still match the original set by count, but repeat one
+  // id and omit another.
+  const duplicated = manifest.seededDefects.map((defect, index) =>
+    index === 1 ? { ...defect, id: manifest.seededDefects[0].id } : defect,
+  );
+  const badPath = outputPath("duplicated-original");
+  writeFileSync(badPath, JSON.stringify({ ...manifest, seededDefects: duplicated }));
+
+  const control = await runCampaign(
+    "subset-control",
+    { sweepMode: "off", manifestPath: fixturePath(`${original}/manifest.json`), patchesPath: fixturePath(`${original}/patches.json`) },
+    campaignDeps(),
+  );
+  const mislabeled = await runCampaign(
+    "subset-duplicated",
+    { sweepMode: "off", manifestPath: badPath, patchesPath: fixturePath(`${original}/patches.json`) },
+    campaignDeps(),
+  );
+
+  // The intact original set reports its subset block.
+  assert.equal("originalThirteenSubset" in control.records[0], true);
+  // A manifest that only matches by count reports none, rather than a block
+  // labeled as the complete original set.
+  assert.equal("originalThirteenSubset" in mislabeled.records[0], false);
+});
+
 test("a client that never settles cannot hold a run past its deadline", async () => {
   // The campaign's bounds are timers, so they must keep the process alive: an
   // unref'd deadline or grace timer lets a hung client exit the CLI mid-campaign.
@@ -1149,6 +1255,7 @@ test("campaign publishes the per-category record on stderr as well as in the JSO
   const summaryRecord = onRecord.sweepPassRecord as typeof emitted;
 
   assert.equal(emitted.event, "sweep_pass_record");
+  assert.equal((emitted as { kind?: string }).kind, "recall");
   assert.equal(emitted.runIndex, 0);
   assert.deepEqual(emitted.categories, summaryRecord.categories);
   assert.deepEqual(emitted.findings, summaryRecord.findings);
@@ -1159,6 +1266,7 @@ test("campaign publishes the per-category record on stderr as well as in the JSO
     "categories",
     "event",
     "findings",
+    "kind",
     "listVersion",
     "runIndex",
     "uncategorizedFindingCount",
@@ -1249,19 +1357,28 @@ test("campaign attributes each precision finding under AC9 independently of the 
   );
 
   // The precision request logs its own record on the same surface as the recall
-  // pass's, under exactly the same key set — one schema, not two.
+  // pass's: the recall line names its kind, the precision line also names its
+  // fixture, and the two share every other key.
   const published = lines.filter((line) => line.includes('"event":"sweep_pass_record"'));
   assert.equal(published.length, 2);
-  const keySets = published.map((line) => Object.keys(JSON.parse(line) as object).sort());
-  assert.deepEqual(keySets[0], [
+  const parsed = published.map((line) => JSON.parse(line) as Record<string, unknown>);
+  const recallLine = parsed.find((line) => line.kind === "recall");
+  const precisionLine = parsed.find((line) => line.kind === "precision");
+  assert.ok(recallLine && precisionLine);
+  assert.deepEqual(Object.keys(recallLine).sort(), [
     "categories",
     "event",
     "findings",
+    "kind",
     "listVersion",
     "runIndex",
     "uncategorizedFindingCount",
   ]);
-  assert.deepEqual(keySets[1], keySets[0]);
+  assert.equal(precisionLine.fixtureId, "harmless-session-refactor");
+  assert.deepEqual(
+    Object.keys(precisionLine).filter((key) => key !== "fixtureId").sort(),
+    Object.keys(recallLine).sort(),
+  );
 });
 
 // ---------------------------------------------------------------------------

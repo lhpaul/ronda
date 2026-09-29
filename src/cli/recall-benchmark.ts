@@ -851,8 +851,12 @@ function buildOriginalThirteenSubset(
   manifest: RecallBenchmarkManifest,
 ): OriginalThirteenSubset | undefined {
   const declared = new Set<string>(ORIGINAL_THIRTEEN_IDS);
-  const held = manifest.seededDefects.filter((defect) => declared.has(defect.id));
-  if (held.length !== ORIGINAL_THIRTEEN_IDS.length) {
+  // Membership, not a count: a manifest that repeats one original id and omits
+  // another still has thirteen matching entries, yet cannot cover the original set.
+  const held = new Set(
+    manifest.seededDefects.map((defect) => defect.id).filter((id) => declared.has(id)),
+  );
+  if (!ORIGINAL_THIRTEEN_IDS.every((id) => held.has(id))) {
     return undefined;
   }
   return {
@@ -970,19 +974,22 @@ async function settleOrAbort<T>(
   controller: AbortController,
   requests: Array<Promise<T>>,
 ): Promise<T[]> {
+  // The rejection that starts the cancellation is the one that caused it. Aborting
+  // makes a sibling's client reject too (a `timed_out`, say), and reporting
+  // whichever rejection comes first in input order would let that consequence hide
+  // the real provider failure, so the first one observed is kept and rethrown.
+  let first: { error: unknown } | undefined;
   const settled = await Promise.allSettled(
     requests.map((request) =>
       request.catch((error: unknown) => {
+        first ??= { error };
         controller.abort();
         throw error;
       }),
     ),
   );
-  const rejected = settled.find(
-    (result): result is PromiseRejectedResult => result.status === "rejected",
-  );
-  if (rejected !== undefined) {
-    throw rejected.reason;
+  if (first !== undefined) {
+    throw first.error;
   }
   return settled.map((result) => (result as PromiseFulfilledResult<T>).value);
 }
@@ -1084,9 +1091,9 @@ async function runOneCampaignRun(
     // attributed to the category (or categories, or uncategorized) recorded for it
     // — and a sweep-off run's is reported unattributed by this record's absence.
     // Logged like the recall pass's (AC20's benchmark-output surface), identifiers
-    // and indices only: the same key set as the recall line, so the two surfaces
-    // stay one schema. The fixture's identity is not a field of the record — it is
-    // carried by the JSON, where the record sits under its `precisionFixtures` entry.
+    // and indices only. A run can hold several precision fixtures, so each line
+    // names its kind and the fixture it belongs to; the recall line names its kind
+    // only. Both are identifiers from the manifest, never review content.
     if (list !== undefined) {
       precisionResults.forEach((result) => {
         result.summary.sweepPassRecord = {
@@ -1097,6 +1104,8 @@ async function runOneCampaignRun(
           JSON.stringify({
             event: "sweep_pass_record",
             runIndex,
+            kind: "precision",
+            fixtureId: result.summary.id,
             ...result.summary.sweepPassRecord,
           }),
         );
@@ -1152,7 +1161,7 @@ async function runOneCampaignRun(
       // is the only place this pass's sweep outcome reaches an operator's logs.
       // Category identifiers and counts only — never a finding's own text.
       console.error(
-        JSON.stringify({ event: "sweep_pass_record", runIndex, ...sweepRecord }),
+        JSON.stringify({ event: "sweep_pass_record", runIndex, kind: "recall", ...sweepRecord }),
       );
     }
 
