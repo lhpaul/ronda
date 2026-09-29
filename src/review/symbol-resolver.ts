@@ -650,16 +650,27 @@ function findIdentifierAtPosition(sourceFile: ts.SourceFile, pos: number): ts.Id
 }
 
 /**
- * `true` only for the absolute filesystem paths `ts.getDefaultLibFilePath`
- * returns (Ronda's own pinned `typescript` install, under `node_modules/`) —
- * never for a reviewed-repository path, which is always a repo-relative
- * POSIX path with no leading `/`. This is what lets the host fall back to
- * the real filesystem for `lib.*.d.ts` alone (D2) without ever risking a
- * read of an unrelated local file that happens to share a reviewed-repo's
- * relative path (AC9).
+ * The real directory `ts.getDefaultLibFilePath` resolves into (Ronda's own
+ * pinned `typescript` install, under `node_modules/typescript/lib`).
+ * Computed once at module load — the compiler options that determine it are
+ * themselves a fixed module-level constant.
  */
-function isOwnLibPath(fileName: string): boolean {
-  return fileName.startsWith("/") || /^[A-Za-z]:[\\/]/.test(fileName);
+export const TS_LIB_DIR = path.dirname(ts.getDefaultLibFilePath(COMPILER_OPTIONS));
+
+/**
+ * `true` only for a path inside {@link TS_LIB_DIR} — never for merely "any
+ * absolute path". A reviewed-repository path is always repo-relative with no
+ * leading `/`, but TypeScript's own module resolution can still construct an
+ * absolute-looking candidate from a reviewed file's own (untrusted) import
+ * specifier. Accepting every absolute path here would let such a specifier
+ * reach the real filesystem through `ts.sys` — this narrower check is what
+ * keeps the fallback scoped to Ronda's own lib files (D2) and never to
+ * reviewed-head content (AC9).
+ */
+/** Exported for testing only. */
+export function isOwnLibPath(fileName: string): boolean {
+  const relative = path.relative(TS_LIB_DIR, fileName);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 function createVirtualCompilerHost(files: ReadonlyMap<string, string>): ts.CompilerHost {

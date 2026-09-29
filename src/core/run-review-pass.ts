@@ -1032,9 +1032,26 @@ async function runRepositoryContextPhase(
     contextDeadline = createPassDeadline(timeBudgetMs, deps.deadlineClock);
     const resolveReadFile = readFileWithSignal(combineAbortSignals(deadlineSignal, contextDeadline.signal));
 
+    const resolutionPhaseStartMs = deps.clock.now();
     const closure = await buildSourceFileSet(identified.changedSourceTexts, resolveReadFile, timeBudgetMs);
     const resolutions = resolveSymbols(closure.fileSet, identified.requested, closure);
-    const built = buildRepositoryContextCandidates(identified.requested, resolutions);
+    const resolutionPhaseElapsedMs = deps.clock.now() - resolutionPhaseStartMs;
+
+    // `resolveSymbols` is synchronous and cannot itself be interrupted by any
+    // `AbortSignal` — JS is single-threaded, so `contextDeadline`'s timer
+    // cannot fire until synchronous execution yields back to the event
+    // loop. `isResolutionFileSetOversized`'s size caps are what bound how
+    // long that synchronous work can run; this check cannot make it
+    // shorter. What it does guarantee is that the *record* is never
+    // dishonestly optimistic about work that only finished after the
+    // pass's own configured budget: if the deadline had already fired by
+    // the time the (uninterruptible) compile returns, every candidate is
+    // downgraded to `time_budget` rather than reported as resolved.
+    const effectiveResolutions = contextDeadline.expired()
+      ? identified.requested.map((ref) => ({ id: ref.id, reason: "time_budget" as const }))
+      : resolutions;
+
+    const built = buildRepositoryContextCandidates(identified.requested, effectiveResolutions);
     const ordered = [...built.candidates].sort(compareRepositoryContextCandidates);
     const budgeted = applyRepositoryContextBudgets(ordered, { maxCandidates, maxChars });
     const outcome = resolveRepositoryContextOutcome({
@@ -1056,7 +1073,11 @@ async function runRepositoryContextPhase(
           maxCandidates,
           maxChars,
           timeBudgetMs,
-          timeUsedMs: closure.timeUsedMs,
+          // The larger of the two measurements: buildSourceFileSet's own
+          // internal figure (fetch time alone) and this phase's total wall
+          // clock (fetch plus the synchronous compile) — never understating
+          // real elapsed time spent for this budget.
+          timeUsedMs: Math.max(closure.timeUsedMs, resolutionPhaseElapsedMs),
           budgetFallbacks: deps.config.repositoryContextBudgetFallbacks,
         },
       },

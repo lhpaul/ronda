@@ -278,6 +278,39 @@ test("scenario 7: a time budget forced to zero yields unavailable and never exte
   assert.ok(result.repositoryContext?.record?.drops.every((drop) => drop.reason === "time_budget"));
 });
 
+test("a resolution read that finishes past its own context budget is downgraded to time_budget, not reported resolved", async () => {
+  // buildSourceFileSet's own per-candidate check runs *before* issuing a
+  // read, not after — so a single read that itself takes longer than the
+  // remaining budget can "successfully" resolve past the deadline. This
+  // proves runRepositoryContextPhase's post-compile check catches that case
+  // and never reports it as `used`, even though the resolver itself found
+  // a real, correct declaration.
+  const github = createFakeGithub({
+    pullRequest: pullRequest(),
+    changedFiles: [changedFile("src/caller.ts", [4])],
+    repoFiles: new Map([
+      ["src/caller.ts", CALLER_TEXT],
+      ["src/util.ts", UTIL_TEXT],
+    ]),
+    delayedPaths: new Map([["src/util.ts", 80]]),
+  });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    deps(
+      github.ops,
+      createConfig({
+        repositoryContextMode: "on",
+        repositoryContextTimeBudgetMs: 20, // comfortably shorter than the 80ms delayed read
+        passTimeoutMs: 600_000,
+      }),
+    ),
+  );
+  assert.equal(result.outcome, "succeeded");
+  assert.notEqual(result.repositoryContext?.record?.outcome, "used");
+  assert.equal(result.repositoryContext?.record?.candidatesResolved, 0);
+  assert.ok(result.repositoryContext?.record?.drops.every((drop) => drop.reason === "time_budget"));
+});
+
 test("a slow changed-file read during identification never consumes the context time budget", async () => {
   // Identification (reading src/caller.ts) deliberately takes longer than
   // the configured context budget. If the context deadline were armed

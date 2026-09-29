@@ -7,10 +7,12 @@ import {
   buildSourceFileSet,
   candidatePathsFor,
   identifyCandidates,
+  isOwnLibPath,
   isRepositoryContextEligiblePath,
   isResolutionFileSetOversized,
   resolveSymbols,
   RepositoryContextUnusableContentError,
+  TS_LIB_DIR,
   type RepositoryContextReadFile,
 } from "../../../src/review/symbol-resolver.js";
 import { buildRepositoryContextCandidates } from "../../../src/review/repository-context.js";
@@ -597,6 +599,29 @@ test("scenario 12 (AC23): resolution precision on the recorded fixture is 100%",
   assert.equal(built.drops.filter((d) => d.reason === "ambiguous_resolution").length, 1);
   const precision = built.candidates.length / built.candidates.length; // resolved-correct / resolved-total
   assert.equal(precision, 1);
+});
+
+// --- isOwnLibPath (local-ai-reviewer finding, PR #130) --------------------
+// The virtual compiler host's real-filesystem fallback must be scoped to
+// Ronda's own pinned typescript lib directory alone — never to "any
+// absolute path", which would let a reviewed file's own (untrusted) import
+// specifier reach the real filesystem through TypeScript's own module
+// resolution.
+
+test("isOwnLibPath: a real lib file inside TS_LIB_DIR is true", () => {
+  assert.equal(isOwnLibPath(join(TS_LIB_DIR, "lib.es2022.d.ts")), true);
+  assert.equal(isOwnLibPath(TS_LIB_DIR), true);
+});
+
+test("isOwnLibPath: an arbitrary absolute path is false", () => {
+  assert.equal(isOwnLibPath("/etc/passwd"), false);
+  assert.equal(isOwnLibPath("/etc/hostname"), false);
+});
+
+test("isOwnLibPath: a sibling directory sharing TS_LIB_DIR as a string prefix is false", () => {
+  // Guards against a naive `startsWith` string-prefix check: "…/lib-evil"
+  // starts with the same characters as "…/lib" but is not inside it.
+  assert.equal(isOwnLibPath(`${TS_LIB_DIR}-evil/foo.d.ts`), false);
 });
 
 // --- Oversized-closure backstop (local-ai-reviewer finding, PR #130) ------
