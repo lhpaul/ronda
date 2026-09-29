@@ -15,8 +15,9 @@ review findings is exactly that shape: in
 the `pr-head-push-order` sub-theme is 14 of 79 finding instances and is one
 defect — code treating a GitHub API response as evidence of something it does not
 establish — raised across iterations 1 to 22, escalated three times, and closed
-only under an explicit human waiver. The second and fifth clusters,
-`external-output-parsing` (8) and `guard-fails-open` (5), have the same shape.
+only under an explicit human waiver. Two further clusters have the same shape:
+`external-output-parsing`, 8 finding instances, and `guard-fails-open`, 4 from
+the local reviewer plus 1 from the second reviewer.
 
 This feature gives a review pass **read-only repository context**: for the head
 being reviewed, Ronda may read source beyond the diff — the definitions the
@@ -113,8 +114,8 @@ not to proceed (AC2), and nothing else in this spec is built.
   pass.
 - The pass wrote nothing to the reviewed repository other than that review and
   its check run.
-- The repository-context outcome for the pass is one of the recorded outcomes in
-  **Statuses / Enum Values**.
+- The repository-context outcome for the pass is Repository context used,
+  partial, or unavailable, per **Statuses / Enum Values**.
 
 **Information shown**:
 
@@ -240,19 +241,22 @@ not to proceed (AC2), and nothing else in this spec is built.
    content is read, exactly as it is skipped today.
 3. On the webhook ingress — the fork-friendly ingress recorded in
    [`ronda-review-adoption.md`](../../../adoption/ronda-review-adoption.md) —
-   Ronda reads repository context for that head only from the reviewed head's own
-   repository, treats every byte of it as untrusted data rather than instructions,
-   and never executes any of it.
-4. Ronda publishes one review for the head and records that the head was
-   fork-originated in the pass record.
+   Ronda applies the fork switch. With it off, the pass reviews the head with no
+   repository context. With it on, Ronda reads repository context for that head
+   only from the reviewed head's own repository, treats every byte of it as
+   untrusted data rather than instructions, and never executes any of it.
+4. Ronda publishes one review for the head, and — where it emitted a
+   repository-context record — that record states that the head was
+   fork-originated.
 
 **Postconditions**:
 
 - No fork content is executed on either ingress.
 - Repository context for a fork head is read from that head's repository and from
   no other repository.
-- The pass record states that the head was fork-originated, so an operator
-  reading the evidence can tell fork passes from same-repository passes.
+- Where a repository-context record exists for the pass, it states that the head
+  was fork-originated, so an operator reading the evidence can tell fork passes
+  from same-repository passes.
 
 **Information shown**:
 
@@ -502,20 +506,25 @@ repository.
 
 ### Repository-context pass outcome
 
-| Code value | Display label | Description |
-| --- | --- | --- |
-| `off` | Repository context off | The pass ran without repository context because it was not enabled. No symbols were requested. |
-| `used` | Repository context used | Every symbol the selection rules requested was resolved within budget. |
-| `partial` | Repository context partial | Some requested symbols were resolved and others were dropped, because a budget was reached, the time budget was exhausted, or an individual read did not succeed. |
-| `unavailable` | Repository context unavailable | Repository context was enabled but no symbol could be resolved for the pass. |
-| `not_applicable` | Repository context not applicable | The pass ended before review execution, so no context was requested and no outcome is owed. Recorded as an absence, never as a value on a published surface. |
+Three outcomes are recorded on a pass's surfaces, and two name the cases where
+**no record is emitted at all**. The distinction matters because AC19 requires a
+pass with the feature disabled to be indistinguishable from the same pass in a
+version without the feature, which a recorded "off" value would defeat.
+
+| Code value | Display label | Recorded? | Description |
+| --- | --- | --- | --- |
+| `used` | Repository context used | Yes | Every symbol the selection rules requested was resolved within budget. |
+| `partial` | Repository context partial | Yes | Some requested symbols were resolved and others were dropped, because a budget was reached, the time budget was exhausted, or an individual read did not succeed. |
+| `unavailable` | Repository context unavailable | Yes | Repository context was enabled but no symbol could be resolved for the pass. |
+| `off` | Repository context off | No | Repository context was not enabled for the pass. No symbols were requested, and no repository-context record, activation statement, or budget figure appears on any surface (AC19). |
+| `not_applicable` | Repository context not applicable | No | The pass ended before review execution — a draft pull request, or an automatic run that found the head's existing check run — so no context was requested and no outcome is owed. No record appears on any surface. |
 
 **Valid transitions**: the outcome is decided once per pass and never changes
-afterwards. A pass with repository context disabled records `off`. A pass that
-reaches review execution with it enabled records `used`, `partial`, or
+afterwards. A pass that does not reach review execution is `not_applicable`. A
+pass that reaches review execution with the feature disabled is `off`. A pass
+that reaches review execution with it enabled is `used`, `partial`, or
 `unavailable` according to how many requested symbols were resolved: all of them,
-some of them, none of them. A pass that does not reach review execution is
-`not_applicable` and emits no repository-context record on any surface.
+some of them, none of them.
 
 ### Evidence tier
 
@@ -543,6 +552,21 @@ ledger convention covers both levers.
 
 The minimum cohort size is an open question for the repository owner; until it is
 answered the ledger records the count and the tier stays `real_pr_provisional`.
+
+### Decision-gate consistency matrix
+
+This feature adds six decisions whose outcome depends on more than one input.
+Each row below is the normative summary for its gate; the prose sites named under
+**Mirror surfaces** state the same rule and must not contradict this table.
+
+| Gate | Inputs | Allowed outcomes | Required next action | Mirror surfaces | Example |
+| --- | --- | --- | --- | --- | --- |
+| Amendment decision (AC1, AC2) | The repository owner's recorded decision on the proposed amendment | Accepted; accepted with changes; rejected; not yet recorded | Accepted or accepted with changes: implementation may start, against the recorded text. Rejected: terminate the item with that record as its only outcome (AC2). Not yet recorded: no implementation work starts | Proposed Amendment section; AC1; AC2; the closing business rule; Open Question 1 | A partial acceptance that keeps the no-checkout mechanism but permits content reads is an "accepted with changes" outcome, and the recorded text is what implementation follows — not this spec's proposed wording. |
+| Repository-context outcome resolution (AC3, AC11, AC19) | Whether the pass reached review execution; whether the feature was enabled; how many requested symbols were resolved | Not applicable — did not reach review execution (no record); Off — reached review execution, not enabled (no record); Used — all requested symbols resolved; Partial — some resolved; Unavailable — none resolved | The three recorded outcomes are written to the check-run output where the pass's own check-run write produced a check run whose outcome is a review, and to the logs otherwise; never to the review body. The two unrecorded outcomes write nothing anywhere | Statuses / Enum Values → Repository-context pass outcome; AC3; AC11; AC19; Use Case 1 steps 1 and 6 | A draft pull request is Not applicable and writes nothing, so it is indistinguishable from the same skip with the feature absent. A pass whose every read is denied is Unavailable and still publishes its review. |
+| Budget conflict resolution (AC6, AC7) | The symbol count budget; the character budget; the existing diff budget; the authoritative-document budgets; how much context the selection rules requested | Within every budget — all requested context retained; over a context budget — lower-priority repository context dropped by the recorded selection order, with the drops recorded; the diff would have to give way — not permitted | Retain the diff in full, drop repository context, record every drop and its reason, and record the outcome as Partial | Business rules on budgets and on the diff never giving way; AC6; AC7; Use Case 2 | A change naming more symbols than the count budget allows drops the lowest-priority symbols and records Partial. A budget setting large enough that repository context would displace the diff is resolved by dropping context, never by truncating the diff — the recorded reviewer that reached a token limit and pruned the diff published nothing, which is the failure this row forbids. |
+| Context time budget exhaustion (AC8) | The context time budget; the pass budget in effect; whether the time budget was exhausted before selection finished | Not exhausted — proceed with the full selection; exhausted — proceed with the context already gathered | Proceed to review execution, publish the review, record Partial or Unavailable, and never extend the pass deadline or the job backstop | Business rule on the context time budget; AC8; Use Case 6 | A time budget forced low enough to be exhausted before any symbol resolves records Unavailable and still publishes one review for the head. |
+| Fork-head behaviour per ingress (AC10) | The ingress; whether the reviewed head belongs to a fork; the fork switch setting on the webhook ingress | Reusable-workflow ingress with a fork head — the pass is skipped before any repository content is read, unchanged from today; webhook ingress with a fork head and the fork switch on — repository context is read from that head's own repository only, as untrusted data, never executed; webhook ingress with a fork head and the fork switch off — the pass reviews the head with no repository context; non-fork head — the global switch alone decides | Publish a review exactly as today in every case where a review is published, and record the fork marker wherever a repository-context record is emitted | AC9; AC10; Use Case 4; the untrusted-data and never-executed business rules | With the fork switch off, a fork head on the webhook ingress still receives its ordinary review; only the repository context is withheld, the outcome is Off, and no repository-context record and therefore no fork marker is written. |
+| Evidence-tier transition and claim admissibility (AC13, AC15, AC16, AC17, AC18) | Whether any real-pull-request review with repository context enabled is recorded; the count of terminally adjudicated pull requests under the current configuration against the agreed minimum; whether the configuration changed; for a claim, whether it is paired, interleaved, under one immutable model version, with equal run counts, and — for a recall claim — whether paired precision evidence with its regression result exists | `fixture_only`, `real_pr_provisional`, or `real_pr_measured` per the transitions above. For a claim: fixture claim permitted at any tier only where AC13's fixture-capability statement admits it; descriptive real-PR claim permitted at `real_pr_provisional` and above; comparative claim permitted at `real_pr_measured` and only with AC15's pairing and, for recall, AC16's precision evidence | Label every published claim with its tier, the independence caveat, and the own-repository label; omit a claim the tier or its own evidence does not admit rather than publishing it hedged; never attribute the guard-fails-open movement already observed under the sweep to repository context (AC18) | Statuses / Enum Values → Evidence tier; AC13; AC15; AC16; AC17; AC18; Use Case 5; Use Case 7 | A comparative recall claim on ten adjudicated pull requests but with the two arms run weeks apart under different model versions is not admissible: the tier permits comparative claims, AC15's interleaving under one immutable model version does not — the recorded sweep comparison failed on exactly this. A fixture whose target has no resolvable surrounding source yields no claim at all, not a zero effect. |
 
 ---
 
@@ -630,7 +654,10 @@ answered the ledger records the count and the tier stays `real_pr_provisional`.
       repository content is read, unchanged from today; on the webhook ingress the
       operator can enable or disable repository context for fork-originated heads
       independently of the global switch, and either setting publishes a review as
-      it does today. Every pass record states whether the head was fork-originated.
+      it does today. Every pass that emits a repository-context record states
+      whether the head was fork-originated; a pass that emits no such record —
+      because the feature or the fork switch was off, or because the pass did not
+      reach review execution — states nothing, preserving AC19.
 - [ ] AC11: A repository-context read that fails, is refused, or returns nothing
       never fails the pass and never suppresses the review the pass would otherwise
       publish. The pass records `partial` or `unavailable` and publishes its
