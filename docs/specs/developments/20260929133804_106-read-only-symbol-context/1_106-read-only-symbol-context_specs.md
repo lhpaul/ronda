@@ -561,7 +561,12 @@ repository.
 - Any working area a pass creates to read repository content is removed when that
   pass settles — on success, on failure, on supersede, on watchdog abort, and on
   the local server's startup reconciliation — and is never shared with or reused
-  by another pass.
+  by another pass. On the reusable-workflow ingress the working area lives on an
+  ephemeral runner discarded with the job, so nothing can accumulate across passes
+  and no pass can reach another's area; the rule holds there by construction. The
+  requirement that AC12 verifies is therefore the webhook ingress's, where the
+  process is long-lived and the same working area could otherwise outlive its
+  pass.
 - The webhook ingress keeps its existing one-active-review-job rule and its
   bounded queue. Repository context adds no concurrency to it.
 - A cleanup failure is recorded and never publishes a second review for the head.
@@ -1009,6 +1014,10 @@ Each row below is the normative summary for its gate; the prose sites named unde
   only whether those passes that do run for a fork head may read repository context.
 - An automatic control pass. The non-publishing control pass (AC22) is
   operator-initiated only; no trigger starts one.
+- Changing either ingress's concurrency behaviour. AC12 preserves the webhook
+  ingress's existing one-active-review-job rule and bounded queue; the
+  reusable-workflow ingress's concurrency, including how a comment run and an
+  automatic run interact, is unchanged by this feature.
 - Raising the default pass budget or the job backstop (see **Open Questions**).
 - Setting a recall target, a variance ceiling, or a cost ceiling for repository
   context (see **Deferred Decisions**).
