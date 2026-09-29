@@ -263,9 +263,12 @@ built.
 
 1. Ronda determines that the reviewed head belongs to a fork of the base
    repository.
-2. On the reusable-workflow ingress, the pass is skipped before any repository
-   content is read, exactly as it is skipped today.
-3. On the webhook ingress — the fork-friendly ingress recorded in
+2. On the reusable-workflow ingress's automatic trigger, the pass is skipped before
+   any repository content is read, exactly as it is skipped today. That ingress's
+   manual comment trigger is **not** skipped today — its existing guard covers only
+   the automatic trigger — so it takes the same path as step 3.
+3. On the webhook ingress and on the reusable-workflow ingress's manual comment
+   trigger — the webhook being the fork-friendly ingress recorded in
    [`ronda-review-adoption.md`](../../../adoption/ronda-review-adoption.md) —
    Ronda applies the fork switch. With it off, the pass reviews the head with no
    repository context. With it on, Ronda reads repository context for that head
@@ -497,7 +500,10 @@ repository.
   configuration value on the webhook ingress, which serves every repository that
   process handles.
 - The fork switch is a second operator-configuration value resolved from that
-  same source and applying only on the webhook ingress. It can only withhold
+  same source. It applies to **every fork-originated head that reaches review
+  execution, on every ingress** — which is the webhook ingress, and the
+  reusable-workflow ingress's manual comment trigger, whose existing fork guard
+  covers only the automatic trigger. It can only withhold
   repository context from fork-originated heads; it can never grant context that
   the global switch has not already enabled, and it never affects non-fork heads.
   Which of its two forms ships is Open Question 3 (AC10).
@@ -701,7 +707,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
 | Repository-context outcome resolution (AC3, AC11, AC19) | Whether the pass reached review execution; whether the feature was enabled; how many requested symbols were resolved | Not applicable — did not reach review execution (no record); Off — reached review execution, validly disabled (no record); Used — at least one candidate requested and all resolved; Partial — some resolved; Unavailable — none resolved, including the zero-candidate case, which is Unavailable and never Used | The three recorded outcomes are always written to the logs, and additionally to the check-run output where the pass's own check-run write produced a check run whose outcome is a review; never to the review body, whose summary carries only the activation statement and the outcome (AC3). The two unrecorded outcomes write nothing anywhere | Statuses / Enum Values → Repository-context pass outcome; AC3; AC11; AC19; Use Case 1 steps 1 and 6 | A draft pull request is Not applicable and writes nothing, so it is indistinguishable from the same skip with the feature absent. A pass whose every read is denied is Unavailable and still publishes its review. A pass whose changed lines name no resolvable symbol is Unavailable with a requested count of zero, which is how it is told apart from a pass whose reads failed. |
 | Budget conflict resolution (AC6, AC7) | The symbol count budget; the character budget; the existing diff budget; the authoritative-document budgets; how much context the selection rules requested | Within every budget — all requested context retained; over a context budget — lower-priority repository context dropped by the recorded selection order, with the drops recorded; the diff would have to give way — not permitted | Retain the diff in full, drop repository context, record every drop and its reason, and record the outcome as Partial — or Unavailable where every candidate was dropped and none resolved, which the budgets alone can cause | Business rules on budgets and on the diff never giving way; AC6; AC7; Use Case 2 | A change naming more symbols than the count budget allows drops the lowest-priority symbols and records Partial. A character budget too small for even the first candidate drops every candidate and records Unavailable, not Partial. A budget setting large enough that repository context would displace the diff is resolved by dropping context, never by truncating the diff — the recorded reviewer that reached a token limit and pruned the diff published nothing, which is the failure this row forbids. |
 | Context time budget exhaustion (AC8) | The context time budget; the pass budget in effect; whether the time budget was exhausted before selection finished | Not exhausted — proceed with the full selection; exhausted — proceed with the context already gathered | Proceed to review execution, publish the review, record Partial or Unavailable, and never extend the pass deadline or the job backstop | Business rule on the context time budget; AC8; Use Case 6 | A time budget forced low enough to be exhausted before any symbol resolves records Unavailable and still publishes one review for the head. |
-| Fork-head behaviour per ingress (AC10) | The ingress; whether the reviewed head belongs to a fork; the resolved global switch; which form of the fork switch shipped (operator-settable, or fixed off per Open Question 3) and, in the operator-settable form, its resolved value | Reusable-workflow ingress with a fork head — the pass is skipped before any repository content is read, unchanged from today; webhook ingress with a fork head, the global switch on and the fork switch on — repository context is read from that head's own repository only, as untrusted data, never executed; webhook ingress with a fork head and the global switch off — no repository context, whatever the fork switch says, because the fork switch can only withhold; webhook ingress with a fork head, the global switch on and the fork switch off, whether by its value or because it shipped fixed off — the pass reviews the head with no repository context; non-fork head — the global switch alone decides | Publish a review exactly as today in every case where a review is published, and record the fork marker wherever a repository-context record is emitted | AC9; AC10; Use Case 4; the untrusted-data and never-executed business rules | With the fork switch off, a fork head on the webhook ingress still receives its ordinary review; only the repository context is withheld, the outcome is Off, and no repository-context record and therefore no fork marker is written. |
+| Fork-head behaviour per ingress and trigger (AC10) | The ingress; the trigger (automatic or manual comment); whether the reviewed head belongs to a fork; the resolved global switch; which form of the fork switch shipped (operator-settable, or fixed off per Open Question 3) and, in the operator-settable form, its resolved value | Reusable-workflow ingress, automatic trigger, fork head — the pass is skipped before any repository content is read, unchanged from today; reusable-workflow ingress, manual comment trigger, fork head, or webhook ingress, fork head, with the global switch on and the fork switch on — repository context is read from that head's own repository only, as untrusted data, never executed; either of those two fork-reading paths with the global switch off — no repository context, whatever the fork switch says, because the fork switch can only withhold; either of them with the global switch on and the fork switch off, whether by its value or because it shipped fixed off — the pass reviews the head with no repository context; non-fork head — the global switch alone decides | Publish a review exactly as today in every case where a review is published, and record the fork marker wherever a repository-context record is emitted | AC9; AC10; Use Case 4; the untrusted-data and never-executed business rules | With the fork switch off, a fork head on the webhook ingress still receives its ordinary review; only the repository context is withheld, the outcome is Off, and no repository-context record and therefore no fork marker is written. |
 | Evidence-tier transition and claim admissibility (AC13, AC15, AC16, AC17, AC18) | Whether any real-pull-request review with repository context enabled is recorded; the count of terminally adjudicated pull requests under the current configuration against the agreed minimum; whether the configuration changed; for a claim, whether it is paired — its second arm being the non-publishing control pass AC22 defines — interleaved, under one immutable model version, with equal run counts, and — for a recall claim — whether paired precision evidence with its regression result exists | `fixture_only`, `real_pr_provisional`, or `real_pr_measured` per the transitions above. For a claim: fixture claim permitted at any tier only where AC13's fixture-capability statement admits it; descriptive real-PR claim permitted at `real_pr_provisional` and above; comparative claim permitted at `real_pr_measured` and only with AC15's pairing and, for recall, AC16's precision evidence | Label every published claim with its tier, the independence caveat, and the own-repository label; omit a claim the tier or its own evidence does not admit rather than publishing it hedged; never attribute the guard-fails-open movement already observed under the sweep to repository context (AC18) | Statuses / Enum Values → Evidence tier; AC13; AC15; AC16; AC17; AC18; Use Case 5; Use Case 7 | A comparative recall claim on ten adjudicated pull requests but with the two arms run weeks apart under different model versions is not admissible: the tier permits comparative claims, AC15's interleaving under one immutable model version does not — the recorded sweep comparison failed on exactly this. A fixture whose target has no resolvable surrounding source yields no claim at all, not a zero effect. |
 
 ---
@@ -808,8 +814,12 @@ Each row below is the normative summary for its gate; the prose sites named unde
       the reviewed repository, and reads content from no repository other than the
       reviewed head's own.
 - [ ] AC10: Fork-originated heads behave as follows and are verifiable per
-      ingress: on the reusable-workflow ingress the pass is skipped before any
-      repository content is read, unchanged from today; on the webhook ingress
+      ingress **and trigger**, because today's fork guard is per trigger rather than
+      per ingress: on the reusable-workflow ingress's **automatic** trigger a fork
+      head is skipped before any repository content is read, unchanged from today; on
+      that same ingress's **manual comment** trigger, which runs for a fork pull
+      request today and is scoped by comment access on the base repository rather
+      than by the head's fork origin, and on the webhook ingress,
       repository context for a fork-originated head is governed by the fork switch,
       which can only **withhold** context and can never grant context the global
       switch has not enabled. The switch has two recorded forms, and Open Question 3
@@ -940,7 +950,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
 
 | Brief objective | Acceptance criteria / disposition | Notes |
 | --- | --- | --- |
-| O1: Read-only proof and fork behaviour | AC4, AC5, AC9, AC10, plus the proposed amendment | The amendment keeps "never executes the reviewed repository's code" locked and relaxes only the no-checkout mechanism; AC4 and AC5 require demonstration on a hostile head rather than assertion; AC10 fixes per-ingress fork behaviour and an independent fork switch, so either answer to the open fork question is implementable without re-speccing. |
+| O1: Read-only proof and fork behaviour | AC4, AC5, AC9, AC10, plus the proposed amendment | The amendment keeps "never executes the reviewed repository's code" locked and relaxes only the no-checkout mechanism; AC4 and AC5 require demonstration on a hostile head rather than assertion; AC10 fixes fork behaviour per ingress **and per trigger**, because today's fork guard is per trigger: the reusable-workflow ingress's automatic trigger skips fork heads, while its manual comment trigger runs for them, as the webhook ingress does. The withhold-only fork switch covers every path that reaches review execution for a fork head, so either answer to the open fork question is implementable without re-speccing. |
 | O2: Cost against the recorded figures, and the pass budget | AC8, AC14 | AC8 makes repository context fit inside the pass budget in effect (`pass_timeout_minutes`, default 10, job backstop that plus two) rather than require a larger one; AC14 compares measured passes against the committed 2026-09-23 baseline and the measured dogfood pass, and reports budget exhaustion. Whether the default budget should rise is an open question for the owner. |
 | O3: Symbol selection and context budget | AC3, AC6, AC7, AC20 | Selection resolves the definitions the changed lines depend on and the call sites of what the change defines, in the recorded order defined in **Context Selection Order** — candidates one step from the changed lines only, ordered by kind, then changed-line position, then candidate location, then symbol name, with whole-candidate drops and no mid-excerpt truncation; two budgets bound it, in addition to the existing diff and authoritative-document budgets; the diff is never displaced (AC7), which is the direct answer to the recorded 32,000-token pruning observation; selection is reproducible (AC20). |
 | O4: Webhook path, concurrency and cleanup | AC12, plus the working-area and one-active-job business rules | No added concurrency, cleanup on every settlement path including watchdog abort and startup reconciliation, no working area shared between passes, and a cleanup failure never publishes a second review. |
@@ -991,8 +1001,10 @@ Each row below is the normative summary for its gate; the prose sites named unde
   needs for the three target sub-themes.
 - Per-adopter or per-repository custom selection rules; this iteration ships one
   recorded selection order and operator budgets.
-- Changing the reusable-workflow fork behaviour. Fork heads stay unreviewed on
-  that ingress; the webhook ingress remains the fork-friendly one.
+- Changing which fork heads get reviewed at all. The reusable-workflow ingress's
+  automatic trigger still skips fork heads and its manual comment trigger still runs
+  for them; the webhook ingress remains the fork-friendly one. This feature decides
+  only whether those passes that do run for a fork head may read repository context.
 - An automatic control pass. The non-publishing control pass (AC22) is
   operator-initiated only; no trigger starts one.
 - Raising the default pass budget or the job backstop (see **Open Questions**).
@@ -1039,7 +1051,9 @@ name, and each is stated rather than guessed.
    reads so that repository content reads and a locally materialised,
    never-executed copy are both permitted and identically bounded (Deferral Note
    D2).
-3. **Fork heads on the webhook ingress**: may a pass read fork-head content at
+3. **Fork heads on the paths that reach review execution for them** — the webhook
+   ingress, and the reusable-workflow ingress's manual comment trigger: may a pass
+   read fork-head content at
    all in this iteration, or must repository context be off for fork-originated
    heads until a later item? AC10 requires the switch either way; this question
    decides its default.
