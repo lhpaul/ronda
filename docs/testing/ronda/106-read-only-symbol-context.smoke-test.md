@@ -106,7 +106,7 @@ No design assets exist for this item (the issue body has no `## Design assets` s
 2. Set `RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS=1` and run again.
 3. Note each pass's elapsed time against the pass budget in effect and the job's own `timeout-minutes`.
 
-**Expected result**: Both passes publish exactly one review for the head. Run 1 records `unavailable` with `read_failed` drops; run 2 records `unavailable` when the budget expired before the first candidate resolved, or `partial` when it expired part-way — in which case exactly the resolved prefix of the priority order is retained and the remainder carries `time_budget` drops (plan decision D5). Neither pass fails, neither suppresses the review, and neither exceeds the pass deadline or the job backstop.
+**Expected result**: Both passes publish exactly one review for the head. Run 1 records `unavailable` with `read_failed` drops; run 2 records `unavailable` when the budget expired before the first candidate resolved, or `partial` when it expired part-way — in which case exactly the candidates resolved by then are retained, that being a prefix of the deterministic **read (discovery)** order rather than of the priority order, and the remainder carries `time_budget` drops (plan decision D5). The priority order governs only which *resolved* candidates the count and character budgets keep; it cannot govern the reads, because a candidate's own location is not known until its declaring file has been read. Neither pass fails, neither suppresses the review, and neither exceeds the pass deadline or the job backstop.
 
 ### Step 7: A fork-originated head reads no repository context, at the most permissive configuration
 
