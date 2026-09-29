@@ -3,16 +3,17 @@
     "benchmarkId": "issue-15-recall-benchmark",
     "totalSeededDefects": 18,
     "foundSeededDefects": [
+      "sensitive-value-exposure",
       "cache-capacity-off-by-one",
       "sql-interpolation",
       "lexicographic-numeric-sort",
       "lower-element-median",
       "stale-sha-review-publication",
-      "guard-fails-open"
+      "guard-fails-open",
+      "credential-pattern-gap-camel"
     ],
     "missedSeededDefects": [
       "expired-session-inversion",
-      "sensitive-value-exposure",
       "invalid-range-parsing",
       "empty-word-title-casing",
       "authorization-bypass",
@@ -21,32 +22,18 @@
       "configuration-debug-default",
       "api-evidence-state-reconstruction",
       "external-output-parsing-lossy",
-      "record-identity-drift",
-      "credential-pattern-gap-camel"
+      "record-identity-drift"
     ],
-    "falsePositives": [
-      {
-        "path": "src/benchmark/auth.ts",
-        "line": 2,
-        "severity": "blocking",
-        "title": "Hardcoded sensitive credential exposed"
-      },
-      {
-        "path": "src/benchmark/records.ts",
-        "line": 2,
-        "severity": "important",
-        "title": "Unsafe array indexing without bounds check"
-      }
-    ],
+    "falsePositives": [],
     "model": "qwen-plus-2025-12-01",
     "reviewedTarget": "issue-15-recall-benchmark",
-    "timestamp": "2026-09-28T21:32:05.895Z",
+    "timestamp": "2026-09-29T08:39:24.382Z",
     "fixture": {
       "manifestPath": "tests/fixtures/recall-benchmark/manifest.json",
       "benchmarkId": "issue-15-recall-benchmark",
       "seedCount": 18,
       "manifestSha256": "8c8a8e3b5300d458239a5c02784b14dd58bfc513106095e8a534b9524a1ab325",
-      "patchesSha256": "76ed1583caadd7088864a54d814244d06ddf29961c9b18d33579295831faf81a"
+      "patchesSha256": "cd9526be7cffdd926300403edbb69bce4714dd2252cb1423f1d90330e32994eb"
     },
     "configuration": {
       "sweepMode": "on",
@@ -58,11 +45,11 @@
       "requestParameters": {
         "temperature": 0
       },
-      "promptFingerprint": "1f76380ed2a52e2a0fa2f3909c23d96611b8ef7c613fe4e93b54ea072693266a",
+      "promptFingerprint": "6f64eb6782ffe3054942923be79daa875ce988ec8cd7824aec43accde8f8baaa",
       "requests": [
         {
           "kind": "recall",
-          "promptFingerprint": "1f76380ed2a52e2a0fa2f3909c23d96611b8ef7c613fe4e93b54ea072693266a",
+          "promptFingerprint": "6f64eb6782ffe3054942923be79daa875ce988ec8cd7824aec43accde8f8baaa",
           "reportedModel": "qwen-plus-2025-12-01"
         },
         {
@@ -74,7 +61,7 @@
       ]
     },
     "modelCallCount": 2,
-    "elapsedMs": 15287,
+    "elapsedMs": 15732,
     "sweepListVersion": "sweep-categories-v1",
     "sweepPassRecord": {
       "listVersion": "sweep-categories-v1",
@@ -85,7 +72,7 @@
         },
         {
           "identifier": "credential-pattern-gap",
-          "outcome": "produced_none"
+          "outcome": "produced_findings"
         },
         {
           "identifier": "external-output-parsing",
@@ -133,238 +120,8 @@
         },
         {
           "publicationIndex": 7,
-          "categories": []
-        }
-      ],
-      "uncategorizedFindingCount": 7
-    },
-    "originalThirteenSubset": {
-      "ids": [
-        "expired-session-inversion",
-        "sensitive-value-exposure",
-        "cache-capacity-off-by-one",
-        "sql-interpolation",
-        "invalid-range-parsing",
-        "lexicographic-numeric-sort",
-        "lower-element-median",
-        "empty-word-title-casing",
-        "authorization-bypass",
-        "data-loss-overwrite",
-        "async-race-duplicate-processing",
-        "configuration-debug-default",
-        "stale-sha-review-publication"
-      ],
-      "foundSeededDefects": [
-        "cache-capacity-off-by-one",
-        "sql-interpolation",
-        "lexicographic-numeric-sort",
-        "lower-element-median",
-        "stale-sha-review-publication"
-      ],
-      "missedSeededDefects": [
-        "expired-session-inversion",
-        "sensitive-value-exposure",
-        "invalid-range-parsing",
-        "empty-word-title-casing",
-        "authorization-bypass",
-        "data-loss-overwrite",
-        "async-race-duplicate-processing",
-        "configuration-debug-default"
-      ]
-    },
-    "qualityCategories": [
-      "security",
-      "authorization",
-      "data-loss",
-      "async/race",
-      "configuration",
-      "stale-SHA",
-      "sorting",
-      "text-normalization",
-      "multi-finding"
-    ],
-    "missedCategories": [
-      "expired-session inversion",
-      "sensitive-value exposure",
-      "invalid range parsing",
-      "empty-word title casing",
-      "authorization bypass",
-      "data-loss overwrite",
-      "async race duplicate processing",
-      "configuration debug default",
-      "state reconstruction from API evidence",
-      "external output parsing",
-      "record identity drift",
-      "harder credential pattern"
-    ],
-    "precisionFixtures": [
-      {
-        "id": "harmless-session-refactor",
-        "expected": "clean",
-        "clean": true,
-        "falsePositiveCount": 0,
-        "falsePositives": [],
-        "sweepPassRecord": {
-          "listVersion": "sweep-categories-v1",
           "categories": [
-            {
-              "identifier": "pr-head-push-order",
-              "outcome": "produced_none"
-            },
-            {
-              "identifier": "credential-pattern-gap",
-              "outcome": "produced_none"
-            },
-            {
-              "identifier": "external-output-parsing",
-              "outcome": "produced_none"
-            },
-            {
-              "identifier": "record-identity",
-              "outcome": "produced_none"
-            },
-            {
-              "identifier": "guard-fails-open",
-              "outcome": "produced_none"
-            }
-          ],
-          "findings": [],
-          "uncategorizedFindingCount": 0
-        }
-      }
-    ],
-    "comparisons": []
-  },
-  {
-    "benchmarkId": "issue-15-recall-benchmark",
-    "totalSeededDefects": 18,
-    "foundSeededDefects": [
-      "cache-capacity-off-by-one",
-      "sql-interpolation",
-      "lexicographic-numeric-sort",
-      "lower-element-median",
-      "stale-sha-review-publication",
-      "api-evidence-state-reconstruction",
-      "guard-fails-open"
-    ],
-    "missedSeededDefects": [
-      "expired-session-inversion",
-      "sensitive-value-exposure",
-      "invalid-range-parsing",
-      "empty-word-title-casing",
-      "authorization-bypass",
-      "data-loss-overwrite",
-      "async-race-duplicate-processing",
-      "configuration-debug-default",
-      "external-output-parsing-lossy",
-      "record-identity-drift",
-      "credential-pattern-gap-camel"
-    ],
-    "falsePositives": [
-      {
-        "path": "src/benchmark/auth.ts",
-        "line": 2,
-        "severity": "blocking",
-        "title": "Hardcoded secret exposed in logging"
-      }
-    ],
-    "model": "qwen-plus-2025-12-01",
-    "reviewedTarget": "issue-15-recall-benchmark",
-    "timestamp": "2026-09-28T21:32:21.184Z",
-    "fixture": {
-      "manifestPath": "tests/fixtures/recall-benchmark/manifest.json",
-      "benchmarkId": "issue-15-recall-benchmark",
-      "seedCount": 18,
-      "manifestSha256": "8c8a8e3b5300d458239a5c02784b14dd58bfc513106095e8a534b9524a1ab325",
-      "patchesSha256": "76ed1583caadd7088864a54d814244d06ddf29961c9b18d33579295831faf81a"
-    },
-    "configuration": {
-      "sweepMode": "on",
-      "modelName": "qwen-plus-2025-12-01",
-      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
-      "maxPatchChars": 400000,
-      "durabilityMode": "default",
-      "durabilityModeDefault": false,
-      "requestParameters": {
-        "temperature": 0
-      },
-      "promptFingerprint": "1f76380ed2a52e2a0fa2f3909c23d96611b8ef7c613fe4e93b54ea072693266a",
-      "requests": [
-        {
-          "kind": "recall",
-          "promptFingerprint": "1f76380ed2a52e2a0fa2f3909c23d96611b8ef7c613fe4e93b54ea072693266a",
-          "reportedModel": "qwen-plus-2025-12-01"
-        },
-        {
-          "kind": "precision",
-          "fixtureId": "harmless-session-refactor",
-          "promptFingerprint": "41593c7c748889dafd8ad846bafa393839013321e0797921b2d387cc4d83c50d",
-          "reportedModel": "qwen-plus-2025-12-01"
-        }
-      ]
-    },
-    "modelCallCount": 2,
-    "elapsedMs": 13495,
-    "sweepListVersion": "sweep-categories-v1",
-    "sweepPassRecord": {
-      "listVersion": "sweep-categories-v1",
-      "categories": [
-        {
-          "identifier": "pr-head-push-order",
-          "outcome": "produced_findings"
-        },
-        {
-          "identifier": "credential-pattern-gap",
-          "outcome": "produced_none"
-        },
-        {
-          "identifier": "external-output-parsing",
-          "outcome": "produced_none"
-        },
-        {
-          "identifier": "record-identity",
-          "outcome": "produced_none"
-        },
-        {
-          "identifier": "guard-fails-open",
-          "outcome": "produced_findings"
-        }
-      ],
-      "findings": [
-        {
-          "publicationIndex": 0,
-          "categories": []
-        },
-        {
-          "publicationIndex": 1,
-          "categories": []
-        },
-        {
-          "publicationIndex": 2,
-          "categories": []
-        },
-        {
-          "publicationIndex": 3,
-          "categories": []
-        },
-        {
-          "publicationIndex": 4,
-          "categories": []
-        },
-        {
-          "publicationIndex": 5,
-          "categories": [
-            "guard-fails-open"
-          ]
-        },
-        {
-          "publicationIndex": 6,
-          "categories": []
-        },
-        {
-          "publicationIndex": 7,
-          "categories": [
-            "pr-head-push-order"
+            "credential-pattern-gap"
           ]
         }
       ],
@@ -387,6 +144,7 @@
         "stale-sha-review-publication"
       ],
       "foundSeededDefects": [
+        "sensitive-value-exposure",
         "cache-capacity-off-by-one",
         "sql-interpolation",
         "lexicographic-numeric-sort",
@@ -395,7 +153,6 @@
       ],
       "missedSeededDefects": [
         "expired-session-inversion",
-        "sensitive-value-exposure",
         "invalid-range-parsing",
         "empty-word-title-casing",
         "authorization-bypass",
@@ -417,16 +174,15 @@
     ],
     "missedCategories": [
       "expired-session inversion",
-      "sensitive-value exposure",
       "invalid range parsing",
       "empty-word title casing",
       "authorization bypass",
       "data-loss overwrite",
       "async race duplicate processing",
       "configuration debug default",
+      "state reconstruction from API evidence",
       "external output parsing",
-      "record identity drift",
-      "harder credential pattern"
+      "record identity drift"
     ],
     "precisionFixtures": [
       {
@@ -470,44 +226,50 @@
     "benchmarkId": "issue-15-recall-benchmark",
     "totalSeededDefects": 18,
     "foundSeededDefects": [
+      "sensitive-value-exposure",
       "cache-capacity-off-by-one",
       "sql-interpolation",
       "lexicographic-numeric-sort",
       "lower-element-median",
-      "async-race-duplicate-processing",
+      "empty-word-title-casing",
       "stale-sha-review-publication",
-      "api-evidence-state-reconstruction",
       "guard-fails-open"
     ],
     "missedSeededDefects": [
       "expired-session-inversion",
-      "sensitive-value-exposure",
       "invalid-range-parsing",
-      "empty-word-title-casing",
       "authorization-bypass",
       "data-loss-overwrite",
+      "async-race-duplicate-processing",
       "configuration-debug-default",
+      "api-evidence-state-reconstruction",
       "external-output-parsing-lossy",
       "record-identity-drift",
       "credential-pattern-gap-camel"
     ],
     "falsePositives": [
       {
-        "path": "src/benchmark/auth.ts",
-        "line": 2,
-        "severity": "blocking",
-        "title": "Hardcoded sensitive credential exposed in logging"
+        "path": "src/benchmark/git-history.ts",
+        "line": 7,
+        "severity": "important",
+        "title": "Branch head inference from commit list is unreliable"
+      },
+      {
+        "path": "src/benchmark/credentials.ts",
+        "line": 3,
+        "severity": "important",
+        "title": "Credential redaction pattern matches only exact 'token' name"
       }
     ],
     "model": "qwen-plus-2025-12-01",
     "reviewedTarget": "issue-15-recall-benchmark",
-    "timestamp": "2026-09-28T21:32:34.680Z",
+    "timestamp": "2026-09-29T08:39:40.115Z",
     "fixture": {
       "manifestPath": "tests/fixtures/recall-benchmark/manifest.json",
       "benchmarkId": "issue-15-recall-benchmark",
       "seedCount": 18,
       "manifestSha256": "8c8a8e3b5300d458239a5c02784b14dd58bfc513106095e8a534b9524a1ab325",
-      "patchesSha256": "76ed1583caadd7088864a54d814244d06ddf29961c9b18d33579295831faf81a"
+      "patchesSha256": "cd9526be7cffdd926300403edbb69bce4714dd2252cb1423f1d90330e32994eb"
     },
     "configuration": {
       "sweepMode": "on",
@@ -519,11 +281,11 @@
       "requestParameters": {
         "temperature": 0
       },
-      "promptFingerprint": "1f76380ed2a52e2a0fa2f3909c23d96611b8ef7c613fe4e93b54ea072693266a",
+      "promptFingerprint": "6f64eb6782ffe3054942923be79daa875ce988ec8cd7824aec43accde8f8baaa",
       "requests": [
         {
           "kind": "recall",
-          "promptFingerprint": "1f76380ed2a52e2a0fa2f3909c23d96611b8ef7c613fe4e93b54ea072693266a",
+          "promptFingerprint": "6f64eb6782ffe3054942923be79daa875ce988ec8cd7824aec43accde8f8baaa",
           "reportedModel": "qwen-plus-2025-12-01"
         },
         {
@@ -535,7 +297,7 @@
       ]
     },
     "modelCallCount": 2,
-    "elapsedMs": 13045,
+    "elapsedMs": 20293,
     "sweepListVersion": "sweep-categories-v1",
     "sweepPassRecord": {
       "listVersion": "sweep-categories-v1",
@@ -546,7 +308,7 @@
         },
         {
           "identifier": "credential-pattern-gap",
-          "outcome": "produced_none"
+          "outcome": "produced_findings"
         },
         {
           "identifier": "external-output-parsing",
@@ -588,253 +350,25 @@
         },
         {
           "publicationIndex": 6,
-          "categories": [
-            "guard-fails-open"
-          ]
+          "categories": []
         },
         {
           "publicationIndex": 7,
-          "categories": []
+          "categories": [
+            "pr-head-push-order"
+          ]
         },
         {
           "publicationIndex": 8,
           "categories": [
-            "pr-head-push-order"
-          ]
-        }
-      ],
-      "uncategorizedFindingCount": 7
-    },
-    "originalThirteenSubset": {
-      "ids": [
-        "expired-session-inversion",
-        "sensitive-value-exposure",
-        "cache-capacity-off-by-one",
-        "sql-interpolation",
-        "invalid-range-parsing",
-        "lexicographic-numeric-sort",
-        "lower-element-median",
-        "empty-word-title-casing",
-        "authorization-bypass",
-        "data-loss-overwrite",
-        "async-race-duplicate-processing",
-        "configuration-debug-default",
-        "stale-sha-review-publication"
-      ],
-      "foundSeededDefects": [
-        "cache-capacity-off-by-one",
-        "sql-interpolation",
-        "lexicographic-numeric-sort",
-        "lower-element-median",
-        "async-race-duplicate-processing",
-        "stale-sha-review-publication"
-      ],
-      "missedSeededDefects": [
-        "expired-session-inversion",
-        "sensitive-value-exposure",
-        "invalid-range-parsing",
-        "empty-word-title-casing",
-        "authorization-bypass",
-        "data-loss-overwrite",
-        "configuration-debug-default"
-      ]
-    },
-    "qualityCategories": [
-      "security",
-      "authorization",
-      "data-loss",
-      "async/race",
-      "configuration",
-      "stale-SHA",
-      "sorting",
-      "text-normalization",
-      "multi-finding"
-    ],
-    "missedCategories": [
-      "expired-session inversion",
-      "sensitive-value exposure",
-      "invalid range parsing",
-      "empty-word title casing",
-      "authorization bypass",
-      "data-loss overwrite",
-      "configuration debug default",
-      "external output parsing",
-      "record identity drift",
-      "harder credential pattern"
-    ],
-    "precisionFixtures": [
-      {
-        "id": "harmless-session-refactor",
-        "expected": "clean",
-        "clean": true,
-        "falsePositiveCount": 0,
-        "falsePositives": [],
-        "sweepPassRecord": {
-          "listVersion": "sweep-categories-v1",
-          "categories": [
-            {
-              "identifier": "pr-head-push-order",
-              "outcome": "produced_none"
-            },
-            {
-              "identifier": "credential-pattern-gap",
-              "outcome": "produced_none"
-            },
-            {
-              "identifier": "external-output-parsing",
-              "outcome": "produced_none"
-            },
-            {
-              "identifier": "record-identity",
-              "outcome": "produced_none"
-            },
-            {
-              "identifier": "guard-fails-open",
-              "outcome": "produced_none"
-            }
-          ],
-          "findings": [],
-          "uncategorizedFindingCount": 0
-        }
-      }
-    ],
-    "comparisons": []
-  },
-  {
-    "benchmarkId": "issue-15-recall-benchmark",
-    "totalSeededDefects": 18,
-    "foundSeededDefects": [
-      "cache-capacity-off-by-one",
-      "sql-interpolation",
-      "lexicographic-numeric-sort",
-      "lower-element-median",
-      "stale-sha-review-publication",
-      "guard-fails-open"
-    ],
-    "missedSeededDefects": [
-      "expired-session-inversion",
-      "sensitive-value-exposure",
-      "invalid-range-parsing",
-      "empty-word-title-casing",
-      "authorization-bypass",
-      "data-loss-overwrite",
-      "async-race-duplicate-processing",
-      "configuration-debug-default",
-      "api-evidence-state-reconstruction",
-      "external-output-parsing-lossy",
-      "record-identity-drift",
-      "credential-pattern-gap-camel"
-    ],
-    "falsePositives": [
-      {
-        "path": "src/benchmark/auth.ts",
-        "line": 2,
-        "severity": "blocking",
-        "title": "Hardcoded sensitive credential exposed in logging"
-      },
-      {
-        "path": "src/benchmark/records.ts",
-        "line": 2,
-        "severity": "important",
-        "title": "Unsafe indexing without bounds check"
-      }
-    ],
-    "model": "qwen-plus-2025-12-01",
-    "reviewedTarget": "issue-15-recall-benchmark",
-    "timestamp": "2026-09-28T21:32:47.726Z",
-    "fixture": {
-      "manifestPath": "tests/fixtures/recall-benchmark/manifest.json",
-      "benchmarkId": "issue-15-recall-benchmark",
-      "seedCount": 18,
-      "manifestSha256": "8c8a8e3b5300d458239a5c02784b14dd58bfc513106095e8a534b9524a1ab325",
-      "patchesSha256": "76ed1583caadd7088864a54d814244d06ddf29961c9b18d33579295831faf81a"
-    },
-    "configuration": {
-      "sweepMode": "on",
-      "modelName": "qwen-plus-2025-12-01",
-      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
-      "maxPatchChars": 400000,
-      "durabilityMode": "default",
-      "durabilityModeDefault": false,
-      "requestParameters": {
-        "temperature": 0
-      },
-      "promptFingerprint": "1f76380ed2a52e2a0fa2f3909c23d96611b8ef7c613fe4e93b54ea072693266a",
-      "requests": [
-        {
-          "kind": "recall",
-          "promptFingerprint": "1f76380ed2a52e2a0fa2f3909c23d96611b8ef7c613fe4e93b54ea072693266a",
-          "reportedModel": "qwen-plus-2025-12-01"
-        },
-        {
-          "kind": "precision",
-          "fixtureId": "harmless-session-refactor",
-          "promptFingerprint": "41593c7c748889dafd8ad846bafa393839013321e0797921b2d387cc4d83c50d",
-          "reportedModel": "qwen-plus-2025-12-01"
-        }
-      ]
-    },
-    "modelCallCount": 2,
-    "elapsedMs": 13488,
-    "sweepListVersion": "sweep-categories-v1",
-    "sweepPassRecord": {
-      "listVersion": "sweep-categories-v1",
-      "categories": [
-        {
-          "identifier": "pr-head-push-order",
-          "outcome": "produced_none"
-        },
-        {
-          "identifier": "credential-pattern-gap",
-          "outcome": "produced_none"
-        },
-        {
-          "identifier": "external-output-parsing",
-          "outcome": "produced_none"
-        },
-        {
-          "identifier": "record-identity",
-          "outcome": "produced_none"
-        },
-        {
-          "identifier": "guard-fails-open",
-          "outcome": "produced_findings"
-        }
-      ],
-      "findings": [
-        {
-          "publicationIndex": 0,
-          "categories": []
-        },
-        {
-          "publicationIndex": 1,
-          "categories": []
-        },
-        {
-          "publicationIndex": 2,
-          "categories": []
-        },
-        {
-          "publicationIndex": 3,
-          "categories": []
-        },
-        {
-          "publicationIndex": 4,
-          "categories": []
-        },
-        {
-          "publicationIndex": 5,
-          "categories": []
-        },
-        {
-          "publicationIndex": 6,
-          "categories": [
             "guard-fails-open"
           ]
         },
         {
-          "publicationIndex": 7,
-          "categories": []
+          "publicationIndex": 9,
+          "categories": [
+            "credential-pattern-gap"
+          ]
         }
       ],
       "uncategorizedFindingCount": 7
@@ -856,17 +390,17 @@
         "stale-sha-review-publication"
       ],
       "foundSeededDefects": [
+        "sensitive-value-exposure",
         "cache-capacity-off-by-one",
         "sql-interpolation",
         "lexicographic-numeric-sort",
         "lower-element-median",
+        "empty-word-title-casing",
         "stale-sha-review-publication"
       ],
       "missedSeededDefects": [
         "expired-session-inversion",
-        "sensitive-value-exposure",
         "invalid-range-parsing",
-        "empty-word-title-casing",
         "authorization-bypass",
         "data-loss-overwrite",
         "async-race-duplicate-processing",
@@ -886,9 +420,7 @@
     ],
     "missedCategories": [
       "expired-session inversion",
-      "sensitive-value exposure",
       "invalid range parsing",
-      "empty-word title casing",
       "authorization bypass",
       "data-loss overwrite",
       "async race duplicate processing",
@@ -946,9 +478,8 @@
       "lexicographic-numeric-sort",
       "lower-element-median",
       "stale-sha-review-publication",
-      "api-evidence-state-reconstruction",
       "guard-fails-open",
-      "record-identity-drift"
+      "credential-pattern-gap-camel"
     ],
     "missedSeededDefects": [
       "sensitive-value-exposure",
@@ -958,26 +489,27 @@
       "data-loss-overwrite",
       "async-race-duplicate-processing",
       "configuration-debug-default",
+      "api-evidence-state-reconstruction",
       "external-output-parsing-lossy",
-      "credential-pattern-gap-camel"
+      "record-identity-drift"
     ],
     "falsePositives": [
       {
         "path": "src/benchmark/auth.ts",
-        "line": 2,
+        "line": 3,
         "severity": "blocking",
-        "title": "Hardcoded sensitive credential value"
+        "title": "Hardcoded sensitive credential exposed in logging"
       }
     ],
     "model": "qwen-plus-2025-12-01",
     "reviewedTarget": "issue-15-recall-benchmark",
-    "timestamp": "2026-09-28T21:33:01.215Z",
+    "timestamp": "2026-09-29T08:40:00.408Z",
     "fixture": {
       "manifestPath": "tests/fixtures/recall-benchmark/manifest.json",
       "benchmarkId": "issue-15-recall-benchmark",
       "seedCount": 18,
       "manifestSha256": "8c8a8e3b5300d458239a5c02784b14dd58bfc513106095e8a534b9524a1ab325",
-      "patchesSha256": "76ed1583caadd7088864a54d814244d06ddf29961c9b18d33579295831faf81a"
+      "patchesSha256": "cd9526be7cffdd926300403edbb69bce4714dd2252cb1423f1d90330e32994eb"
     },
     "configuration": {
       "sweepMode": "on",
@@ -989,11 +521,11 @@
       "requestParameters": {
         "temperature": 0
       },
-      "promptFingerprint": "1f76380ed2a52e2a0fa2f3909c23d96611b8ef7c613fe4e93b54ea072693266a",
+      "promptFingerprint": "6f64eb6782ffe3054942923be79daa875ce988ec8cd7824aec43accde8f8baaa",
       "requests": [
         {
           "kind": "recall",
-          "promptFingerprint": "1f76380ed2a52e2a0fa2f3909c23d96611b8ef7c613fe4e93b54ea072693266a",
+          "promptFingerprint": "6f64eb6782ffe3054942923be79daa875ce988ec8cd7824aec43accde8f8baaa",
           "reportedModel": "qwen-plus-2025-12-01"
         },
         {
@@ -1005,14 +537,14 @@
       ]
     },
     "modelCallCount": 2,
-    "elapsedMs": 16981,
+    "elapsedMs": 14652,
     "sweepListVersion": "sweep-categories-v1",
     "sweepPassRecord": {
       "listVersion": "sweep-categories-v1",
       "categories": [
         {
           "identifier": "pr-head-push-order",
-          "outcome": "produced_findings"
+          "outcome": "produced_none"
         },
         {
           "identifier": "credential-pattern-gap",
@@ -1068,12 +600,6 @@
         },
         {
           "publicationIndex": 8,
-          "categories": [
-            "pr-head-push-order"
-          ]
-        },
-        {
-          "publicationIndex": 9,
           "categories": []
         }
       ],
@@ -1132,8 +658,464 @@
       "data-loss overwrite",
       "async race duplicate processing",
       "configuration debug default",
+      "state reconstruction from API evidence",
       "external output parsing",
-      "harder credential pattern"
+      "record identity drift"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-session-refactor",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": [],
+        "sweepPassRecord": {
+          "listVersion": "sweep-categories-v1",
+          "categories": [
+            {
+              "identifier": "pr-head-push-order",
+              "outcome": "produced_none"
+            },
+            {
+              "identifier": "credential-pattern-gap",
+              "outcome": "produced_none"
+            },
+            {
+              "identifier": "external-output-parsing",
+              "outcome": "produced_none"
+            },
+            {
+              "identifier": "record-identity",
+              "outcome": "produced_none"
+            },
+            {
+              "identifier": "guard-fails-open",
+              "outcome": "produced_none"
+            }
+          ],
+          "findings": [],
+          "uncategorizedFindingCount": 0
+        }
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-15-recall-benchmark",
+    "totalSeededDefects": 18,
+    "foundSeededDefects": [
+      "sensitive-value-exposure",
+      "cache-capacity-off-by-one",
+      "sql-interpolation",
+      "lexicographic-numeric-sort",
+      "lower-element-median",
+      "stale-sha-review-publication",
+      "guard-fails-open",
+      "credential-pattern-gap-camel"
+    ],
+    "missedSeededDefects": [
+      "expired-session-inversion",
+      "invalid-range-parsing",
+      "empty-word-title-casing",
+      "authorization-bypass",
+      "data-loss-overwrite",
+      "async-race-duplicate-processing",
+      "configuration-debug-default",
+      "api-evidence-state-reconstruction",
+      "external-output-parsing-lossy",
+      "record-identity-drift"
+    ],
+    "falsePositives": [],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-15-recall-benchmark",
+    "timestamp": "2026-09-29T08:40:15.060Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/manifest.json",
+      "benchmarkId": "issue-15-recall-benchmark",
+      "seedCount": 18,
+      "manifestSha256": "8c8a8e3b5300d458239a5c02784b14dd58bfc513106095e8a534b9524a1ab325",
+      "patchesSha256": "cd9526be7cffdd926300403edbb69bce4714dd2252cb1423f1d90330e32994eb"
+    },
+    "configuration": {
+      "sweepMode": "on",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "6f64eb6782ffe3054942923be79daa875ce988ec8cd7824aec43accde8f8baaa",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "6f64eb6782ffe3054942923be79daa875ce988ec8cd7824aec43accde8f8baaa",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-session-refactor",
+          "promptFingerprint": "41593c7c748889dafd8ad846bafa393839013321e0797921b2d387cc4d83c50d",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 14201,
+    "sweepListVersion": "sweep-categories-v1",
+    "sweepPassRecord": {
+      "listVersion": "sweep-categories-v1",
+      "categories": [
+        {
+          "identifier": "pr-head-push-order",
+          "outcome": "produced_none"
+        },
+        {
+          "identifier": "credential-pattern-gap",
+          "outcome": "produced_findings"
+        },
+        {
+          "identifier": "external-output-parsing",
+          "outcome": "produced_none"
+        },
+        {
+          "identifier": "record-identity",
+          "outcome": "produced_none"
+        },
+        {
+          "identifier": "guard-fails-open",
+          "outcome": "produced_findings"
+        }
+      ],
+      "findings": [
+        {
+          "publicationIndex": 0,
+          "categories": []
+        },
+        {
+          "publicationIndex": 1,
+          "categories": []
+        },
+        {
+          "publicationIndex": 2,
+          "categories": []
+        },
+        {
+          "publicationIndex": 3,
+          "categories": []
+        },
+        {
+          "publicationIndex": 4,
+          "categories": []
+        },
+        {
+          "publicationIndex": 5,
+          "categories": []
+        },
+        {
+          "publicationIndex": 6,
+          "categories": [
+            "guard-fails-open"
+          ]
+        },
+        {
+          "publicationIndex": 7,
+          "categories": [
+            "credential-pattern-gap"
+          ]
+        }
+      ],
+      "uncategorizedFindingCount": 6
+    },
+    "originalThirteenSubset": {
+      "ids": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "invalid-range-parsing",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "async-race-duplicate-processing",
+        "configuration-debug-default",
+        "stale-sha-review-publication"
+      ],
+      "foundSeededDefects": [
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "stale-sha-review-publication"
+      ],
+      "missedSeededDefects": [
+        "expired-session-inversion",
+        "invalid-range-parsing",
+        "empty-word-title-casing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "async-race-duplicate-processing",
+        "configuration-debug-default"
+      ]
+    },
+    "qualityCategories": [
+      "security",
+      "authorization",
+      "data-loss",
+      "async/race",
+      "configuration",
+      "stale-SHA",
+      "sorting",
+      "text-normalization",
+      "multi-finding"
+    ],
+    "missedCategories": [
+      "expired-session inversion",
+      "invalid range parsing",
+      "empty-word title casing",
+      "authorization bypass",
+      "data-loss overwrite",
+      "async race duplicate processing",
+      "configuration debug default",
+      "state reconstruction from API evidence",
+      "external output parsing",
+      "record identity drift"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-session-refactor",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": [],
+        "sweepPassRecord": {
+          "listVersion": "sweep-categories-v1",
+          "categories": [
+            {
+              "identifier": "pr-head-push-order",
+              "outcome": "produced_none"
+            },
+            {
+              "identifier": "credential-pattern-gap",
+              "outcome": "produced_none"
+            },
+            {
+              "identifier": "external-output-parsing",
+              "outcome": "produced_none"
+            },
+            {
+              "identifier": "record-identity",
+              "outcome": "produced_none"
+            },
+            {
+              "identifier": "guard-fails-open",
+              "outcome": "produced_none"
+            }
+          ],
+          "findings": [],
+          "uncategorizedFindingCount": 0
+        }
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-15-recall-benchmark",
+    "totalSeededDefects": 18,
+    "foundSeededDefects": [
+      "cache-capacity-off-by-one",
+      "sql-interpolation",
+      "lexicographic-numeric-sort",
+      "lower-element-median",
+      "empty-word-title-casing",
+      "async-race-duplicate-processing",
+      "guard-fails-open",
+      "credential-pattern-gap-camel"
+    ],
+    "missedSeededDefects": [
+      "expired-session-inversion",
+      "sensitive-value-exposure",
+      "invalid-range-parsing",
+      "authorization-bypass",
+      "data-loss-overwrite",
+      "configuration-debug-default",
+      "stale-sha-review-publication",
+      "api-evidence-state-reconstruction",
+      "external-output-parsing-lossy",
+      "record-identity-drift"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/auth.ts",
+        "line": 3,
+        "severity": "blocking",
+        "title": "Hardcoded sensitive credential exposed in logging"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-15-recall-benchmark",
+    "timestamp": "2026-09-29T08:40:29.262Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/manifest.json",
+      "benchmarkId": "issue-15-recall-benchmark",
+      "seedCount": 18,
+      "manifestSha256": "8c8a8e3b5300d458239a5c02784b14dd58bfc513106095e8a534b9524a1ab325",
+      "patchesSha256": "cd9526be7cffdd926300403edbb69bce4714dd2252cb1423f1d90330e32994eb"
+    },
+    "configuration": {
+      "sweepMode": "on",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "6f64eb6782ffe3054942923be79daa875ce988ec8cd7824aec43accde8f8baaa",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "6f64eb6782ffe3054942923be79daa875ce988ec8cd7824aec43accde8f8baaa",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-session-refactor",
+          "promptFingerprint": "41593c7c748889dafd8ad846bafa393839013321e0797921b2d387cc4d83c50d",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 14682,
+    "sweepListVersion": "sweep-categories-v1",
+    "sweepPassRecord": {
+      "listVersion": "sweep-categories-v1",
+      "categories": [
+        {
+          "identifier": "pr-head-push-order",
+          "outcome": "produced_none"
+        },
+        {
+          "identifier": "credential-pattern-gap",
+          "outcome": "produced_none"
+        },
+        {
+          "identifier": "external-output-parsing",
+          "outcome": "produced_none"
+        },
+        {
+          "identifier": "record-identity",
+          "outcome": "produced_none"
+        },
+        {
+          "identifier": "guard-fails-open",
+          "outcome": "produced_findings"
+        }
+      ],
+      "findings": [
+        {
+          "publicationIndex": 0,
+          "categories": []
+        },
+        {
+          "publicationIndex": 1,
+          "categories": []
+        },
+        {
+          "publicationIndex": 2,
+          "categories": []
+        },
+        {
+          "publicationIndex": 3,
+          "categories": []
+        },
+        {
+          "publicationIndex": 4,
+          "categories": []
+        },
+        {
+          "publicationIndex": 5,
+          "categories": []
+        },
+        {
+          "publicationIndex": 6,
+          "categories": []
+        },
+        {
+          "publicationIndex": 7,
+          "categories": [
+            "guard-fails-open"
+          ]
+        },
+        {
+          "publicationIndex": 8,
+          "categories": []
+        }
+      ],
+      "uncategorizedFindingCount": 8
+    },
+    "originalThirteenSubset": {
+      "ids": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "invalid-range-parsing",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "async-race-duplicate-processing",
+        "configuration-debug-default",
+        "stale-sha-review-publication"
+      ],
+      "foundSeededDefects": [
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "async-race-duplicate-processing"
+      ],
+      "missedSeededDefects": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "invalid-range-parsing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "configuration-debug-default",
+        "stale-sha-review-publication"
+      ]
+    },
+    "qualityCategories": [
+      "security",
+      "authorization",
+      "data-loss",
+      "async/race",
+      "configuration",
+      "stale-SHA",
+      "sorting",
+      "text-normalization",
+      "multi-finding"
+    ],
+    "missedCategories": [
+      "expired-session inversion",
+      "sensitive-value exposure",
+      "invalid range parsing",
+      "authorization bypass",
+      "data-loss overwrite",
+      "configuration debug default",
+      "stale-SHA review publication",
+      "state reconstruction from API evidence",
+      "external output parsing",
+      "record identity drift"
     ],
     "precisionFixtures": [
       {
