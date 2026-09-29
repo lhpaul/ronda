@@ -126,23 +126,46 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   consumption contract states this explicitly so a waiting loop treats
   absence as "not finished yet".
 
-### Diffs are read over the REST API; the reviewed repository is never checked out
+### Repository content is read at the reviewed head; the reviewed repository's code is never executed
 
-- **Context**: v0 receives review requests through either the reusable workflow
-  or the local GitHub App webhook service; checking out the reviewed
-  repository's code would require broader permissions and a second git identity
-  to reason about.
-- **Decision**: `readChangedFiles` reads `GET .../pulls/{number}/files` (the
-  `patch` field) instead of cloning the pull request's branch. The reusable
-  workflow's only checkout is of `lhpaul/ronda` itself, and the webhook service
-  does not perform any checkout.
-- **Consequences**: Ronda never runs the reviewed repository's code, which
-  keeps the manual `/ronda review` comment trigger low-risk even on a fork
-  pull request's comment thread — there is no "pwn request" surface because
-  nothing untrusted is executed. The tradeoff is `src/github/diff-lines.ts`
-  must tolerate every unified-diff edge case GitHub's API can return (see
-  the implementation plan's parser-risk addendum) since there is no local
-  git history to fall back on.
+> **Amended by the repository owner, accepted with changes, 2026-09-29, referencing
+> #106.** This decision replaces "Diffs are read over the REST API; the reviewed
+> repository is never checked out," which bundled two separate commitments: a
+> **safety property** (Ronda never runs the reviewed repository's code) and a
+> **mechanism** (Ronda reads only the diff endpoint and performs no checkout).
+> The amendment keeps the safety property locked, exactly as written, and
+> relaxes the mechanism: it is written over **reads**, not over a mandated
+> checkout, and fork-originated heads are excluded from repository context in
+> this iteration. See `docs/specs/developments/20260929133804_106-read-only-symbol-context/1_106-read-only-symbol-context_specs.md`
+> for the full amendment record, the owner's decision history, and the
+> Decision-gate consistency matrix that governs how this text may change.
+
+- **Context**: A diff cannot show what a value is established by, where else a
+  changed function is called, or whether a guard is reachable. The recorded
+  real-pull-request finding corpus of 2026-09-23 shows that defect shape is the
+  largest single cluster, and the most expensive one to converge.
+- **Decision**: A review pass may **read** repository content at the reviewed
+  head, beyond the pull request's own changed lines, for the purpose of resolving
+  symbols named in those changed lines. This decision is written over the reads,
+  not over a mechanism: it mandates no checkout, and **which mechanism serves the
+  read — a shallow fetch, a repository contents read, or another — stays open** for
+  the implementation plan, bounded by the guarantees and budgets there. Ronda
+  **never executes** any content of the reviewed repository — no build, no
+  dependency install, no test, no script, no hook, no generated tooling — and
+  **never writes** to the reviewed repository or its pull request beyond the one
+  review and check run it already publishes. A **fork-originated head is excluded**
+  from repository context in this iteration: no configuration can enable it.
+- **Consequences**: The comment-trigger and fork paths stay low-risk for the
+  same reason as before — nothing untrusted is executed — and fork heads acquire no
+  new exposure at all this iteration, because they read nothing. On
+  same-repository heads the reviewer can reason about the definitions the changed
+  lines depend on.
+  Repository content becomes untrusted model input that must be budgeted and
+  reported, and every pass must be able to show that it read and never wrote.
+  `readChangedFiles` still reads `GET .../pulls/{number}/files` for the diff
+  itself, unchanged. `src/github/diff-lines.ts` still tolerates every
+  unified-diff edge case GitHub's API can return, since the diff itself is
+  never checked out.
 
 ### Authoritative documentation in review passes
 
