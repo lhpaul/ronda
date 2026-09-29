@@ -100,11 +100,14 @@ export function createOpenAiCompatibleClient(
           "Model API response did not include message content",
         );
       }
-      // Fail closed: a non-conforming endpoint (absent, non-string, or empty
-      // `model`) yields `undefined` and admits no same-version claim — never a
-      // silent backfill from the configured alias.
+      // Fail closed: a non-conforming endpoint (absent, non-string, empty, or
+      // whitespace-only `model`) yields `undefined` and admits no same-version claim
+      // — never a silent backfill from the configured alias. A whitespace-only value
+      // identifies no model, so it is absent, not present.
       const reportedModel =
-        typeof payload.model === "string" && payload.model !== "" ? payload.model : undefined;
+        typeof payload.model === "string" && payload.model.trim() !== ""
+          ? payload.model
+          : undefined;
 
       return reportedModel === undefined ? { content } : { content, reportedModel };
     },

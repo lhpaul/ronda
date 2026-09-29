@@ -28,7 +28,7 @@ test("a response without a usable model field reports no identity", async () => 
   // Fail closed (AC8/AC9): an absent, non-string, or empty `model` is
   // `undefined` rather than a silent backfill from the configured alias, which
   // nothing could distinguish from a genuinely reported identifier.
-  for (const model of [undefined, 7, "", null]) {
+  for (const model of [undefined, 7, "", null, "   ", "\t\n"]) {
     const client = createOpenAiCompatibleClient({
       apiKey: "test-key",
       baseUrl: "https://example.test",
@@ -51,6 +51,30 @@ test("a response without a usable model field reports no identity", async () => 
     assert.equal(completion.content, '{"findings":[]}');
     assert.equal(completion.reportedModel, undefined, `model=${JSON.stringify(model)}`);
   }
+});
+
+test("a valid reported model is preserved exactly, whitespace and all", async () => {
+  const client = createOpenAiCompatibleClient({
+    apiKey: "test-key",
+    baseUrl: "https://example.test",
+    modelName: "configured-alias",
+    fetchImpl: async () =>
+      new Response(
+        JSON.stringify({
+          model: " qwen-plus-2025-12-01 ",
+          choices: [{ message: { content: '{"findings":[]}' } }],
+        }),
+        { status: 200 },
+      ),
+  });
+
+  const completion = await client.complete(
+    { systemPrompt: "sys", userPrompt: "user" },
+    new AbortController().signal,
+  );
+
+  // A padded identifier is still an identifier, so it is reported as it came.
+  assert.equal(completion.reportedModel, " qwen-plus-2025-12-01 ");
 });
 
 test("the request fixes temperature at zero to reduce same-head variance", async () => {

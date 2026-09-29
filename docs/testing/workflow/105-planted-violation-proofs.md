@@ -581,3 +581,19 @@ permissions do not restrict the user). Each plant is restored and the file repor
 | P65 | keep the rename out: write the temporary file, then write the target too (`src/cli/recall-benchmark.ts:733`) | test line 1083, `assert.deepEqual(readdirSync(directory), ["campaign.json"])` | no temporary file is left behind |
 | P66 | truncate the content written to the temporary file (`src/cli/recall-benchmark.ts:733`) | test line 1082, `assert.doesNotThrow(() => JSON.parse(…))`; every other campaign test that parses the output also fails | the written file is the whole record |
 | P67 | overwrite the target with `"corrupted"` before the temporary write, which then fails in the read-only directory (`src/cli/recall-benchmark.ts:730`) | test line 1110, `assert.equal(readFileSync(target, "utf8"), "previous evidence")`; the rejection assertion above it stays green | a failed write leaves the previous evidence intact |
+
+## P68–P69 — a whitespace-only model identifier counts as a reported identity
+
+The client records the endpoint's `model` as `reportedModel`, which the campaign
+evidence reads as the identity of the model that answered; an absent value takes the
+fail-closed path and admits no same-version claim. A whitespace-only `model`
+identifies no model, so it is treated as absent, while a valid identifier is reported
+exactly as it came. Two tests hold it: `a response without a usable model field
+reports no identity`, which now also walks `"   "` and `"\t\n"`, and `a valid
+reported model is preserved exactly, whitespace and all`. Each plant is restored and
+the file reports `ℹ pass 10`, `ℹ fail 0`.
+
+| Proof | Plant in `src/inference/openai-compatible-client.ts` | Fails | Isolates |
+| --- | --- | --- | --- |
+| P68 | replace `payload.model.trim() !== ""` with `payload.model !== ""` (`src/inference/openai-compatible-client.ts:108`) | `tests/unit/inference/openai-compatible-client.test.ts` line 52, `assert.equal(completion.reportedModel, undefined, …)` for the whitespace-only value | a whitespace-only `model` is absent |
+| P69 | replace `? payload.model` with `? payload.model.trim()` (`src/inference/openai-compatible-client.ts:109`) | the same file, line 77, `assert.equal(completion.reportedModel, " qwen-plus-2025-12-01 ")` | a valid identifier is reported as it came |
