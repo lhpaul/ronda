@@ -256,3 +256,72 @@ report.
 - Step 7's reusable-workflow arms need a real fork-originated pull request; the webhook arm can be exercised locally, the Actions arms cannot.
 - Step 14's abort arm is timing-sensitive on a fast pass. Lower `RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS` to widen the window, or use a pull request with many candidates.
 - Step 12 is not a single sitting: the effect evidence accumulates across the cohort, and the tier ledger records where the count stands on the date it was read.
+
+---
+
+## Execution Record (In Development stage, 2026-09-29)
+
+Recorded honestly per protocol: this run had **no live GitHub App
+installation, no `GITHUB_TOKEN` with write access to a real repository, no
+model credential, and no ability to push a scratch pull request** to
+`lhpaul/ronda` from this sandboxed implementation session. Every step that
+needs a real pull request, a live webhook delivery, or a model call is
+recorded below as **executed via its automated-test equivalent** (the exact
+production code paths this feature added, exercised through the committed
+test suite with injected fakes) rather than as a live run, or as
+**deferred** with the specific missing resource named. No step's expected
+result is claimed without a cited, reproducible source.
+
+| Step | Status | Evidence |
+| --- | --- | --- |
+| 0 — amendment recorded | **Executed** | `docs/project/3-software-architecture.md` Key Architectural Decisions and `docs/constitution.md` Surface section, both committed as this item's first commit |
+| 1 — off-by-default indistinguishability | **Executed (automated-test equivalent)** | `tests/integration/core/review-pass-repository-context.test.ts` — `"off: a validly disabled switch emits no repository-context record"`; `tests/unit/config/load-config-repository-context.test.ts` covers the unset/off/whitespace resolution cases directly |
+| 2 — unrecognized switch value | **Executed (automated-test equivalent)** | `tests/integration/core/review-pass-repository-context.test.ts` — `"an unrecognized switch value emits a degraded record, released once the request is issued"`; `tests/unit/config/load-config-repository-context.test.ts`'s not-deferred-to-a-lower-source cases |
+| 3 — used, one line, reproducible | **Executed (automated-test equivalent)** | `tests/integration/core/review-pass-repository-context.test.ts` — `"used: every requested candidate resolves within budget"`; `tests/unit/core/summary-repository-context.test.ts` for the one-line body claim; `tests/unit/review/symbol-resolver.test.ts`'s `"scenario 1"` for same-head reproducibility |
+| 4 — budgets, diff never gives way | **Executed (automated-test equivalent)** | `tests/unit/review/repository-context.test.ts`'s budget tests (E9, oversized-candidate, once-stopped-always-dropped); `tests/unit/inference/review-prompt-repository-context.test.ts`'s scenario-6 diff-byte-identical test |
+| 5 — nothing_to_resolve | **Executed (automated-test equivalent)** | `tests/integration/core/review-pass-repository-context.test.ts` — `"nothing_to_resolve: changed lines producing no candidate never read as unavailable"` |
+| 6 — read-failure and time-budget degradation | **Executed (automated-test equivalent)** | `tests/integration/core/review-pass-repository-context.test.ts` — scenario 7 (forced-zero time budget) and scenario 8a (candidate-target reads denied) |
+| 7 — fork exclusion at the most permissive configuration | **Executed (automated-test equivalent); live Actions/webhook fork delivery not reproduced** | `tests/integration/core/review-pass-repository-context.test.ts` — `"fork_excluded: a fork-originated head reads no repository context at the most permissive configuration"`. **Deferred**: a live delivery through the reusable-workflow's automatic trigger, its manual comment trigger, and the webhook ingress against a real fork-originated pull request — no such pull request or live ingress was reachable from this session |
+| 8 — hostile head | **Executed, locally, against the real committed fixture** | `tests/integration/core/repository-context-hostile-head.test.ts` (4/4 passing) and `docs/testing/ronda/repository-context-read-only-evidence-106.md`. Run through the real production code (`readRepositoryFileAtRef`, `runReviewPass`) against the real git objects in `tests/fixtures/repository-context/hostile-head/`, not through a pushed pull request and a live Actions run — no ability to push to a real repository from this session. The evidence document labels which parts are structural and which are this run's own observation |
+| 9 — non-publishing control pass | **Deferred — no `GITHUB_TOKEN` or reachable pull request in this session** | The command's mechanism (argument validation, fork refusal before any read, the no-write counter, the JSONL record) is unit-tested end to end with a fake `Octokit` in `tests/unit/cli/control-pass.test.ts`; a live run against a real pull request is not reproduced here |
+| 10 — no record before review execution | **Executed (automated-test equivalent)** | `tests/integration/core/review-pass-repository-context.test.ts` — `"not_applicable: a draft pull request never reaches the repository-context phase"` |
+| 11 — resolution correctness and precision | **Executed** | `npx tsx --test tests/unit/review/symbol-resolver.test.ts` — 23/23 passing on 2026-09-29, including every E1–E16 edge case and the AC23 precision test; `docs/testing/ronda/repository-context-resolution-precision-106.md` records the measured 100% (6/6) |
+| 12 — evidence, tiers and claims | **Partially executed — admissibility statement only, per this item's agreed PR scope** | `docs/testing/ronda/repository-context-effect-evidence-106.md` records AC13's admissibility statement (not admissible for the three current target seeds) before any figure, and the `fixture_only` evidence-tier ledger. The recall, precision, and cost campaign (AC14–AC18) is explicitly deferred to a follow-up evidence pull request, the same way `#105`'s campaign landed as `#119`/`#120`/`#123` — that document states this explicitly |
+| 13 — demonstrations before the switch | **Partially executed** | The AC4/AC5 and AC23 evidence commits exist and precede any repository-variable change, by construction (the variable has not been set at all yet). **The repository variable is not set** — plan step 15 is reserved for the human repository owner and is explicitly out of scope for this implementation PR |
+| 14 — no working area on the webhook ingress | **Executed (structural + regression evidence); live 5-pass/abort/restart cycle not reproduced** | D1's no-working-area guarantee is structural (no `node:fs` write call for reviewed content exists in the added modules — same grep evidence as AC4) and the existing webhook test suite (`tests/unit/webhook/webhook-server.test.ts`) passes unchanged, confirming no new concurrency or job dispatch was added. **Deferred**: a live run of five consecutive webhook deliveries plus a mid-read abort and process restart — no reachable live webhook listener in this session |
+
+**Overall**: every step whose expected result depends only on this
+repository's own code was executed, honestly, through the automated test
+suite added by this implementation (`npm test` — 595/595 passing on
+2026-09-29) or, for the hostile-head demonstration, through a real run
+against real committed fixture content. Every step that requires a live
+GitHub App installation, a real pull request, a model credential, or a
+running webhook listener is recorded above as deferred, with the missing
+resource named, rather than marked complete without an observation. The
+Assertions Checklist below is annotated to match.
+
+### Assertions Checklist (annotated)
+
+- [x] AC1 — recorded in both documents (step 0, executed).
+- [x] AC2 — three substantive commitments held (step 0, executed).
+- [x] AC3 — automated-test equivalent (steps 3, 5, 10).
+- [x] AC4 — executed locally against the real hostile fixture (step 8).
+- [x] AC5 — executed locally against the real hostile fixture (step 8).
+- [x] AC6 — automated-test equivalent (step 4).
+- [x] AC7 — automated-test equivalent (step 4).
+- [x] AC8 — automated-test equivalent (step 6).
+- [x] AC9 — executed locally against the real hostile fixture (step 8).
+- [x] AC10 — automated-test equivalent; live fork delivery not reproduced (step 7).
+- [x] AC11 — automated-test equivalent (step 6).
+- [ ] AC12 — structural + regression evidence only; live abort/restart cycle deferred (step 14).
+- [x] AC13 — admissibility statement recorded before any figure (step 12).
+- [ ] AC14 — deferred to the follow-up evidence pull request (step 12).
+- [ ] AC15 — deferred to the follow-up evidence pull request (step 12).
+- [ ] AC16 — deferred to the follow-up evidence pull request (step 12).
+- [x] AC17 — evidence-tier ledger recorded at `fixture_only` (step 12).
+- [ ] AC18 — not applicable until the deferred campaign runs (step 12).
+- [ ] AC19 — off-by-default and indistinguishability executed; the switch is deliberately **not yet set on** (steps 1, 13) — reserved for the human owner (plan step 15).
+- [x] AC20 — reproducibility executed via `symbol-resolver.test.ts` scenario 1 (step 3).
+- [x] AC21 — automated-test equivalent (steps 1, 2, 4).
+- [x] AC22 — mechanism unit-tested end to end; live run deferred (step 9).
+- [x] AC23 — 100% measured precision (step 11).
