@@ -140,14 +140,17 @@ work" in AC1 therefore means before any work other than that recording itself.
 - The pass wrote nothing to the reviewed repository other than that review and
   its check run.
 - The repository-context outcome for the pass is Repository context used,
-  partial, or unavailable, per **Statuses / Enum Values**.
+  partial, unavailable, or nothing to resolve, per **Statuses / Enum Values**.
 
 **Information shown**:
 
 - The review summary — which is part of the published review body — states only
   that repository context was active for the pass and the pass's outcome
-  (Repository context used, partial, or unavailable), in the same one-line form
-  existing review-mode activation already takes.
+  (Repository context used, partial, unavailable, or nothing to resolve), in the
+  same one-line form existing review-mode activation already takes. A pass whose
+  changed lines name nothing to resolve — a documentation-only change, for example —
+  says so, rather than reporting context as unavailable, so the everyday case never
+  reads as a failure.
 - The counts, the identifiers of what was read, the drops and their reasons, and
   the budget utilisation are **not** in the review. They are on the check-run
   output and the logs, as the per-pass repository-context record.
@@ -223,7 +226,11 @@ work" in AC1 therefore means before any work other than that recording itself.
 1. The operator runs a pass over a pull request head that is deliberately hostile
    in the ways a reviewed repository can be: it carries content that would run
    something if any build, install, test, hook, or generated tooling were
-   invoked, and content designed to be read as instructions rather than as code.
+   invoked; content that attacks the *read* itself — a symbolic link pointing
+   outside the reviewed repository, a submodule reference to another repository, and
+   repository attribute configuration that names a filter or driver to run when
+   content is materialised; and content designed to be read as instructions rather
+   than as code.
 2. The operator reads the recorded demonstration evidence for that pass.
 
 **Postconditions**:
@@ -510,7 +517,9 @@ repository.
   ingress, for any head, fork or not.
 - Content read from the reviewed repository is untrusted data. It never becomes
   an instruction to Ronda, never changes Ronda's output contract, and never
-  causes Ronda to read anything outside the reviewed head's own repository.
+  causes Ronda to read anything outside the reviewed head's own repository — a
+  symbolic link out of the repository is not followed, a submodule reference is not
+  fetched, and attribute configuration naming a filter or driver runs nothing.
 - Repository context is **off by default for every adopting repository** and is
   enabled by operator configuration, resolved where Ronda's other operator switches
   are resolved: the workflow input on the reusable-workflow ingress, and the one
@@ -524,6 +533,10 @@ repository.
   hardcoding it, so turning the feature off here is a single change in repository
   settings. Off-by-default for adopters and on-for-this-repository are the same
   switch with different values, not two mechanisms.
+- **The demonstrations come before the switch.** This repository's value is set on
+  only after the read-only demonstrations (AC4, AC5) and the resolution-correctness
+  evidence (AC23) are committed. Until then it stays off here too, so no real pull
+  request is reviewed with repository context on an undemonstrated guarantee.
 - Repository context is **same-repository heads only** this iteration. A
   fork-originated head that reaches review execution — on the webhook ingress, or on
   the reusable-workflow ingress's manual comment trigger, whose existing fork guard
@@ -580,6 +593,10 @@ repository.
   context. When budgets conflict, repository context is what gives way.
 - Repository-context selection for the same head and the same configuration is
   reproducible, so an operator can answer "why did Ronda not see that?".
+- A resolved candidate is the declaration, or the call site, that the reviewed
+  language's own compiler or type checker binds the reference to. A reference that
+  cannot be bound to exactly one declaration is dropped as an ambiguous resolution,
+  never guessed (AC23).
 - A repository-context read that fails, is unavailable, or is refused never fails
   the pass and never suppresses the review the pass would otherwise publish. The
   pass degrades to the context it has and records the outcome.
@@ -659,6 +676,20 @@ Nothing transitive is a candidate. The definition of a symbol that only a
 iteration (see **Out of Scope (MVP)**), so the candidate set is bounded by the
 changed lines alone.
 
+**Resolution correctness.** A candidate is only useful if it is the *right* excerpt.
+A depended-on definition must be the declaration the reviewed language's own
+compiler or type checker would bind that reference to — not another declaration
+that merely shares the name, such as a same-named method on a different type, a
+shadowed local, or an unrelated export — and a call site must be a place that the
+same resolution binds to the changed symbol. Where a reference cannot be bound to
+exactly one declaration, the candidate is **dropped with the reason "ambiguous
+resolution"**, never guessed. A reproducibly wrong excerpt is worse than none: it
+hands the model confident, false evidence, which is the very defect shape this
+feature exists to catch. How references are bound — a compiler or type-checker
+resolver, a language server, or textual search — is the implementation plan's
+choice, but it is a **recorded plan decision with a measured precision figure**
+(AC23), not an implementation detail, because it decides the feature's value.
+
 **Priority.** Candidates are ordered by these keys, each applied only to break a
 tie in the one before it, so the order is total and the same every time:
 
@@ -678,8 +709,9 @@ tie in the one before it, so the order is total and the same every time:
 
 **Dropping.** Candidates are taken in that order until the candidate count budget or
 the character budget would be exceeded. Everything not taken is dropped whole —
-never truncated mid-excerpt — and each drop is recorded with its reason: symbol
-count budget, character budget, time budget, or read did not succeed. A single
+never truncated mid-excerpt — and each drop is recorded with its reason: candidate
+count budget, character budget, time budget, read did not succeed, or ambiguous
+resolution. A single
 candidate that alone exceeds the character budget is dropped and recorded, not
 truncated.
 
@@ -693,7 +725,7 @@ reads complete, or anything else that can vary between passes (AC20).
 
 ### Repository-context pass outcome
 
-Three outcomes are recorded on a pass's surfaces, and three name the cases where
+Four outcomes are recorded on a pass's surfaces, and three name the cases where
 **no record is emitted at all**. The distinction matters because AC19 requires a
 pass with the feature disabled to be indistinguishable from the same pass in a
 version without the feature, which a recorded "off" value would defeat, and AC10
@@ -703,7 +735,8 @@ requires the same invisibility for a fork-originated head.
 | --- | --- | --- | --- |
 | `used` | Repository context used | Yes | At least one candidate was requested and every requested candidate was resolved within budget. |
 | `partial` | Repository context partial | Yes | Some requested candidates were resolved and others were dropped, because a budget was reached, the time budget was exhausted, or an individual read did not succeed. |
-| `unavailable` | Repository context unavailable | Yes | Repository context was enabled but no candidate was resolved for the pass — whether because every read failed, every candidate was dropped by a budget, or the changed lines produced no candidate at all. The record's requested count distinguishes those cases: a count of zero means there was nothing to resolve, a positive count means resolution did not succeed. |
+| `unavailable` | Repository context unavailable | Yes | Repository context was enabled and at least one candidate was requested, but none was resolved for the pass — because every read failed, every candidate was dropped by a budget, or the context time budget ran out first. |
+| `nothing_to_resolve` | Repository context: nothing to resolve | Yes | Repository context was enabled but the changed lines produced no candidate — a documentation-only or configuration-only change, for example. Nothing was requested, so nothing failed; this is the everyday case for such a change and must never read as a failure. |
 | `off` | Repository context off | No | Repository context was not enabled for the pass. No candidates were requested, and no repository-context record, activation statement, or budget figure appears on any surface (AC19). |
 | `fork_excluded` | Repository context excluded (fork head) | No | The reviewed head is fork-originated, so repository context is excluded whatever the switch says (AC10). The pass reviews the head exactly as it does today; no repository-context record, activation statement, or budget figure appears on any surface, so the feature is invisible on this path. |
 | `not_applicable` | Repository context not applicable | No | The pass ended before review execution — a draft pull request, or an automatic run that found the head's existing check run — so no context was requested and no outcome is owed. No record appears on any surface. |
@@ -715,11 +748,12 @@ reviewed head is fork-originated is `fork_excluded`, **whatever the switch is se
 to** — this test precedes the switch, which is what makes the exclusion fixed rather
 than configurable (AC10). A pass on a same-repository head that reaches review
 execution with the feature disabled is `off`. A pass on a same-repository head that
-reaches review execution with it enabled is `used`, `partial`, or
-`unavailable` according to how many requested candidates were resolved: all of
-them, some of them, none of them. The zero-candidate case — the changed lines
-produce no candidate — resolves to `unavailable`, not `used`: `used` requires at
-least one candidate, so the two readings of "all of zero" cannot both apply.
+reaches review execution with it enabled and whose changed lines produce no
+candidate is `nothing_to_resolve`. Otherwise — at least one candidate requested — it
+is `used`, `partial`, or `unavailable` according to how many requested candidates
+were resolved: all of them, some of them, none of them. Because the zero-candidate
+case has its own value, "all of zero" never has to be read as either `used` or
+`unavailable`.
 
 ### Evidence tier
 
@@ -760,7 +794,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
 | --- | --- | --- | --- | --- | --- |
 | Amendment recording (AC1, AC2) | The owner's decision, which is **accepted with changes, 2026-09-29**; whether the text has been written into the Key Architectural Decisions section of `docs/project/3-software-architecture.md`; whether that recorded text matches the three substantive commitments of the text in this spec | Not yet recorded; recorded and matching; recorded but weakening one of the three commitments | Not yet recorded: record it as the first implementation step, before any capability work. Recorded and matching: implementation proceeds against it. Recorded but weakening reads-only-with-mechanism-open, never-executed, or the fork exclusion: stop — that is a new owner decision, not an implementation choice, and nothing may be built against it until the new decision is recorded (AC2) | Amendment section, including **Where the decision is recorded**; AC1; AC2; the closing business rule; Recorded Decisions | A recorded text that permits reading a fork head's content, or that names one mechanism as mandatory, weakens a commitment the owner accepted and stops the item for a fresh decision rather than being absorbed as an implementation detail. |
 | Configuration resolution (AC19, AC21) | The repository-context switch value, read from the highest-precedence source that supplies a non-empty value, and separately each of the three budget values (candidate count, character budget, context time budget) over the same sources. The fork exclusion is not a configuration value and is not resolved here (AC10) | Off — absent, empty, or whitespace-only at both sources (nothing recorded); Off — a recognised off value (nothing recorded); Off — a non-empty unrecognised value (record that a value was unrecognised, without the raw value); On — a recognised on value | Every off outcome runs the ordinary review with no repository context and no record, except that the unrecognised case additionally records that a value was unrecognised; on: proceed to candidate selection for a same-repository head, and read nothing for a fork-originated head (AC10). A budget that is absent or unusable falls back to its recorded default, records the fallback, and never becomes unlimited | Business rules on the four configuration values, on switch and budget resolution, on the fork exclusion, and on this repository's dogfooding value; AC19; AC21; AC10; the fork-behaviour row below | An empty value at a higher-precedence source defers to the next source rather than forcing off. A non-empty unrecognised value at a higher-precedence source is the effective value and is not replaced by a recognised value below it. The global switch set on, at this repository's own on-value, still leaves a fork-originated head with no repository context. A character budget set to `many` is unusable, so the recorded default applies and the fallback is recorded — it does not become unlimited. |
-| Repository-context outcome resolution (AC3, AC10, AC11, AC19) | Whether the pass reached review execution; whether the reviewed head is fork-originated; whether the feature was enabled; how many requested candidates were resolved. The tests apply in that order, so an earlier one wins | Not applicable — did not reach review execution (no record); Repository context excluded (fork head) — the head is fork-originated, whatever the switch says (no record); Off — same-repository head, reached review execution, validly disabled (no record); Used — at least one candidate requested and all resolved; Partial — some resolved; Unavailable — none resolved, including the zero-candidate case, which is Unavailable and never Used | The **per-pass record** for the three recorded outcomes is always written to the logs, and additionally to the check-run output where the pass's own check-run write produced a check run whose outcome is a review. That record — the counts, the identifiers of what was read, the drops and their reasons, and the budget utilisation — is never written to the review body. The review body carries exactly one thing about repository context: the summary's activation statement naming the outcome value, and nothing more (AC3). The two unrecorded outcomes write nothing anywhere, in the review body or out of it | Statuses / Enum Values → Repository-context pass outcome; AC3; AC10; AC11; AC19; Use Case 1 steps 1 and 6; Use Case 4 | A draft pull request is Not applicable and writes nothing, so it is indistinguishable from the same skip with the feature absent. A pass whose every read is denied is Unavailable and still publishes its review. A pass whose changed lines name no resolvable symbol is Unavailable with a requested count of zero, which is how it is told apart from a pass whose reads failed. A fork head with the switch on is Repository context excluded (fork head), not Used and not Off, and writes no record at all. |
+| Repository-context outcome resolution (AC3, AC10, AC11, AC19) | Whether the pass reached review execution; whether the reviewed head is fork-originated; whether the feature was enabled; how many requested candidates were resolved. The tests apply in that order, so an earlier one wins | Not applicable — did not reach review execution (no record); Repository context excluded (fork head) — the head is fork-originated, whatever the switch says (no record); Off — same-repository head, reached review execution, validly disabled (no record); Nothing to resolve — enabled, but the changed lines produced no candidate; Used — at least one candidate requested and all resolved; Partial — some resolved; Unavailable — at least one requested and none resolved | The **per-pass record** for the four recorded outcomes is always written to the logs, and additionally to the check-run output where the pass's own check-run write produced a check run whose outcome is a review. That record — the counts, the identifiers of what was read, the drops and their reasons, and the budget utilisation — is never written to the review body. The review body carries exactly one thing about repository context: the summary's activation statement naming the outcome value, and nothing more (AC3). The two unrecorded outcomes write nothing anywhere, in the review body or out of it | Statuses / Enum Values → Repository-context pass outcome; AC3; AC10; AC11; AC19; Use Case 1 steps 1 and 6; Use Case 4 | A draft pull request is Not applicable and writes nothing, so it is indistinguishable from the same skip with the feature absent. A pass whose every read is denied is Unavailable and still publishes its review. A documentation-only pass whose changed lines produce no candidate is Nothing to resolve, not Unavailable, so it is told apart from a pass whose reads failed by its outcome rather than by a count. A fork head with the switch on is Repository context excluded (fork head), not Used and not Off, and writes no record at all. |
 | Budget conflict resolution (AC6, AC7) | The candidate count budget; the character budget; the existing diff budget; the authoritative-document budgets; how much context the selection rules requested | Within every budget — all requested context retained; over a context budget — lower-priority repository context dropped by the recorded selection order, with the drops recorded; the diff would have to give way — not permitted | Retain the diff in full, drop repository context, record every drop and its reason, and record the outcome as Partial — or Unavailable where every candidate was dropped and none resolved, which the budgets alone can cause | Business rules on budgets and on the diff never giving way; AC6; AC7; Use Case 2 | A change naming more candidates than the count budget allows drops the lowest-priority candidates and records Partial. A character budget too small for even the first candidate drops every candidate and records Unavailable, not Partial. A budget setting large enough that repository context would displace the diff is resolved by dropping context, never by truncating the diff — the recorded reviewer that reached a token limit and pruned the diff published nothing, which is the failure this row forbids. |
 | Context time budget exhaustion (AC8) | The context time budget; the pass budget in effect; whether the time budget was exhausted before selection finished | Not exhausted — proceed with the full selection; exhausted — proceed with the context already gathered | Proceed to review execution, publish the review, record Partial or Unavailable, and never extend the pass deadline or the job backstop | Business rule on the context time budget; AC8; Use Case 6 | A time budget forced low enough to be exhausted before any candidate resolves records Unavailable and still publishes one review for the head. |
 | Fork-head behaviour per ingress and trigger (AC10) | The ingress; the trigger (automatic or manual comment); whether the reviewed head belongs to a fork; the resolved global switch. The fork exclusion itself takes no input — it is fixed this iteration | Reusable-workflow ingress, automatic trigger, fork head — the pass is skipped before any repository content is read, unchanged from today; reusable-workflow ingress, manual comment trigger, fork head, or webhook ingress, fork head — the pass reviews the head exactly as today and reads no repository context, whatever the global switch says; non-fork head — the global switch alone decides | Publish a review exactly as today in every case where a review is published, read no repository context for any fork head, and emit no repository-context record for one | AC9; AC10; Use Case 4; the same-repository-only and never-executed business rules | A fork head on the webhook ingress still receives its ordinary review; only the repository context is withheld, the outcome is Repository context excluded (fork head), and no repository-context record is written. There is no configuration that changes this row's fork outcomes, which is what AC10 makes verifiable. |
@@ -819,15 +853,16 @@ Each row below is the normative summary for its gate; the prose sites named unde
       mechanism left open, the reviewed repository's code never executed, and
       fork-originated heads excluded. A recorded text that weakens any of the three
       is a **new owner decision**, not an implementation choice, and none of AC3 to
-      AC22 may be built against it until that decision is itself recorded.
+      AC23 may be built against it until that decision is itself recorded.
 - [ ] AC3: With the amendment accepted and repository context enabled, a review
       pass that reaches review execution requests the candidates the selection
       rules produce for the changed lines and resolves them at the reviewed head
-      as far as the budgets allow and the reads succeed — a pass that requests **at
-      least one** candidate and resolves every one of them is `used`, one that
+      as far as the budgets allow and the reads succeed — a pass whose selection
+      rules produce no candidate is `nothing_to_resolve`; of passes that request **at
+      least one** candidate, one that resolves every one of them is `used`, one that
       resolves some **but not all** is `partial`, and one that resolves none is
-      `unavailable`, which includes the zero-candidate case where the selection rules
-      produced nothing to request, all three governed by AC6, AC8, and AC11 — and its check-run output — where that pass's own
+      `unavailable`, the last three governed by AC6, AC8, and AC11 — and its check-run
+      output — where that pass's own
       check-run write produced a check run whose outcome is a review — and its logs
       each state the pass's repository-context outcome, the candidates requested, the
       candidates resolved, and the budget utilisation. Where no such check run exists,
@@ -839,7 +874,12 @@ Each row below is the normative summary for its gate; the prose sites named unde
       pass reviews a head whose content would execute something if any build,
       install, test, hook, or generated tooling were invoked, and the evidence
       shows nothing of the reviewed repository was executed and nothing was written
-      to it beyond the one review and its check run. The evidence names the version
+      to it beyond the one review and its check run. The same demonstration covers
+      the attacks on the read itself, whatever mechanism the plan chooses: a
+      symbolic link pointing outside the reviewed repository is not followed and
+      nothing outside the repository is read through it; a submodule reference is not
+      fetched and no other repository is read through it; and repository attribute
+      configuration naming a filter or driver causes nothing to run. The evidence names the version
       and date it was observed on and labels which parts are structural and which
       observational. An assertion without such an observation does not satisfy this
       criterion.
@@ -869,7 +909,9 @@ Each row below is the normative summary for its gate; the prose sites named unde
 - [ ] AC9: Repository content read by a pass never changes Ronda's output
       contract: the pass publishes one review for the head, writes nothing else to
       the reviewed repository, and reads content from no repository other than the
-      reviewed head's own.
+      reviewed head's own — including through a symbolic link or a submodule
+      reference carried by that head (AC4) — and from nothing outside that
+      repository's own content.
 - [ ] AC10: **A fork-originated head never receives repository context in this
       iteration.** The owner decided on 2026-09-29 that repository context is
       same-repository heads only, so the fork exclusion is **fixed**: it is not an
@@ -947,7 +989,10 @@ Each row below is the normative summary for its gate; the prose sites named unde
 - [ ] AC19: Repository context is **off by default for an adopting repository**,
       and **on for this repository's own dogfooding**, both being the same switch at
       different values, supplied so the owner can change this repository's value from
-      repository settings without editing a workflow or redeploying. A version with
+      repository settings without editing a workflow or redeploying. This
+      repository's value is set on only after the AC4, AC5, and AC23 evidence is
+      committed, verifiable from the order of the evidence commits and the
+      repository setting's change. A version with
       the feature present but **validly** disabled — the switch absent, or set to a recognised
       off value — produces reviews, check runs, skips, supersedes, and failure paths
       indistinguishable from the same version with the feature absent, and records
@@ -982,6 +1027,17 @@ Each row below is the normative summary for its gate; the prose sites named unde
       review and one check run, both from the original pass, and the control's result
       is present only in the evidence record. No trigger starts a control pass
       automatically.
+- [ ] AC23: Resolution is correct, not merely reproducible. On a recorded fixture
+      whose references include same-named declarations on different types, a
+      shadowed name, and a re-export, every resolved candidate is the declaration or
+      call site the reviewed language's own compiler or type checker binds the
+      reference to, and every reference that cannot be bound to exactly one
+      declaration is dropped with the reason "ambiguous resolution" rather than
+      resolved to a guess. The implementation plan records which resolution method
+      it uses and why, and the evidence records the method's measured resolution
+      precision on that fixture — resolved candidates that are correct over all
+      resolved candidates. A precision below 100% on that fixture is a defect to fix
+      before this feature is enabled for this repository, not a figure to report.
 
 ---
 
@@ -1017,7 +1073,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
 | --- | --- | --- |
 | O1: Read-only proof and fork behaviour | AC4, AC5, AC9, AC10, plus the amendment text | The amendment keeps "never executes the reviewed repository's code" locked and relaxes only the no-checkout mechanism, written over reads with the mechanism left open (owner decision, accepted with changes, 2026-09-29); AC4 and AC5 require demonstration on a hostile head rather than assertion; AC10 fixes fork behaviour per ingress **and per trigger**, because today's fork guard is per trigger: the reusable-workflow ingress's automatic trigger skips fork heads, while its manual comment trigger runs for them, as the webhook ingress does. Fork-originated heads are excluded from repository context this iteration and the exclusion is fixed rather than configurable, so no configuration mistake can enable a fork read. |
 | O2: Cost against the recorded figures, and the pass budget | AC8, AC14 | AC8 makes repository context fit inside the pass budget in effect (`pass_timeout_minutes`, default 10, job backstop that plus two) rather than require a larger one; AC14 compares measured passes against the committed 2026-09-23 baseline and the measured dogfood pass, and reports budget exhaustion. Whether the default budget should rise is an open question for the owner. |
-| O3: Symbol selection and context budget | AC3, AC6, AC7, AC20 | Selection resolves the definitions the changed lines depend on and the call sites of what the change defines, in the recorded order defined in **Context Selection Order** — candidates one step from the changed lines only, **one candidate being one excerpt** (a definition, or a single call site) so the budgets count excerpts rather than distinct symbols, ordered by kind, then changed-line position, then candidate location, then symbol name, with whole-candidate drops and no mid-excerpt truncation; two budgets bound it, in addition to the existing diff and authoritative-document budgets; the diff is never displaced (AC7), which is the direct answer to the recorded 32,000-token pruning observation; selection is reproducible (AC20). |
+| O3: Symbol selection and context budget | AC3, AC6, AC7, AC20, AC23 | Selection resolves the definitions the changed lines depend on and the call sites of what the change defines, in the recorded order defined in **Context Selection Order** — candidates one step from the changed lines only, **one candidate being one excerpt** (a definition, or a single call site) so the budgets count excerpts rather than distinct symbols, ordered by kind, then changed-line position, then candidate location, then symbol name, with whole-candidate drops and no mid-excerpt truncation; two budgets bound it, in addition to the existing diff and authoritative-document budgets; the diff is never displaced (AC7), which is the direct answer to the recorded 32,000-token pruning observation; selection is reproducible (AC20); and resolution is correct — a candidate is what the language's own compiler binds the reference to, an ambiguous reference is dropped rather than guessed, and the plan's resolution method is a recorded decision with measured precision (AC23). |
 | O4: Webhook path, concurrency and cleanup | AC12, plus the working-area and one-active-job business rules | No added concurrency, cleanup on every settlement path including watchdog abort and startup reconciliation, no working area shared between passes, and a cleanup failure never publishes a second review. |
 | O5: Recorded amendment or decision not to proceed | AC1, AC2, plus **Where the decision is recorded** | The amendment text is proposed here and decided by the owner, and the decision is recorded in the Key Architectural Decisions section of `docs/project/3-software-architecture.md` — the document that carries the decision being amended; `docs/constitution.md` does not carry it and is not amended. Rejection terminates the item with a dated rejection note as its only outcome. |
 | O6: Context available, read-only demonstrated | AC3, AC4, AC5, AC11, AC19, AC21 | The capability ships off by default for adopters and on for this repository's own dogfooding, resolves its switch and its three budgets fail-closed so that an absent or unusable value never enables the feature and never yields an unlimited budget (AC21), degrades rather than failing, and has its read-only property demonstrated rather than asserted. |
@@ -1135,7 +1191,7 @@ second source of truth.
 | 3 | May a pass read fork-head content? | **No — same-repository heads only this iteration**, and the exclusion is **fixed** rather than a switch defaulting to off, so no configuration mistake can enable it. The per-trigger fork model is kept because today's guard is per trigger. | AC10; the same-repository-only business rule; Use Case 4; the fork-behaviour gate row; Out of Scope |
 | 4 | Should the pass budget rise above ten minutes? | **No.** Keep the ten-minute default and rely on AC8's degrade-rather-than-extend rule; revisit only if the measured cohort shows passes degrading against it. Acceptable cost increase is whatever fits inside that budget. | AC8; AC14; Out of Scope; Deferred Decisions |
 | 5 | Minimum cohort for `real_pr_measured`? | **Ten** terminally adjudicated pull requests, reusing the figure settled for the sweep item so both ledgers count on the same basis. | Evidence tier enum and transitions; the claim-admissibility gate row |
-| 6 | Off by default here too? | **On for this repository's own dogfooding, off by default for adopters**, supplied so the owner can flip it from repository settings without editing a workflow or redeploying. | The off-by-default and dogfooding business rules; AC19; Out of Scope; Deferred Decisions |
+| 6 | Off by default here too? | **On for this repository's own dogfooding, off by default for adopters**, supplied so the owner can flip it from repository settings without editing a workflow or redeploying. It is switched on here only once the read-only demonstrations and resolution-correctness evidence are committed. | The demonstrations-before-the-switch business rule; the off-by-default and dogfooding business rules; AC19; Out of Scope; Deferred Decisions |
 | 7 | Does the strategy document hold an objective this spec misses? | **Still open** — a human check that cannot be performed from this repository. | Open Questions; Deferral Note D1 |
 
 A **follow-up to file separately** came out of decision 3: the `/ronda review`
