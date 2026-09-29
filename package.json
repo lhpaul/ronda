@@ -17,10 +17,12 @@
     "quality:comparison": "tsx src/cli/record-review-comparison.ts",
     "quality:summary": "tsx src/cli/summarize-review-comparisons.ts",
     "quality:misses": "tsx src/cli/capture-external-review-misses.ts",
-    "quality:report": "tsx src/cli/report-review-quality.ts"
+    "quality:report": "tsx src/cli/report-review-quality.ts",
+    "quality:control-pass": "tsx src/cli/control-pass.ts"
   },
   "dependencies": {
-    "@octokit/rest": "22.0.1"
+    "@octokit/rest": "22.0.1",
+    "typescript": "5.8.3"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -30,7 +32,6 @@
     "markdownlint-rule-relative-links": "5.1.0",
     "prettier": "^3.8.3",
     "tsx": "4.23.13",
-    "typescript": "5.8.3",
     "typescript-eslint": "8.69.0"
   }
 }
