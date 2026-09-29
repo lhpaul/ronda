@@ -32,7 +32,12 @@ import type {
   SweepDegradedRecord,
   SweepPassRecord,
 } from "../domain/review-pass.types.js";
-import { classifyFindings, loadSweepList, type SweepClassification } from "../review/sweep-categories.js";
+import {
+  classifyFindings,
+  loadSweepList,
+  type SweepClassification,
+  type SweepListResult,
+} from "../review/sweep-categories.js";
 import { buildCheckRunOutput, buildReviewSummary, countBySeverity } from "./summary.js";
 import { createPassDeadline } from "./pass-deadline.js";
 import {
@@ -236,7 +241,21 @@ export async function runReviewPass(
     // any other GitHub error) is indistinguishable from the same failure
     // without the sweep and owes no sweep record at all.
     if (deps.config.sweepMode === "on") {
-      const listResult = await (deps.loadSweepList ?? loadSweepList)();
+      // AC19: a list that cannot be loaded never fails the pass, whatever the
+      // loader does. The bundled loader returns a result rather than throwing,
+      // but the seam is injectable, so a throw is degraded to `unreadable` here
+      // instead of escaping to the shared failure path. The detail is fixed
+      // text: a thrown error's own message is not carried into the record.
+      let listResult: SweepListResult;
+      try {
+        listResult = await (deps.loadSweepList ?? loadSweepList)();
+      } catch {
+        listResult = {
+          ok: false,
+          reason: "unreadable",
+          detail: "the list loader threw before returning a result",
+        };
+      }
       if (listResult.ok) {
         sweepList = listResult.list;
       } else {

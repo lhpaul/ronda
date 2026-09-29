@@ -257,3 +257,42 @@ not recorded as a `passTimeoutMs` abort.
 Unplanted outcome for all three: `./node_modules/.bin/tsx --test
 --test-name-pattern="a rejected precision request" tests/unit/cli/recall-benchmark.test.ts`
 reports `ℹ pass 1`, `ℹ fail 0`.
+
+## P20 — a throwing list loader fails the pass
+
+**Plant**: `src/core/run-review-pass.ts:249` — replace the `try`/`catch` around
+the loader call with a bare `const listResult = await (deps.loadSweepList ??
+loadSweepList)();`, so a throw escapes to the shared failure path.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+equal`. Isolates
+`assert.equal(result.outcome, "succeeded")` (test line 1168) — AC19: a list
+that cannot be loaded never fails the pass, whatever the loader does. The
+second test in the pair also fails under this plant because its pass fails
+before it can publish; it is proved separately by P22.
+
+## P21 — the degraded record's detail is not the fixed text
+
+**Plant**: `src/core/run-review-pass.ts:256` — change the `catch` to `catch
+(error)` and the detail to `` `the list loader threw: ${error instanceof Error
+? error.message : String(error)}` ``.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
+deep-equal`. Isolates `assert.deepEqual(result.sweep, { degraded: … })` (test
+line 1169), which pins the reason to `unreadable` and the detail to the fixed
+text. The `outcome` assertion above it (line 1168) stays green under this
+plant, so it is not masked by it.
+
+## P22 — a thrown loader error's text reaches a surface
+
+**Plant**: the same edit as P21 at `src/core/run-review-pass.ts:256`.
+
+**Fail**: `AssertionError [ERR_ASSERTION]: The input was expected to not match
+the regular expression /operator|exploded/`. Isolates `assert.doesNotMatch(surface,
+/operator|exploded/)` (test line 1205) in the separate "a thrown loader error's
+own text reaches no surface" test, which asserts nothing else: a thrown error's
+text can carry a local path and must reach neither the check run, the review,
+nor any log field. It is a different test from the one P21 fails.
+
+Unplanted outcome for all three: `./node_modules/.bin/tsx --test
+tests/unit/core/run-review-pass.test.ts` reports `ℹ pass 42`, `ℹ fail 0`.

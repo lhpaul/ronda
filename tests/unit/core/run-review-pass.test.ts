@@ -1147,6 +1147,65 @@ test("sweep AC19: an enabled pass with a malformed list publishes normally and r
   assert.equal(logged.fields.reason, "malformed");
 });
 
+test("sweep AC19: a list loader that throws degrades to an unreadable record instead of failing the pass", async () => {
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      config: createConfig({ sweepMode: "on" }),
+      loadSweepList: async () => {
+        throw new Error("the loader threw");
+      },
+    }),
+  );
+
+  assert.equal(result.outcome, "succeeded");
+  assert.deepEqual(result.sweep, {
+    degraded: {
+      kind: "sweep-did-not-run",
+      reason: "unreadable",
+      detail: "the list loader threw before returning a result",
+    },
+  });
+});
+
+test("sweep AC19: a thrown loader error's own text reaches no surface", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+  await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      logger: createRecordingLogger(events),
+      config: createConfig({ sweepMode: "on" }),
+      loadSweepList: async () => {
+        throw new Error("loader exploded at /home/operator/private/list.json");
+      },
+    }),
+  );
+
+  // The error's text can carry a local path, so it is never copied into the
+  // record: not the check run, not the review, not any log field.
+  for (const surface of [
+    github.publishedCheckRuns[0].summary,
+    github.publishedReviews[0].summaryBody,
+    JSON.stringify(events),
+  ]) {
+    assert.doesNotMatch(surface, /operator|exploded/);
+  }
+});
+
 test("sweep AC18: an unrecognized enablement value reviews without the sweep and records the fact, never the value", async () => {
   const events: LogEvent[] = [];
   const github = createFakeGithub({
