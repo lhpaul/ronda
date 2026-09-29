@@ -7,7 +7,6 @@
       "sensitive-value-exposure",
       "cache-capacity-off-by-one",
       "sql-interpolation",
-      "invalid-range-parsing",
       "lexicographic-numeric-sort",
       "lower-element-median",
       "empty-word-title-casing",
@@ -16,6 +15,7 @@
       "stale-sha-review-publication"
     ],
     "missedSeededDefects": [
+      "invalid-range-parsing",
       "authorization-bypass",
       "configuration-debug-default"
     ],
@@ -24,12 +24,12 @@
         "path": "src/benchmark/authorization.ts",
         "line": 2,
         "severity": "important",
-        "title": "Overly permissive deletion logic"
+        "title": "Overly permissive account deletion logic"
       }
     ],
     "model": "qwen-plus-2025-12-01",
     "reviewedTarget": "issue-15-recall-benchmark",
-    "timestamp": "2026-09-29T08:39:24.382Z",
+    "timestamp": "2026-09-29T11:09:27.508Z",
     "fixture": {
       "manifestPath": "tests/fixtures/recall-benchmark/original-thirteen/manifest.json",
       "benchmarkId": "issue-15-recall-benchmark",
@@ -44,6 +44,7 @@
       "maxPatchChars": 400000,
       "durabilityMode": "default",
       "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
       "requestParameters": {
         "temperature": 0
       },
@@ -57,7 +58,7 @@
       ]
     },
     "modelCallCount": 1,
-    "elapsedMs": 20379,
+    "elapsedMs": 17120,
     "originalThirteenSubset": {
       "ids": [
         "expired-session-inversion",
@@ -79,7 +80,6 @@
         "sensitive-value-exposure",
         "cache-capacity-off-by-one",
         "sql-interpolation",
-        "invalid-range-parsing",
         "lexicographic-numeric-sort",
         "lower-element-median",
         "empty-word-title-casing",
@@ -88,6 +88,7 @@
         "stale-sha-review-publication"
       ],
       "missedSeededDefects": [
+        "invalid-range-parsing",
         "authorization-bypass",
         "configuration-debug-default"
       ]
@@ -97,33 +98,26 @@
     "benchmarkId": "issue-15-recall-benchmark",
     "totalSeededDefects": 13,
     "foundSeededDefects": [
-      "expired-session-inversion",
       "sensitive-value-exposure",
       "cache-capacity-off-by-one",
       "sql-interpolation",
       "lexicographic-numeric-sort",
       "lower-element-median",
-      "empty-word-title-casing",
       "async-race-duplicate-processing"
     ],
     "missedSeededDefects": [
+      "expired-session-inversion",
       "invalid-range-parsing",
+      "empty-word-title-casing",
       "authorization-bypass",
       "data-loss-overwrite",
       "configuration-debug-default",
       "stale-sha-review-publication"
     ],
-    "falsePositives": [
-      {
-        "path": "src/benchmark/stale-sha.ts",
-        "line": 4,
-        "severity": "important",
-        "title": "Ignores SHA mismatch"
-      }
-    ],
+    "falsePositives": [],
     "model": "qwen-plus-2025-12-01",
     "reviewedTarget": "issue-15-recall-benchmark",
-    "timestamp": "2026-09-29T08:39:44.761Z",
+    "timestamp": "2026-09-29T11:09:44.629Z",
     "fixture": {
       "manifestPath": "tests/fixtures/recall-benchmark/original-thirteen/manifest.json",
       "benchmarkId": "issue-15-recall-benchmark",
@@ -138,6 +132,7 @@
       "maxPatchChars": 400000,
       "durabilityMode": "default",
       "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
       "requestParameters": {
         "temperature": 0
       },
@@ -151,7 +146,7 @@
       ]
     },
     "modelCallCount": 1,
-    "elapsedMs": 12948,
+    "elapsedMs": 9154,
     "originalThirteenSubset": {
       "ids": [
         "expired-session-inversion",
@@ -169,21 +164,109 @@
         "stale-sha-review-publication"
       ],
       "foundSeededDefects": [
-        "expired-session-inversion",
         "sensitive-value-exposure",
         "cache-capacity-off-by-one",
         "sql-interpolation",
         "lexicographic-numeric-sort",
         "lower-element-median",
-        "empty-word-title-casing",
         "async-race-duplicate-processing"
       ],
       "missedSeededDefects": [
+        "expired-session-inversion",
         "invalid-range-parsing",
+        "empty-word-title-casing",
         "authorization-bypass",
         "data-loss-overwrite",
         "configuration-debug-default",
         "stale-sha-review-publication"
+      ]
+    }
+  },
+  {
+    "benchmarkId": "issue-15-recall-benchmark",
+    "totalSeededDefects": 13,
+    "foundSeededDefects": [
+      "expired-session-inversion",
+      "sensitive-value-exposure",
+      "cache-capacity-off-by-one",
+      "sql-interpolation",
+      "lexicographic-numeric-sort",
+      "lower-element-median",
+      "empty-word-title-casing",
+      "async-race-duplicate-processing",
+      "stale-sha-review-publication"
+    ],
+    "missedSeededDefects": [
+      "invalid-range-parsing",
+      "authorization-bypass",
+      "data-loss-overwrite",
+      "configuration-debug-default"
+    ],
+    "falsePositives": [],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-15-recall-benchmark",
+    "timestamp": "2026-09-29T11:09:53.783Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/original-thirteen/manifest.json",
+      "benchmarkId": "issue-15-recall-benchmark",
+      "seedCount": 13,
+      "manifestSha256": "1ff80de715d320db744f0b866b51df1c7501e952fce63dfa48ef60a1529eb497",
+      "patchesSha256": "e548bd03e17accf6f003d16c361c941fb26d57cddd23e2f8999443d98f0e1b61"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "42c6d53fa971f50506ea5990f2211344ea4131a3f1682f2b90e239ce8561f940",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "42c6d53fa971f50506ea5990f2211344ea4131a3f1682f2b90e239ce8561f940",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 1,
+    "elapsedMs": 11651,
+    "originalThirteenSubset": {
+      "ids": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "invalid-range-parsing",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "async-race-duplicate-processing",
+        "configuration-debug-default",
+        "stale-sha-review-publication"
+      ],
+      "foundSeededDefects": [
+        "expired-session-inversion",
+        "sensitive-value-exposure",
+        "cache-capacity-off-by-one",
+        "sql-interpolation",
+        "lexicographic-numeric-sort",
+        "lower-element-median",
+        "empty-word-title-casing",
+        "async-race-duplicate-processing",
+        "stale-sha-review-publication"
+      ],
+      "missedSeededDefects": [
+        "invalid-range-parsing",
+        "authorization-bypass",
+        "data-loss-overwrite",
+        "configuration-debug-default"
       ]
     }
   },
@@ -207,17 +290,10 @@
       "async-race-duplicate-processing",
       "configuration-debug-default"
     ],
-    "falsePositives": [
-      {
-        "path": "src/benchmark/jobs.ts",
-        "line": 5,
-        "severity": "important",
-        "title": "Race condition in job processing"
-      }
-    ],
+    "falsePositives": [],
     "model": "qwen-plus-2025-12-01",
     "reviewedTarget": "issue-15-recall-benchmark",
-    "timestamp": "2026-09-29T08:39:57.709Z",
+    "timestamp": "2026-09-29T11:10:05.434Z",
     "fixture": {
       "manifestPath": "tests/fixtures/recall-benchmark/original-thirteen/manifest.json",
       "benchmarkId": "issue-15-recall-benchmark",
@@ -232,6 +308,7 @@
       "maxPatchChars": 400000,
       "durabilityMode": "default",
       "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
       "requestParameters": {
         "temperature": 0
       },
@@ -245,7 +322,7 @@
       ]
     },
     "modelCallCount": 1,
-    "elapsedMs": 14307,
+    "elapsedMs": 10666,
     "originalThirteenSubset": {
       "ids": [
         "expired-session-inversion",
@@ -285,26 +362,26 @@
     "benchmarkId": "issue-15-recall-benchmark",
     "totalSeededDefects": 13,
     "foundSeededDefects": [
+      "expired-session-inversion",
       "sensitive-value-exposure",
       "cache-capacity-off-by-one",
       "sql-interpolation",
       "lexicographic-numeric-sort",
       "lower-element-median",
       "empty-word-title-casing",
-      "async-race-duplicate-processing",
       "stale-sha-review-publication"
     ],
     "missedSeededDefects": [
-      "expired-session-inversion",
       "invalid-range-parsing",
       "authorization-bypass",
       "data-loss-overwrite",
+      "async-race-duplicate-processing",
       "configuration-debug-default"
     ],
     "falsePositives": [],
     "model": "qwen-plus-2025-12-01",
     "reviewedTarget": "issue-15-recall-benchmark",
-    "timestamp": "2026-09-29T08:40:12.017Z",
+    "timestamp": "2026-09-29T11:10:16.100Z",
     "fixture": {
       "manifestPath": "tests/fixtures/recall-benchmark/original-thirteen/manifest.json",
       "benchmarkId": "issue-15-recall-benchmark",
@@ -319,6 +396,7 @@
       "maxPatchChars": 400000,
       "durabilityMode": "default",
       "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
       "requestParameters": {
         "temperature": 0
       },
@@ -332,7 +410,7 @@
       ]
     },
     "modelCallCount": 1,
-    "elapsedMs": 12198,
+    "elapsedMs": 12187,
     "originalThirteenSubset": {
       "ids": [
         "expired-session-inversion",
@@ -350,107 +428,20 @@
         "stale-sha-review-publication"
       ],
       "foundSeededDefects": [
+        "expired-session-inversion",
         "sensitive-value-exposure",
         "cache-capacity-off-by-one",
         "sql-interpolation",
         "lexicographic-numeric-sort",
         "lower-element-median",
         "empty-word-title-casing",
-        "async-race-duplicate-processing",
         "stale-sha-review-publication"
       ],
       "missedSeededDefects": [
-        "expired-session-inversion",
         "invalid-range-parsing",
-        "authorization-bypass",
-        "data-loss-overwrite",
-        "configuration-debug-default"
-      ]
-    }
-  },
-  {
-    "benchmarkId": "issue-15-recall-benchmark",
-    "totalSeededDefects": 13,
-    "foundSeededDefects": [
-      "sensitive-value-exposure",
-      "cache-capacity-off-by-one",
-      "sql-interpolation",
-      "lexicographic-numeric-sort",
-      "lower-element-median",
-      "empty-word-title-casing",
-      "async-race-duplicate-processing",
-      "stale-sha-review-publication"
-    ],
-    "missedSeededDefects": [
-      "expired-session-inversion",
-      "invalid-range-parsing",
-      "authorization-bypass",
-      "data-loss-overwrite",
-      "configuration-debug-default"
-    ],
-    "falsePositives": [],
-    "model": "qwen-plus-2025-12-01",
-    "reviewedTarget": "issue-15-recall-benchmark",
-    "timestamp": "2026-09-29T08:40:24.215Z",
-    "fixture": {
-      "manifestPath": "tests/fixtures/recall-benchmark/original-thirteen/manifest.json",
-      "benchmarkId": "issue-15-recall-benchmark",
-      "seedCount": 13,
-      "manifestSha256": "1ff80de715d320db744f0b866b51df1c7501e952fce63dfa48ef60a1529eb497",
-      "patchesSha256": "e548bd03e17accf6f003d16c361c941fb26d57cddd23e2f8999443d98f0e1b61"
-    },
-    "configuration": {
-      "sweepMode": "off",
-      "modelName": "qwen-plus-2025-12-01",
-      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
-      "maxPatchChars": 400000,
-      "durabilityMode": "default",
-      "durabilityModeDefault": false,
-      "requestParameters": {
-        "temperature": 0
-      },
-      "promptFingerprint": "42c6d53fa971f50506ea5990f2211344ea4131a3f1682f2b90e239ce8561f940",
-      "requests": [
-        {
-          "kind": "recall",
-          "promptFingerprint": "42c6d53fa971f50506ea5990f2211344ea4131a3f1682f2b90e239ce8561f940",
-          "reportedModel": "qwen-plus-2025-12-01"
-        }
-      ]
-    },
-    "modelCallCount": 1,
-    "elapsedMs": 13127,
-    "originalThirteenSubset": {
-      "ids": [
-        "expired-session-inversion",
-        "sensitive-value-exposure",
-        "cache-capacity-off-by-one",
-        "sql-interpolation",
-        "invalid-range-parsing",
-        "lexicographic-numeric-sort",
-        "lower-element-median",
-        "empty-word-title-casing",
         "authorization-bypass",
         "data-loss-overwrite",
         "async-race-duplicate-processing",
-        "configuration-debug-default",
-        "stale-sha-review-publication"
-      ],
-      "foundSeededDefects": [
-        "sensitive-value-exposure",
-        "cache-capacity-off-by-one",
-        "sql-interpolation",
-        "lexicographic-numeric-sort",
-        "lower-element-median",
-        "empty-word-title-casing",
-        "async-race-duplicate-processing",
-        "stale-sha-review-publication"
-      ],
-      "missedSeededDefects": [
-        "expired-session-inversion",
-        "invalid-range-parsing",
-        "authorization-bypass",
-        "data-loss-overwrite",
         "configuration-debug-default"
       ]
     }
