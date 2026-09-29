@@ -539,6 +539,15 @@ hashes of that commit's fixtures. These records replace an earlier set (run at
 `0542d9e`) recorded against the fixture before the
 `external-output-parsing-lossy` patch was rewritten; that set is superseded.
 
+The tested commit lives on the feature branch (#118) and is not on `develop`
+until #118 merges, so this evidence names an implementation, fixtures, and tests
+that the target branch does not yet hold. That order is deliberate and cannot be
+reversed: the six campaign records add about 200 KB of patch text, which would
+push #118 past the review patch budget (`maxPatchChars`, 400000) if they rode
+with it, so they land first and #118 then merges `develop`. Until #118 merges,
+every command in this runbook needs the #118 checkout, and the records' `fixture`
+hashes match #118's fixtures, not the ones on `develop`.
+
 The evidence pull request (the follow-up that re-records the campaign against
 the reworked `external-output-parsing-lossy` seed) ships documents and data
 only, so its own head has nothing for these steps to execute. This sign-off
