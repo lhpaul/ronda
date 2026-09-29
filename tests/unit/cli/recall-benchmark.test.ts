@@ -792,6 +792,72 @@ test("campaign gives each run its own pass deadline", async () => {
   assert.equal(signals[1].aborted, false);
 });
 
+for (const stage of ["model-creation", "recall", "precision"] as const) {
+  test(`a run that resumes from ${stage} after its deadline starts nothing further and logs nothing`, async () => {
+    let recallRequests = 0;
+    let precisionRequests = 0;
+    const lines: string[] = [];
+    const spy = mock.method(console, "error", (...args: unknown[]) => {
+      lines.push(args.map((value) => String(value)).join(" "));
+    });
+    const late = () => new Promise((resolve) => setTimeout(resolve, 150));
+    let records: Array<Record<string, unknown>>;
+    let requestsAtReturn: [number, number];
+    let linesAtReturn: number;
+    try {
+      ({ records } = await runCampaign(
+        `resumes-late-${stage}`,
+        { sweepMode: "on", quality: true },
+        campaignDeps({
+          loadConfig: () => testConfig({ passTimeoutMs: 50 }),
+          createModel: async () => {
+            if (stage === "model-creation") {
+              await late();
+            }
+            return {
+              modelName: "fixture:resumes-late",
+              async complete(request) {
+                if (request.userPrompt.includes("Recall benchmark")) {
+                  recallRequests += 1;
+                  if (stage === "recall") {
+                    await late();
+                  }
+                  return {
+                    content: readFileSync(fixturePath("model-responses/passing.json"), "utf8"),
+                  };
+                }
+                precisionRequests += 1;
+                if (stage === "precision") {
+                  await late();
+                }
+                return { content: JSON.stringify({ findings: [] }) };
+              },
+            };
+          },
+        }),
+      ));
+      requestsAtReturn = [recallRequests, precisionRequests];
+      linesAtReturn = lines.length;
+      // Give the orphaned run time to resume and, if unguarded, carry on.
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    } finally {
+      spy.mock.restore();
+    }
+
+    assert.equal(isFailure(records[0]), true);
+    assert.deepEqual(
+      [recallRequests, precisionRequests],
+      requestsAtReturn,
+      "the timed-out run must not issue requests after its failure record",
+    );
+    assert.equal(
+      lines.length,
+      linesAtReturn,
+      "the timed-out run must not log after its failure record",
+    );
+  });
+}
+
 test("a client that never settles cannot hold a run past its deadline", async () => {
   const { exitCode, records } = await runCampaign(
     "never-settles",

@@ -1003,6 +1003,12 @@ async function runOneCampaignRun(
       await deps.createModel({ options: context.options, config: context.config, runIndex }),
     );
 
+    // A run whose deadline already fired has had its failure record returned. A
+    // client that ignored the abort can still resume here, so each stage checks
+    // the signal before it issues more requests or logs, rather than starting
+    // stale model calls that overlap the next run.
+    controller.signal.throwIfAborted();
+
     const pass = await runRecallPass({
       manifest: context.manifest,
       changedFiles: context.changedFiles,
@@ -1013,6 +1019,7 @@ async function runOneCampaignRun(
       signal: controller.signal,
       ...(sweepCategories !== undefined ? { sweepCategories } : {}),
     });
+    controller.signal.throwIfAborted();
 
     const precisionResults: PrecisionFixtureRun[] =
       context.options.quality && context.manifest.precisionFixtures
@@ -1045,6 +1052,7 @@ async function runOneCampaignRun(
             ),
           )
         : [];
+    controller.signal.throwIfAborted();
 
     // AC9: each precision request's own findings are classified against the same
     // list, independently of the recall pass's, so a sweep-on precision finding is
