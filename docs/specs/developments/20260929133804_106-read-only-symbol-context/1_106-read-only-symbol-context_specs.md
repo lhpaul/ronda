@@ -88,9 +88,11 @@ owner-attributed scope-change note recorded there for #103.
   owner-attributed note under it records that the amendment was proposed by this
   item and declined, so a later reader does not re-litigate it.
 
-Either way the recording happens as part of this item's implementation stage, not
-in the spec pull request: this spec proposes the text, and the owner's merge of the
-spec is the agreement to that text (AC1). If the owner rejects the amendment, this
+Either way the recording is **the first step of this item's implementation stage**,
+completed before any capability work begins, and it is not made in the spec pull
+request: this spec proposes the text, and the owner's merge of the spec is the
+agreement to that text (AC1). "Before any implementation work" in AC1 therefore
+means before any work other than the recording itself. If the owner rejects the amendment, this
 item's outcome is the rejection note alone (AC2), and nothing else in this spec is
 built.
 
@@ -505,8 +507,12 @@ repository.
 - Both switches resolve **fail-closed**, and the rule is the same for each. An
   absent, empty, or whitespace-only value **is not a value**: the next source in
   precedence order is consulted, and where neither source supplies a value the
-  switch is off and nothing is recorded — an absent switch must be
-  indistinguishable from a version without the feature (AC19). The first source
+  switch is off and nothing is recorded — a **validly** disabled switch, meaning an
+  absent switch or a recognised off value, must be indistinguishable from a version
+  without the feature (AC19). An unrecognised value is not a valid disablement but a
+  configuration error, and it is the single exception to that indistinguishability:
+  it is recorded, because silently reading an operator's typo as "off" would hide a
+  misconfiguration from the person who made it. The first source
   that supplies a non-empty value is the effective one, whether or not its value is
   recognised. A non-empty unrecognised value therefore resolves to **off** and is
   **not** replaced by a recognised value in the lower-precedence source; that a
@@ -621,9 +627,9 @@ version without the feature, which a recorded "off" value would defeat.
 
 | Code value | Display label | Recorded? | Description |
 | --- | --- | --- | --- |
-| `used` | Repository context used | Yes | Every symbol the selection rules requested was resolved within budget. |
+| `used` | Repository context used | Yes | At least one candidate was requested and every requested candidate was resolved within budget. |
 | `partial` | Repository context partial | Yes | Some requested symbols were resolved and others were dropped, because a budget was reached, the time budget was exhausted, or an individual read did not succeed. |
-| `unavailable` | Repository context unavailable | Yes | Repository context was enabled but no symbol could be resolved for the pass. |
+| `unavailable` | Repository context unavailable | Yes | Repository context was enabled but no candidate was resolved for the pass — whether because every read failed, every candidate was dropped by a budget, or the changed lines produced no candidate at all. The record's requested count distinguishes those cases: a count of zero means there was nothing to resolve, a positive count means resolution did not succeed. |
 | `off` | Repository context off | No | Repository context was not enabled for the pass. No symbols were requested, and no repository-context record, activation statement, or budget figure appears on any surface (AC19). |
 | `not_applicable` | Repository context not applicable | No | The pass ended before review execution — a draft pull request, or an automatic run that found the head's existing check run — so no context was requested and no outcome is owed. No record appears on any surface. |
 
@@ -631,8 +637,10 @@ version without the feature, which a recorded "off" value would defeat.
 afterwards. A pass that does not reach review execution is `not_applicable`. A
 pass that reaches review execution with the feature disabled is `off`. A pass
 that reaches review execution with it enabled is `used`, `partial`, or
-`unavailable` according to how many requested symbols were resolved: all of them,
-some of them, none of them.
+`unavailable` according to how many requested candidates were resolved: all of
+them, some of them, none of them. The zero-candidate case — the changed lines
+produce no candidate — resolves to `unavailable`, not `used`: `used` requires at
+least one candidate, so the two readings of "all of zero" cannot both apply.
 
 ### Evidence tier
 
@@ -671,7 +679,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
 | --- | --- | --- | --- | --- | --- |
 | Amendment decision (AC1, AC2) | The repository owner's recorded decision on the proposed amendment, recorded in the Key Architectural Decisions section of `docs/project/3-software-architecture.md` | Accepted; accepted with changes; rejected; not yet recorded | Accepted or accepted with changes: replace the decision text there, attributed and dated, and implementation may start against that recorded text. Rejected: leave the decision unamended, add the dated rejection note, and terminate the item with that note as its only outcome (AC2). Not yet recorded: no implementation work starts | Proposed Amendment section, including **Where the decision is recorded**; AC1; AC2; the closing business rule; Open Question 1 | A partial acceptance that keeps the no-checkout mechanism but permits content reads is an "accepted with changes" outcome, and the recorded text is what implementation follows — not this spec's proposed wording. |
 | Switch resolution (AC19, AC21) | The global repository-context switch value and, on the webhook ingress, the fork switch value, each read from the highest-precedence source that supplies a non-empty value | Off — absent, empty, or whitespace-only at both sources (nothing recorded); Off — a recognised off value (nothing recorded); Off — a non-empty unrecognised value (record that a value was unrecognised, without the raw value); On — a recognised on value | Every off outcome runs the ordinary review with no repository context and no record, except that the unrecognised case additionally records that a value was unrecognised; on: proceed to candidate selection. The fork switch can only move the result from on to off, never the reverse | Business rules on switch resolution and on the fork switch; AC19; AC21; AC10 | An empty value at a higher-precedence source defers to the next source rather than forcing off. A non-empty unrecognised value at a higher-precedence source is the effective value and is not replaced by a recognised value below it. A fork switch set on while the global switch is off leaves the pass with no repository context. |
-| Repository-context outcome resolution (AC3, AC11, AC19) | Whether the pass reached review execution; whether the feature was enabled; how many requested symbols were resolved | Not applicable — did not reach review execution (no record); Off — reached review execution, not enabled (no record); Used — all requested symbols resolved; Partial — some resolved; Unavailable — none resolved | The three recorded outcomes are always written to the logs, and additionally to the check-run output where the pass's own check-run write produced a check run whose outcome is a review; never to the review body (AC3). The two unrecorded outcomes write nothing anywhere | Statuses / Enum Values → Repository-context pass outcome; AC3; AC11; AC19; Use Case 1 steps 1 and 6 | A draft pull request is Not applicable and writes nothing, so it is indistinguishable from the same skip with the feature absent. A pass whose every read is denied is Unavailable and still publishes its review. |
+| Repository-context outcome resolution (AC3, AC11, AC19) | Whether the pass reached review execution; whether the feature was enabled; how many requested symbols were resolved | Not applicable — did not reach review execution (no record); Off — reached review execution, validly disabled (no record); Used — at least one candidate requested and all resolved; Partial — some resolved; Unavailable — none resolved, including the zero-candidate case, which is Unavailable and never Used | The three recorded outcomes are always written to the logs, and additionally to the check-run output where the pass's own check-run write produced a check run whose outcome is a review; never to the review body (AC3). The two unrecorded outcomes write nothing anywhere | Statuses / Enum Values → Repository-context pass outcome; AC3; AC11; AC19; Use Case 1 steps 1 and 6 | A draft pull request is Not applicable and writes nothing, so it is indistinguishable from the same skip with the feature absent. A pass whose every read is denied is Unavailable and still publishes its review. A pass whose changed lines name no resolvable symbol is Unavailable with a requested count of zero, which is how it is told apart from a pass whose reads failed. |
 | Budget conflict resolution (AC6, AC7) | The symbol count budget; the character budget; the existing diff budget; the authoritative-document budgets; how much context the selection rules requested | Within every budget — all requested context retained; over a context budget — lower-priority repository context dropped by the recorded selection order, with the drops recorded; the diff would have to give way — not permitted | Retain the diff in full, drop repository context, record every drop and its reason, and record the outcome as Partial — or Unavailable where every candidate was dropped and none resolved, which the budgets alone can cause | Business rules on budgets and on the diff never giving way; AC6; AC7; Use Case 2 | A change naming more symbols than the count budget allows drops the lowest-priority symbols and records Partial. A character budget too small for even the first candidate drops every candidate and records Unavailable, not Partial. A budget setting large enough that repository context would displace the diff is resolved by dropping context, never by truncating the diff — the recorded reviewer that reached a token limit and pruned the diff published nothing, which is the failure this row forbids. |
 | Context time budget exhaustion (AC8) | The context time budget; the pass budget in effect; whether the time budget was exhausted before selection finished | Not exhausted — proceed with the full selection; exhausted — proceed with the context already gathered | Proceed to review execution, publish the review, record Partial or Unavailable, and never extend the pass deadline or the job backstop | Business rule on the context time budget; AC8; Use Case 6 | A time budget forced low enough to be exhausted before any symbol resolves records Unavailable and still publishes one review for the head. |
 | Fork-head behaviour per ingress (AC10) | The ingress; whether the reviewed head belongs to a fork; which form of the fork switch shipped (operator-settable, or fixed off per Open Question 3) and its value | Reusable-workflow ingress with a fork head — the pass is skipped before any repository content is read, unchanged from today; webhook ingress with a fork head and the fork switch on — repository context is read from that head's own repository only, as untrusted data, never executed; webhook ingress with a fork head and the fork switch off, whether by its value or because it shipped fixed off — the pass reviews the head with no repository context; non-fork head — the global switch alone decides | Publish a review exactly as today in every case where a review is published, and record the fork marker wherever a repository-context record is emitted | AC9; AC10; Use Case 4; the untrusted-data and never-executed business rules | With the fork switch off, a fork head on the webhook ingress still receives its ordinary review; only the repository context is withheld, the outcome is Off, and no repository-context record and therefore no fork marker is written. |
@@ -844,9 +852,13 @@ Each row below is the normative summary for its gate; the prose sites named unde
       movement to repository context. Any improvement claimed for that sub-theme is
       stated as additional to the sweep or not claimed.
 - [ ] AC19: Repository context is off by default. A version with the feature
-      present but not enabled produces reviews, check runs, skips, supersedes, and
-      failure paths indistinguishable from the same version with the feature absent,
-      and records no repository-context outcome.
+      present but **validly** disabled — the switch absent, or set to a recognised
+      off value — produces reviews, check runs, skips, supersedes, and failure paths
+      indistinguishable from the same version with the feature absent, and records
+      no repository-context outcome. The one exception is an unrecognised switch
+      value (AC21), which is a configuration error rather than a valid disablement:
+      it resolves the switch off and is recorded, so the operator can see the typo.
+      No other case is exempt from this criterion.
 - [ ] AC20: Repository-context selection is reproducible: the same head with the
       same configuration selects the same symbols, and the pass record is sufficient
       to explain why a given symbol was or was not included.
@@ -858,8 +870,10 @@ Each row below is the normative summary for its gate; the prose sites named unde
       value leaves it off and records nothing; a non-empty unrecognised value at the
       higher-precedence source leaves the switch off even when the lower-precedence
       source holds a recognised on value, and records that a value was unrecognised
-      without recording the raw value; only a recognised on value at the effective
-      source turns the switch on.
+      without recording the raw value — the one case AC19's indistinguishability
+      does not cover, because an unrecognised value is a configuration error rather
+      than a valid disablement; only a recognised on value at the effective source
+      turns the switch on.
 
 ---
 
