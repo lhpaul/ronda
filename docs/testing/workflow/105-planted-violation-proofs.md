@@ -313,3 +313,26 @@ walks `5x`, `5.9`, `0`, `-1`, ` 5`, and `1e3` for both `--runs` and
 Unplanted outcome: `./node_modules/.bin/tsx --test
 --test-name-pattern="a count argument" tests/unit/cli/recall-benchmark.test.ts`
 reports `ℹ pass 1`, `ℹ fail 0`.
+
+## P24–P28 — the harder credential seed's patch does not hold its defect
+
+The test `the harder credential seed's patch holds a guard that knows the
+canonical name and misses the variant` reads the added lines of
+`tests/fixtures/recall-benchmark/patches.json`'s `src/benchmark/credentials.ts`
+entry, extracts the `CANONICAL_CREDENTIAL_NAME` guard and the credential-named
+argument the patch passes to it, and runs the guard against both names. Each
+plant edits that one patch entry and fails one assertion; each is restored and
+the file then reports `ℹ pass 49`, `ℹ fail 0`.
+
+| Proof | Plant in `patches.json` (`credentials.ts` entry) | Fails at | Isolates |
+| --- | --- | --- | --- |
+| P24 | rename `const CANONICAL_CREDENTIAL_NAME = ` to `const OTHER_NAME = ` | test line 1250, `must define the canonical-name guard the defect is about` | the patch defines the guard the seed is about |
+| P25 | change the guard `/^token$/` to `/^tokenX$/` | test line 1252, `the guard must recognize the canonical name token` | the guard recognizes the canonical form |
+| P26 | change `return redactCredentials({ authToken });` to `return { authToken };` | test line 1259, `must pass a credential-named value to the guard` | the variant goes through the guard |
+| P27 | change `redactCredentials({ authToken })` to `redactCredentials({ token })` | test line 1260, `Expected "actual" to be strictly unequal` | the value passed is not the canonical name |
+| P28 | broaden the guard to `/[Tt]oken$/` | test line 1261, `the guard must miss the variant authToken, or the seeded defect is not in the patch` | the guard misses the variant, which is the defect |
+
+All five fail as `AssertionError [ERR_ASSERTION]`. A guard broadened with a
+regex flag (`/token$/i`) is not a P28 plant: the extraction pattern stops
+matching it, so it fails at line 1250 first and would be masked, which is why
+P28 broadens the character class instead.

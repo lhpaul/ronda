@@ -1234,6 +1234,38 @@ test("the harder credential seed records its AC13 ways and canonical baseline", 
   }
 });
 
+test("the harder credential seed's patch holds a guard that knows the canonical name and misses the variant", () => {
+  for (const defect of manifest.seededDefects.filter((candidate) => candidate.harderThan)) {
+    const metadata = defect.harderThan;
+    assert.ok(metadata);
+    const file = changedFiles.find((candidate) => candidate.path === defect.path);
+    assert.ok(file, `${defect.id} needs a changed file at ${defect.path}`);
+    const added = (file.patch ?? "")
+      .split("\n")
+      .filter((line) => line.startsWith("+"))
+      .map((line) => line.slice(1))
+      .join("\n");
+
+    const guard = /const CANONICAL_CREDENTIAL_NAME = \/(.+)\/;/.exec(added);
+    assert.ok(guard, `${defect.id}'s patch must define the canonical-name guard the defect is about`);
+    const pattern = new RegExp(guard[1]);
+    assert.equal(
+      pattern.test(metadata.canonicalName),
+      true,
+      `the guard must recognize the canonical name ${metadata.canonicalName}`,
+    );
+
+    const passed = /redactCredentials\(\{ (\w+) \}\)/.exec(added);
+    assert.ok(passed, `${defect.id}'s patch must pass a credential-named value to the guard`);
+    assert.notEqual(passed[1], metadata.canonicalName);
+    assert.equal(
+      pattern.test(passed[1]),
+      false,
+      `the guard must miss the variant ${passed[1]}, or the seeded defect is not in the patch`,
+    );
+  }
+});
+
 function evidenceRoot(): string {
   return fileURLToPath(new URL("../../../docs/testing/ronda/", import.meta.url));
 }

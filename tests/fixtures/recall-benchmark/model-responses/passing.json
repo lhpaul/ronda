@@ -114,7 +114,7 @@
     },
     {
       "path": "src/benchmark/credentials.ts",
-      "line": 3,
+      "line": 8,
       "severity": "blocking",
       "title": "Credential name convention gap",
       "body": "The camelCase credential name is not matched by the canonical credential name convention, so a guard recognizing only that form misses it."
