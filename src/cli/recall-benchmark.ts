@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, renameSync, rmSync } from "node:fs";
 import {
   CHAT_COMPLETION_TEMPERATURE,
   createOpenAiCompatibleClient,
@@ -720,6 +720,24 @@ function parseSweepModeArg(value: string): SweepModeSetting {
   throw new Error(`--sweep-mode must be "on" or "off", received: ${value}`);
 }
 
+/**
+ * Writes to a temporary file beside the target, then renames it over the target. The
+ * campaign's output is evidence, and it may overwrite a file that already holds a
+ * previous campaign: a crash or a full disk during a direct write would leave that
+ * file truncated, losing the record. A rename leaves either the whole old file or the
+ * whole new one.
+ */
+function writeFileAtomic(path: string, text: string): void {
+  const temporary = `${path}.${process.pid}.tmp`;
+  try {
+    writeFileSync(temporary, text);
+    renameSync(temporary, path);
+  } catch (error) {
+    rmSync(temporary, { force: true });
+    throw error;
+  }
+}
+
 function readJsonFile<T>(path: string): T {
   return JSON.parse(readFileSync(path, "utf8")) as T;
 }
@@ -1353,7 +1371,7 @@ export async function runBenchmarkCampaign(
   // reports every attempted run; the failure is reported by exit code alone.
   const serialized = JSON.stringify(runs > 1 ? records : records[0], null, 2);
   if (options.outputFilePath !== undefined) {
-    writeFileSync(options.outputFilePath, `${serialized}\n`);
+    writeFileAtomic(options.outputFilePath, `${serialized}\n`);
   } else {
     console.log(serialized);
   }

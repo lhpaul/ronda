@@ -1,7 +1,7 @@
 import { mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1059,6 +1059,58 @@ test("a manifest that repeats a seeded defect id is rejected instead of reportin
       ),
     /the manifest repeats seeded defect ids/,
   );
+});
+
+test("the campaign output replaces the target whole and leaves no temporary file", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "ronda-atomic-"));
+  const target = join(directory, "campaign.json");
+  writeFileSync(target, "previous evidence");
+
+  await runBenchmarkCampaign(
+    {
+      manifestPath: fixturePath("manifest.json"),
+      patchesPath: fixturePath("patches.json"),
+      outputFilePath: target,
+      sweepMode: "off",
+      runs: 1,
+    },
+    campaignDeps(),
+  );
+
+  // The old content is gone, replaced whole by a parseable record, and the temporary
+  // file the rename came from is not left behind.
+  assert.doesNotThrow(() => JSON.parse(readFileSync(target, "utf8")));
+  assert.deepEqual(readdirSync(directory), ["campaign.json"]);
+});
+
+test("a campaign that cannot write its output leaves the previous evidence intact", async (t) => {
+  if (process.platform === "win32" || process.getuid?.() === 0) {
+    t.skip("directory permissions do not restrict this user");
+    return;
+  }
+  const directory = mkdtempSync(join(tmpdir(), "ronda-atomic-locked-"));
+  const target = join(directory, "campaign.json");
+  writeFileSync(target, "previous evidence");
+  chmodSync(directory, 0o555);
+  try {
+    // A temporary file cannot be created in a read-only directory. Writing straight
+    // to the existing target would still succeed and overwrite the evidence.
+    await assert.rejects(() =>
+      runBenchmarkCampaign(
+        {
+          manifestPath: fixturePath("manifest.json"),
+          patchesPath: fixturePath("patches.json"),
+          outputFilePath: target,
+          sweepMode: "off",
+          runs: 1,
+        },
+        campaignDeps(),
+      ),
+    );
+    assert.equal(readFileSync(target, "utf8"), "previous evidence");
+  } finally {
+    chmodSync(directory, 0o755);
+  }
 });
 
 test("a client that never settles cannot hold a run past its deadline", async () => {
