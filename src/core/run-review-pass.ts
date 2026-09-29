@@ -948,8 +948,6 @@ async function runRepositoryContextPhase(
 
   const maxCandidates = deps.config.maxRepositoryContextCandidates;
   const maxChars = deps.config.maxRepositoryContextChars;
-  const remainingPassMs = Math.max(0, passStartMs + deps.config.passTimeoutMs - deps.clock.now());
-  const timeBudgetMs = Math.min(deps.config.repositoryContextTimeBudgetMs, remainingPassMs);
 
   // Translates the GitHub contents seam's own unusable-content error into the
   // resolver's error type at this one boundary, so `symbol-resolver.ts` stays
@@ -968,31 +966,35 @@ async function runRepositoryContextPhase(
     };
   };
 
-  // Candidate identification (step a) is bounded by the pass deadline alone
-  // (D5) — never the tighter context budget, which does not exist yet at
-  // this point.
-  const identifyReadFile = readFileWithSignal(deadlineSignal);
-
-  // Candidate resolution (steps b/c) is bounded by the *lesser* of the
-  // context time budget and the pass deadline. A wall-clock check between
-  // awaits (inside `buildSourceFileSet`) cannot stop a single read call that
-  // itself stalls — only an abort signal threaded into that specific call
-  // can. Arming a dedicated deadline and combining its signal with the pass
-  // deadline is what makes a stalled contents request abort at the tighter
-  // boundary instead of silently riding the pass's own (much larger) budget.
-  const contextDeadline = createPassDeadline(timeBudgetMs, deps.deadlineClock);
-  const resolveReadFile = readFileWithSignal(combineAbortSignals(deadlineSignal, contextDeadline.signal));
-
   let requested: InternalRequestedReference[] = [];
+  // Declared here so the `finally` below can safely dispose it whether or
+  // not identification (which runs first, and can itself throw) ever let
+  // control reach the point where this gets created.
+  let contextDeadline: ReturnType<typeof createPassDeadline> | undefined;
+  // Recorded fallback for the catch block below, which reaches it whenever
+  // identification itself throws — before the pass-remaining-time-adjusted
+  // figure a few lines down is ever computed.
+  let timeBudgetMs = deps.config.repositoryContextTimeBudgetMs;
 
   try {
-    const changedLinesByFile = buildCommentableLinesByFile(changedFiles);
+    // Candidate identification (step a) is bounded by the pass deadline
+    // alone (D5) — never the tighter context budget. `timeBudgetMs` and
+    // `contextDeadline` are deliberately not computed or armed until
+    // identification has returned, so a slow changed-file read can never
+    // consume the context budget before resolution — the phase this budget
+    // is meant to bound — ever starts.
     const identified = await identifyCandidates(
       changedFiles.map((file) => file.path),
-      changedLinesByFile,
-      identifyReadFile,
+      buildCommentableLinesByFile(changedFiles),
+      readFileWithSignal(deadlineSignal),
     );
     requested = identified.requested;
+
+    // Computed *after* identification, so it reflects the pass budget
+    // actually remaining once identification's own (potentially slow) reads
+    // are done, never a stale figure captured before them.
+    const remainingPassMs = Math.max(0, passStartMs + deps.config.passTimeoutMs - deps.clock.now());
+    timeBudgetMs = Math.min(deps.config.repositoryContextTimeBudgetMs, remainingPassMs);
 
     if (identified.requested.length === 0) {
       const outcome: RepositoryContextOutcome =
@@ -1017,6 +1019,18 @@ async function runRepositoryContextPhase(
         candidatesForPrompt: [],
       };
     }
+
+    // Candidate resolution (steps b/c) is bounded by the *lesser* of the
+    // context time budget and the pass deadline. A wall-clock check between
+    // awaits (inside `buildSourceFileSet`) cannot stop a single read call
+    // that itself stalls — only an abort signal threaded into that specific
+    // call can. Arming a dedicated deadline here, only once identification
+    // has already returned, and combining its signal with the pass deadline
+    // is what makes a stalled contents request abort at the tighter
+    // boundary instead of silently riding the pass's own (much larger)
+    // budget.
+    contextDeadline = createPassDeadline(timeBudgetMs, deps.deadlineClock);
+    const resolveReadFile = readFileWithSignal(combineAbortSignals(deadlineSignal, contextDeadline.signal));
 
     const closure = await buildSourceFileSet(identified.changedSourceTexts, resolveReadFile, timeBudgetMs);
     const resolutions = resolveSymbols(closure.fileSet, identified.requested, closure);
@@ -1076,7 +1090,7 @@ async function runRepositoryContextPhase(
       candidatesForPrompt: [],
     };
   } finally {
-    contextDeadline.dispose();
+    contextDeadline?.dispose();
   }
 }
 

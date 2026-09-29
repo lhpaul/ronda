@@ -54,6 +54,8 @@ interface FakeGithubInput {
   transientFailurePaths?: Set<string>;
   /** Never resolves on its own — only when `signal` aborts, mirroring a stalled contents request. */
   hangingPaths?: Set<string>;
+  /** Resolves normally, but only after the given delay — simulating a slow (not stalled) read. */
+  delayedPaths?: Map<string, number>;
 }
 
 function createFakeGithub(input: FakeGithubInput): {
@@ -71,6 +73,10 @@ function createFakeGithub(input: FakeGithubInput): {
       return input.changedFiles;
     },
     async readFileAtRef(_owner, _repo, path, _ref, signal, options) {
+      const delayMs = input.delayedPaths?.get(path);
+      if (delayMs !== undefined) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
       if (input.hangingPaths?.has(path)) {
         return await new Promise((_resolve, reject) => {
           const onAbort = (): void => reject(new GithubClientError("timed_out", "aborted"));
@@ -270,6 +276,38 @@ test("scenario 7: a time budget forced to zero yields unavailable and never exte
   assert.equal(result.outcome, "succeeded");
   assert.equal(result.repositoryContext?.record?.outcome, "unavailable");
   assert.ok(result.repositoryContext?.record?.drops.every((drop) => drop.reason === "time_budget"));
+});
+
+test("a slow changed-file read during identification never consumes the context time budget", async () => {
+  // Identification (reading src/caller.ts) deliberately takes longer than
+  // the configured context budget. If the context deadline were armed
+  // before identification (the bug this test guards against), it would
+  // already be expired by the time resolution starts, and the fast,
+  // otherwise-trivially-resolvable util.ts read would be dropped
+  // time_budget instead of resolving.
+  const github = createFakeGithub({
+    pullRequest: pullRequest(),
+    changedFiles: [changedFile("src/caller.ts", [4])],
+    repoFiles: new Map([
+      ["src/caller.ts", CALLER_TEXT],
+      ["src/util.ts", UTIL_TEXT],
+    ]),
+    delayedPaths: new Map([["src/caller.ts", 120]]),
+  });
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    deps(
+      github.ops,
+      createConfig({
+        repositoryContextMode: "on",
+        repositoryContextTimeBudgetMs: 60, // shorter than identification's own 120ms delay
+        passTimeoutMs: 600_000,
+      }),
+    ),
+  );
+  assert.equal(result.outcome, "succeeded");
+  assert.equal(result.repositoryContext?.record?.outcome, "used");
+  assert.equal(result.repositoryContext?.record?.candidatesResolved, 1);
 });
 
 test("a stalled candidate-target read aborts at the context time budget, not the (much larger) pass deadline", async () => {
