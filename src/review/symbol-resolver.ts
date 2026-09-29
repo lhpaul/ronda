@@ -31,9 +31,22 @@ const ELIGIBLE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs
  * entirely and every requested reference is dropped `time_budget` — the
  * same reason an exhausted context time budget already uses, since this is
  * the same budget-protection concern, not a sixth drop reason.
+ *
+ * **Recorded limitation, not a full fix**: these are size caps, not a CPU-
+ * time bound. A file set at or under either cap can still, in a pathological
+ * case (deeply nested generic or conditional types, for instance), take
+ * longer to type-check than the configured budget — nothing here can
+ * preempt a synchronous compiler call already in flight; only running that
+ * call in a separate worker thread, with its own terminable execution
+ * context, would give a genuine CPU-time bound, and that is a materially
+ * larger architectural change than this feature's existing GitHub-contents-
+ * seam, in-process design (D2) — out of scope for this iteration. The
+ * values below are set low enough to keep this a narrow, disclosed residual
+ * risk rather than a first-order concern for this repository's own
+ * TypeScript source, which this feature dogfoods against first.
  */
-const MAX_RESOLUTION_FILE_COUNT = 500;
-const MAX_RESOLUTION_TOTAL_CHARS = 4_000_000;
+const MAX_RESOLUTION_FILE_COUNT = 100;
+const MAX_RESOLUTION_TOTAL_CHARS = 1_000_000;
 /**
  * Same concern, applied to identification's own changed-files-only program
  * (step a — bounded by the pass deadline alone, D5, but its parse/type-check/
@@ -42,7 +55,7 @@ const MAX_RESOLUTION_TOTAL_CHARS = 4_000_000;
  * combined-total and file-count caps below reuse the resolution backstops
  * above, since both programs carry the same synchronous-blocking risk.
  */
-const MAX_CHANGED_FILE_CHARS = 1_000_000;
+const MAX_CHANGED_FILE_CHARS = 300_000;
 
 /** The module-resolution contract's fixed compiler options. `tsconfig.json` is not read this iteration. */
 const COMPILER_OPTIONS: ts.CompilerOptions = {

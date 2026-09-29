@@ -631,7 +631,7 @@ test("isOwnLibPath: a sibling directory sharing TS_LIB_DIR as a string prefix is
 
 test("identifyCandidates excludes a single oversized changed file, accounted for, never parsed", async () => {
   const files = new Map([
-    ["src/huge.ts", "x".repeat(1_000_001)],
+    ["src/huge.ts", "x".repeat(300_001)],
     ["src/normal.ts", "export function helper(): void {}\n"],
   ]);
   const identified = await identifyCandidates(
@@ -661,19 +661,19 @@ test("isResolutionFileSetOversized: within both backstops is false", () => {
 
 test("isResolutionFileSetOversized: over the file-count backstop is true", () => {
   const fileSet = new Map<string, string>();
-  for (let i = 0; i < 501; i += 1) {
+  for (let i = 0; i < 101; i += 1) {
     fileSet.set(`file-${i}.ts`, "x");
   }
   assert.equal(isResolutionFileSetOversized(fileSet), true);
 });
 
 test("isResolutionFileSetOversized: over the combined-character backstop is true", () => {
-  const fileSet = new Map([["huge.ts", "x".repeat(4_000_001)]]);
+  const fileSet = new Map([["huge.ts", "x".repeat(1_000_001)]]);
   assert.equal(isResolutionFileSetOversized(fileSet), true);
 });
 
 test("resolveSymbols skips compilation and drops every requested reference time_budget when the fetched set is oversized", () => {
-  const fileSet = new Map([["src/caller.ts", "x".repeat(4_000_001)]]);
+  const fileSet = new Map([["src/caller.ts", "x".repeat(1_000_001)]]);
   const requested = [
     {
       id: 0,
