@@ -944,6 +944,7 @@ test("a client that never settles cannot hold a run past its deadline", async ()
   }) as unknown as typeof setTimeout);
   let exitCode: number;
   let records: Array<Record<string, unknown>>;
+  let secondRunStarted = false;
   try {
     ({ exitCode, records } = await runCampaign(
       "never-settles",
@@ -958,6 +959,7 @@ test("a client that never settles cannot hold a run past its deadline", async ()
               // Ignores the abort and never answers.
               return new Promise<never>(() => undefined);
             }
+            secondRunStarted = true;
             return { content: readFileSync(fixturePath("model-responses/passing.json"), "utf8") };
           },
         }),
@@ -967,21 +969,18 @@ test("a client that never settles cannot hold a run past its deadline", async ()
     spy.mock.restore();
   }
 
-  // The hung run becomes a timeout record at its deadline and the campaign
-  // moves on, instead of waiting on the client forever.
+  // The hung run becomes a timeout record at its deadline, after the grace
+  // period rather than the client's own time, and the campaign stops there:
+  // starting the second run would overlap a request still in flight.
   assert.equal(exitCode, 1);
-  assert.deepEqual(records.map(isFailure), [true, false]);
+  assert.deepEqual(records.map(isFailure), [true]);
+  assert.equal(secondRunStarted, false, "no run may start while a request is in flight");
   assert.equal((records[0].failure as { reason: string; aborted: boolean }).reason, "timeout");
   assert.equal((records[0].failure as { aborted: boolean }).aborted, true);
-  // It was still in flight after the grace period, and the record says so.
-  assert.equal(
-    (records[0].failure as { unsettledAfterDeadline?: boolean }).unsettledAfterDeadline,
-    true,
-  );
   // The run deadline (50 ms) and the grace period (100 ms) are the campaign's own
   // clock; neither may be unref'd.
   const bounds = timers.filter(({ delay }) => delay === 50 || delay === 100);
-  assert.ok(bounds.length >= 3, "the deadline and grace timers must have been created");
+  assert.ok(bounds.length >= 2, "the deadline and grace timers must have been created");
   for (const { delay, timer } of bounds) {
     assert.equal(timer.hasRef(), true, `the ${delay} ms timer must keep the process alive`);
   }
@@ -1014,8 +1013,6 @@ test("the next run waits for a timed-out request that settles within the grace p
   assert.deepEqual(records.map(isFailure), [true, false]);
   // The second run began only after the first run's request had settled.
   assert.ok(firstSettledAt > 0 && secondStartedAt >= firstSettledAt);
-  // It settled within the grace period, so the record carries no unsettled flag.
-  assert.equal("unsettledAfterDeadline" in (records[0].failure as object), false);
 });
 
 test("campaign records a mid-campaign failure instead of throwing and leaves the other runs undisturbed", async () => {

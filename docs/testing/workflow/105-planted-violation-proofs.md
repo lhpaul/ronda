@@ -7,11 +7,11 @@ command/outcome, restore, pass command/outcome.
 Scope: the seventeen assertions this PR adds to
 `tests/unit/cli/recall-benchmark.test.ts` under
 `campaign attributes each precision finding under AC9 independently of the
-recall pass` (line 1175) — the coverage that answers the two review findings
+recall pass` (line 1172) — the coverage that answers the two review findings
 routed against the precision sweep records and the per-request prompt
 identity. The pre-existing credential-scanner suite (`P1`–`P14`,
 `the credential scan fails on a planted canary and passes once it is
-removed, per shape` at line 1560) is unchanged by this PR and is not re-proved
+removed, per shape` at line 1557) is unchanged by this PR and is not re-proved
 here; the plan's scenario-7 canary proof already covers it.
 
 The guard tests over committed artifacts — `tests/unit/testing/evidence-records.test.ts`
@@ -40,7 +40,7 @@ built from the recall pass's findings instead of the precision request's own.
 equal: actual: 13, expected: 1` — the precision record's
 `uncategorizedFindingCount` becomes the recall pass's count. Isolates the
 independence of the two classifications
-(`assert.equal(precisionRecord.uncategorizedFindingCount, 1)`, line 1216).
+(`assert.equal(precisionRecord.uncategorizedFindingCount, 1)`, line 1213).
 
 ## P2 — precision request's own fingerprint omitted
 
@@ -50,7 +50,7 @@ spread from the precision entry of `requests[]`.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy
 value: actual: undefined, expected: true`. Isolates
-`assert.ok(onRequests[1].promptFingerprint)` (line 1241).
+`assert.ok(onRequests[1].promptFingerprint)` (line 1238).
 
 ## P3 — sweep section not stripped from the prompt fingerprint
 
@@ -62,7 +62,7 @@ so `fingerprintPrompt` hashes the swept system prompt.
 deep-equal: actual: [ '128da42b…', 'abaa2c96…' ], expected: [ '1f76380e…',
 '41593c7c…' ]` — the two arms stop agreeing, because the sweep section is the
 only difference between them. Isolates the arm-equality deep-equal of
-`promptFingerprint` across sweep-off and sweep-on (line 1249).
+`promptFingerprint` across sweep-off and sweep-on (line 1246).
 
 ## P4 — precision per-fixture record not published
 
@@ -73,7 +73,7 @@ JSON.stringify({ event: "sweep_pass_record", runIndex,
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: 1, expected: 2` — only the recall pass's line remains on the
 `benchmark-output` surface. Isolates `assert.equal(published.length, 2)`
-(line 1257).
+(line 1254).
 
 ## P5 — sweep-off run admitted to the per-fixture record
 
@@ -83,7 +83,7 @@ equal: actual: 1, expected: 2` — only the recall pass's line remains on the
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: true, expected: false`. Isolates
-`assert.equal("sweepPassRecord" in offFixtures[0], false)` (line 1230) — the
+`assert.equal("sweepPassRecord" in offFixtures[0], false)` (line 1227) — the
 sweep-off arm must publish no per-fixture record.
 
 ## P6 — precision per-fixture record never assigned
@@ -94,7 +94,7 @@ result.findings;`.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy
 value: actual: undefined, expected: true`. Isolates `assert.ok(precisionRecord)`
-(line 1209).
+(line 1206).
 
 ## P7 — precision record carries a different list version
 
@@ -104,7 +104,7 @@ list.version,` with `listVersion: \`${list.version}-planted\`,`.
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: 'sweep-categories-v1-planted', expected: 'sweep-categories-v1'`.
 Isolates `assert.equal(precisionRecord.listVersion, recalled.listVersion)`
-(line 1210) — one list, one version, across both request kinds.
+(line 1207) — one list, one version, across both request kinds.
 
 ## P8 — precision entries dropped from the request identity list
 
@@ -114,7 +114,7 @@ Isolates `assert.equal(precisionRecord.listVersion, recalled.listVersion)`
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: 1, expected: 2`. Isolates `assert.equal(onRequests.length, 2)`
-(line 1239).
+(line 1236).
 
 ## P9 — precision entry reuses the recall fingerprint
 
@@ -125,7 +125,7 @@ entry's spread.
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly
 unequal to: actual: '1f76380e…', expected: '1f76380e…'`. Isolates
 `assert.notEqual(onRequests[0].promptFingerprint,
-onRequests[1].promptFingerprint)` (line 1242) — each request's entry must
+onRequests[1].promptFingerprint)` (line 1239) — each request's entry must
 reflect that request's own prompt.
 
 ## P10 — recall stderr line gains a seventh key
@@ -138,7 +138,7 @@ deep-equal: actual: [ 'categories', 'event', 'findings', 'listVersion',
 'plantedExtra', 'runIndex', 'uncategorizedFindingCount' ], expected: [
 'categories', 'event', 'findings', 'listVersion', 'runIndex',
 'uncategorizedFindingCount' ]`. Isolates `assert.deepEqual(keySets[0], […])`
-(line 1259).
+(line 1256).
 
 ## P11 — precision stderr line gains a seventh key
 
@@ -147,8 +147,8 @@ into the precision `sweep_pass_record` object literal.
 
 **Fail**: same deep-equal failure as P10, on the precision line. Together
 P10 and P11 isolate both halves of the schema check: P10 breaks the recall
-line's key set (`keySets[0]`, line 1065), P11 breaks the precision line's —
-which only the final `assert.deepEqual(keySets[1], keySets[0])` (line 1267)
+line's key set (`keySets[0]`, line 1062), P11 breaks the precision line's —
+which only the final `assert.deepEqual(keySets[1], keySets[0])` (line 1264)
 catches, since `keySets[1]` is otherwise never compared to a literal. Remove
 either plant and its line matches the six-key literal again.
 
@@ -164,7 +164,7 @@ deep-equal: actual: [ 'produced_findings', 'produced_findings',
 'produced_none', 'produced_findings', 'produced_findings' ], expected: [
 'produced_none', 'produced_none', 'produced_none', 'produced_none',
 'produced_none' ]`. Isolates `assert.notDeepEqual(precisionRecord.categories,
-recalled.categories)` (line 1225) — each request records its own per-category
+recalled.categories)` (line 1222) — each request records its own per-category
 outcome.
 
 ## P13 — recall request's own fingerprint omitted
@@ -175,7 +175,7 @@ spread from the recall entry of `requests[]`.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy
 value: actual: undefined, expected: true`. Isolates
-`assert.ok(onRequests[0].promptFingerprint)` (line 1240), the pairing that
+`assert.ok(onRequests[0].promptFingerprint)` (line 1237), the pairing that
 proves P2 and P9 fail for the reason stated rather than because the whole
 array is malformed.
 
@@ -188,7 +188,7 @@ typeof sweepRecord),`.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: true, expected: false`. Isolates
-`assert.equal("sweepPassRecord" in offRecord, false)` (line 1231) — a
+`assert.equal("sweepPassRecord" in offRecord, false)` (line 1228) — a
 sweep-off run publishes no recall-side record either, not only no per-fixture
 record.
 
@@ -200,12 +200,12 @@ precisionResults.map((result) => result.summary),` with `precisionFixtures:
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal: actual: 0, expected: 1`. Isolates `assert.equal(fixtures.length, 1)`
-(line 1199) — the quality summary carries one entry per configured precision
+(line 1196) — the quality summary carries one entry per configured precision
 fixture, which is the collection every other assertion in the test addresses.
 
 ## P16 — recall gate applied to the runs of a campaign
 
-**Plant**: `src/cli/recall-benchmark.ts:1327` — drop the `&& runs === 1`
+**Plant**: `src/cli/recall-benchmark.ts:1335` — drop the `&& runs === 1`
 condition from `if (only !== undefined && isFailureRecord(only) === false &&
 runs === 1) {`, so the recall gate judges the first record of a multi-run
 campaign too.
@@ -326,15 +326,15 @@ the file then reports `ℹ pass 49`, `ℹ fail 0`.
 
 | Proof | Plant in `patches.json` (`credentials.ts` entry) | Fails at | Isolates |
 | --- | --- | --- | --- |
-| P24 | rename `const CANONICAL_CREDENTIAL_NAME = ` to `const OTHER_NAME = ` | test line 1480, `must define the canonical-name guard the defect is about` | the patch defines the guard the seed is about |
-| P25 | change the guard `/^token$/` to `/^tokenX$/` | test line 1482, `the guard must recognize the canonical name token` | the guard recognizes the canonical form |
-| P26 | change `return redactCredentials({ authToken });` to `return { authToken };` | test line 1489, `must pass a credential-named value to the guard` | the variant goes through the guard |
-| P27 | change `redactCredentials({ authToken })` to `redactCredentials({ token })` | test line 1490, `Expected "actual" to be strictly unequal` | the value passed is not the canonical name |
-| P28 | broaden the guard to `/[Tt]oken$/` | test line 1491, `the guard must miss the variant authToken, or the seeded defect is not in the patch` | the guard misses the variant, which is the defect |
+| P24 | rename `const CANONICAL_CREDENTIAL_NAME = ` to `const OTHER_NAME = ` | test line 1477, `must define the canonical-name guard the defect is about` | the patch defines the guard the seed is about |
+| P25 | change the guard `/^token$/` to `/^tokenX$/` | test line 1479, `the guard must recognize the canonical name token` | the guard recognizes the canonical form |
+| P26 | change `return redactCredentials({ authToken });` to `return { authToken };` | test line 1486, `must pass a credential-named value to the guard` | the variant goes through the guard |
+| P27 | change `redactCredentials({ authToken })` to `redactCredentials({ token })` | test line 1487, `Expected "actual" to be strictly unequal` | the value passed is not the canonical name |
+| P28 | broaden the guard to `/[Tt]oken$/` | test line 1488, `the guard must miss the variant authToken, or the seeded defect is not in the patch` | the guard misses the variant, which is the defect |
 
 All five fail as `AssertionError [ERR_ASSERTION]`. A guard broadened with a
 regex flag (`/token$/i`) is not a P28 plant: the extraction pattern stops
-matching it, so it fails at line 1480 first and would be masked, which is why
+matching it, so it fails at line 1477 first and would be masked, which is why
 P28 broadens the character class instead.
 
 ## P29–P32 — a run's deadline is not enforced against a client that ignores the abort
@@ -351,9 +351,9 @@ is restored afterwards and the file reports `ℹ pass 50`, `ℹ fail 0`. Run wit
 | Proof | Plant in `src/cli/recall-benchmark.ts` | Fails at | Isolates |
 | --- | --- | --- | --- |
 | P29 | `return await Promise.race([body, deadline]);` becomes `return await body;` (`src/cli/recall-benchmark.ts:1188`) | changed test line 786 `assert.equal(exitCode, 1)`; the new test never returns and fails with `test timed out after 4000ms` | the run is bounded by its deadline, not by the client |
-| P30 | pass `false` instead of `deadlineFired` to `buildFailureDetail` | changed test line 789, new test line 974 (`reason` is `"timeout"`), and the existing timeout test line 1122 | a deadline expiry is classified as a timeout |
-| P31 | `aborted,` becomes `aborted: false,` in `buildFailureDetail` (`src/cli/recall-benchmark.ts:893`) | new test line 975 (`aborted` is true) and the existing test line 1122; the `reason` assertion above it stays green | the record says the deadline aborted the run |
-| P32 | add `if (runIndex > 0) throw new Error("planted");` at the top of `runBody` | changed test line 788 and new test line 973 (`records.map(isFailure)` is `[true, false]`); the `exitCode` and length assertions above them stay green | a hung run does not take the next run down with it |
+| P30 | pass `false` instead of `deadlineFired` to `buildFailureDetail` | changed test line 789, new test line 978 (`reason` is `"timeout"`), and the existing timeout test line 1119 | a deadline expiry is classified as a timeout |
+| P31 | `aborted,` becomes `aborted: false,` in `buildFailureDetail` (`src/cli/recall-benchmark.ts:893`) | new test line 979 (`aborted` is true) and the existing test line 1119; the `reason` assertion above it stays green | the record says the deadline aborted the run |
+| P32 | add `if (runIndex > 0) throw new Error("planted");` at the top of `runBody` | changed test line 788 and new test line 976 (`records.map(isFailure)` is `[true, false]`); the `exitCode` and length assertions above them stay green | a hung run does not take the next run down with it |
 
 P32 also fails other multi-run tests, which legitimately read the same second
 run. The elapsed-time assertion an earlier draft carried is dropped: the test
@@ -378,22 +378,38 @@ plant removes one check, is restored, and the file reports `ℹ pass 54`,
 | P34 | the check after `runRecallPass` (`src/cli/recall-benchmark.ts:1047`) | the `recall` test, line 852, same message; the other two stay green | a run resuming from the recall request issues no precision request |
 | P35 | the check after the precision requests (`src/cli/recall-benchmark.ts:1080`) | the `precision` test, line 857, `the timed-out run must not log after its failure record`; the other two stay green | a run resuming from a precision request emits no per-category record |
 
-## P36–P39 — the next run overlaps a timed-out request, or waits on it forever
+## P36–P39 — the next run overlaps a timed-out request, waits on it forever, or starts after it
 
 A run whose deadline passed is aborted, then waited on for a bounded grace period
 (`deadlineDrainMs`, five seconds by default) so the next run does not overlap a
 request that settles on abort. A request still in flight after the grace period is
-recorded with `unsettledAfterDeadline: true` instead of holding the campaign. Two
-tests hold this: `the next run waits for a timed-out request that settles within
-the grace period` and `a client that never settles cannot hold a run past its
-deadline`. Each plant is restored and the file reports `ℹ pass 54`, `ℹ fail 0`.
+recorded with `unsettledAfterDeadline: true`, and the campaign stops there: it
+starts no further run, so records exist only up to that run and the exit code is
+non-zero. Three tests hold this: `the next run waits for a timed-out request that
+settles within the grace period`, `a client that never settles cannot hold a run
+past its deadline`, and `campaign gives each run its own pass deadline`. Each plant
+is restored and the file reports `ℹ pass 56`, `ℹ fail 0`. Run with
+`--test-timeout=8000`.
 
 | Proof | Plant in `src/cli/recall-benchmark.ts` | Fails | Isolates |
 | --- | --- | --- | --- |
-| P36 | replace the `const unsettled = deadlineFired ? … : false;` expression (`src/cli/recall-benchmark.ts:1194`) with `const unsettled = false;`, so nothing waits | the waits test, line 1016, `assert.ok(firstSettledAt > 0 && secondStartedAt >= firstSettledAt)`; the never-settles test also fails at its flag assertion, line 977 | the next run starts only after a timed-out request settles |
+| P36 | replace the `const unsettled = deadlineFired ? … : false;` expression (`src/cli/recall-benchmark.ts:1194`) with `const unsettled = false;`, so nothing waits | the waits test, line 1015, `assert.ok(firstSettledAt > 0 && secondStartedAt >= firstSettledAt)`; the never-settles test also fails at line 976, because nothing marks the request unsettled, so the campaign does not stop | the next run starts only after a timed-out request settles |
 | P37 | replace `!(await settledWithin(body, …))` (`src/cli/recall-benchmark.ts:1195`) with `(await body.then(() => false, () => false))`, an unbounded wait | the never-settles test fails with `test timed out after 8000ms`; the waits test stays green | the wait is bounded, so a client that never settles cannot hold the campaign |
-| P38 | replace the `...(unsettled ? { unsettledAfterDeadline: true } : {}),` spread (`src/cli/recall-benchmark.ts:1210`) with an empty object | the never-settles test, line 977, `unsettledAfterDeadline` is `true`; the waits test stays green | a request still in flight after the grace period is recorded as such |
-| P39 | make `unsettled` true whenever the deadline fired, after still waiting (`src/cli/recall-benchmark.ts:1194`) | the waits test, line 1018, the record carries no unsettled flag; the never-settles test stays green | a request that settled within the grace period is not recorded as unsettled |
+| P38 | replace the `...(unsettled ? { unsettledAfterDeadline: true } : {}),` spread (`src/cli/recall-benchmark.ts:1210`) with an empty object | the never-settles test, line 976, `records.map(isFailure)` is `[true]`; the waits test stays green | a request still in flight after the grace period is recorded, and that record is what stops the campaign |
+| P39 | make `unsettled` true whenever the deadline fired, after still waiting (`src/cli/recall-benchmark.ts:1194`) | the waits test, line 1013, `records.map(isFailure)` is `[true, false]`, and the per-run-deadline test, line 787, `records.length` is `2`; the never-settles test stays green | a request that settled within the grace period does not stop the campaign |
+
+## P47–P48 — the campaign starts the next run while a request is in flight
+
+Recording an unsettled request is not enough if the loop then advances: the next
+run would overlap the request, doubling external calls and mixing its cost into
+the next run's. The campaign loop breaks after a failure record that carries
+`unsettledAfterDeadline`. In `a client that never settles cannot hold a run past
+its deadline` the second run's client records whether it was ever called.
+
+| Proof | Plant in `src/cli/recall-benchmark.ts` | Fails | Isolates |
+| --- | --- | --- | --- |
+| P47 | delete the `break` after the unsettled failure record (`src/cli/recall-benchmark.ts:1318`) | test line 976, `records.map(isFailure)` is `[true]` (the campaign carried on and recorded a second run) | the campaign records nothing past an unsettled request |
+| P48 | keep the `break` but first call `await runOneCampaignRun(context, deps, list, runIndex + 1);` (`src/cli/recall-benchmark.ts:1317`), so the next run starts and its record is discarded | test line 977, `no run may start while a request is in flight`; the record assertion above it stays green | the next run is never started while a request may be in flight |
 
 ## P40–P41 — a campaign timer lets the process exit under a hung client
 
@@ -413,10 +429,10 @@ finishes and reports the campaign's exit code 1.
 
 | Proof | Plant in `src/cli/recall-benchmark.ts` | Fails | Isolates |
 | --- | --- | --- | --- |
-| P40 | add `timeout.unref?.();` after the run's deadline timer (`src/cli/recall-benchmark.ts:1020`) | test line 986, `the 50 ms timer must keep the process alive` | the run's deadline timer keeps the process alive |
-| P41 | add `timer.unref?.();` after the grace timer (`src/cli/recall-benchmark.ts:1244`) | test line 986, `the 100 ms timer must keep the process alive`; the 50 ms case stays green | the drain's grace timer keeps the process alive |
+| P40 | add `timeout.unref?.();` after the run's deadline timer (`src/cli/recall-benchmark.ts:1020`) | test line 985, `the 50 ms timer must keep the process alive` | the run's deadline timer keeps the process alive |
+| P41 | add `timer.unref?.();` after the grace timer (`src/cli/recall-benchmark.ts:1244`) | test line 985, `the 100 ms timer must keep the process alive`; the 50 ms case stays green | the drain's grace timer keeps the process alive |
 
-The `bounds.length >= 3` assertion (test line 984) guards the loop above it from
+The `bounds.length >= 2` assertion (test line 983) guards the loop above it from
 passing vacuously: it fails if the timers were never created, which would also fail
 the other assertions in the test.
 

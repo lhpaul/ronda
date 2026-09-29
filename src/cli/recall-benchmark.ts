@@ -1308,7 +1308,15 @@ export async function runBenchmarkCampaign(
   const runs = options.runs ?? 1;
   const records: BenchmarkRunRecord[] = [];
   for (let runIndex = 0; runIndex < runs; runIndex += 1) {
-    records.push(await runOneCampaignRun(context, deps, list, runIndex));
+    const record = await runOneCampaignRun(context, deps, list, runIndex);
+    records.push(record);
+    // A request still in flight after the grace period may belong to a client that
+    // ignored the abort, and the next run would then overlap it, doubling external
+    // calls and mixing its cost into the next run's. Stop here: the campaign is
+    // partial, its records so far are intact, and the exit code is non-zero.
+    if (isFailureRecord(record) && record.failure.unsettledAfterDeadline === true) {
+      break;
+    }
   }
 
   // The array is written even when a run failed, so a partial campaign still
