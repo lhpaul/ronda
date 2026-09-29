@@ -98,8 +98,8 @@ not to proceed (AC2), and nothing else in this spec is built.
    change itself defines or modifies.
 3. Ronda reads, at the reviewed head, the definitions of the depended-on symbols
    and the call sites of the defined or modified symbols, in the recorded
-   selection order, until the symbol count budget or the character budget is
-   reached.
+   selection order defined in **Context Selection Order**, until the symbol count
+   budget or the character budget is reached.
 4. Ronda runs its single model review for the head with the diff, the selected
    authoritative documents, and the selected repository context, each labelled
    so the model can tell changed lines from unchanged context.
@@ -245,9 +245,11 @@ not to proceed (AC2), and nothing else in this spec is built.
    repository context. With it on, Ronda reads repository context for that head
    only from the reviewed head's own repository, treats every byte of it as
    untrusted data rather than instructions, and never executes any of it.
-4. Ronda publishes one review for the head, and — where it emitted a
-   repository-context record — that record states that the head was
-   fork-originated.
+4. On the webhook ingress, Ronda publishes one review for the head, and — where it
+   emitted a repository-context record — that record states that the head was
+   fork-originated. On the reusable-workflow ingress no review is published,
+   because step 2 already ended the pass; that is today's behaviour and this
+   feature does not change it.
 
 **Postconditions**:
 
@@ -363,8 +365,9 @@ repository.
 
 **Postconditions**:
 
-- Recorded cost evidence names the baseline it is measured against, the arms it
-  compares, and whether the budget held.
+- Recorded cost evidence names its two paired arms, names the committed baseline
+  and the dogfood pass as descriptive references rather than arms, and states
+  whether the budget held.
 
 **Information shown**:
 
@@ -461,7 +464,15 @@ repository.
   an instruction to Ronda, never changes Ronda's output contract, and never
   causes Ronda to read anything outside the reviewed head's own repository.
 - Repository context is off by default and is enabled by operator configuration,
-  resolved where Ronda's other operator switches are resolved.
+  resolved where Ronda's other operator switches are resolved: the workflow input
+  on the reusable-workflow ingress, and the one deployment-scoped operator
+  configuration value on the webhook ingress, which serves every repository that
+  process handles.
+- The fork switch is a second operator-configuration value resolved from that
+  same source and applying only on the webhook ingress. It can only withhold
+  repository context from fork-originated heads; it can never grant context that
+  the global switch has not already enabled, and it never affects non-fork heads.
+  Its default is Open Question 3.
 - Repository context is read at the reviewed head, and only at the reviewed head,
   so the context and the diff describe the same state of the code.
 - A pass never exceeds its configured symbol count budget or character budget,
@@ -499,6 +510,56 @@ repository.
   by assertion in a document.
 - No implementation work on this feature begins before the amendment above is
   recorded as accepted or rejected.
+
+---
+
+## Context Selection Order
+
+The recorded selection order is a product contract, not an implementation
+choice: AC6 drops context by it and AC20 makes selection reproducible, so
+leaving it unstated would force implementers to invent the contract and would
+make "why did Ronda not see that?" unanswerable.
+
+**Candidates.** Exactly two kinds of repository content are ever candidates, and
+neither reaches further than a single step from the changed lines:
+
+1. **Depended-on definitions** — the definition of each symbol a changed line
+   calls, reads, or otherwise depends on directly.
+2. **Call sites** — the places that call or read each symbol the change itself
+   defines or modifies.
+
+Nothing transitive is a candidate. The definition of a symbol that only a
+*candidate* names, and the callers of a caller, are out of scope for this
+iteration (see **Out of Scope (MVP)**), so the candidate set is bounded by the
+changed lines alone.
+
+**Priority.** Candidates are ordered by these keys, each applied only to break a
+tie in the one before it, so the order is total and the same every time:
+
+1. **Kind**: depended-on definitions before call sites. The recorded finding
+   corpus is why: the dominant cluster is code treating a value as evidence of
+   something it does not establish, and that is answered by the definition of
+   what produced the value, not by its callers.
+2. **Changed-line position**: for a depended-on definition, the position of the
+   earliest changed line that depends on it; for a call site, the position of the
+   earliest changed line whose defined symbol it calls. Earlier first, where
+   position is ordered by changed file path ascending, then by line number
+   ascending.
+3. **Candidate location**: the candidate's own file path ascending, then its line
+   number ascending.
+4. **Symbol name** ascending, as the final tie-break, so two candidates that are
+   identical under every key above still have one defined order.
+
+**Dropping.** Candidates are taken in that order until the symbol count budget or
+the character budget would be exceeded. Everything not taken is dropped whole —
+never truncated mid-excerpt — and each drop is recorded with its reason: symbol
+count budget, character budget, time budget, or read did not succeed. A single
+candidate that alone exceeds the character budget is dropped and recorded, not
+truncated.
+
+**Reproducibility.** The order depends only on the reviewed head, the changed
+lines, and the configuration. It never depends on read latency, the order in which
+reads complete, or anything else that can vary between passes (AC20).
 
 ---
 
@@ -608,12 +669,19 @@ Each row below is the normative summary for its gate; the prose sites named unde
       decision names which of the two commitments in the current locked decision
       it changes and which it keeps.
 - [ ] AC2: If the amendment is rejected, this item terminates with that recorded
-      decision as its only outcome, and none of AC3 to AC18 is built. The
-      rejection is verifiable by the absence of any repository-context capability
+      decision as its only outcome, and **none of AC3 to AC20 is built** — no
+      repository-context capability, no switch, no budget, no record, and no
+      evidence artifact of any kind, including the off-by-default and
+      reproducibility criteria, which exist only as properties of a capability
+      that is not built. The rejection is verifiable by the absence of any
+      repository-context capability, configuration surface, or evidence document
       in the shipped version.
 - [ ] AC3: With the amendment accepted and repository context enabled, a review
-      pass that reaches review execution resolves symbols named in the changed
-      lines at the reviewed head, and its check-run output — where that pass's own
+      pass that reaches review execution requests the candidates the selection
+      rules produce for the changed lines and resolves them at the reviewed head
+      as far as the budgets allow and the reads succeed — a pass that resolves
+      some is `partial` and a pass that resolves none is `unavailable`, both
+      governed by AC6, AC8, and AC11 — and its check-run output — where that pass's own
       check-run write produced a check run whose outcome is a review — and its logs
       each state the pass's repository-context outcome, the symbols requested, the
       symbols resolved, and the budget utilisation. Where no such check run exists,
@@ -678,16 +746,27 @@ Each row below is the normative summary for its gate; the prose sites named unde
       to test this feature and supports no claim about it.
 - [ ] AC14: Cost evidence exists reporting per-pass elapsed time, billed minutes,
       model calls per pass, and symbols resolved, for both arms, on measured passes
-      rather than a projection, and compares them against the committed
-      2026-09-23 cost and convergence baseline and the measured dogfood pass. It
-      states how many passes exhausted the context time budget and how many hit the
-      pass budget or the job backstop, and whether the pass budget in effect was
-      sufficient.
-- [ ] AC15: Every comparison in AC13 and AC14 is a paired context-off and
-      context-on comparison on the same targets or heads, interleaved, under one
-      immutable model version, with a configuration identical apart from the context
-      switch and the same number of runs per arm. A time-ordered before-and-after
-      comparison does not satisfy this criterion, and the evidence says so.
+      rather than a projection. It reports two distinct things and labels which is
+      which: the **comparative** figures, which are the context-off against
+      context-on difference and are subject to AC15; and the **descriptive
+      reference** figures, which are the committed 2026-09-23 cost and convergence
+      baseline and the measured dogfood pass, cited to size the absolute cost
+      against what this repository already spends. A descriptive reference is not
+      an arm and is never paired — it was recorded before this feature existed, so
+      pairing it is impossible — and no effect on recall, variance, or cost is read
+      from a difference against it. AC14 also states how many passes exhausted the
+      context time budget and how many hit the pass budget or the job backstop, and
+      whether the pass budget in effect was sufficient.
+- [ ] AC15: Every **comparative** claim drawn from AC13 or AC14 — that is, every
+      claim of an effect attributed to repository context — rests on a paired
+      context-off and context-on comparison on the same targets or heads,
+      interleaved, under one immutable model version, with a configuration
+      identical apart from the context switch and the same number of runs per arm.
+      A time-ordered before-and-after comparison, and a comparison against a
+      descriptive reference figure recorded before this feature existed, neither
+      satisfies this criterion, and the evidence says so. This criterion does not
+      apply to the descriptive reference figures themselves, which AC14 requires
+      and which carry no effect claim.
 - [ ] AC16: Paired precision evidence on the same configuration, with its
       recorded regression result, accompanies every recall claim. A recall claim
       without it is not published.
@@ -742,12 +821,12 @@ Each row below is the normative summary for its gate; the prose sites named unde
 | --- | --- | --- |
 | O1: Read-only proof and fork behaviour | AC4, AC5, AC9, AC10, plus the proposed amendment | The amendment keeps "never executes the reviewed repository's code" locked and relaxes only the no-checkout mechanism; AC4 and AC5 require demonstration on a hostile head rather than assertion; AC10 fixes per-ingress fork behaviour and an independent fork switch, so either answer to the open fork question is implementable without re-speccing. |
 | O2: Cost against the recorded figures, and the pass budget | AC8, AC14 | AC8 makes repository context fit inside the pass budget in effect (`pass_timeout_minutes`, default 10, job backstop that plus two) rather than require a larger one; AC14 compares measured passes against the committed 2026-09-23 baseline and the measured dogfood pass, and reports budget exhaustion. Whether the default budget should rise is an open question for the owner. |
-| O3: Symbol selection and context budget | AC3, AC6, AC7, AC20 | Selection resolves the definitions the changed lines depend on and the call sites of what the change defines, in a recorded order; two budgets bound it, in addition to the existing diff and authoritative-document budgets; the diff is never displaced (AC7), which is the direct answer to the recorded 32,000-token pruning observation; selection is reproducible (AC20). |
+| O3: Symbol selection and context budget | AC3, AC6, AC7, AC20 | Selection resolves the definitions the changed lines depend on and the call sites of what the change defines, in the recorded order defined in **Context Selection Order** — candidates one step from the changed lines only, ordered by kind, then changed-line position, then candidate location, then symbol name, with whole-candidate drops and no mid-excerpt truncation; two budgets bound it, in addition to the existing diff and authoritative-document budgets; the diff is never displaced (AC7), which is the direct answer to the recorded 32,000-token pruning observation; selection is reproducible (AC20). |
 | O4: Webhook path, concurrency and cleanup | AC12, plus the working-area and one-active-job business rules | No added concurrency, cleanup on every settlement path including watchdog abort and startup reconciliation, no working area shared between passes, and a cleanup failure never publishes a second review. |
 | O5: Recorded amendment or decision not to proceed | AC1, AC2 | The amendment text is proposed here and decided by the owner; rejection terminates the item with that record as its outcome. |
 | O6: Context available, read-only demonstrated | AC3, AC4, AC5, AC11, AC19 | The capability ships off by default and degrades rather than failing; the read-only property is demonstrated. |
 | O7: Recall evidence on the three sub-themes | AC13, AC15, AC16, AC18 | Per-seed recall for both arms on the seeds added by the sweep item; the fixture's ability to test this feature at all is stated before any figure; precision evidence is mandatory for a recall claim; the guard-fails-open movement already observed under the sweep is not re-attributed here. |
-| O8: Cost and pass-duration evidence | AC14, AC15 | Measured, paired, interleaved, one immutable model version, equal run counts. |
+| O8: Cost and pass-duration evidence | AC14, AC15 | Measured rather than projected. Two kinds of figure, labelled apart: the comparative context-off against context-on arms, which AC15 requires to be paired, interleaved, under one immutable model version with equal run counts; and the committed 2026-09-23 baseline and the measured dogfood pass as descriptive references, which are not arms, cannot be paired because they predate the feature, and carry no effect claim. |
 | O9: No implementation before the amendment | AC1, AC2, plus the closing business rule | Stated as a gate on starting work, verifiable from the recorded decision's date. |
 | O10: Measurement needs accumulated reviews; no "before" exists | AC15, AC17, plus Use Case 7 | The comparison is paired context-off against context-on on the same heads, never a before-and-after in time; the tier ledger governs what may be claimed while the cohort accumulates. #103 is closed, so passes accrue from now, but no pre-dogfood Ronda review exists to compare against and the recorded sweep ledger still stands at fixture-only with zero counted pull requests. |
 | O11: Sequence after the sweep; let its results inform the lever | AC18, plus Use Case 5 | The recorded sweep evidence is cited in both directions: the state-reconstruction and lossy-parsing seeds were not solved by the sweep, which is the case for this lever; the guard-fails-open seed moved under the sweep, so AC18 forbids claiming that movement here. The sweep's own paired comparison was recorded as inadmissible for model drift, which is why AC15 requires interleaved arms under one immutable model version. |
@@ -779,6 +858,9 @@ Each row below is the normative summary for its gate; the prose sites named unde
 - Any write to the reviewed repository beyond the one review and check run Ronda
   already publishes. Ronda still never pushes a fix.
 - Reading any repository other than the reviewed head's own.
+- Transitive context: the definition of a symbol that only a candidate names, and
+  the callers of a caller. Candidates stay one step from the changed lines (see
+  **Context Selection Order**).
 - Whole-repository or whole-package context, repository-wide indexing, and
   cross-pull-request or cross-pass carried context. Each pass reads afresh, within
   budget.
