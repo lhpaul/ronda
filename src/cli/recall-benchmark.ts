@@ -841,6 +841,26 @@ const ORIGINAL_THIRTEEN_IDS = [
 ] as const;
 
 /**
+ * A manifest that repeats a seeded defect id is ambiguous: findings are matched to
+ * seeds by id, so a repeated id can land in both the found and the missed list, or
+ * twice in one, and every recall figure and subset derived from it is corrupt. Refuse
+ * to run rather than emit evidence from it.
+ */
+function assertUniqueSeedIds(manifest: RecallBenchmarkManifest): void {
+  const seen = new Set<string>();
+  const repeated = new Set<string>();
+  for (const defect of manifest.seededDefects) {
+    if (seen.has(defect.id)) {
+      repeated.add(defect.id);
+    }
+    seen.add(defect.id);
+  }
+  if (repeated.size > 0) {
+    throw new Error(`the manifest repeats seeded defect ids: ${[...repeated].join(", ")}`);
+  }
+}
+
+/**
  * The run's own found/missed lists, filtered to the thirteen ids the snapshot
  * declares. Present only where the run's manifest holds every one of them, so
  * the extended fixture — which adds five more — reports no subset rather than a
@@ -1286,6 +1306,7 @@ export async function runBenchmarkCampaign(
   const manifestText = readFileSync(options.manifestPath, "utf8");
   const patchesText = readFileSync(options.patchesPath, "utf8");
   const manifest = JSON.parse(manifestText) as RecallBenchmarkManifest;
+  assertUniqueSeedIds(manifest);
   const changedFiles = JSON.parse(patchesText) as ChangedFile[];
   const config = deps.loadConfig();
   const sweepMode = options.sweepMode ?? "off";

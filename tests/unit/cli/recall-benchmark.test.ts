@@ -1004,35 +1004,61 @@ test("each precision log line names its kind and the fixture it belongs to", asy
   assert.equal(parsed.filter((line) => line.kind === "recall").length, 1);
 });
 
-test("the original-thirteen subset needs every original id, not thirteen matching entries", async () => {
+test("a manifest that repeats a seeded defect id is rejected instead of reporting evidence", async () => {
   const original = "original-thirteen";
   const manifest = JSON.parse(
     readFileSync(fixturePath(`${original}/manifest.json`), "utf8"),
   ) as { seededDefects: Array<{ id: string }> };
-  // Thirteen entries that still match the original set by count, but repeat one
-  // id and omit another.
-  const duplicated = manifest.seededDefects.map((defect, index) =>
-    index === 1 ? { ...defect, id: manifest.seededDefects[0].id } : defect,
-  );
-  const badPath = outputPath("duplicated-original");
-  writeFileSync(badPath, JSON.stringify({ ...manifest, seededDefects: duplicated }));
+  const patchesPath = fixturePath(`${original}/patches.json`);
 
+  // The intact original set is accepted and reports its subset.
   const control = await runCampaign(
-    "subset-control",
-    { sweepMode: "off", manifestPath: fixturePath(`${original}/manifest.json`), patchesPath: fixturePath(`${original}/patches.json`) },
+    "unique-control",
+    { sweepMode: "off", manifestPath: fixturePath(`${original}/manifest.json`), patchesPath },
     campaignDeps(),
   );
-  const mislabeled = await runCampaign(
-    "subset-duplicated",
-    { sweepMode: "off", manifestPath: badPath, patchesPath: fixturePath(`${original}/patches.json`) },
-    campaignDeps(),
+  assert.equal("originalThirteenSubset" in control.records[0], true);
+
+  // All thirteen original ids plus a repeat of one of them: a membership check
+  // passes this, yet the repeated seed can land in both the found and the missed list.
+  const plusRepeat = outputPath("original-plus-repeat");
+  writeFileSync(
+    plusRepeat,
+    JSON.stringify({
+      ...manifest,
+      seededDefects: [...manifest.seededDefects, manifest.seededDefects[0]],
+    }),
+  );
+  await assert.rejects(
+    () =>
+      runCampaign(
+        "unique-plus-repeat",
+        { sweepMode: "off", manifestPath: plusRepeat, patchesPath },
+        campaignDeps(),
+      ),
+    /the manifest repeats seeded defect ids: expired-session-inversion/,
   );
 
-  // The intact original set reports its subset block.
-  assert.equal("originalThirteenSubset" in control.records[0], true);
-  // A manifest that only matches by count reports none, rather than a block
-  // labeled as the complete original set.
-  assert.equal("originalThirteenSubset" in mislabeled.records[0], false);
+  // One original id repeated in place of another, so the count is still thirteen.
+  const swapped = outputPath("original-swapped");
+  writeFileSync(
+    swapped,
+    JSON.stringify({
+      ...manifest,
+      seededDefects: manifest.seededDefects.map((defect, index) =>
+        index === 1 ? { ...defect, id: manifest.seededDefects[0].id } : defect,
+      ),
+    }),
+  );
+  await assert.rejects(
+    () =>
+      runCampaign(
+        "unique-swapped",
+        { sweepMode: "off", manifestPath: swapped, patchesPath },
+        campaignDeps(),
+      ),
+    /the manifest repeats seeded defect ids/,
+  );
 });
 
 test("a client that never settles cannot hold a run past its deadline", async () => {
