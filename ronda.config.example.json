@@ -4,5 +4,9 @@
   "modelName": "qwen-plus",
   "passTimeoutMs": 600000,
   "maxPatchChars": 400000,
-  "sweepMode": ""
+  "sweepMode": "",
+  "repositoryContext": "",
+  "maxRepositoryContextCandidates": 12,
+  "maxRepositoryContextChars": 24000,
+  "repositoryContextTimeBudgetMs": 120000
 }

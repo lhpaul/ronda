@@ -132,5 +132,15 @@ jobs:
       pull-requests: write
       checks: write
     uses: ./.github/workflows/ronda-review.yml
+    # #106: this repository's own dogfooding value for the repository-context
+    # switch, supplied through a repository variable rather than hardcoded, so
+    # the owner can flip it from repository settings without editing this
+    # workflow or redeploying (AC19). An unset variable renders as the empty
+    # string, which resolves fail-closed to off — safe to land before the
+    # variable exists. It is set to `on` only after the read-only
+    # demonstrations (AC4, AC5) and the resolution-correctness evidence (AC23)
+    # are committed (see docs/testing/ronda/repository-context-effect-evidence-106.md).
+    with:
+      repository_context: ${{ vars.RONDA_REPOSITORY_CONTEXT }}
     secrets:
       model_api_key: ${{ secrets.RONDA_MODEL_API_KEY }}
