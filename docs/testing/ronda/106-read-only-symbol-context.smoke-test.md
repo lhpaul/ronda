@@ -102,7 +102,7 @@ No design assets exist for this item (the issue body has no `## Design assets` s
 
 **Maps to**: AC8, AC11
 
-1. Deny the reads for a pass (revoke `contents: read`, or point the client at an unreachable API host) and run a pass on the same-repository pull request.
+1. Deny the reads for a pass (revoke `contents: read`, or point the client at an unreachable API host) and run a pass on the same-repository pull request. Note which reads were denied: denying the **candidate-target** reads while the changed files still read is what yields `unavailable`; a changed file that is merely **absent** is accounted for and does not, on its own, make a pass `unavailable`.
 2. Set `RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS=1` and run again.
 3. Note each pass's elapsed time against the pass budget in effect and the job's own `timeout-minutes`.
 
