@@ -280,8 +280,18 @@ function resolveRepositoryContextBudget(
   if (source === undefined) {
     return defaultValue;
   }
-  const parsed = typeof source === "number" ? source : parseInt(source, 10);
-  if (Number.isFinite(parsed) && parsed > 0) {
+  // A string source must be a *fully* valid positive integer — `parseInt`
+  // alone would accept a malformed value with a numeric prefix (e.g. "12ms")
+  // by silently reading only the prefix, which is not "a positive number" and
+  // must resolve to the recorded default and a recorded fallback (AC21), not
+  // to a truncated guess.
+  const parsed =
+    typeof source === "number"
+      ? source
+      : /^\d+$/.test(source)
+        ? Number(source)
+        : Number.NaN;
+  if (Number.isSafeInteger(parsed) && parsed > 0) {
     return parsed;
   }
   fallbacks.push(name);

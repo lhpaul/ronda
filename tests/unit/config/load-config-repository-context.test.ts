@@ -105,6 +105,15 @@ test("repository context budgets: a non-numeric value falls back to the default 
   assert.deepEqual(config.repositoryContextBudgetFallbacks, ["chars"]);
 });
 
+test("repository context budgets: a malformed numeric-prefix value (e.g. '12ms') is not silently truncated to its prefix", () => {
+  const config = loadConfig({
+    env: { RONDA_MAX_REPOSITORY_CONTEXT_CHARS: "12ms" },
+    fileExists: () => false,
+  });
+  assert.equal(config.maxRepositoryContextChars, DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS);
+  assert.deepEqual(config.repositoryContextBudgetFallbacks, ["chars"]);
+});
+
 test("repository context budgets: a non-positive value falls back to the default and is recorded", () => {
   const config = loadConfig({
     env: { RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS: "0" },

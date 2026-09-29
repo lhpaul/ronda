@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runReviewPass } from "../../../src/core/run-review-pass.js";
+import { GithubClientError } from "../../../src/github/github-client.js";
 import { RepositoryFileUnusableError } from "../../../src/github/repo-content-reader.js";
 import {
   DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
@@ -51,6 +52,8 @@ interface FakeGithubInput {
   repoFiles?: Map<string, string>;
   unusablePaths?: Set<string>;
   transientFailurePaths?: Set<string>;
+  /** Never resolves on its own — only when `signal` aborts, mirroring a stalled contents request. */
+  hangingPaths?: Set<string>;
 }
 
 function createFakeGithub(input: FakeGithubInput): {
@@ -67,7 +70,17 @@ function createFakeGithub(input: FakeGithubInput): {
     async readChangedFiles() {
       return input.changedFiles;
     },
-    async readFileAtRef(_owner, _repo, path, _ref, _signal, options) {
+    async readFileAtRef(_owner, _repo, path, _ref, signal, options) {
+      if (input.hangingPaths?.has(path)) {
+        return await new Promise((_resolve, reject) => {
+          const onAbort = (): void => reject(new GithubClientError("timed_out", "aborted"));
+          if (signal?.aborted) {
+            onAbort();
+            return;
+          }
+          signal?.addEventListener("abort", onAbort, { once: true });
+        });
+      }
       if (input.transientFailurePaths?.has(path)) {
         throw new Error("transient 503");
       }
@@ -257,6 +270,34 @@ test("scenario 7: a time budget forced to zero yields unavailable and never exte
   assert.equal(result.outcome, "succeeded");
   assert.equal(result.repositoryContext?.record?.outcome, "unavailable");
   assert.ok(result.repositoryContext?.record?.drops.every((drop) => drop.reason === "time_budget"));
+});
+
+test("a stalled candidate-target read aborts at the context time budget, not the (much larger) pass deadline", async () => {
+  const github = createFakeGithub({
+    pullRequest: pullRequest(),
+    changedFiles: [changedFile("src/caller.ts", [4])],
+    repoFiles: new Map([["src/caller.ts", CALLER_TEXT]]),
+    hangingPaths: new Set(["src/util.ts"]),
+  });
+  const startedAt = Date.now();
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    deps(
+      github.ops,
+      createConfig({
+        repositoryContextMode: "on",
+        repositoryContextTimeBudgetMs: 50,
+        passTimeoutMs: 600_000, // the pass's own (much larger) deadline — must never be what unblocks this
+      }),
+    ),
+  );
+  const elapsedMs = Date.now() - startedAt;
+  assert.equal(result.outcome, "succeeded");
+  assert.ok(
+    elapsedMs < 5_000,
+    `expected the stalled read to abort near the 50ms context budget, not the 600000ms pass deadline (took ${elapsedMs}ms)`,
+  );
+  assert.equal(result.repositoryContext?.record?.outcome, "unavailable");
 });
 
 // --- Scenario 8: read failures split by what failed -----------------------

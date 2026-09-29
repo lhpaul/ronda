@@ -910,6 +910,11 @@ function isSameRepositoryHead(headRepoFullName: string, owner: string, repo: str
   return headRepoFullName.toLowerCase() === `${owner}/${repo}`.toLowerCase();
 }
 
+/** Same pattern as `src/webhook/webhook-job.ts`'s private helper of the same name: the earlier of two deadlines aborts the combined signal. */
+function combineAbortSignals(first: AbortSignal, second: AbortSignal): AbortSignal {
+  return AbortSignal.any([first, second]);
+}
+
 /**
  * Read-only repository context (#106). Applies the spec's outcome tests in
  * their recorded order — pre-review-execution passes never reach this
@@ -950,16 +955,33 @@ async function runRepositoryContextPhase(
   // resolver's error type at this one boundary, so `symbol-resolver.ts` stays
   // free of a `src/github/` import while still distinguishing a real-but-
   // refused path (a symlink, a submodule, a directory) from a plain miss.
-  const readFile: RepositoryContextReadFile = async (path, options) => {
-    try {
-      return await deps.github.readFileAtRef(input.owner, input.repo, path, pr.headSha, deadlineSignal, options);
-    } catch (error) {
-      if (error instanceof RepositoryFileUnusableError) {
-        throw new RepositoryContextUnusableContentError(error.path, error.reason);
+  const readFileWithSignal = (signal: AbortSignal): RepositoryContextReadFile => {
+    return async (path, options) => {
+      try {
+        return await deps.github.readFileAtRef(input.owner, input.repo, path, pr.headSha, signal, options);
+      } catch (error) {
+        if (error instanceof RepositoryFileUnusableError) {
+          throw new RepositoryContextUnusableContentError(error.path, error.reason);
+        }
+        throw error;
       }
-      throw error;
-    }
+    };
   };
+
+  // Candidate identification (step a) is bounded by the pass deadline alone
+  // (D5) — never the tighter context budget, which does not exist yet at
+  // this point.
+  const identifyReadFile = readFileWithSignal(deadlineSignal);
+
+  // Candidate resolution (steps b/c) is bounded by the *lesser* of the
+  // context time budget and the pass deadline. A wall-clock check between
+  // awaits (inside `buildSourceFileSet`) cannot stop a single read call that
+  // itself stalls — only an abort signal threaded into that specific call
+  // can. Arming a dedicated deadline and combining its signal with the pass
+  // deadline is what makes a stalled contents request abort at the tighter
+  // boundary instead of silently riding the pass's own (much larger) budget.
+  const contextDeadline = createPassDeadline(timeBudgetMs, deps.deadlineClock);
+  const resolveReadFile = readFileWithSignal(combineAbortSignals(deadlineSignal, contextDeadline.signal));
 
   let requested: InternalRequestedReference[] = [];
 
@@ -968,7 +990,7 @@ async function runRepositoryContextPhase(
     const identified = await identifyCandidates(
       changedFiles.map((file) => file.path),
       changedLinesByFile,
-      readFile,
+      identifyReadFile,
     );
     requested = identified.requested;
 
@@ -996,7 +1018,7 @@ async function runRepositoryContextPhase(
       };
     }
 
-    const closure = await buildSourceFileSet(identified.changedSourceTexts, readFile, timeBudgetMs);
+    const closure = await buildSourceFileSet(identified.changedSourceTexts, resolveReadFile, timeBudgetMs);
     const resolutions = resolveSymbols(closure.fileSet, identified.requested, closure);
     const built = buildRepositoryContextCandidates(identified.requested, resolutions);
     const ordered = [...built.candidates].sort(compareRepositoryContextCandidates);
@@ -1053,6 +1075,8 @@ async function runRepositoryContextPhase(
       },
       candidatesForPrompt: [],
     };
+  } finally {
+    contextDeadline.dispose();
   }
 }
 
