@@ -93,7 +93,7 @@
     },
     {
       "path": "src/benchmark/output.ts",
-      "line": 2,
+      "line": 13,
       "severity": "important",
       "title": "External output parsing is lossy",
       "body": "Splitting and classifying another system's output drops items whose lines do not match the expected prefix, so parsing is lossy."

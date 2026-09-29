@@ -11,7 +11,7 @@ recall pass` (line 1306) — the coverage that answers the two review findings
 routed against the precision sweep records and the per-request prompt
 identity. The pre-existing credential-scanner suite (`P1`–`P14`,
 `the credential scan fails on a planted canary and passes once it is
-removed, per shape` at line 1700) is unchanged by this PR and is not re-proved
+removed, per shape` at line 1729) is unchanged by this PR and is not re-proved
 here; the plan's scenario-7 canary proof already covers it.
 
 The guard tests over committed artifacts — `tests/unit/testing/evidence-records.test.ts`
@@ -539,4 +539,27 @@ Unplanted outcome: `./node_modules/.bin/tsx --test tests/unit/core/run-review-pa
 reports `ℹ pass 44`, `ℹ fail 0`. Both plants also fail the existing test `sweep AC1: a
 superseded pass logs its per-category record and publishes nothing`, which reads the
 same ordering.
+
+## P57–P63 — the external-output seed's patch does not hold its defect
+
+The `external-output-parsing-lossy` seed says items are lost or merged when another
+system's output is split and classified. Its patch was a plausible bullet-list parser,
+so nothing in it made a non-bullet line a valid item, and a model could report the
+defect only by echoing the sweep prompt. The patch now states the external tool's
+item formats in a comment, carries a sample holding all three, and a parser that keeps
+only the `- ` form, so it loses two of three. The test `the external-output seed's
+patch states a grammar its parser loses items from` reads that patch and checks each
+part. Each plant edits the `src/benchmark/output.ts` entry of
+`tests/fixtures/recall-benchmark/patches.json` (or the manifest), is restored, and the
+file reports `ℹ pass 60`, `ℹ fail 0`.
+
+| Proof | Plant | Fails at test line | Isolates |
+| --- | --- | --- | --- |
+| P57 | rename the seed's `id` in the manifest | 1641, `the external-output seed must exist` | the seed is present |
+| P58 | change the patch entry's `path` to `src/benchmark/output-x.ts` | 1643, `the seed needs a changed file` | the seed has a changed file |
+| P59 | reduce the stated formats `"- text", "* text" or "1. text"` to `"- text"` | 1651, `the patch must state the item formats` | the grammar is stated in the patch |
+| P60 | rename `const SAMPLE = [` | 1653, `the patch must carry a sample of the external output` | the patch carries a sample |
+| P61 | delete the `"1. missing return"` sample line | 1656, `the sample must hold at least three items in the stated formats` | the sample holds three valid items |
+| P62 | replace the prefix filter with `.filter(Boolean)` | 1660, `the patch must filter lines by a fixed prefix` | the parser filters by a fixed prefix |
+| P63 | make every sample line a `- ` item | 1662, `the parser must lose valid items: kept 3 of 3` | the parser actually loses valid items |
 

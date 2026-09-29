@@ -1636,6 +1636,35 @@ test("the harder credential seed's patch holds a guard that knows the canonical 
   }
 });
 
+test("the external-output seed's patch states a grammar its parser loses items from", () => {
+  const defect = manifest.seededDefects.find((candidate) => candidate.id === "external-output-parsing-lossy");
+  assert.ok(defect, "the external-output seed must exist");
+  const file = changedFiles.find((candidate) => candidate.path === defect.path);
+  assert.ok(file, `the seed needs a changed file at ${defect.path}`);
+  const added = (file.patch ?? "")
+    .split("\n")
+    .filter((line) => line.startsWith("+"))
+    .map((line) => line.slice(1))
+    .join("\n");
+
+  // The contract: the external tool's item formats are stated in the patch itself.
+  assert.match(added, /"- text", "\* text" or "1\. text"/, "the patch must state the item formats");
+  const sample = /const SAMPLE = (\[[\s\S]*?\]);/.exec(added);
+  assert.ok(sample, "the patch must carry a sample of the external output");
+  const lines = JSON.parse(sample[1].replace(/,\s*\]$/, "]")) as string[];
+  const items = lines.filter((line) => /^(- |\* |\d+\. )/.test(line));
+  assert.ok(items.length >= 3, "the sample must hold at least three items in the stated formats");
+
+  // The parser keeps only the "- " form, so it loses items the contract makes valid.
+  const kept = /\.filter\(\(line\) => line\.startsWith\("([^"]+)"\)\)/.exec(added);
+  assert.ok(kept, "the patch must filter lines by a fixed prefix");
+  const survivors = lines.filter((line) => line.startsWith(kept[1]));
+  assert.ok(
+    survivors.length < items.length,
+    `the parser must lose valid items: kept ${survivors.length} of ${items.length}`,
+  );
+});
+
 function evidenceRoot(): string {
   return fileURLToPath(new URL("../../../docs/testing/ronda/", import.meta.url));
 }

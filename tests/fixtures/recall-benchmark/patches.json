@@ -93,9 +93,9 @@
   {
     "path": "src/benchmark/output.ts",
     "status": "added",
-    "additions": 6,
+    "additions": 19,
     "deletions": 0,
-    "patch": "@@ -0,0 +1,6 @@\n+export function classifyItems(output: string): string[] {\n+  return output\n+    .split(\"\\n\")\n+    .filter((line) => line.startsWith(\"- \"))\n+    .map((line) => line.slice(2).trim());\n+}\n+"
+    "patch": "@@ -0,0 +1,20 @@\n+// The external linter prints one finding per line as \"- text\", \"* text\" or \"1. text\",\n+// and wraps a long finding onto an indented continuation line.\n+const SAMPLE = [\n+  \"- unused import\",\n+  \"* shadowed variable\",\n+  \"1. missing return\",\n+  \"   detail wrapped from the previous finding\",\n+];\n+\n+export function classifyItems(output: string): string[] {\n+  return output\n+    .split(\"\\n\")\n+    .filter((line) => line.startsWith(\"- \"))\n+    .map((line) => line.slice(2).trim());\n+}\n+\n+export function describeSample(): number {\n+  return classifyItems(SAMPLE.join(\"\\n\")).length;\n+}\n+"
   },
   {
     "path": "src/benchmark/guard.ts",
