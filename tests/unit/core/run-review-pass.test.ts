@@ -580,6 +580,66 @@ test("a check-run write that fails after a successful review is retried once and
   assert.equal(github.publishedCheckRuns[0].conclusion, "success");
 });
 
+test("sweep AC1: a failing recovery callback after publication still leaves the per-category record on the logs", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+
+  await assert.rejects(
+    () =>
+      runReviewPass(
+        { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+        baseDeps({
+          github: github.ops,
+          model,
+          logger: createRecordingLogger(events),
+          config: createConfig({ sweepMode: "on" }),
+          loadSweepList: loadValidSweepList(),
+          onReviewPublished: () => {
+            throw new Error("recovery state could not be persisted");
+          },
+        }),
+      ),
+    ReviewPublishedCheckRunError,
+  );
+
+  // The review is public and the classification was established, so the record it
+  // owes the logs is emitted once, before the callback that failed.
+  assert.equal(github.publishedReviews.length, 1);
+  assert.equal(events.filter((entry) => entry.name === "sweep_pass_record").length, 1);
+});
+
+test("sweep AC1: a check-run write that keeps failing after publication still leaves the per-category record on the logs", async () => {
+  const events: LogEvent[] = [];
+  const github = createFakeGithub({
+    pullRequest: createPullRequest(),
+    changedFiles: changedFilesWithPatch,
+    publishCheckRunFailTimes: 2,
+    publishCheckRunError: new Error("network blip"),
+  });
+  const { model } = createFakeModel({ response: multiFindingResponse });
+
+  await assert.rejects(
+    () =>
+      runReviewPass(
+        { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+        baseDeps({
+          github: github.ops,
+          model,
+          logger: createRecordingLogger(events),
+          config: createConfig({ sweepMode: "on" }),
+          loadSweepList: loadValidSweepList(),
+        }),
+      ),
+    ReviewPublishedCheckRunError,
+  );
+
+  assert.equal(events.filter((entry) => entry.name === "sweep_pass_record").length, 1);
+});
+
 test("a check-run write that keeps failing after a successful review rejects instead of publishing a contradictory 'Review failed' check run", async () => {
   const github = createFakeGithub({
     pullRequest: createPullRequest(),

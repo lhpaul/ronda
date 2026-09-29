@@ -267,7 +267,7 @@ loadSweepList)();`, so a throw escapes to the shared failure path.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 equal`. Isolates
-`assert.equal(result.outcome, "succeeded")` (test line 1168) — AC19: a list
+`assert.equal(result.outcome, "succeeded")` (test line 1228) — AC19: a list
 that cannot be loaded never fails the pass, whatever the loader does. The
 second test in the pair also fails under this plant because its pass fails
 before it can publish; it is proved separately by P22.
@@ -280,8 +280,8 @@ before it can publish; it is proved separately by P22.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: Expected values to be strictly
 deep-equal`. Isolates `assert.deepEqual(result.sweep, { degraded: … })` (test
-line 1169), which pins the reason to `unreadable` and the detail to the fixed
-text. The `outcome` assertion above it (line 1168) stays green under this
+line 1229), which pins the reason to `unreadable` and the detail to the fixed
+text. The `outcome` assertion above it (line 1228) stays green under this
 plant, so it is not masked by it.
 
 ## P22 — a thrown loader error's text reaches a surface
@@ -290,13 +290,13 @@ plant, so it is not masked by it.
 
 **Fail**: `AssertionError [ERR_ASSERTION]: The input was expected to not match
 the regular expression /operator|exploded/`. Isolates `assert.doesNotMatch(surface,
-/operator|exploded/)` (test line 1205) in the separate "a thrown loader error's
+/operator|exploded/)` (test line 1265) in the separate "a thrown loader error's
 own text reaches no surface" test, which asserts nothing else: a thrown error's
 text can carry a local path and must reach neither the check run, the review,
 nor any log field. It is a different test from the one P21 fails.
 
 Unplanted outcome for all three: `./node_modules/.bin/tsx --test
-tests/unit/core/run-review-pass.test.ts` reports `ℹ pass 42`, `ℹ fail 0`.
+tests/unit/core/run-review-pass.test.ts` reports `ℹ pass 44`, `ℹ fail 0`.
 
 ## P23 — a count argument is read by its numeric prefix
 
@@ -507,4 +507,27 @@ its kind and the fixture it belongs to` uses two precision fixtures.
 | P53 | delete `kind: "recall"` from the recall log line (`src/cli/recall-benchmark.ts:1164`) | test line 1004 (one recall line), the stderr test line 1258 (`emitted.kind` is `"recall"`), and line 1367 in the precision-attribution test | the recall line names its kind |
 
 Unplanted outcome for P49–P53: `ℹ pass 59`, `ℹ fail 0` on the benchmark test file.
+
+## P54–P55 — a failure after publication skips the per-category log record
+
+Once a review is public, the record it owes the logs must not depend on what
+happens next. `sweepMetadata` logs the `sweep_pass_record` (`src/core/run-review-pass.ts:772`)
+before the recovery callback (`575`), the check-run write (`585`), and the
+success log (`603`). Two tests hold that ordering: `sweep AC1: a failing recovery
+callback after publication still leaves the per-category record on the logs` makes
+the callback throw, and `sweep AC1: a check-run write that keeps failing after
+publication still leaves the per-category record on the logs` makes the write fail
+twice; each rejects with `ReviewPublishedCheckRunError` and asserts exactly one
+record was logged. A codex finding claimed the record was lost on a callback failure;
+the tests showed it was already logged before the callback, and now pin that.
+
+| Proof | Plant in `src/core/run-review-pass.ts` | Fails | Isolates |
+| --- | --- | --- | --- |
+| P54 | remove the log from `sweepMetadata` (line 772) and emit it just before `publishSuccessCheckRun` (line 585), after the callback | test line 612, `assert.equal(events.filter(…).length, 1)` in the callback test; the check-run test stays green | the record is logged before the recovery callback runs |
+| P55 | emit it just before the `pass_succeeded` log (line 603), after the check-run write | test line 640 in the check-run test, and line 612 in the callback test | the record is logged before the check-run write |
+
+Unplanted outcome: `./node_modules/.bin/tsx --test tests/unit/core/run-review-pass.test.ts`
+reports `ℹ pass 44`, `ℹ fail 0`. Both plants also fail the existing test `sweep AC1: a
+superseded pass logs its per-category record and publishes nothing`, which reads the
+same ordering.
 
