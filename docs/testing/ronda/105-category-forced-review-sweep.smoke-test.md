@@ -494,14 +494,19 @@ The following seed data must be present:
   on the provider's dated-snapshot naming, and no provider-signed attestation
   or artifact hash exists. No same-configuration claim is made, and AC8 and AC9
   stay open on that point.
-- The campaign is 5 runs per arm. It observed one large seed-level difference,
-  not an attributed effect, and no consistent overall recall, variance, or
-  elapsed-time difference; it cannot rule
-  small effects in or out, and recall figures count only findings the lexical
-  matcher credits (the `sensitive-value-exposure` sweep-on misses coincide with
-  same-file unmatched findings).
+- The campaign is 5 runs per arm. It observed seed-level movements (notably
+  `guard-fails-open`, 0 of 10 sweep-off runs against 9 of 10 sweep-on), not attributed
+  effects, and no consistent overall recall, variance, or elapsed-time
+  difference; it cannot rule small effects in or out, and recall figures count
+  only findings the lexical matcher credits (the `sensitive-value-exposure`
+  sweep-on misses and most `credential-pattern-gap-camel` misses coincide with same-file
+  unmatched findings).
 - The six campaign legs appear to have run concurrently (first records within
-  11 ms), so the elapsed-time figures were likely taken under shared load.
+  4 ms), so the elapsed-time figures were likely taken under shared load.
+- This campaign replaces an earlier set that pinned the fixture before the
+  `credential-pattern-gap-camel` patch was rewritten; in that set the seed's defect was not in
+  its patch and the seed was found in 0 of the 20 runs that contain it. The
+  earlier set is superseded and none of its figures is used.
 - The real-PR tier (Step 12) cannot complete at implementation time by
   design — the ten-PR count accumulates over time; the record exists to keep
   the tier honest, not to promote it.
@@ -510,38 +515,39 @@ The following seed data must be present:
 
 ## Sign-off
 
-Executed 2026-09-28 against the feature, not against the evidence pull request
-that carries this runbook. Tested commit: `6bb5d37b3510f29acbe3e78012e983d1143a60f0`
+Executed 2026-09-29 against the feature, not against the evidence pull request
+that carries this runbook. Tested commit: `0542d9e474b74b58dc865ef3902ac9a408196498`
 on `feature/105-category-forced-review-sweep` (#118). Steps 1-7 and 11-12 are
-deterministic and were run at that commit; the suite counts and the
+deterministic and were re-run at that commit; the suite counts and the
 fixture-response figures below are that commit's. Steps 8-10 need a real model
 credential and were recorded as committed evidence: the six `sweep-*.json`
 campaign files beside this runbook, 30 runs (5 per file) on the pinned provider
-snapshot `qwen-plus-2025-12-01`, run on 2026-09-28 between 2026-09-28T21:32:05.895Z and
-2026-09-28T21:33:09.765Z. Their driver was `b35aa63`, whose only difference from the tested
-commit is one line of the release-note fragment
-`changelog.d/105.added.category-forced-review-sweep.md` (`git diff --stat
-6bb5d37 b35aa63`), so the executable source, fixtures, and category list the
-campaign ran are identical to the tested commit's.
+snapshot `qwen-plus-2025-12-01`, run on 2026-09-29 between 2026-09-29T08:39:24.382Z and
+2026-09-29T08:40:32.497Z. Their driver was `0542d9e`, the tested commit itself, so the
+executable source, fixtures, and category list the campaign ran are the tested
+commit's, and the `fixture` blocks in the records carry the manifest and patch
+hashes of that commit's fixtures. These records replace an earlier set recorded
+against the fixture before the `credential-pattern-gap-camel` patch was rewritten; that set is
+superseded.
 
-The evidence pull request (#119) ships documents and data only, so its own head
-has nothing for these steps to execute. This sign-off attests the tested commit
-above; it is not current-head evidence for the evidence pull request, and a
-change to the feature after that commit needs the deterministic steps re-run
-and this line updated.
+The evidence pull request (the follow-up to the earlier evidence pull request that re-records the campaign)
+ships documents and data only, so its own head has nothing for these steps to
+execute. This sign-off attests the tested commit above; it is not current-head
+evidence for the evidence pull request, and a change to the feature after that
+commit needs the deterministic steps re-run and this line updated.
 
 | Step | Result (Pass/Fail/Skip) | Notes |
 | --- | --- | --- |
-| 1 | Pass | Sweep off reproduces non-sweep behavior; `tests/unit/core/run-review-pass.test.ts` 40 pass / 0 fail. |
-| 2 | Pass | Sweep enabled records per-category outcomes on both AC1 surfaces; same suite, 40 / 0. |
-| 3 | Pass | Enablement vocabulary and precedence, including the unrecognized value recorded without the raw value; same suite, 40 / 0. |
+| 1 | Pass | Sweep off reproduces non-sweep behavior; `tests/unit/core/run-review-pass.test.ts` 42 pass / 0 fail. |
+| 2 | Pass | Sweep enabled records per-category outcomes on both AC1 surfaces; same suite, 42 / 0. |
+| 3 | Pass | Enablement vocabulary and precedence, including the unrecognized value recorded without the raw value; same suite, 42 / 0. |
 | 4 | Pass | Malformed list degrades to a non-sweep review without failing the pass; `tests/unit/review/sweep-categories.test.ts` 25 pass / 0 fail, plus the degradation arms of `run-review-pass`. |
-| 5 | Pass | Passes ending before the review request emit no sweep metadata; `run-review-pass` 40 / 0. |
-| 6 | Pass | Terminal failure after the review request records `not_determined` on the logs only; `run-review-pass` 40 / 0. |
-| 7 | Pass | Extended fixture is 18 seeds; fixture-response run reports `totalSeededDefects: 18`, found 17, missed 1 (`invalid-range-parsing`), false positives 0 - every seed found or missed, none invisible, and the five new seeds are all classified. Clean precision fixture `harmless-session-refactor` stays clean (`clean: true`, 0 false positives). Six-shape credential scan over the manifest, patches, both response files, and the run output: no credential-shaped hit outside the non-functional canary allowlist. |
-| 8 | Incomplete | Both arms 5 / 5 runs on every leg, zero failure records. Recall off-extended 0.389-0.444 / pop-SD 0.0272, on-extended 0.389-0.611 / pop-SD 0.0889; original-thirteen control off 0.462-0.692 / pop-SD 0.0784, on 0.462-0.615 / pop-SD 0.0615. Paired arms differ only by `sweepMode`; `fixture` blocks equal across arms. All 40 requests report `qwen-plus-2025-12-01`, one identical attestation on all 30 records ("frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified"). The pairing is not admissible as a same-configuration comparison: frozen status is not independently verified, so AC8 is not met. Result: inconclusive, with no consistent recall or variance difference observed (sweep-on is not uniformly higher; 5 runs cannot resolve small effects); one large seed-level difference observed, `guard-fails-open` 0 of 10 sweep-off against 10 of 10 sweep-on, which model drift between the arms could explain. |
-| 9 | Incomplete | Both precision arms 5 / 5 runs, zero failure records. Every run: `harmless-session-refactor` clean, `falsePositiveCount` 0; sweep-on runs record `sweepListVersion: sweep-categories-v1`. Strict no-tolerance test: clause 1 (total unexpected findings) sweep-on 0 against sweep-off 0, not `>`, does not fire; clause 2 (fixture clean in every sweep-off run but not in every sweep-on run) 5 of 5 against 5 of 5, does not fire. Result computed as NOT REGRESSED and reported as inconclusive: the arms carry no same-configuration claim (same basis as Step 8), so AC9 is not met. The recall pass's own false positives (sweep-off 5, sweep-on 7 on the precision legs) are a different field and do not enter the test. |
-| 10 | Pass | Model calls per pass 1 (recall legs) and 2 (precision legs), identical on both configurations (paired difference 0). Elapsed mean per pass, sweep off / sweep on: extended 14.3 s / 15.8 s, original-thirteen 13.3 s / 12.4 s, precision 14.7 s / 14.5 s (paired means +1489.6, −988.4, −206.2 ms, opposite in sign: no consistent elapsed difference, inconclusive; the six legs appear to have run concurrently, first records within 11 ms, so figures are likely under shared load). The recorded cost baseline holds no Ronda pass cost, so there is no baseline figure to compare against. No cost ceiling stated. |
+| 5 | Pass | Passes ending before the review request emit no sweep metadata; `run-review-pass` 42 / 0. |
+| 6 | Pass | Terminal failure after the review request records `not_determined` on the logs only; `run-review-pass` 42 / 0. |
+| 7 | Pass | Extended fixture is 18 seeds; the fixture-response run (`--response-file tests/fixtures/recall-benchmark/model-responses/passing.json --quality --precision-response-file tests/fixtures/recall-benchmark/model-responses/precision-clean.json`) at `0542d9e` reports `totalSeededDefects: 18`, found 17, missed 1 (`invalid-range-parsing`), false positives 0 - every seed found or missed, none invisible, and the five new seeds are all classified (the rewritten `credential-pattern-gap-camel` patch leaves the fixture-response figures unchanged). Clean precision fixture `harmless-session-refactor` stays clean (`clean: true`, 0 false positives). Credential scan: the repository's executable scan (`scanForCredentials`, run by the recall-benchmark tests `committed benchmark fixtures carry no real credential values` and `committed sweep evidence artifacts carry no real credential values`) passes at `0542d9e` over the fixture tree and the nine committed sweep evidence artifacts, which include the six campaign records and both evidence documents: no hit outside the non-functional canary allowlist. |
+| 8 | Incomplete | Both arms 5 / 5 runs on every leg, zero failure records. Recall off-extended 0.444-0.556 / pop-SD 0.0416, on-extended 0.389-0.611 / pop-SD 0.0903; original-thirteen control off 0.615-0.846 / pop-SD 0.0923, on 0.538-0.692 / pop-SD 0.0688. Paired arms differ only by `sweepMode`; `fixture` blocks equal across arms. All 40 requests report `qwen-plus-2025-12-01`, one identical attestation on all 30 records ("frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified"). The pairing is not admissible as a same-configuration comparison: frozen status is not independently verified, so AC8 is not met. Result: inconclusive, with no consistent recall or variance difference observed (mean recall difference sweep on minus sweep off −0.011111 extended and −0.046154 control, per-run ranges overlapping; 5 runs cannot resolve small effects); the largest seed-level movement observed is `guard-fails-open` 0 of 10 sweep-off against 9 of 10 sweep-on, and the harder credential seed `credential-pattern-gap-camel` 2 of 10 against 6 of 10, both of which model drift between the arms could explain. |
+| 9 | Incomplete | Both precision arms 5 / 5 runs, zero failure records. Every run: `harmless-session-refactor` clean, `falsePositiveCount` 0; sweep-on runs record `sweepListVersion: sweep-categories-v1`. Strict no-tolerance test: clause 1 (total unexpected findings) sweep-on 0 against sweep-off 0, not `>`, does not fire; clause 2 (fixture clean in every sweep-off run but not in every sweep-on run) 5 of 5 against 5 of 5, does not fire. Result computed as NOT REGRESSED and reported as inconclusive: the arms carry no same-configuration claim (same basis as Step 8), so AC9 is not met. The recall pass's own false positives (sweep-off 9, sweep-on 4 on the precision legs) are a different field and do not enter the test. |
+| 10 | Pass | Model calls per pass 1 (recall legs) and 2 (precision legs), identical on both configurations (paired difference 0). Elapsed mean per pass, sweep off / sweep on: extended 16.9 s / 16.0 s, original-thirteen 14.6 s / 13.4 s, precision 16.1 s / 15.9 s (paired means −948.6, −1177.2, −221.6 ms, each smaller than the spread of its own paired differences: no consistent elapsed difference, inconclusive; the six legs appear to have run concurrently, first records within 4 ms, so figures are likely under shared load). The recorded cost baseline holds no Ronda pass cost, so there is no baseline figure to compare against. No cost ceiling stated. |
 | 11 | Pass | `sweep-categories.json` carries all seven fields per category, the counting-unit statement (finding instances, not distinct defects), 7 excluded candidates with rationale, 7 below-boundary sub-themes, one current version `sweep-categories-v1` activated 2026-09-27 with one initial revision-history entry. |
 | 12 | Pass | Tier `fixture_only`, counted pull requests `0`, list version `sweep-categories-v1`; independence caveat, own-repository label, adjudication and terminal-miss code values, and all transition rules present. `tests/unit/testing/evidence-records.test.ts` 16 pass / 0 fail. AC15's real-PR tier is deferred by construction. |
 
@@ -556,7 +562,7 @@ runbook admits the comparison only when the operator has recorded that the
 endpoint pins a frozen artifact. AC8 and AC9 stay open until an operator or
 provider attestation of that pin is recorded. Until then every between-arm
 comparison is inconclusive: the campaign observed no consistent difference in
-overall recall, spread, or elapsed time, one large seed-level difference
-(`guard-fails-open`) that model drift between the arms could explain, and a
+overall recall, spread, or elapsed time, seed-level movements (notably
+`guard-fails-open`) that model drift between the arms could explain, and a
 strict precision test that computes as NOT REGRESSED (0 against 0 unexpected
 findings). None of it is a claimed effect or benefit.
