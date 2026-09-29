@@ -21,9 +21,8 @@ the local reviewer plus 1 from the second reviewer.
 
 This feature gives a review pass **read-only repository context**: for the head
 being reviewed, Ronda may read source beyond the diff — the definitions the
-changed lines depend on, and the call sites of what the change defines — so the
-question "what does this value actually prove?" becomes answerable inside a
-single pass. Feeding more context is not automatically better, so the context is
+changed lines depend on — so the question "what does this value actually prove?"
+becomes answerable inside a single pass. Feeding more context is not automatically better, so the context is
 selected by recorded rules, bounded by operator budgets, and reported per pass.
 
 This feature **requires amending a locked architecture decision**, and this spec
@@ -72,6 +71,31 @@ except AC1's recording surface.
    vacuous there and a log line claiming a cleanup that never happened would be a
    false record.
 
+5. **Call sites are removed as a candidate kind; definitions only this iteration.**
+   Owner decision of 2026-09-29. The rationale: the two seeds the #105 category-forced
+   sweep did **not** solve — state reconstruction from API evidence, and lossy
+   external-output parsing — are both "what does the callee actually return?" questions,
+   which a **depended-on definition** answers; the sub-theme where callers would help,
+   `guard-fails-open`, already moved from none of 10 to 10 of 10 under the sweep, so
+   callers would be paying for the one theme already addressed. Dropping them also
+   removes the **only** need for a repository-wide reverse-reference scan, which keeps
+   **Out of Scope (MVP)**'s no-repository-wide-indexing line intact rather than
+   requiring it to be reinterpreted, and it removes the feature's largest per-pass cost.
+   Affected sites, all updated below: **Context Selection Order** (one candidate kind;
+   the former priority key 1, "kind", is moot and deleted), Use Case 1 step 3, AC3, AC6,
+   AC23, Coverage Matrix row O3, **Out of Scope (MVP)**, and **Deferred Decisions**.
+   Callers are a follow-up filed as #129.
+6. **AC20's reproducibility is over the candidate set and its selection order.** Owner
+   decision of 2026-09-29, resolving the tension with AC8. When the context time budget
+   is exhausted the pass **keeps the candidates it has already resolved** and drops the
+   rest with the reason `time budget`. Which candidates survive a cutoff may therefore
+   vary between passes; the pass record lists every candidate dropped for time, so the
+   result stays explainable. AC20 and the **Reproducibility** paragraph of **Context
+   Selection Order** carry the clarifying clause. The rejected alternative — discarding
+   every candidate on exhaustion to make the surviving set latency-independent — is
+   recorded in the implementation plan, together with why it fails AC8's "proceeds to
+   review execution with the context it already has".
+
 The resolution method, which AC23 requires to be a recorded plan decision rather
 than a spec decision, is recorded in the implementation plan, not here.
 
@@ -116,7 +140,8 @@ text for the decision:
 > - **Consequences**: The comment-trigger and fork paths stay low-risk for the
 >   same reason as before — nothing untrusted is executed — and fork heads acquire no
 >   new exposure at all this iteration, because they read nothing. On
->   same-repository heads the reviewer can reason about definitions and call sites.
+>   same-repository heads the reviewer can reason about the definitions the changed
+>   lines depend on.
 >   Repository content becomes untrusted model input that must be budgeted and
 >   reported, and every pass must be able to show that it read and never wrote.
 
@@ -170,12 +195,10 @@ than that recording itself.
 **Steps**:
 
 1. Ronda reads the pull request's changed lines as it does today.
-2. Ronda identifies the symbols the changed lines depend on and the symbols the
-   change itself defines or modifies.
-3. Ronda reads, at the reviewed head, the definitions of the depended-on symbols
-   and the call sites of the defined or modified symbols, in the recorded
-   selection order defined in **Context Selection Order**, until the candidate count
-   budget or the character budget is reached.
+2. Ronda identifies the symbols the changed lines depend on.
+3. Ronda reads, at the reviewed head, the definitions of the depended-on symbols,
+   in the recorded selection order defined in **Context Selection Order**, until the
+   candidate count budget or the character budget is reached.
 4. Ronda runs its single model review for the head with the diff, the selected
    authoritative documents, and the selected repository context, each labelled
    so the model can tell changed lines from unchanged context.
@@ -230,7 +253,7 @@ than that recording itself.
 **Steps**:
 
 1. The operator sets the maximum number of **candidates** a pass may resolve — one
-   candidate being one excerpt, a definition or a single call site — and the maximum
+   candidate being one excerpt, the definition of one depended-on symbol — and the maximum
    combined character budget for repository-context excerpts.
 2. The operator triggers a review on a pull request whose changed lines name more
    candidates than the budget allows.
@@ -648,10 +671,9 @@ repository.
   context. When budgets conflict, repository context is what gives way.
 - Repository-context selection for the same head and the same configuration is
   reproducible, so an operator can answer "why did Ronda not see that?".
-- A resolved candidate is the declaration, or the call site, that the reviewed
-  language's own compiler or type checker binds the reference to. A reference that
-  cannot be bound to exactly one declaration is dropped as an ambiguous resolution,
-  never guessed (AC23).
+- A resolved candidate is the declaration that the reviewed language's own compiler
+  or type checker binds the reference to. A reference that cannot be bound to exactly
+  one declaration is dropped as an ambiguous resolution, never guessed (AC23).
 - A repository-context read that fails, is unavailable, or is refused never fails
   the pass and never suppresses the review the pass would otherwise publish. The
   pass degrades to the context it has and records the outcome.
@@ -713,34 +735,31 @@ choice: AC6 drops context by it and AC20 makes selection reproducible, so
 leaving it unstated would force implementers to invent the contract and would
 make "why did Ronda not see that?" unanswerable.
 
-**Candidates.** Exactly two kinds of repository content are ever candidates, and
-neither reaches further than a single step from the changed lines:
+**Candidates.** **Exactly one kind** of repository content is ever a candidate, and
+it does not reach further than a single step from the changed lines:
 
 1. **Depended-on definitions** — the definition of each symbol a changed line
    calls, reads, or otherwise depends on directly.
-2. **Call sites** — the places that call or read each symbol the change itself
-   defines or modifies.
+
+Call sites — the places that call or read a symbol the change defines or modifies —
+were a second candidate kind until the repository owner **removed them on
+2026-09-29** (see **Post-Merge Amendment** item 5). They are now out of scope for this
+iteration and are a recorded follow-up.
 
 **One candidate is one excerpt, and it is the unit every budget counts.** A
-depended-on symbol's definition is one candidate. **Each call site is its own
-candidate**, so a modified symbol with seven call sites contributes seven candidates,
-not one: the budgets can retain some of a symbol's call sites and drop the rest, and
-the recorded counts of candidates requested, resolved and dropped are counts of
-excerpts rather than of distinct symbols. Counting a symbol and all its call sites as
-one unit would make the retained context depend on how many callers a symbol happens
-to have, which is exactly what a budget exists to bound.
+depended-on symbol's definition is one candidate, so the recorded counts of
+candidates requested, resolved and dropped are counts of excerpts. With one kind
+whose unit is one definition, excerpts and distinct resolved symbols coincide.
 
 Nothing transitive is a candidate. The definition of a symbol that only a
-*candidate* names, and the callers of a caller, are out of scope for this
-iteration (see **Out of Scope (MVP)**), so the candidate set is bounded by the
-changed lines alone.
+*candidate* names is out of scope for this iteration (see **Out of Scope (MVP)**), so
+the candidate set is bounded by the changed lines alone.
 
 **Resolution correctness.** A candidate is only useful if it is the *right* excerpt.
 A depended-on definition must be the declaration the reviewed language's own
 compiler or type checker would bind that reference to — not another declaration
 that merely shares the name, such as a same-named method on a different type, a
-shadowed local, or an unrelated export — and a call site must be a place that the
-same resolution binds to the changed symbol. Where a reference cannot be bound to
+shadowed local, or an unrelated export. Where a reference cannot be bound to
 exactly one declaration, the candidate is **dropped with the reason "ambiguous
 resolution"**, never guessed. A reproducibly wrong excerpt is worse than none: it
 hands the model confident, false evidence, which is the very defect shape this
@@ -752,19 +771,17 @@ choice, but it is a **recorded plan decision with a measured precision figure**
 **Priority.** Candidates are ordered by these keys, each applied only to break a
 tie in the one before it, so the order is total and the same every time:
 
-1. **Kind**: depended-on definitions before call sites. The recorded finding
-   corpus is why: the dominant cluster is code treating a value as evidence of
-   something it does not establish, and that is answered by the definition of
-   what produced the value, not by its callers.
-2. **Changed-line position**: for a depended-on definition, the position of the
-   earliest changed line that depends on it; for a call site, the position of the
-   earliest changed line whose defined symbol it calls. Earlier first, where
-   position is ordered by changed file path ascending, then by line number
-   ascending.
-3. **Candidate location**: the candidate's own file path ascending, then its line
+1. **Changed-line position**: the position of the earliest changed line that
+   depends on the definition. Earlier first, where position is ordered by changed
+   file path ascending, then by line number ascending.
+2. **Candidate location**: the candidate's own file path ascending, then its line
    number ascending.
-4. **Symbol name** ascending, as the final tie-break, so two candidates that are
+3. **Symbol name** ascending, as the final tie-break, so two candidates that are
    identical under every key above still have one defined order.
+
+A **kind** key came first until 2026-09-29, when the owner's removal of call sites
+left one kind and made it moot; it is deleted rather than kept as a no-op key, so the
+keys are numbered as they are applied (**Post-Merge Amendment** item 5).
 
 **Dropping.** Candidates are taken in that order until the candidate count budget or
 the character budget would be exceeded. Everything not taken is dropped whole —
@@ -774,9 +791,13 @@ resolution. A single
 candidate that alone exceeds the character budget is dropped and recorded, not
 truncated.
 
-**Reproducibility.** The order depends only on the reviewed head, the changed
-lines, and the configuration. It never depends on read latency, the order in which
-reads complete, or anything else that can vary between passes (AC20).
+**Reproducibility.** The **candidate set and its order** depend only on the reviewed
+head, the changed lines, and the configuration. They never depend on read latency, the
+order in which reads complete, or anything else that can vary between passes (AC20).
+**Which candidates survive a time-budget cutoff may vary between passes**, because how
+much resolves inside a fixed budget depends on read latency; the pass record lists
+every candidate dropped for time, so the result stays explainable even when the
+surviving set differs (owner decision of 2026-09-29; **Post-Merge Amendment** item 6).
 
 ---
 
@@ -922,7 +943,8 @@ Each row below is the normative summary for its gate; the prose sites named unde
       AC23 may be built against it until that decision is itself recorded.
 - [ ] AC3: With the amendment accepted and repository context enabled, a review
       pass that reaches review execution requests the candidates the selection
-      rules produce for the changed lines and resolves them at the reviewed head
+      rules produce for the changed lines — the definitions those lines depend on,
+      and nothing else this iteration — and resolves them at the reviewed head
       as far as the budgets allow and the reads succeed — a pass whose selection
       rules produce no candidate is `nothing_to_resolve`; of passes that request **at
       least one** candidate, one that resolves every one of them is `used`, one that
@@ -955,8 +977,8 @@ Each row below is the normative summary for its gate; the prose sites named unde
       action outside it.
 - [ ] AC6: A pass never exceeds its configured maximum candidate count or maximum
       combined character budget for repository context, where **one candidate is one
-      excerpt** — a definition, or a single call site — as **Context Selection Order**
-      defines. With more candidates requested
+      excerpt** — the definition of one depended-on symbol — as **Context Selection
+      Order** defines. With more candidates requested
       than the budgets allow, the pass records which candidates were dropped and why,
       and the retained context follows the recorded selection order. A pass that
       retains some candidates records `partial`; a pass whose budgets are small
@@ -1066,9 +1088,15 @@ Each row below is the normative summary for its gate; the prose sites named unde
       value (AC21), which is a configuration error rather than a valid disablement:
       it resolves the switch off and is recorded, so the operator can see the typo.
       No other case is exempt from this criterion.
-- [ ] AC20: Repository-context selection is reproducible: the same head with the
-      same configuration selects the same candidates in the same order, and the pass
-      record is sufficient to explain why a given candidate was or was not included.
+- [ ] AC20: Repository-context selection is reproducible **over the candidate set
+      and the selection order**: the same head with the same configuration produces the
+      same candidate set in the same order, and the pass record is sufficient to
+      explain why a given candidate was or was not included. **Which candidates survive
+      a time-budget cutoff may vary between passes** — how much resolves inside a fixed
+      budget depends on read latency — and the pass record lists every candidate dropped
+      with the reason `time budget`, so the result stays explainable even when the
+      surviving set differs between two passes on the same head (owner decision of
+      2026-09-29; see **Post-Merge Amendment** item 6 and AC8).
 - [ ] AC21: The repository-context switch resolves fail-closed over the two recorded
       sources in their recorded precedence order, and every case is verifiable by
       setting the sources directly: an absent, empty, or whitespace-only value at the
@@ -1097,8 +1125,8 @@ Each row below is the normative summary for its gate; the prose sites named unde
       automatically.
 - [ ] AC23: Resolution is correct, not merely reproducible. On a recorded fixture
       whose references include same-named declarations on different types, a
-      shadowed name, and a re-export, every resolved candidate is the declaration or
-      call site the reviewed language's own compiler or type checker binds the
+      shadowed name, and a re-export, every resolved candidate is the declaration
+      the reviewed language's own compiler or type checker binds the
       reference to, and every reference that cannot be bound to exactly one
       declaration is dropped with the reason "ambiguous resolution" rather than
       resolved to a guess. The implementation plan records which resolution method
@@ -1141,7 +1169,7 @@ Each row below is the normative summary for its gate; the prose sites named unde
 | --- | --- | --- |
 | O1: Read-only proof and fork behaviour | AC4, AC5, AC9, AC10, plus the amendment text | The amendment keeps "never executes the reviewed repository's code" locked and relaxes only the no-checkout mechanism, written over reads with the mechanism left open (owner decision, accepted with changes, 2026-09-29); AC4 and AC5 require demonstration on a hostile head rather than assertion; AC10 fixes fork behaviour per ingress **and per trigger**, because today's fork guard is per trigger: the reusable-workflow ingress's automatic trigger skips fork heads, while its manual comment trigger runs for them, as the webhook ingress does. Fork-originated heads are excluded from repository context this iteration and the exclusion is fixed rather than configurable, so no configuration mistake can enable a fork read. |
 | O2: Cost against the recorded figures, and the pass budget | AC8, AC14 | AC8 makes repository context fit inside the pass budget in effect (`pass_timeout_minutes`, default 10, job backstop that plus two) rather than require a larger one; AC14 compares measured passes against the committed 2026-09-23 baseline and the measured dogfood pass, and reports budget exhaustion. Whether the default budget should rise is an open question for the owner. |
-| O3: Symbol selection and context budget | AC3, AC6, AC7, AC20, AC23 | Selection resolves the definitions the changed lines depend on and the call sites of what the change defines, in the recorded order defined in **Context Selection Order** — candidates one step from the changed lines only, **one candidate being one excerpt** (a definition, or a single call site) so the budgets count excerpts rather than distinct symbols, ordered by kind, then changed-line position, then candidate location, then symbol name, with whole-candidate drops and no mid-excerpt truncation; two budgets bound it, in addition to the existing diff and authoritative-document budgets; the diff is never displaced (AC7), which is the direct answer to the recorded 32,000-token pruning observation; selection is reproducible (AC20); and resolution is correct — a candidate is what the language's own compiler binds the reference to, an ambiguous reference is dropped rather than guessed, and the plan's resolution method is a recorded decision with measured precision (AC23). |
+| O3: Symbol selection and context budget | AC3, AC6, AC7, AC20, AC23 | Selection resolves the definitions the changed lines depend on — **one candidate kind** since the owner removed call sites on 2026-09-29 (**Post-Merge Amendment** item 5; callers are follow-up #129) — in the recorded order defined in **Context Selection Order**: candidates one step from the changed lines only, **one candidate being one excerpt** (the definition of one depended-on symbol), ordered by changed-line position, then candidate location, then symbol name, with whole-candidate drops and no mid-excerpt truncation; two budgets bound it, in addition to the existing diff and authoritative-document budgets; the diff is never displaced (AC7), which is the direct answer to the recorded 32,000-token pruning observation; selection is reproducible (AC20); and resolution is correct — a candidate is what the language's own compiler binds the reference to, an ambiguous reference is dropped rather than guessed, and the plan's resolution method is a recorded decision with measured precision (AC23). |
 | O4: Webhook path, concurrency and cleanup | AC12, plus the working-area and one-active-job business rules | No added concurrency, cleanup on every settlement path including watchdog abort and startup reconciliation, no working area shared between passes, and a cleanup failure never publishes a second review. |
 | O5: Recorded amendment or decision not to proceed | AC1, AC2, plus **Where the decision is recorded** | The amendment text is proposed here and decided by the owner, and the decision is recorded in **two** places: the full amended decision in the Key Architectural Decisions section of `docs/project/3-software-architecture.md` — the document that carries the decision being amended — and the one-line replacement invariant in the **Surface** section of `docs/constitution.md`, so the contract document does not keep an invariant this item replaces (owner decision of 2026-09-29; see **Post-Merge Amendment**). Rejection terminates the item with a dated rejection note as its only outcome. |
 | O6: Context available, read-only demonstrated | AC3, AC4, AC5, AC11, AC19, AC21 | The capability ships off by default for adopters and on for this repository's own dogfooding, resolves its switch and its three budgets fail-closed so that an absent or unusable value never enables the feature and never yields an unlimited budget (AC21), degrades rather than failing, and has its read-only property demonstrated rather than asserted. |
@@ -1160,12 +1188,15 @@ Each row below is the normative summary for its gate; the prose sites named unde
   confirmation **received on 2026-09-29**, checked against §4.A1, §4.A2 and §5 of
   that document. Two results, both folded in by the **Post-Merge Amendment**: §4.A1
   also requires the replacement invariant to be written into `docs/constitution.md`,
-  which AC1 now requires; and §4.A2 lists a fourth context kind — the test file
+  which AC1 now requires; and §4.A2 lists a further context kind — the test file
   matching a changed symbol — which is **deferred**, not adopted (see **Out of Scope
-  (MVP)** and **Deferred Decisions**). §4.A1 scopes its checkout note to the dedicated
-  machine, that is, the webhook ingress; this spec deliberately keeps the broader
-  two-ingress scope AC10 and Use Case 4 define. No other objective in that document is
-  missing from the Brief Objective List above. No open question remains.
+  (MVP)** and **Deferred Decisions**). §2.2's argument that authorization-bypass and
+  data-loss/overwrite are visible only from the caller side is recorded against
+  follow-up #129, after the owner removed call sites from this iteration on 2026-09-29.
+  §4.A1 scopes its checkout note to the dedicated machine, that is, the webhook
+  ingress; this spec deliberately keeps the broader two-ingress scope AC10 and Use
+  Case 4 define. No other objective in that document is missing from the Brief
+  Objective List above. No open question remains.
 - **D2 — "A checkout plus symbol resolution per pass" as literally a checkout.**
   Rationale: the issue names a read-only checkout, and the spec's guarantees are
   stated over the *reads* rather than over the mechanism, so that a locally
@@ -1187,14 +1218,22 @@ Each row below is the normative summary for its gate; the prose sites named unde
   already publishes. Ronda still never pushes a fix.
 - Reading any repository other than the reviewed head's own, and reading a
   fork-originated head's repository at all this iteration (AC10).
-- Transitive context: the definition of a symbol that only a candidate names, and
-  the callers of a caller. Candidates stay one step from the changed lines (see
+- **Call-site (caller) context**: the places that call or read a symbol the change
+  defines or modifies. This was the second candidate kind until the repository owner
+  removed it on **2026-09-29** (**Post-Merge Amendment** item 5). Definitions answer
+  the two sub-themes the #105 sweep did not solve, callers would mainly serve the one
+  it already moved, and removing them keeps the no-repository-wide-indexing line below
+  intact — finding callers needs the reverse of the import graph, which no bounded
+  within-pass read of the changed lines alone can supply. Filed as follow-up #129 (see
+  **Deferred Decisions**).
+- Transitive context: the definition of a symbol that only a candidate names.
+  A candidate is never more than a single step away from the changed lines (see
   **Context Selection Order**).
-- A **third candidate kind: the test file matching a changed symbol.** Considered on
+- A further candidate kind: **the test file matching a changed symbol.** Considered on
   2026-09-29 and **deferred** by owner decision, not rejected: this iteration ships the
-  two kinds **Context Selection Order** defines, and a test file competes for the same
-  budgets as the definitions and call sites that answer the dominant finding cluster.
-  It is revisited once the first cohort shows whether two kinds help (see **Deferred
+  single kind **Context Selection Order** defines, and a test file would compete for the
+  same budgets as the definitions that answer the dominant finding cluster. It is
+  revisited once the first cohort shows whether definitions alone help (see **Deferred
   Decisions**).
 - Whole-repository or whole-package context, repository-wide indexing, and
   cross-pull-request or cross-pass carried context. Each pass reads afresh, within
@@ -1257,7 +1296,8 @@ owner **did** make on 2026-09-29 are recorded in **Recorded Decisions**, not her
 | Whether repository context becomes the default for adopting repositories | Human (issue owner) | A `real_pr_measured` tier with an admissible comparative claim exists | It stays off by default for adopters, and on for this repository's own dogfooding (owner decision, 2026-09-29). |
 | Whether repository context is ever permitted for a fork-originated head | Human (issue owner) | A separate item proposes it, with its own read-only evidence for untrusted heads | Fork heads are excluded, and the exclusion is fixed rather than a switch (AC10). |
 | The default values of the candidate count and character budgets | Human (issue owner), informed by the first measured passes | The first passes report budget utilisation | The implementation plan proposes starting values; they are operator-configurable from the first version. |
-| Whether a third candidate kind — the test file matching a changed symbol — is added | Human (issue owner), informed by the first cohort | The first cohort shows whether the two existing kinds moved the target sub-themes | Two kinds only, per **Context Selection Order** (owner decision, 2026-09-29). A test file is not a candidate and consumes none of the budgets. |
+| Whether **caller (call-site) context** is added back | Human (issue owner), informed by the first measured cohort | `docs/testing/ronda/repository-context-effect-evidence-106.md` reaches `real_pr_measured`, or its recall figures show the target sub-themes still missed with definitions alone | Definitions only (owner decision, 2026-09-29). Filed as follow-up **#129**, which must also answer the **Out of Scope (MVP)** no-repository-wide-indexing conflict, AC20's reproducibility bar, AC23's precision bar, and how callers and definitions compete for the budgets. The case for revisiting it is the strategy document's §2.2 argument that **authorization bypass** and **data-loss / overwrite** are visible only from the caller side — whether a guard is reachable, and who else writes the same record — which a definition cannot answer. |
+| Whether a further candidate kind — the test file matching a changed symbol — is added | Human (issue owner), informed by the first cohort | The first cohort shows whether definitions alone moved the target sub-themes | One kind only, per **Context Selection Order** (owner decision, 2026-09-29). A test file is not a candidate and consumes none of the budgets. |
 
 ---
 
@@ -1276,6 +1316,9 @@ second source of truth.
 | 5 | Minimum cohort for `real_pr_measured`? | **Ten** terminally adjudicated pull requests, reusing the figure settled for the sweep item so both ledgers count on the same basis. | Evidence tier enum and transitions; the claim-admissibility gate row |
 | 6 | Off by default here too? | **On for this repository's own dogfooding, off by default for adopters**, supplied so the owner can flip it from repository settings without editing a workflow or redeploying. It is switched on here only once the read-only demonstrations and resolution-correctness evidence are committed. | The demonstrations-before-the-switch business rule; the off-by-default and dogfooding business rules; AC19; Out of Scope; Deferred Decisions |
 | 7 | Does the strategy document hold an objective this spec misses? | **Checked on 2026-09-29** against §4.A1, §4.A2 and §5. Two results: the replacement invariant also goes into `docs/constitution.md`, and test-file context is deferred. No other objective is missing. | **Post-Merge Amendment**; AC1; Deferral Note D1; Out of Scope; Deferred Decisions |
+
+| 8 | Are call sites part of this iteration? | **No — definitions only**, decided 2026-09-29 after the spec merged. Definitions answer the two sub-themes the #105 sweep did not solve; the one callers would serve already moved under the sweep; and removing them keeps the no-repository-wide-indexing line intact and removes the largest per-pass cost. Filed as follow-up **#129**. | **Post-Merge Amendment** item 5; **Context Selection Order**; AC3; AC6; AC23; Coverage row O3; Out of Scope; Deferred Decisions |
+| 9 | What does AC20's reproducibility cover, given AC8? | **The candidate set and the selection order.** A time-budget cutoff keeps what already resolved and drops the rest with reason `time budget`; which candidates survive may vary between passes, and the record lists every time-budget drop so the result stays explainable. | **Post-Merge Amendment** item 6; AC20; AC8; **Context Selection Order** → Reproducibility |
 
 A **follow-up, filed as #127**, came out of decision 3: the `/ronda review`
 comment trigger's fork guard in `.github/workflows/ronda-review.yml` gates

@@ -16,7 +16,7 @@ Before running this smoke test:
 - [ ] `RONDA_MODEL_API_KEY` is set for every step that reaches a model call (steps 3 onwards). Steps that only check configuration resolution can run without it.
 - [ ] `GITHUB_TOKEN` is set with `pull-requests: write` and `checks: write` on the repository used for the live steps.
 - [ ] The amendment is recorded in **both** `docs/project/3-software-architecture.md` and `docs/constitution.md` (step 1 of the implementation order). If it is not, stop: no other step is valid.
-- [ ] A scratch pull request exists on this repository with at least one changed TypeScript file whose changed lines call a symbol defined in another file, and which defines or modifies a symbol called from elsewhere.
+- [ ] A scratch pull request exists on this repository with at least one changed TypeScript file whose changed lines call a symbol defined in another file. (A symbol *called from* elsewhere is no longer needed: call sites are out of scope for this iteration by owner amendment of 2026-09-29, and are follow-up #129.)
 - [ ] A fork-originated pull request is reachable for step 7. If none exists, open one from a fork of this repository.
 
 No design assets exist for this item (the issue body has no `## Design assets` section and the development folder has no `assets/` directory), so this runbook contains no design-fidelity step.
@@ -123,7 +123,7 @@ No design assets exist for this item (the issue body has no `## Design assets` s
 
 **Maps to**: AC4, AC5, AC9
 
-> The symlink case is the one most easily got wrong: the git trees API reports a symlink as `type: "blob"`, so the inventory filter must be a mode allowlist (`100644`, `100755`), not a type check. Confirm the recorded evidence names the mode, not the type.
+> The symlink case is the one most easily got wrong: the git trees API reports a symlink as `type: "blob"`, so the tree-listing filter must be a mode allowlist (`100644`, `100755`), not a type check. Confirm the recorded evidence names the mode, not the type.
 
 1. Open a pull request whose head carries `tests/fixtures/repository-context/hostile-head/`.
 2. Confirm first that no `package.json` script and no workflow `paths:` list references that directory.
@@ -232,7 +232,7 @@ report.
 | --- | --- | --- |
 | Resolution fixture | Same-named methods on different types, a shadowed name, a re-export, an unbindable reference | Committed at `tests/fixtures/repository-context/resolution/`; used by `tests/unit/review/symbol-resolver.test.ts` |
 | Hostile-head fixture | Executable-if-invoked content, symlink out of the repository, submodule reference, `.gitattributes` filter/driver, instruction-shaped source | Committed at `tests/fixtures/repository-context/hostile-head/`; push it as a pull-request head for step 8 |
-| Benchmark surrounding source | Definitions and callers for the three target seeds' changed-line symbols | Committed at `tests/fixtures/recall-benchmark/repository-context/`; used by `npm run benchmark:quality -- --repository-context on` |
+| Benchmark surrounding source | The definitions of the three target seeds' changed-line symbols — no callers, since call sites are out of scope (owner amendment, 2026-09-29) | Committed at `tests/fixtures/recall-benchmark/repository-context/`; used by `npm run benchmark:quality -- --repository-context on` |
 
 ---
 
@@ -240,7 +240,7 @@ report.
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| Step 3 records `nothing_to_resolve` on a TypeScript change | The changed lines name no symbol declared elsewhere, or the changed file's extension is outside the plan's D4 language scope | Pick a pull request whose changed lines call a symbol defined in another file |
+| Step 3 records `nothing_to_resolve` on a TypeScript change | The changed lines name no symbol declared in another file, or the changed file's extension is outside the plan's D4 language scope. Note that a symbol declared *and* used inside the changed hunk is not a candidate (E8) | Pick a pull request whose changed lines call a symbol defined in another file |
 | Step 3 records `nothing_to_resolve` while `unreadableChangedFilePaths` is non-empty | A defect: that combination is forbidden — a transiently unreadable changed file must yield `used`, `partial` or `unavailable`, never a claim that the changed lines named nothing. A file refused by content type, absent, or unparseable is *accounted for* and does not populate that field | Report it against plan decision D5's identification rule |
 | Step 3 records `unavailable` with `read_failed` drops | The token lacks `contents: read` at the reviewed head, or the tree read returned `truncated` | Confirm the token scope; a truncated tree is expected on a very large repository and is recorded, not an error |
 | Step 9 exits non-zero with a usage message | `--pr` or `--repository-context` was omitted, or the head is fork-originated | Both flags are required by the control pass's invocation contract, and a fork head is refused because it reads no context on either arm |
