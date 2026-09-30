@@ -206,9 +206,9 @@ identifiers with the sweep list, so the comparison used each category's
 That is a crude, mechanical proxy, and a miss can be a wording mismatch rather
 than a different defect.
 
-- **3 of 165 `true_positive` records match any sweep category** (1 code on
+- **3 of 167 `true_positive` records match any sweep category** (1 code on
   `credential-pattern-gap`, 1 plan and 1 evidence on `pr-head-push-order`).
-  The other 162 match none: spec 84, plan 40, code 23, code/workflow 7,
+  The other 164 match none: spec 84, plan 40, code 23, code/workflow 7,
   evidence 10.
 - **`external-output-parsing`, `record-identity` and `guard-fails-open`
   matched zero records.**
