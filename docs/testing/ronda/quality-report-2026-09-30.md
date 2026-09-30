@@ -68,9 +68,12 @@ dogfood passes on PRs #107, #115, #117, #118 and #119, produced with
   record reviews head 42f6e1c, and the #138 reviewer loop pointed out the head
   mismatch, so it was re-adjudicated as `true_positive` on its own head.
 - Both #119 `out_of_scope` records need knowledge of sibling PR #118.
-- Two #118 `local-ai-reviewer` findings (timed-out request overlap; logs-only
-  record lost after a post-publication failure) are `true_positive` but were
-  not checked against the code.
+- Two #118 `local-ai-reviewer` records were corrected after a Codex comment on
+  the evidence PR (#138) and checked against the code. The logs-only-record
+  finding was wrong on its recorded head (`sweepMetadata()` logs before
+  `onReviewPublished` runs), so it became `false_positive`. The timed-out
+  request finding was fixed in the direct child commit 51340557, so its
+  rationale now cites that fix.
 - 73 of the 81 `local-ai-reviewer` records rest only on "the flagged lines
   changed later". That is weaker evidence than an author reply.
 
@@ -90,15 +93,15 @@ are omitted below for length; they are reproducible from the same command.
 
 ### Ronda review quality report
 
-Generated: 2026-09-30T17:06:26.283Z
+Generated: 2026-09-30T17:29:04.494Z
 
 ## Scope
 - Comparisons: 6 record(s) from 6 file(s)
 - Miss records: 172 record(s) from 172 file(s); 172 in scope after filters
 
 ## Primary outcomes
-- true_positive: 168
-- false_positive: 1
+- true_positive: 167
+- false_positive: 2
 - false_clean: 0
 - stale_head: 0
 - unadjudicated: 1
@@ -119,7 +122,7 @@ Generated: 2026-09-30T17:06:26.283Z
 - Top missed category: correctness (83)
 - Top missed category: configuration (23)
 - Top missed category: observability (21)
-- Top missed category: partial_success (13)
+- Top missed category: partial_success (12)
 - Top missed category: other (8)
 - Seed eval or prompt work for category correctness (83 confirmed misses)
 - Seed eval or prompt work for category observability (21 confirmed misses)
@@ -136,7 +139,7 @@ committed records (`docs/testing/ronda/misses/*.json`).
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | Spec | #115 | 76 | 0 | 48 | 36 | none |
 | Plan | #117 | 28 | 0 | 17 | 24 | none |
-| Code | #118 | 26 | 1 | 15 | 9 | 1 Codex `false_positive` |
+| Code | #118 | 26 | 1 | 15 | 8 | 1 Codex and 1 local `false_positive` |
 | Evidence | #119 | 13 | 55 (false positives, #134) | 7 | 4 | 2 local `out_of_scope` |
 | Code/workflow | #107 | 16 | 5 | 2 | 6 | 1 Codex `already_found` |
 
@@ -147,7 +150,7 @@ Ronda pass and finding counts are the 2026-09-30 checkpoint figures quoted in
 | --- | ---: | ---: |
 | Spec (#115) | 84 | 0 |
 | Plan (#117) | 41 | 0 |
-| Code (#118 + #107) | 32 | 6 |
+| Code (#118 + #107) | 31 | 6 |
 | Evidence (#119) | 11 | 55 (false positives) |
 
 Counts are finding instances, not distinct defects. The same defect can appear
@@ -155,7 +158,7 @@ in several records across heads and across the two reviewers.
 
 **What the split supports.** On spec and plan PRs Ronda reported nothing
 across 104 passes, while 125 external findings were judged real. On code it
-reported 6 findings against 32 confirmed misses. This is consistent with the
+reported 6 findings against 31 confirmed misses. This is consistent with the
 working hypothesis that the code-oriented prompt does not review spec and plan
 text, and it is the strongest gap in the data. Two limits: the verdicts are
 assistant-drafted (see above), and spec/plan PRs here are all about one
@@ -170,7 +173,7 @@ measurement of how much one would gain.
 | correctness | 54 | 11 | 10 | 4 | 4 |
 | configuration | 11 | 7 | 3 | 0 | 2 |
 | observability | 7 | 8 | 2 | 1 | 3 |
-| partial_success | 7 | 4 | 2 | 0 | 0 |
+| partial_success | 7 | 4 | 1 | 0 | 0 |
 | security | 2 | 6 | 0 | 0 | 0 |
 | timeouts | 0 | 3 | 4 | 0 | 0 |
 | concurrency | 0 | 1 | 2 | 2 | 0 |
@@ -181,7 +184,7 @@ spec and plan findings. That is a limit of the list, not a finding.
 
 ## Follow-ups recorded
 
-136 `prompt_change` (#115, #117, #119), 29 `eval_record` (#107, #118), 7
+136 `prompt_change` (#115, #117, #119), 28 `eval_record` (#107, #118), 8
 `no_action`. These are intended follow-ups only; none was started here.
 
 ## Excluded and unresolved evidence
@@ -214,9 +217,9 @@ identifiers with the sweep list, so the comparison used each category's
 That is a crude, mechanical proxy, and a miss can be a wording mismatch rather
 than a different defect.
 
-- **3 of 168 `true_positive` records match any sweep category** (1 code on
+- **3 of 167 `true_positive` records match any sweep category** (1 code on
   `credential-pattern-gap`, 1 plan and 1 evidence on `pr-head-push-order`).
-  The other 165 match none: spec 84, plan 40, code 23, code/workflow 8,
+  The other 164 match none: spec 84, plan 40, code 22, code/workflow 8,
   evidence 10.
 - **`external-output-parsing`, `record-identity` and `guard-fails-open`
   matched zero records.**

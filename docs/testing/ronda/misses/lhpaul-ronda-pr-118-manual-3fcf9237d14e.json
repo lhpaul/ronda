@@ -18,8 +18,8 @@
   "sourceId": null,
   "identityDigest": "manual:8c08b658638622ae981db8fc",
   "capturedAt": "2026-09-30T16:01:19.609Z",
-  "updatedAt": "2026-09-30T16:56:26.806Z",
+  "updatedAt": "2026-09-30T17:28:32.448Z",
   "mergeBaseSha": "43507161a7eccfbda54105b01dea30e88ee8a3b4",
-  "rationale": "Plausible real defect (timed-out request can overlap the next run); not changed before merge and not verified against the code. Its sibling timeout finding was fixed. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationale": "Real defect: timed-out request could overlap the next run. Fixed in 51340557 (fix(#105): stop the campaign when a timed-out request is still in flight), the direct child of the reviewed head 43507161, which adds the requested loop break. Its sibling timeout finding was also fixed. Rationale corrected after a Codex comment on #138. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
   "rationaleTruncated": false
 }
