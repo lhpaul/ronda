@@ -63,8 +63,10 @@ dogfood passes on PRs #107, #115, #117, #118 and #119, produced with
 
 ### Judgement calls
 
-- `already_found` on the local "Trigger ambiguity" record (#107): Ronda raised
-  the same defect on head 6cac87a, not on the record's head.
+- The local "Trigger ambiguity" record (#107) was first drafted as
+  `already_found`, because Ronda raised the same defect on head 6cac87a. The
+  record reviews head 42f6e1c, and the #138 reviewer loop pointed out the head
+  mismatch, so it was re-adjudicated as `true_positive` on its own head.
 - Both #119 `out_of_scope` records need knowledge of sibling PR #118.
 - Two #118 `local-ai-reviewer` findings (timed-out request overlap; logs-only
   record lost after a post-publication failure) are `true_positive` but were
@@ -87,25 +89,32 @@ are omitted below for length; they are reproducible from the same command.
 ## Output
 
 ### Ronda review quality report
-Generated: 2026-09-30T16:59:56.196Z
+
+Generated: 2026-09-30T17:06:26.283Z
+
 ## Scope
 - Comparisons: 6 record(s) from 6 file(s)
 - Miss records: 172 record(s) from 172 file(s); 172 in scope after filters
+
 ## Primary outcomes
-- true_positive: 167
+- true_positive: 168
 - false_positive: 1
 - false_clean: 0
 - stale_head: 0
 - unadjudicated: 1
   - lhpaul-ai-dev-framework-template-pr-1729-pr-agent-20260910 (lhpaul/ai-dev-framework-template#1729, PR-Agent, uncategorized)
+
 ## Clean agreement
 - count: 5
+
 ## False-clean candidates
 - count: 1
+
 ## Supplementary
-- duplicate: 2
+- duplicate: 1
 - out_of_scope: 2
 - unresolvable_evidence: 0
+
 ## Improvement
 - Top missed category: correctness (83)
 - Top missed category: configuration (23)
@@ -115,9 +124,8 @@ Generated: 2026-09-30T16:59:56.196Z
 - Seed eval or prompt work for category correctness (83 confirmed misses)
 - Seed eval or prompt work for category observability (21 confirmed misses)
 - Seed eval or prompt work for category other (8 confirmed misses)
-- Seed eval or prompt work for category concurrency (4 confirmed misses)
+- Seed eval or prompt work for category concurrency (5 confirmed misses)
 - Seed eval or prompt work for category configuration (23 confirmed misses)
-quality:report scope: comparisons=6 missRecords=172 files=178 skipped=0
 
 ## Split by PR kind
 
@@ -130,7 +138,7 @@ committed records (`docs/testing/ronda/misses/*.json`).
 | Plan | #117 | 28 | 0 | 17 | 24 | none |
 | Code | #118 | 26 | 1 | 15 | 9 | 1 Codex `false_positive` |
 | Evidence | #119 | 13 | 55 (false positives, #134) | 7 | 4 | 2 local `out_of_scope` |
-| Code/workflow | #107 | 16 | 5 | 2 | 5 | 1 local and 1 Codex `already_found` |
+| Code/workflow | #107 | 16 | 5 | 2 | 6 | 1 Codex `already_found` |
 
 Ronda pass and finding counts are the 2026-09-30 checkpoint figures quoted in
 #136, not recomputed here.
@@ -139,7 +147,7 @@ Ronda pass and finding counts are the 2026-09-30 checkpoint figures quoted in
 | --- | ---: | ---: |
 | Spec (#115) | 84 | 0 |
 | Plan (#117) | 41 | 0 |
-| Code (#118 + #107) | 31 | 6 |
+| Code (#118 + #107) | 32 | 6 |
 | Evidence (#119) | 11 | 55 (false positives) |
 
 Counts are finding instances, not distinct defects. The same defect can appear
@@ -147,7 +155,7 @@ in several records across heads and across the two reviewers.
 
 **What the split supports.** On spec and plan PRs Ronda reported nothing
 across 104 passes, while 125 external findings were judged real. On code it
-reported 6 findings against 31 confirmed misses. This is consistent with the
+reported 6 findings against 32 confirmed misses. This is consistent with the
 working hypothesis that the code-oriented prompt does not review spec and plan
 text, and it is the strongest gap in the data. Two limits: the verdicts are
 assistant-drafted (see above), and spec/plan PRs here are all about one
@@ -165,7 +173,7 @@ measurement of how much one would gain.
 | partial_success | 7 | 4 | 2 | 0 | 0 |
 | security | 2 | 6 | 0 | 0 | 0 |
 | timeouts | 0 | 3 | 4 | 0 | 0 |
-| concurrency | 0 | 1 | 2 | 1 | 0 |
+| concurrency | 0 | 1 | 2 | 2 | 0 |
 | other | 3 | 1 | 1 | 1 | 2 |
 
 The category list was designed for code defects, so `correctness` absorbs most
@@ -173,7 +181,7 @@ spec and plan findings. That is a limit of the list, not a finding.
 
 ## Follow-ups recorded
 
-136 `prompt_change` (#115, #117, #119), 28 `eval_record` (#107, #118), 8
+136 `prompt_change` (#115, #117, #119), 29 `eval_record` (#107, #118), 7
 `no_action`. These are intended follow-ups only; none was started here.
 
 ## Excluded and unresolved evidence
@@ -206,9 +214,9 @@ identifiers with the sweep list, so the comparison used each category's
 That is a crude, mechanical proxy, and a miss can be a wording mismatch rather
 than a different defect.
 
-- **3 of 167 `true_positive` records match any sweep category** (1 code on
+- **3 of 168 `true_positive` records match any sweep category** (1 code on
   `credential-pattern-gap`, 1 plan and 1 evidence on `pr-head-push-order`).
-  The other 164 match none: spec 84, plan 40, code 23, code/workflow 7,
+  The other 165 match none: spec 84, plan 40, code 23, code/workflow 8,
   evidence 10.
 - **`external-output-parsing`, `record-identity` and `guard-fails-open`
   matched zero records.**
