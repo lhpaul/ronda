@@ -314,7 +314,18 @@ test("repository context: an included file importing a patchless (no_patch) file
     async readFileAtRef(_owner, _repo, path) {
       github.readPaths.push(path);
       if (path === "src/included-caller.ts") {
-        return INCLUDED_FILE_MARKER;
+        // Return actual source that imports and uses the helper, so the resolver
+        // attempts to read the dependency. The marker string is embedded in the
+        // source, proving the file was parsed and inlined.
+        return (
+          `import { helperFunction } from './excluded-helper';\n` +
+          `\n` +
+          `export function caller() {\n` +
+          `  const result = helperFunction();\n` +
+          `  console.log('${INCLUDED_FILE_MARKER}');\n` +
+          `  return result;\n` +
+          `}\n`
+        );
       }
       if (path === "src/excluded-helper.ts") {
         return EXCLUDED_FILE_MARKER;
