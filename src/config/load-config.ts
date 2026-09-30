@@ -173,6 +173,20 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
     repositoryContextBudgetFallbacks,
   );
 
+  // Validate excludePathGlobs array entries before parsing (#134)
+  if (
+    Array.isArray(fileConfig.excludePathGlobs) &&
+    fileConfig.excludePathGlobs.some((entry) => typeof entry !== "string")
+  ) {
+    const invalidEntry = fileConfig.excludePathGlobs.find((entry) => typeof entry !== "string");
+    throw new ConfigLoadError(
+      configPath,
+      new TypeError(
+        `excludePathGlobs array contains non-string entry: ${JSON.stringify(invalidEntry)}`,
+      ),
+    );
+  }
+
   const excludePathGlobs =
     parseGlobList(env.RONDA_EXCLUDE_PATH_GLOBS) ?? parseGlobList(fileConfig.excludePathGlobs) ?? [];
 
@@ -316,16 +330,7 @@ function resolveRepositoryContextBudget(
  */
 function parseGlobList(value: string | string[] | undefined | null): string[] | undefined {
   if (Array.isArray(value)) {
-    const globs = value
-      .map((entry) => {
-        if (typeof entry !== "string") {
-          throw new ConfigLoadError(
-            `excludePathGlobs array contains non-string entry: ${JSON.stringify(entry)}`,
-          );
-        }
-        return entry.trim();
-      })
-      .filter((entry) => entry.length > 0);
+    const globs = value.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
     return globs.length > 0 ? globs : undefined;
   }
   const raw = nonBlank(value);
