@@ -44,45 +44,92 @@ export const DEFAULT_EXCLUDED_PATH_GLOBS: readonly string[] = [
 ];
 
 /**
- * Translates one glob pattern into an anchored `RegExp`. Supports `**`
- * (any number of path segments, including none), `*` (any run of characters
- * within one segment), and `?` (one character). Every other regex
- * metacharacter in the literal segments is escaped. No external dependency:
- * the supported vocabulary is exactly what this repository's own default and
- * configured patterns need (see `DEFAULT_EXCLUDED_PATH_GLOBS` and #134's
- * `docs/testing/ronda/**\/*.json` / `tests/fixtures/recall-benchmark/**`
- * examples).
+ * Matches one path segment (no `/`) against one glob segment (no `/`)
+ * supporting `*` (any run of characters, including none) and `?` (exactly
+ * one character). Implemented as the classic linear two-pointer wildcard
+ * algorithm (the same technique as LeetCode 44 "Wildcard Matching") rather
+ * than a backtracking regular expression: it remembers only the most recent
+ * `*` position and greedily advances, which is polynomial in the length of
+ * `text` and `pattern` and cannot exhibit the exponential-time catastrophic
+ * backtracking a `[^/]*a[^/]*a[^/]*...` style regex has when matched against
+ * an adversarial (fully attacker-controlled, via PR file paths) input — see
+ * the regression tests in `path-exclusion.test.ts`.
  */
-function globToRegExp(glob: string): RegExp {
-  let pattern = "";
-  for (let i = 0; i < glob.length; i += 1) {
-    const char = glob[i];
-    if (char === "*") {
-      if (glob[i + 1] === "*") {
-        // `**` — greedily match across path separators, including zero segments.
-        // Swallow an immediately following slash so `**/foo` also matches `foo`.
-        i += 1;
-        if (glob[i + 1] === "/") {
-          i += 1;
-          pattern += "(?:.*/)?";
-        } else {
-          pattern += ".*";
-        }
-      } else {
-        pattern += "[^/]*";
-      }
-    } else if (char === "?") {
-      pattern += "[^/]";
+function matchSegment(text: string, pattern: string): boolean {
+  let ti = 0;
+  let pi = 0;
+  let starIdx = -1;
+  let matchIdx = 0;
+  while (ti < text.length) {
+    if (pi < pattern.length && (pattern[pi] === "?" || pattern[pi] === text[ti])) {
+      ti += 1;
+      pi += 1;
+    } else if (pi < pattern.length && pattern[pi] === "*") {
+      starIdx = pi;
+      matchIdx = ti;
+      pi += 1;
+    } else if (starIdx !== -1) {
+      pi = starIdx + 1;
+      matchIdx += 1;
+      ti = matchIdx;
     } else {
-      pattern += char.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+      return false;
     }
   }
-  return new RegExp(`^${pattern}$`);
+  while (pi < pattern.length && pattern[pi] === "*") {
+    pi += 1;
+  }
+  return pi === pattern.length;
 }
 
-/** Matches a repository-relative changed-file path against one glob pattern. */
+/**
+ * Matches a sequence of path segments against a sequence of glob segments,
+ * where a glob segment that is exactly `**` matches zero or more whole path
+ * segments (crossing `/`, unlike a plain `*`). Same linear two-pointer
+ * technique as {@link matchSegment}, one level up: at most one pending `**`
+ * backtrack point is remembered at a time, so this is polynomial — never
+ * exponential — in the number of path and glob segments.
+ */
+function segmentsMatch(pathSegs: string[], globSegs: string[]): boolean {
+  let pi = 0;
+  let gi = 0;
+  let starIdx = -1;
+  let matchIdx = 0;
+  while (pi < pathSegs.length) {
+    if (gi < globSegs.length && globSegs[gi] !== "**" && matchSegment(pathSegs[pi], globSegs[gi])) {
+      pi += 1;
+      gi += 1;
+    } else if (gi < globSegs.length && globSegs[gi] === "**") {
+      starIdx = gi;
+      matchIdx = pi;
+      gi += 1;
+    } else if (starIdx !== -1) {
+      gi = starIdx + 1;
+      matchIdx += 1;
+      pi = matchIdx;
+    } else {
+      return false;
+    }
+  }
+  while (gi < globSegs.length && globSegs[gi] === "**") {
+    gi += 1;
+  }
+  return gi === globSegs.length;
+}
+
+/**
+ * Matches a repository-relative changed-file path against one glob pattern.
+ * No external dependency: the supported vocabulary (`**` crossing `/`, `*`
+ * and `?` within one segment) is exactly what this repository's own default
+ * and configured patterns need (see `DEFAULT_EXCLUDED_PATH_GLOBS` and #134's
+ * `docs/testing/ronda/**\/*.json` / `tests/fixtures/recall-benchmark/**`
+ * examples). Deliberately not regex-based: path segments are fully
+ * attacker-controlled (any PR author names any file at any depth), and a
+ * naive glob-to-regex translation is a well-known catastrophic-backtracking
+ * (ReDoS) hazard once more than a couple of wildcards are chained.
+ */
 export function matchesGlob(path: string, glob: string): boolean {
-  return globToRegExp(glob).test(path);
+  return segmentsMatch(path.split("/"), glob.split("/"));
 }
 
 function matchesAny(path: string, globs: readonly string[]): boolean {

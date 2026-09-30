@@ -103,3 +103,42 @@ test("filterExcludedFiles: an empty changed-file list returns empty results with
   assert.deepEqual(result.included, []);
   assert.deepEqual(result.excluded, []);
 });
+
+// Regression tests for a catastrophic-backtracking (ReDoS) hazard in an
+// earlier glob-to-regex implementation. Path segments are fully
+// attacker-controlled (any PR author names any file at any depth), so a
+// glob matcher must stay polynomial — never exponential — under an
+// adversarial path, even for a glob with several chained wildcards.
+
+test("matchesGlob: many chained ** segments against a deep non-matching path completes in linear time, not exponential", () => {
+  const glob = "**/**/**/**/**/**/**/**/**/**/*.json";
+  const path = `${"a/".repeat(30)}b`;
+  const start = Date.now();
+  const result = matchesGlob(path, glob);
+  const elapsedMs = Date.now() - start;
+  assert.equal(result, false);
+  assert.ok(elapsedMs < 200, `expected linear-time matching, took ${elapsedMs}ms`);
+});
+
+test("matchesGlob: many chained * wildcards within one segment against a non-matching run completes in linear time", () => {
+  const glob = `${"*a".repeat(30)}*.json`;
+  const path = `${"a".repeat(40)}x`;
+  const start = Date.now();
+  const result = matchesGlob(path, glob);
+  const elapsedMs = Date.now() - start;
+  assert.equal(result, false);
+  assert.ok(elapsedMs < 200, `expected linear-time matching, took ${elapsedMs}ms`);
+});
+
+test("matchesGlob: ** requires a segment boundary, not a mid-filename prefix", () => {
+  // A regex compiled as `(?:.*/)?package-lock\.json` would (correctly) also
+  // reject this, but a naive simplification that drops the segment-boundary
+  // requirement would wrongly accept it. Locks in the correct behavior.
+  assert.equal(matchesGlob("xpackage-lock.json", "**/package-lock.json"), false);
+});
+
+test("matchesGlob: regex-special characters in a literal segment are matched literally, not as metacharacters", () => {
+  assert.equal(matchesGlob("docs/testing/ronda/a+b(c).json", "docs/testing/ronda/**/*.json"), true);
+  assert.equal(matchesGlob("docs/testing/ronda/a.json", "docs/testing/ronda/a.json"), true);
+  assert.equal(matchesGlob("docsXtesting/ronda/a.json", "docs.testing/ronda/a.json"), false);
+});
