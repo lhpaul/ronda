@@ -177,8 +177,11 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
   // a string or an array of strings is meaningful. Any other non-null value
   // would otherwise be treated as absent and silently disable the requested
   // exclusions, sending excluded content to the model.
+  // The environment wins outright over the file, so the file value is only
+  // validated when no usable environment override was selected.
+  const envExcludePathGlobs = parseGlobList(env.RONDA_EXCLUDE_PATH_GLOBS);
   const rawExcludePathGlobs: unknown = fileConfig.excludePathGlobs;
-  if (rawExcludePathGlobs !== undefined && rawExcludePathGlobs !== null) {
+  if (envExcludePathGlobs === undefined && rawExcludePathGlobs !== undefined && rawExcludePathGlobs !== null) {
     if (Array.isArray(rawExcludePathGlobs)) {
       const invalidIndex = rawExcludePathGlobs.findIndex((entry) => typeof entry !== "string");
       if (invalidIndex !== -1) {
@@ -200,8 +203,7 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
     }
   }
 
-  const excludePathGlobs =
-    parseGlobList(env.RONDA_EXCLUDE_PATH_GLOBS) ?? parseGlobList(fileConfig.excludePathGlobs) ?? [];
+  const excludePathGlobs = envExcludePathGlobs ?? parseGlobList(fileConfig.excludePathGlobs) ?? [];
 
   return {
     model: { apiKey, baseUrl, modelName },

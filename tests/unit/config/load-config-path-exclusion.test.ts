@@ -95,3 +95,24 @@ for (const [label, value] of [
     );
   });
 }
+
+test("path exclusion: a usable environment override is honored even when the config file value is invalid", () => {
+  const config = loadConfig({
+    env: { RONDA_EXCLUDE_PATH_GLOBS: "env-only/**" },
+    fileExists: () => true,
+    readFile: () => JSON.stringify({ excludePathGlobs: 42 }),
+  });
+  assert.deepEqual(config.excludePathGlobs, ["env-only/**"]);
+});
+
+test("path exclusion: a blank environment value does not shield an invalid config file value", () => {
+  assert.throws(
+    () =>
+      loadConfig({
+        env: { RONDA_EXCLUDE_PATH_GLOBS: "   " },
+        fileExists: () => true,
+        readFile: () => JSON.stringify({ excludePathGlobs: 42 }),
+      }),
+    ConfigLoadError,
+  );
+});
