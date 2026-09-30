@@ -173,18 +173,31 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
     repositoryContextBudgetFallbacks,
   );
 
-  // Validate excludePathGlobs array entries before parsing (#134)
-  if (
-    Array.isArray(fileConfig.excludePathGlobs) &&
-    fileConfig.excludePathGlobs.some((entry) => typeof entry !== "string")
-  ) {
-    const invalidEntry = fileConfig.excludePathGlobs.find((entry) => typeof entry !== "string");
-    throw new ConfigLoadError(
-      configPath,
-      new TypeError(
-        `excludePathGlobs array contains non-string entry: ${JSON.stringify(invalidEntry)}`,
-      ),
-    );
+  // Validate the config-file excludePathGlobs shape before parsing (#134): only
+  // a string or an array of strings is meaningful. Any other non-null value
+  // would otherwise be treated as absent and silently disable the requested
+  // exclusions, sending excluded content to the model.
+  const rawExcludePathGlobs: unknown = fileConfig.excludePathGlobs;
+  if (rawExcludePathGlobs !== undefined && rawExcludePathGlobs !== null) {
+    if (Array.isArray(rawExcludePathGlobs)) {
+      const invalidIndex = rawExcludePathGlobs.findIndex((entry) => typeof entry !== "string");
+      if (invalidIndex !== -1) {
+        const invalidEntry: unknown = rawExcludePathGlobs[invalidIndex];
+        throw new ConfigLoadError(
+          configPath,
+          new TypeError(
+            `excludePathGlobs array contains non-string entry: ${JSON.stringify(invalidEntry)}`,
+          ),
+        );
+      }
+    } else if (typeof rawExcludePathGlobs !== "string") {
+      throw new ConfigLoadError(
+        configPath,
+        new TypeError(
+          `excludePathGlobs must be a string or an array of strings, got ${JSON.stringify(rawExcludePathGlobs)}`,
+        ),
+      );
+    }
   }
 
   const excludePathGlobs =

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadConfig } from "../../../src/config/load-config.js";
+import { ConfigLoadError, loadConfig } from "../../../src/config/load-config.js";
 
 // #134: repository-configured review path-exclusion globs. Same
 // first-non-blank-source, never-merged precedence discipline as every other
@@ -74,3 +74,24 @@ test("path exclusion: a blank config-file array entry list resolves to empty, no
   });
   assert.deepEqual(config.excludePathGlobs, []);
 });
+
+for (const [label, value] of [
+  ["a number", 42],
+  ["an object", { glob: "a/**" }],
+  ["a boolean", true],
+] as const) {
+  test(`path exclusion: a config-file excludePathGlobs that is ${label} fails loudly instead of silently disabling exclusions`, () => {
+    assert.throws(
+      () =>
+        loadConfig({
+          env: {},
+          fileExists: () => true,
+          readFile: () => JSON.stringify({ excludePathGlobs: value }),
+        }),
+      (error: unknown) =>
+        error instanceof ConfigLoadError &&
+        error.cause instanceof TypeError &&
+        /excludePathGlobs must be a string or an array of strings/.test(error.cause.message),
+    );
+  });
+}
