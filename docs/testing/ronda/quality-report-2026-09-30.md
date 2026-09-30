@@ -56,7 +56,8 @@ dogfood passes on PRs #107, #115, #117, #118 and #119, produced with
   head is an intermediate commit that the tool refuses as never a PR tip. They
   sit on the current head, which already contains their fix, so they are
   re-adjudicated as `out_of_scope` and excluded from confirmed totals. The
-  tool's head preference is a finding for the capture tooling, not fixed here.
+  tool's head preference is tracked in
+  [#140](https://github.com/lhpaul/ronda/issues/140) and is not fixed here.
 - **`local-ai-reviewer` recovery.** The final reviewer-loop summaries
   rewrite local findings to "clean" or "escalate" and drop the text. The text
   survives in each summary comment's embedded `reviewer_loop_history.v1`
