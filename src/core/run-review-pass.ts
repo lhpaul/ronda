@@ -563,7 +563,11 @@ export async function runReviewPass(
       logRepositoryContext(deps, repositoryContextRecord, repositoryContextDegraded);
       repositoryContextReleased = true;
     }
-    const parsed = parseModelResponse(completion.content, changedFiles);
+    const rawParsed = parseModelResponse(completion.content, changedFiles);
+    // With no reviewable file left after path exclusion, the model saw no
+    // changed content, so anything it returned (hallucination or injection
+    // via the PR text) is discarded rather than published as a finding.
+    const parsed = changedFiles.length === 0 ? { ...rawParsed, findings: [] } : rawParsed;
     if (sweepList) {
       // Set the moment this returns, independently of any GitHub call below.
       classification = classifyFindings(parsed.findings, sweepList);

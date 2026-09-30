@@ -220,6 +220,30 @@ test("path exclusion: a PR whose every changed file is excluded publishes a summ
   assert.match(summary, /1 file\(s\) excluded before review/);
 });
 
+test("path exclusion: findings returned by the model are discarded when every changed file is excluded", async () => {
+  const github = createFakeGithub([EXCLUDED_EVIDENCE_FILE]);
+  // A valid-looking finding on a path outside the (empty) included set — the
+  // shape a hallucination or an injection in the PR text could produce.
+  const { model } = createFakeModel(findingOnRealDefectFile);
+
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 7, trigger: "automatic" },
+    {
+      github: github.ops,
+      model,
+      config: createConfig({ excludePathGlobs: ["docs/testing/ronda/**/*.json"] }),
+      clock: { now: () => Date.now(), isoNow: () => new Date().toISOString() },
+      logger: createLogger(),
+    },
+  );
+
+  assert.equal(result.outcome, "succeeded");
+  const published = github.publishedReviews[0];
+  assert.equal(published.inlineComments.length, 0);
+  assert.match(published.summaryBody, /Every changed file was excluded from review/);
+  assert.doesNotMatch(published.summaryBody, /Inverted session-expiry check/);
+});
+
 test("path exclusion: default lockfile exclusion applies even with no repository-configured globs", async () => {
   const lockfile: ChangedFile = {
     path: "package-lock.json",
