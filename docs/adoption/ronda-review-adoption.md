@@ -357,7 +357,9 @@ a version without the feature.
 `RONDA_EXCLUDE_PATH_GLOBS` (or `excludePathGlobs` in the config file, or the
 reusable workflow's `exclude_path_globs` input) lists repository-configured
 glob patterns excluded from review before prompt construction, comma- or
-newline-separated (issue #134): committed benchmark/evidence records,
+newline-separated, using only `**` (crosses `/`), `*` and `?` — bracket and
+brace syntax such as `*.[jt]s` or `{a,b}` is rejected at startup rather than
+silently ignored (issue #134): committed benchmark/evidence records,
 generated clients, vendored code, or any other repository-specific path a
 review pass should never treat as code under change. No path list for any
 adopting repository is hardcoded in this repository's product code — each

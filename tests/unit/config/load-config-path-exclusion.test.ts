@@ -116,3 +116,27 @@ test("path exclusion: a blank environment value does not shield an invalid confi
     ConfigLoadError,
   );
 });
+
+for (const glob of ["generated/**/*.[jt]s", "src/{a,b}/**", "docs/[a-z]*.json"]) {
+  test(`path exclusion: unsupported glob syntax ${JSON.stringify(glob)} is rejected instead of silently failing open`, () => {
+    assert.throws(
+      () =>
+        loadConfig({
+          env: {},
+          fileExists: () => true,
+          readFile: () => JSON.stringify({ excludePathGlobs: [glob] }),
+        }),
+      (error: unknown) =>
+        error instanceof ConfigLoadError &&
+        error.cause instanceof TypeError &&
+        /unsupported glob syntax/.test(error.cause.message),
+    );
+    assert.throws(
+      () => loadConfig({ env: { RONDA_EXCLUDE_PATH_GLOBS: glob }, fileExists: () => false }),
+      (error: unknown) =>
+        error instanceof ConfigLoadError &&
+        error.cause instanceof TypeError &&
+        /unsupported glob syntax/.test(error.cause.message),
+    );
+  });
+}

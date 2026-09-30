@@ -204,6 +204,19 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
   }
 
   const excludePathGlobs = envExcludePathGlobs ?? parseGlobList(fileConfig.excludePathGlobs) ?? [];
+  // The matcher supports only `**`, `*` and `?`. Bracket and brace syntax would
+  // be treated as literal filename characters, so a pattern like
+  // `generated/**/*.[jt]s` would silently fail open and send matching files to
+  // the model; reject it instead.
+  const unsupportedGlob = excludePathGlobs.find((glob) => /[[\]{}]/.test(glob));
+  if (unsupportedGlob !== undefined) {
+    throw new ConfigLoadError(
+      configPath,
+      new TypeError(
+        `excludePathGlobs contains unsupported glob syntax (only **, * and ? are supported): ${JSON.stringify(unsupportedGlob)}`,
+      ),
+    );
+  }
 
   return {
     model: { apiKey, baseUrl, modelName },
