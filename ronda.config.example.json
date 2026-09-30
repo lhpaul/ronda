@@ -8,5 +8,6 @@
   "repositoryContext": "",
   "maxRepositoryContextCandidates": 12,
   "maxRepositoryContextChars": 24000,
-  "repositoryContextTimeBudgetMs": 120000
+  "repositoryContextTimeBudgetMs": 120000,
+  "excludePathGlobs": []
 }

@@ -260,3 +260,95 @@ test("buildCheckRunOutput on the failure path carries no sweep fields", () => {
   assert.doesNotMatch(output.summary, /Category-forced sweep/);
   assert.doesNotMatch(output.summary, /sweep-did-not-run|unrecognized enablement/);
 });
+
+// #134: review path-exclusion is named in the summary, never silent.
+
+test("buildReviewSummary names excluded files with a count and a bounded list", () => {
+  const summary = buildReviewSummary({
+    changedFileCount: 1,
+    additions: 1,
+    deletions: 0,
+    findings,
+    unmappedFindings: [],
+    modelName: "qwen-plus",
+    durationMs: 1000,
+    trigger: "automatic",
+    malformedCount: 0,
+    coercedSeverityCount: 0,
+    duplicateCount: 0,
+    excludedFiles: [
+      { path: "package-lock.json", reason: "default_glob" },
+      { path: "docs/testing/ronda/sweep-on-precision.json", reason: "configured_glob" },
+    ],
+  });
+  assert.match(summary, /### Excluded from review/);
+  assert.match(summary, /2 file\(s\) excluded before review/);
+  assert.match(summary, /`package-lock\.json`/);
+  assert.match(summary, /`docs\/testing\/ronda\/sweep-on-precision\.json`/);
+});
+
+test("buildReviewSummary bounds the excluded-file list and states the remainder", () => {
+  const excludedFiles = Array.from({ length: 25 }, (_, i) => ({
+    path: `docs/testing/ronda/case-${i}.json`,
+    reason: "configured_glob" as const,
+  }));
+  const summary = buildReviewSummary({
+    changedFileCount: 1,
+    additions: 1,
+    deletions: 0,
+    findings: [],
+    unmappedFindings: [],
+    modelName: "qwen-plus",
+    durationMs: 1000,
+    trigger: "automatic",
+    malformedCount: 0,
+    coercedSeverityCount: 0,
+    duplicateCount: 0,
+    excludedFiles,
+  });
+  assert.match(summary, /25 file\(s\) excluded before review/);
+  assert.match(summary, /\(\+5 more\)/);
+  assert.match(summary, /docs\/testing\/ronda\/case-19\.json/);
+  assert.doesNotMatch(summary, /docs\/testing\/ronda\/case-20\.json/);
+});
+
+test("buildReviewSummary states explicitly when every changed file was excluded — not a clean-looking review", () => {
+  const summary = buildReviewSummary({
+    changedFileCount: 0,
+    additions: 0,
+    deletions: 0,
+    findings: [],
+    unmappedFindings: [],
+    modelName: "qwen-plus",
+    durationMs: 1000,
+    trigger: "automatic",
+    malformedCount: 0,
+    coercedSeverityCount: 0,
+    duplicateCount: 0,
+    excludedFiles: [
+      { path: "docs/testing/ronda/sweep-on-precision.json", reason: "configured_glob" },
+      { path: "tests/fixtures/recall-benchmark/case-1.json", reason: "configured_glob" },
+    ],
+  });
+  assert.match(summary, /Every changed file was excluded from review/);
+  assert.doesNotMatch(summary, /^No findings\.$/m);
+});
+
+test("buildReviewSummary omits the excluded-files section entirely when nothing was excluded", () => {
+  const summary = buildReviewSummary({
+    changedFileCount: 1,
+    additions: 1,
+    deletions: 0,
+    findings: [],
+    unmappedFindings: [],
+    modelName: "qwen-plus",
+    durationMs: 1000,
+    trigger: "automatic",
+    malformedCount: 0,
+    coercedSeverityCount: 0,
+    duplicateCount: 0,
+    excludedFiles: [],
+  });
+  assert.doesNotMatch(summary, /Excluded from review/);
+  assert.match(summary, /No findings\./);
+});

@@ -66,6 +66,7 @@ import {
   type InternalRequestedReference,
   type RepositoryContextReadFile,
 } from "../review/symbol-resolver.js";
+import { filterExcludedFiles } from "../review/path-exclusion.js";
 
 function readLocalDurabilityModeDocument(
   cwd: string = process.cwd(),
@@ -302,12 +303,29 @@ export async function runReviewPass(
       sweepDegraded = { kind: "sweep_enablement_unrecognized" };
     }
 
-    const changedFiles = await deps.github.readChangedFiles(
+    const allChangedFiles = await deps.github.readChangedFiles(
       input.owner,
       input.repo,
       input.pullNumber,
       deadline.signal,
     );
+
+    // Review path-exclusion (#134), applied before every downstream use of
+    // the changed-file set — authoritative-doc selection, durability-mode
+    // path matching, repository context, the prompt, and the summary. An
+    // excluded file never reaches the model and is always named in the
+    // published summary (never silent), even when every changed file is
+    // excluded.
+    const { included: changedFiles, excluded: excludedFiles } = filterExcludedFiles(
+      allChangedFiles,
+      deps.config.excludePathGlobs,
+    );
+    if (excludedFiles.length > 0) {
+      deps.logger.event("path_exclusion", {
+        excludedCount: excludedFiles.length,
+        includedCount: changedFiles.length,
+      });
+    }
 
     const changedPaths = collectChangedPaths(changedFiles);
     const preResolve = resolveDurabilityMode({
@@ -559,6 +577,7 @@ export async function runReviewPass(
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
       durabilityMode,
+      excludedFiles,
       // AC3: the body states only that the sweep ran and which list version it
       // used. A degraded pass states nothing — it classified nothing, and the
       // record belongs to the surfaces AC1 assigns it (AC18, AC19).
@@ -581,6 +600,7 @@ export async function runReviewPass(
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
       durabilityMode,
+      excludedFiles,
       ...(sweepList ? { sweep: { listVersion: sweepList.version } } : {}),
       ...(repositoryContextRecord ? { repositoryContext: { outcome: repositoryContextRecord.outcome } } : {}),
     });

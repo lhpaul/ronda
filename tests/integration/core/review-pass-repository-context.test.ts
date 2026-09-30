@@ -173,6 +173,7 @@ function createConfig(overrides: Partial<RondaConfig> = {}): RondaConfig {
     maxRepositoryContextChars: 24_000,
     repositoryContextTimeBudgetMs: 120_000,
     repositoryContextBudgetFallbacks: [],
+    excludePathGlobs: [],
     ...overrides,
   };
 }

@@ -38,6 +38,7 @@ function testConfig(): RondaConfig {
     maxRepositoryContextChars: DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
     repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
     repositoryContextBudgetFallbacks: [],
+    excludePathGlobs: [],
   };
 }
 

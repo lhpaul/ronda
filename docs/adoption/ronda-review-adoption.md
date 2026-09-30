@@ -211,6 +211,7 @@ installation token instead.
 | `max_repository_context_candidates` | _(empty → `12`)_ | Maximum candidates (excerpts) a pass may resolve for repository context |
 | `max_repository_context_chars` | _(empty → `24000`)_ | Maximum combined characters of repository-context excerpts |
 | `repository_context_time_budget_ms` | _(empty → `120000`)_ | Time budget, in milliseconds, for the repository-context phase inside the pass budget in effect |
+| `exclude_path_globs` | _(empty)_ | Repository-configured glob patterns (comma- or newline-separated) excluded from review before prompt construction — generated files, recorded evidence, vendored fixtures, etc. Fixed defaults (lockfiles, common generated/minified output) always apply regardless |
 | `ronda_ref` | `main` | Ref of `lhpaul/ronda` to check out and run |
 
 ## 2. Add the required secret
@@ -300,7 +301,7 @@ file is never committed — see `.gitignore`. Environment variables
 `RONDA_DURABILITY_MODE`, `RONDA_DURABILITY_MODE_DEFAULT`,
 `RONDA_SWEEP_MODE`, `RONDA_REPOSITORY_CONTEXT`,
 `RONDA_MAX_REPOSITORY_CONTEXT_CANDIDATES`, `RONDA_MAX_REPOSITORY_CONTEXT_CHARS`,
-`RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS`) take
+`RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS`, `RONDA_EXCLUDE_PATH_GLOBS`) take
 precedence over the config file, which takes precedence over Ronda's built-in
 defaults.
 
@@ -352,6 +353,25 @@ disabled switch, a fork-originated head, and a pass that never reaches review
 execution (a draft pull request, or an automatic run that finds an existing
 check run) all record nothing at all on any surface — indistinguishable from
 a version without the feature.
+
+`RONDA_EXCLUDE_PATH_GLOBS` (or `excludePathGlobs` in the config file, or the
+reusable workflow's `exclude_path_globs` input) lists repository-configured
+glob patterns excluded from review before prompt construction, comma- or
+newline-separated (issue #134): committed benchmark/evidence records,
+generated clients, vendored code, or any other repository-specific path a
+review pass should never treat as code under change. No path list for any
+adopting repository is hardcoded in this repository's product code — each
+adopter sets its own list through its calling workflow or operator config,
+the same pattern `repository_context` above uses. Two checks apply first and
+are never configurable: lockfiles across the common package managers and
+common generated/minified output conventions (`src/review/path-exclusion.ts`
+names the fixed default list), and any file GitHub returns with no textual
+`patch` (binary content, or a diff GitHub declines to return). Every excluded
+file is named in the published review summary under "Excluded from review"
+— a count plus a bounded list — so an exclusion is never silent. A pull
+request whose every changed file is excluded still publishes a review, and
+its summary states that explicitly instead of showing the "No findings."
+text a genuinely clean review would show.
 
 When a pull request touches governed surfaces (webhook ingress, review
 publication, inference, operator config, or workflow review contract paths),

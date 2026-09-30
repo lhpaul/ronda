@@ -73,6 +73,16 @@ on:
         type: string
         required: false
         default: ""
+      exclude_path_globs:
+        description: >-
+          Repository-configured glob patterns excluded from review before
+          prompt construction (#134), comma- or newline-separated (e.g.
+          generated files, recorded evidence, vendored fixtures). Leave empty
+          for none — fixed defaults (lockfiles, common generated/minified
+          output) always apply regardless of this input.
+        type: string
+        required: false
+        default: ""
       ronda_ref:
         description: Ref of lhpaul/ronda to check out and run.
         type: string
@@ -186,4 +196,5 @@ jobs:
           RONDA_MAX_REPOSITORY_CONTEXT_CANDIDATES: ${{ inputs.max_repository_context_candidates }}
           RONDA_MAX_REPOSITORY_CONTEXT_CHARS: ${{ inputs.max_repository_context_chars }}
           RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS: ${{ inputs.repository_context_time_budget_ms }}
+          RONDA_EXCLUDE_PATH_GLOBS: ${{ inputs.exclude_path_globs }}
         run: npm run review

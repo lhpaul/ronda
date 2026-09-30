@@ -55,6 +55,7 @@ interface OperatorConfigFile {
   maxRepositoryContextCandidates?: number | string;
   maxRepositoryContextChars?: number | string;
   repositoryContextTimeBudgetMs?: number | string;
+  excludePathGlobs?: string | string[];
 }
 
 export interface LoadConfigOptions {
@@ -172,6 +173,9 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
     repositoryContextBudgetFallbacks,
   );
 
+  const excludePathGlobs =
+    parseGlobList(env.RONDA_EXCLUDE_PATH_GLOBS) ?? parseGlobList(fileConfig.excludePathGlobs) ?? [];
+
   return {
     model: { apiKey, baseUrl, modelName },
     passTimeoutMs,
@@ -188,6 +192,7 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
     maxRepositoryContextChars,
     repositoryContextTimeBudgetMs,
     repositoryContextBudgetFallbacks,
+    excludePathGlobs,
   };
 }
 
@@ -296,6 +301,33 @@ function resolveRepositoryContextBudget(
   }
   fallbacks.push(name);
   return defaultValue;
+}
+
+/**
+ * Parses one glob-list source into an array of non-blank patterns (#134).
+ * Accepts a `RondaConfig`-file array directly, or a comma/newline-separated
+ * string from either the environment variable or the config file (the config
+ * file's own `excludePathGlobs` may be an array or a string). Returns
+ * `undefined` — not `[]` — when the source is entirely absent or blank, so
+ * the caller's `??` chain can still defer to the next-lower-precedence
+ * source; an operator-supplied empty list would be indistinguishable from "no
+ * value" here, which is the intended behavior since an empty list carries no
+ * information either way.
+ */
+function parseGlobList(value: string | string[] | undefined | null): string[] | undefined {
+  if (Array.isArray(value)) {
+    const globs = value.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+    return globs.length > 0 ? globs : undefined;
+  }
+  const raw = nonBlank(value);
+  if (raw === undefined) {
+    return undefined;
+  }
+  const globs = raw
+    .split(/[,\n]/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return globs.length > 0 ? globs : undefined;
 }
 
 function parseBooleanFlag(value: string | boolean | undefined | null): boolean | undefined {

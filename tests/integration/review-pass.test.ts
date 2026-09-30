@@ -93,6 +93,7 @@ test("integration: a ready pull request with one finding produces exact review a
           maxRepositoryContextChars: DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
           repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
           repositoryContextBudgetFallbacks: [],
+          excludePathGlobs: [],
         },
         // A fixed clock makes durationMs deterministic (always 0) so the
         // rendered summary/check-run text is reproducible for exact assertions.
@@ -240,6 +241,7 @@ test("integration: multiple findings in the same changed file remain distinct in
           maxRepositoryContextChars: DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
           repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
           repositoryContextBudgetFallbacks: [],
+          excludePathGlobs: [],
         },
         clock: { now: () => 0, isoNow: () => "2026-01-01T00:00:00.000Z" },
         logger: { event: () => undefined },
@@ -329,6 +331,7 @@ test("integration: webhook file changes attach fetched authoritative docs to the
           maxRepositoryContextChars: DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
           repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
           repositoryContextBudgetFallbacks: [],
+          excludePathGlobs: [],
         },
         clock: { now: () => 0, isoNow: () => "2026-01-01T00:00:00.000Z" },
         logger: { event: () => undefined },

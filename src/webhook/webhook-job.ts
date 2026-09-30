@@ -239,6 +239,7 @@ export async function runWebhookReviewJob(
       maxRepositoryContextChars: DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
       repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
       repositoryContextBudgetFallbacks: [],
+      excludePathGlobs: [],
       loadError: `Failed to load Ronda config file at ${path}`,
     };
   }

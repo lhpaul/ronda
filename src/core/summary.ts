@@ -11,6 +11,7 @@ import {
   type TriggerMode,
 } from "../domain/review-pass.types.js";
 import type { DurabilityModeResolution } from "../review/durability-mode.js";
+import type { ExcludedFile } from "../review/path-exclusion.js";
 
 export interface SeverityCounts {
   blocking: number;
@@ -45,7 +46,19 @@ export interface ReviewSummaryInput {
    * no count, identifier, drop reason, or budget figure ever reaches it.
    */
   repositoryContext?: { outcome: RepositoryContextOutcome };
+  /**
+   * Files excluded from review before prompt construction (#134) —
+   * lockfiles, generated/minified output, binary or patchless files, and any
+   * repository-configured glob. Always rendered when non-empty, so an
+   * exclusion is never silent; when every changed file was excluded, the
+   * summary states that explicitly instead of the ordinary "No findings."
+   * text a clean review would otherwise show.
+   */
+  excludedFiles?: ExcludedFile[];
 }
+
+/** Bounds the excluded-file list rendered in the summary body (#134). */
+const MAX_EXCLUDED_FILES_LISTED = 20;
 
 /** The spec's display labels for a repository-context outcome (Statuses / Enum Values). */
 const REPOSITORY_CONTEXT_OUTCOME_LABELS: Record<RepositoryContextOutcome, string> = {
@@ -103,7 +116,21 @@ export function buildReviewSummary(input: ReviewSummaryInput): string {
     lines.push("");
   }
 
-  if (input.findings.length === 0) {
+  const excludedFiles = input.excludedFiles ?? [];
+  if (excludedFiles.length > 0) {
+    lines.push(...renderExcludedFilesSection(excludedFiles));
+    lines.push("");
+  }
+
+  // #134: a PR whose every file was excluded must say so explicitly rather
+  // than fall into the ordinary "No findings." text a genuinely clean review
+  // would show — nothing was ever sent to the model for this pass.
+  const allFilesExcluded = input.changedFileCount === 0 && excludedFiles.length > 0;
+  if (allFilesExcluded) {
+    lines.push(
+      "Every changed file was excluded from review — no content was sent to the model for this pass.",
+    );
+  } else if (input.findings.length === 0) {
     lines.push("No findings.");
   } else {
     lines.push("### Findings by severity");
@@ -149,6 +176,25 @@ export function buildReviewSummary(input: ReviewSummaryInput): string {
   }
 
   return lines.join("\n");
+}
+
+/**
+ * Renders the excluded-files section (#134): a count plus a bounded list, so
+ * an exclusion is always visible rather than silently dropping the file from
+ * the "Reviewed N changed file(s)" line above with no further explanation.
+ */
+function renderExcludedFilesSection(excludedFiles: ExcludedFile[]): string[] {
+  const lines = ["### Excluded from review", ""];
+  lines.push(`${excludedFiles.length} file(s) excluded before review:`);
+  const listed = excludedFiles.slice(0, MAX_EXCLUDED_FILES_LISTED);
+  for (const file of listed) {
+    lines.push(`- \`${file.path}\``);
+  }
+  const remaining = excludedFiles.length - listed.length;
+  if (remaining > 0) {
+    lines.push(`- (+${remaining} more)`);
+  }
+  return lines;
 }
 
 function renderDurabilityModeSection(mode: DurabilityModeResolution): string[] {
