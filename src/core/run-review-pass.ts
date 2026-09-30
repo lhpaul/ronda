@@ -66,7 +66,7 @@ import {
   type InternalRequestedReference,
   type RepositoryContextReadFile,
 } from "../review/symbol-resolver.js";
-import { filterExcludedFiles } from "../review/path-exclusion.js";
+import { filterExcludedFiles, isPathExcluded } from "../review/path-exclusion.js";
 
 function readLocalDurabilityModeDocument(
   cwd: string = process.cwd(),
@@ -973,8 +973,21 @@ async function runRepositoryContextPhase(
   // resolver's error type at this one boundary, so `symbol-resolver.ts` stays
   // free of a `src/github/` import while still distinguishing a real-but-
   // refused path (a symlink, a submodule, a directory) from a plain miss.
+  //
+  // Also the exclusion boundary (#134/#106): `changedFiles` above has
+  // already been filtered by `filterExcludedFiles`, but the resolver reads
+  // dependency (import) targets that never went through that filter — an
+  // included file importing an excluded one (e.g. `./helper.generated.js`
+  // resolving to `src/helper.generated.ts`) would otherwise let the excluded
+  // file's content re-enter the prompt as repository context. Every read
+  // this seam issues, whether the initial changed-file read or a resolved
+  // dependency path, is checked here first; a match never reaches GitHub and
+  // is refused exactly like other real-but-unusable content.
   const readFileWithSignal = (signal: AbortSignal): RepositoryContextReadFile => {
     return async (path, options) => {
+      if (isPathExcluded(path, deps.config.excludePathGlobs)) {
+        throw new RepositoryContextUnusableContentError(path, "excluded_path");
+      }
       try {
         return await deps.github.readFileAtRef(input.owner, input.repo, path, pr.headSha, signal, options);
       } catch (error) {

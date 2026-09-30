@@ -137,6 +137,31 @@ function matchesAny(path: string, globs: readonly string[]): boolean {
 }
 
 /**
+ * Standalone exclusion check for a single repository-relative path against
+ * the same two glob tiers {@link filterExcludedFiles} applies to changed
+ * files (repository-configured, then the fixed defaults) — but without the
+ * `no_patch` check, which only makes sense for a `ChangedFile`'s own diff.
+ *
+ * Used where a path never passes through `filterExcludedFiles` at all: the
+ * repository-context resolver (#106) reads changed-file *dependencies*
+ * (import targets) directly from GitHub, one path at a time, bypassing the
+ * changed-files list entirely. Without this check, a changed file excluded
+ * from the prompt (say `src/helper.generated.ts`, matching
+ * `**\/*.generated.*`) could still re-enter the model's context if another,
+ * included, changed file imports it — the exclusion would have filtered the
+ * file out of `changedFiles` but never stopped the resolver from fetching
+ * and inlining its content as repository-context. Every resolver read is
+ * checked against this function before it reaches GitHub (see
+ * `runRepositoryContextPhase` in `run-review-pass.ts`).
+ */
+export function isPathExcluded(path: string, configuredGlobs: readonly string[]): boolean {
+  if (configuredGlobs.length > 0 && matchesAny(path, configuredGlobs)) {
+    return true;
+  }
+  return matchesAny(path, DEFAULT_EXCLUDED_PATH_GLOBS);
+}
+
+/**
  * Applies the review path-exclusion step (#134) before prompt construction.
  * Order of checks, each independent and each named on exclusion:
  *
