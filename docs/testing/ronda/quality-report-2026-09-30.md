@@ -74,7 +74,7 @@ dogfood passes on PRs #107, #115, #117, #118 and #119, produced with
   `onReviewPublished` runs), so it became `false_positive`. The timed-out
   request finding was fixed in the direct child commit 51340557, so its
   rationale now cites that fix.
-- 73 of the 81 `local-ai-reviewer` records rest only on "the flagged lines
+- 72 of the 81 `local-ai-reviewer` records rest only on "the flagged lines
   changed later". That is weaker evidence than an author reply.
 
 ## Command
