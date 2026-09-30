@@ -12,6 +12,7 @@ import {
   applyAuthoritativeDocBudgets,
   collectChangedPaths,
   selectAuthoritativeDocCandidates,
+  type AuthoritativeDocSkip,
 } from "./select-authoritative-docs.js";
 import {
   UnusableModelOutputError,
@@ -345,74 +346,96 @@ export async function runReviewPass(
     } else {
       let modeDocumentText: string | null = null;
       let modeDocumentUnreadable = false;
-      try {
-        const loaded = await deps.github.readFileAtRef(
-          input.owner,
-          input.repo,
-          DURABILITY_MODE_DOCUMENT_PATH,
-          pr.headSha,
-          deadline.signal,
-          { failOnUnusable: true, oversizedMaxBytes: REVIEW_DURABILITY_MODE_MAX_BYTES },
-        );
-        // Prefer the reviewed-head copy when present (self-review of mode-doc
-        // edits). When a consumer PR head has no copy — the common reusable-
-        // Action case — fall back to the deployed Ronda checkout document.
-        // Do not fall back when reviewing Ronda itself: a missing/broken head
-        // copy must surface as unavailable. Unusable head content (truncated,
-        // empty) is unavailable — never substituted with local guidance.
-        modeDocumentText =
-          loaded ??
-          (() => {
-            if (
-              !shouldFallBackToLocalDurabilityModeDocument(
-                input.owner,
-                input.repo,
-              )
-            ) {
-              return null;
-            }
-            const local = readLocalDurabilityModeDocument();
-            if (local.unreadable) {
-              modeDocumentUnreadable = true;
-              return null;
-            }
-            return local.text;
-          })();
-      } catch (error) {
-        if (error instanceof RepositoryFileUnusableError) {
-          // Empty files are present but incomplete (match shell supply). Files
-          // whose reported size exceeds the mode bound are oversized. Truncated
-          // or non-file content remains unreadable.
-          if (error.reason === "empty") {
-            modeDocumentText = "";
-          } else if (error.reason === "oversized") {
-            modeDocumentText = "x".repeat(REVIEW_DURABILITY_MODE_MAX_BYTES + 1);
-          } else {
+      // Exclusion boundary (#134/#137): the durability-mode document path
+      // itself can match `excludePathGlobs` (a repository could exclude
+      // `docs/**`, which covers the default mode-document location). Checked
+      // before the read, not after — an excluded path is never sent to
+      // GitHub, just like an excluded changed file or authoritative-doc
+      // candidate. Treated the same as a missing (404) document: unavailable
+      // from the head, with the usual local-document fallback still applying
+      // when this isn't a self-review of Ronda's own repository.
+      if (isPathExcluded(DURABILITY_MODE_DOCUMENT_PATH, deps.config.excludePathGlobs)) {
+        deps.logger.event("durability_mode_document_excluded", {
+          path: DURABILITY_MODE_DOCUMENT_PATH,
+        });
+        if (shouldFallBackToLocalDurabilityModeDocument(input.owner, input.repo)) {
+          const local = readLocalDurabilityModeDocument();
+          if (local.unreadable) {
             modeDocumentUnreadable = true;
-            deps.logger.event("durability_mode_document_unreadable", {
-              message: error.message,
-              reason: error.reason,
-            });
+          } else {
+            modeDocumentText = local.text;
           }
-        } else {
-          const message = String(error);
-          if (/404|Not Found|does not exist/i.test(message)) {
-            if (
-              shouldFallBackToLocalDurabilityModeDocument(input.owner, input.repo)
-            ) {
+        }
+      } else {
+        try {
+          const loaded = await deps.github.readFileAtRef(
+            input.owner,
+            input.repo,
+            DURABILITY_MODE_DOCUMENT_PATH,
+            pr.headSha,
+            deadline.signal,
+            { failOnUnusable: true, oversizedMaxBytes: REVIEW_DURABILITY_MODE_MAX_BYTES },
+          );
+          // Prefer the reviewed-head copy when present (self-review of mode-doc
+          // edits). When a consumer PR head has no copy — the common reusable-
+          // Action case — fall back to the deployed Ronda checkout document.
+          // Do not fall back when reviewing Ronda itself: a missing/broken head
+          // copy must surface as unavailable. Unusable head content (truncated,
+          // empty) is unavailable — never substituted with local guidance.
+          modeDocumentText =
+            loaded ??
+            (() => {
+              if (
+                !shouldFallBackToLocalDurabilityModeDocument(
+                  input.owner,
+                  input.repo,
+                )
+              ) {
+                return null;
+              }
               const local = readLocalDurabilityModeDocument();
               if (local.unreadable) {
                 modeDocumentUnreadable = true;
-                modeDocumentText = null;
-              } else {
-                modeDocumentText = local.text;
+                return null;
               }
+              return local.text;
+            })();
+        } catch (error) {
+          if (error instanceof RepositoryFileUnusableError) {
+            // Empty files are present but incomplete (match shell supply). Files
+            // whose reported size exceeds the mode bound are oversized. Truncated
+            // or non-file content remains unreadable.
+            if (error.reason === "empty") {
+              modeDocumentText = "";
+            } else if (error.reason === "oversized") {
+              modeDocumentText = "x".repeat(REVIEW_DURABILITY_MODE_MAX_BYTES + 1);
             } else {
-              modeDocumentText = null;
+              modeDocumentUnreadable = true;
+              deps.logger.event("durability_mode_document_unreadable", {
+                message: error.message,
+                reason: error.reason,
+              });
             }
           } else {
-            modeDocumentUnreadable = true;
-            deps.logger.event("durability_mode_document_unreadable", { message });
+            const message = String(error);
+            if (/404|Not Found|does not exist/i.test(message)) {
+              if (
+                shouldFallBackToLocalDurabilityModeDocument(input.owner, input.repo)
+              ) {
+                const local = readLocalDurabilityModeDocument();
+                if (local.unreadable) {
+                  modeDocumentUnreadable = true;
+                  modeDocumentText = null;
+                } else {
+                  modeDocumentText = local.text;
+                }
+              } else {
+                modeDocumentText = null;
+              }
+            } else {
+              modeDocumentUnreadable = true;
+              deps.logger.event("durability_mode_document_unreadable", { message });
+            }
           }
         }
       }
@@ -434,7 +457,22 @@ export async function runReviewPass(
 
     const phase1 = selectAuthoritativeDocCandidates(changedPaths);
     const candidatesWithText = [];
+    // Exclusion boundary (#134/#137): a catalog candidate whose path matches
+    // `excludePathGlobs` is never read from GitHub, same as a changed file
+    // filtered by `filterExcludedFiles` — otherwise an excluded document
+    // (e.g. a repository configuring `docs/**` as excluded) would still
+    // reach the model as authoritative-doc content. Skipped and named here,
+    // exactly like the other authoritative-doc skip reasons.
+    const excludedAuthoritativeDocSkips: AuthoritativeDocSkip[] = [];
     for (const candidate of phase1.candidates) {
+      if (isPathExcluded(candidate.path, deps.config.excludePathGlobs)) {
+        excludedAuthoritativeDocSkips.push({
+          id: candidate.id,
+          path: candidate.path,
+          reason: "excluded_path",
+        });
+        continue;
+      }
       const text = await deps.github.readFileAtRef(
         input.owner,
         input.repo,
@@ -454,7 +492,7 @@ export async function runReviewPass(
       maxAuthoritativeDocCount: deps.config.maxAuthoritativeDocCount,
       maxAuthoritativeDocChars: deps.config.maxAuthoritativeDocChars,
     });
-    const allSkipped = [...phase1.skipped, ...phase2.skipped];
+    const allSkipped = [...phase1.skipped, ...excludedAuthoritativeDocSkips, ...phase2.skipped];
     if (phase2.selected.length > 0 || allSkipped.length > 0) {
       deps.logger.event("authoritative_docs_selection", {
         selectedIds: phase2.selected.map((doc) => doc.id),
