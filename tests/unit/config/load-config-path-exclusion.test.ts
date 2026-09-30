@@ -140,3 +140,29 @@ for (const glob of ["generated/**/*.[jt]s", "src/{a,b}/**", "docs/[a-z]*.json"])
     );
   });
 }
+
+test("path exclusion: an unsupported env glob reports a public message naming the environment variable, not the config file", () => {
+  try {
+    loadConfig({ env: { RONDA_EXCLUDE_PATH_GLOBS: "a/*.[jt]s" }, fileExists: () => false });
+    assert.fail("expected loadConfig to throw");
+  } catch (error) {
+    assert.ok(error instanceof ConfigLoadError);
+    assert.match(error.publicMessage, /RONDA_EXCLUDE_PATH_GLOBS/);
+    assert.match(error.publicMessage, /unsupported glob syntax/);
+    assert.doesNotMatch(error.publicMessage, /config\.json/);
+  }
+});
+
+test("path exclusion: an unsupported config-file glob keeps the config-file public message", () => {
+  try {
+    loadConfig({
+      env: {},
+      fileExists: () => true,
+      readFile: () => JSON.stringify({ excludePathGlobs: ["a/*.[jt]s"] }),
+    });
+    assert.fail("expected loadConfig to throw");
+  } catch (error) {
+    assert.ok(error instanceof ConfigLoadError);
+    assert.match(error.publicMessage, /Failed to load Ronda config file at /);
+  }
+});

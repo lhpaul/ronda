@@ -31,12 +31,20 @@ export const DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS = 120_000;
  */
 export class ConfigLoadError extends Error {
   readonly path: string;
+  /**
+   * Fixed, safe text for published surfaces. The underlying cause can carry
+   * local paths or operator-supplied values, so callers publish this instead
+   * of the cause. Defaults to the config-file message; a failure that comes
+   * from an environment variable supplies its own.
+   */
+  readonly publicMessage: string;
 
-  constructor(path: string, cause: unknown) {
+  constructor(path: string, cause: unknown, publicMessage?: string) {
     super(`Failed to load Ronda config file at ${path}`);
     this.name = "ConfigLoadError";
     this.path = path;
     this.cause = cause;
+    this.publicMessage = publicMessage ?? `Failed to load Ronda config file at ${path}`;
   }
 }
 
@@ -210,11 +218,15 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
   // the model; reject it instead.
   const unsupportedGlob = excludePathGlobs.find((glob) => /[[\]{}]/.test(glob));
   if (unsupportedGlob !== undefined) {
+    const fromEnvironment = envExcludePathGlobs !== undefined;
     throw new ConfigLoadError(
       configPath,
       new TypeError(
         `excludePathGlobs contains unsupported glob syntax (only **, * and ? are supported): ${JSON.stringify(unsupportedGlob)}`,
       ),
+      fromEnvironment
+        ? "Invalid Ronda configuration: RONDA_EXCLUDE_PATH_GLOBS contains unsupported glob syntax (only **, * and ? are supported)"
+        : undefined,
     );
   }
 

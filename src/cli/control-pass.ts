@@ -210,7 +210,10 @@ export async function runControlPass(
     try {
       config = loadConfig();
     } catch (error) {
-      const path = error instanceof ConfigLoadError ? error.path : "unknown path";
+      const loadError =
+      error instanceof ConfigLoadError
+        ? error.publicMessage
+        : "Failed to load Ronda config file at unknown path";
       config = {
         model: { apiKey: "", baseUrl: "", modelName: "" },
         passTimeoutMs: 600_000,
@@ -228,7 +231,7 @@ export async function runControlPass(
         repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
         repositoryContextBudgetFallbacks: [],
         excludePathGlobs: [],
-        loadError: `Failed to load Ronda config file at ${path}`,
+        loadError,
       };
     }
   }
