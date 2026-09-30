@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-0f7450ac69b8",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "a244cabd81e27645ba87311893267e365c0927f1",
+  "rondaResultHeadSha": "a244cabd81e27645ba87311893267e365c0927f1",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:80",
+  "locationUnresolved": false,
+  "title": "</sub>  Attribute findings without relying on literal wording",
+  "text": "</sub>  Attribute findings without relying on literal wording\n\nWhen the model paraphrases a swept defect without repeating one of its configured substrings, this classifier records the finding as uncategorized and marks the actual category `produced_none`, even though the finding semantically fits that category. The model output contract supplies no category identifier, so case-insensitive substring matching cannot satisfy AC1/AC20 or reliably attribute precision regressions; the tests cover only hand-written matching text. Carry explicit category IDs in the model result, or otherwise define an attribution mechanism that does not depend on the model echoing list wording.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:22977def3816f0d21de934b9",
+  "capturedAt": "2026-09-30T15:00:57.759Z",
+  "updatedAt": "2026-09-30T15:00:57.759Z",
+  "mergeBaseSha": "a244cabd81e27645ba87311893267e365c0927f1"
+}

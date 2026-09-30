@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-2d6b658a985d",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "151743acf1e476a66802b0773256b730e6a4a8ae",
+  "rondaResultHeadSha": "151743acf1e476a66802b0773256b730e6a4a8ae",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:218",
+  "locationUnresolved": false,
+  "title": "</sub>  Record the fixture and effective review configuration",
+  "text": "</sub>  Record the fixture and effective review configuration\n\nThis output contract adds only the sweep record and cost fields to the existing benchmark summary, which currently has no fixture-version or effective-review-configuration identity; moreover, the copied original manifest retains the same `benchmarkId` as the extended fixture. Consequently, the generated files cannot substantiate AC8/AC9's requirements to record the fixture version and the prompt/inference configuration or prove that the two arms differed only by sweep mode. Add explicit version and configuration metadata (for example, a fixture version plus prompt/config fingerprint and inference parameters) to every run record and verify equality across paired arms.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:1474ef66f695eabadd3d1095",
+  "capturedAt": "2026-09-30T14:59:45.739Z",
+  "updatedAt": "2026-09-30T14:59:45.739Z",
+  "mergeBaseSha": "151743acf1e476a66802b0773256b730e6a4a8ae"
+}

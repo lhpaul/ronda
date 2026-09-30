@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-28be595e57f7",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586",
+  "rondaResultHeadSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1515",
+  "locationUnresolved": false,
+  "title": "</sub>  Constrain list-version identity",
+  "text": "</sub>  Constrain list-version identity\n\nWhen a list supplies a blank string, number, array, or object as its version, AC19 does not say whether that value is malformed: it defines domains for every category field but only checks that a version is present. Because this value is displayed in summaries and determines whether the ten-PR evidence count resets, implementations can disagree about version equality or accept a version that cannot be meaningfully reported. Define a stable version domain, such as a non-blank scalar string with exact comparison semantics.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:7321439923a66f45d67a07ce",
+  "capturedAt": "2026-09-30T15:06:17.879Z",
+  "updatedAt": "2026-09-30T15:06:17.879Z",
+  "mergeBaseSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586"
+}

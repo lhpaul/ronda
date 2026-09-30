@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-118-manual-dd277012c7e5",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "f358d7da3698122c89c57fc5ebeceb0f7d200eba",
+  "rondaResultHeadSha": "f358d7da3698122c89c57fc5ebeceb0f7d200eba",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/testing/workflow/105-planted-violation-proofs.md:10",
+  "locationUnresolved": false,
+  "title": "</sub>  Prove every newly added automated assertion",
+  "text": "</sub>  Prove every newly added automated assertion\n\nThe proof explicitly limits itself to seventeen assertions in one recall-benchmark test, but this commit also adds many automated assertions in files such as `tests/unit/testing/evidence-records.test.ts` and `tests/unit/review/sweep-categories.test.ts` without any isolating fail/restore/pass evidence. The repository's review contract makes one isolating plant per new assertion blocking, so this proof cannot establish that the newly added evidence and category-list checks actually detect their targeted violations. Extend the proof set to cover every new assertion or document an applicable exemption.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/017546a803dd073733d47d0f3fe73f3ffd072b5d/AGENTS.md#L45-L45)",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "other",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:70929631cd6d41facc2de946",
+  "capturedAt": "2026-09-30T15:03:00.161Z",
+  "updatedAt": "2026-09-30T15:03:00.161Z",
+  "mergeBaseSha": "f358d7da3698122c89c57fc5ebeceb0f7d200eba"
+}

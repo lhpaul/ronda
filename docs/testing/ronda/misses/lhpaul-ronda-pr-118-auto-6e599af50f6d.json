@@ -1,0 +1,22 @@
+{
+  "id": "lhpaul-ronda-pr-118-auto-6e599af50f6d",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "rondaResultHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "staleEvidence": false,
+  "externalReviewer": "chatgpt-codex-connector[bot]",
+  "location": "src/cli/recall-benchmark.ts:1148",
+  "locationUnresolved": false,
+  "title": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Identify each precision pass in ",
+  "text": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Identify each precision pass in sweep log records**\n\nFor a quality manifest with multiple precision fixtures, every precision event emitted here contains the same `runIndex` and neither a fixture ID nor a request kind; the later recall event uses the same event name and index as well. Although the JSON summaries are now nested per fixture, the required log evidence cannot be attributed to a particular precision pass. Include at least `kind: \"precision\"` and the fixture ID in each emitted record.\n\nUseful? React with 👍 / 👎.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "observability",
+  "intendedFollowUp": "undecided",
+  "captureSource": "automatic",
+  "sourceId": "comment:4132405616:0",
+  "capturedAt": "2026-09-30T15:02:50.993Z",
+  "updatedAt": "2026-09-30T15:02:50.993Z",
+  "mergeBaseSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-62726ccd8eb7",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "0bc7b18b399f7d4865d2160959cfbc81dbd43409",
+  "rondaResultHeadSha": "0bc7b18b399f7d4865d2160959cfbc81dbd43409",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:820",
+  "locationUnresolved": false,
+  "title": "</sub>  Define one metric for comparative cost claims",
+  "text": "</sub>  Define one metric for comparative cost claims\n\nWhen the matched control covers the required ten or more pull-request heads, this permits a claim that the sweep changed cost but defines no aggregation or comparison rule for the recorded per-pass model-call and elapsed-time values. The same evidence can therefore produce conflicting conclusions depending on whether an implementer uses a mean, median, paired-head deltas, or another statistic; name the cost metric and direction rule before allowing this comparative claim.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:6b3064a12c9b8bb32accac6b",
+  "capturedAt": "2026-09-30T14:51:26.107Z",
+  "updatedAt": "2026-09-30T14:51:26.107Z",
+  "mergeBaseSha": "0bc7b18b399f7d4865d2160959cfbc81dbd43409"
+}

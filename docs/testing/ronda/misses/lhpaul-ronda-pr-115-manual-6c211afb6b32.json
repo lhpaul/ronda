@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-6c211afb6b32",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "8c28ba8c8f42b22cb569f6d4a6d25002886be8e0",
+  "rondaResultHeadSha": "8c28ba8c8f42b22cb569f6d4a6d25002886be8e0",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1305",
+  "locationUnresolved": false,
+  "title": "</sub>  Bind precision evidence to the cohort configuration",
+  "text": "</sub>  Bind precision evidence to the cohort configuration\n\nWhen the precision fixtures use different prompt, inference, or other non-model settings from the real-PR cohort, this clause can still admit the recall claim because it binds only the category-list version, effective sweep configuration, and model identity to the claimed heads; AC9 merely requires the two precision arms to match each other. A low-noise precision result from configuration A can therefore validate recall measured under configuration B even though false-positive behavior is configuration-dependent. Require the precision evidence to match the cohort's full effective review configuration apart from the fixture target and sweep arm.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/8c28ba8c8f42b22cb569f6d4a6d25002886be8e0/AGENTS.md#L45-L45)",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:da8bf92b130f9cdbfe045f73",
+  "capturedAt": "2026-09-30T14:57:46.432Z",
+  "updatedAt": "2026-09-30T14:57:46.432Z",
+  "mergeBaseSha": "8c28ba8c8f42b22cb569f6d4a6d25002886be8e0"
+}

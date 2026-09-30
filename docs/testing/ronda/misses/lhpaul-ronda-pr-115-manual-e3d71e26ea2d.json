@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-e3d71e26ea2d",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "155e78d8062ca415680fb62cec0a455cb685ca24",
+  "rondaResultHeadSha": "155e78d8062ca415680fb62cec0a455cb685ca24",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:819",
+  "locationUnresolved": false,
+  "title": "</sub>  Specify benchmark cost aggregation",
+  "text": "</sub>  Specify benchmark cost aggregation\n\nWhen AC8 runs the benchmark at least five times per configuration, this criterion records multiple call-count and elapsed-time observations but does not define how to compare them. The new AC15(d) rule does not resolve this benchmark path because it averages paired differences across real pull-request heads, while a fixture has no PR-head unit and has repeated observations; implementations can therefore use a mean, median, or selected/paired runs and publish conflicting cost-effect claims. Define the aggregation and pairing rule across fixture repetitions, or prohibit a comparative benchmark cost claim.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:c3c09035db833da24fed49f8",
+  "capturedAt": "2026-09-30T14:51:59.272Z",
+  "updatedAt": "2026-09-30T14:51:59.272Z",
+  "mergeBaseSha": "155e78d8062ca415680fb62cec0a455cb685ca24"
+}

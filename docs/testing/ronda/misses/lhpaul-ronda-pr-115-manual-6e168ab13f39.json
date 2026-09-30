@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-6e168ab13f39",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "c736b281a6aca334ea9f38bb3312c3667584459c",
+  "rondaResultHeadSha": "c736b281a6aca334ea9f38bb3312c3667584459c",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:815",
+  "locationUnresolved": false,
+  "title": "</sub>  Demote measured evidence when controls reopen adjudication",
+  "text": "</sub>  Demote measured evidence when controls reopen adjudication\n\nWhen a cohort reaches `real_pr_measured` without controls and sweep-off controls are subsequently recorded, any new unadjudicated control findings become compared findings and make those pull requests uncounted under the rule at lines 643–649. This clause nevertheless forbids demotion unless the list is revised, contradicting AC15(b), which permits `real_pr_measured` only while at least ten counted pull requests exist; require a temporary demotion when newly recorded evidence reopens adjudication.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:b2394a786ee99da411cb6650",
+  "capturedAt": "2026-09-30T14:54:20.590Z",
+  "updatedAt": "2026-09-30T14:54:20.590Z",
+  "mergeBaseSha": "c736b281a6aca334ea9f38bb3312c3667584459c"
+}

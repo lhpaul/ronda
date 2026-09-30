@@ -1,0 +1,22 @@
+{
+  "id": "lhpaul-ronda-pr-118-auto-92e29f11eda7",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "rondaResultHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "staleEvidence": false,
+  "externalReviewer": "chatgpt-codex-connector[bot]",
+  "location": "src/cli/recall-benchmark.ts:684",
+  "locationUnresolved": false,
+  "title": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Reject non-integer --runs values",
+  "text": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Reject non-integer --runs values**\n\nWhen an operator supplies a malformed run count such as `--runs 5x` or `--runs 5.9`, this call uses `parsePositiveInt`, whose `Number.parseInt` silently accepts the prefix and runs the campaign five times instead of rejecting the input. Because the campaign's sample count is part of its evidence contract, accepting a different count than the provided value can produce misleading evidence; validate the complete argument as a positive integer before starting the campaign.\n\nUseful? React with 👍 / 👎.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "automatic",
+  "sourceId": "comment:4128607313:0",
+  "capturedAt": "2026-09-30T15:02:50.993Z",
+  "updatedAt": "2026-09-30T15:02:50.993Z",
+  "mergeBaseSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95"
+}

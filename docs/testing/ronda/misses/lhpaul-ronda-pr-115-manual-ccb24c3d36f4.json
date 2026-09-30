@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-ccb24c3d36f4",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "6dfa172685306529679c4d205b87ac4e955626c8",
+  "rondaResultHeadSha": "6dfa172685306529679c4d205b87ac4e955626c8",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:210",
+  "locationUnresolved": false,
+  "title": "</sub>  Keep benchmark recall based on seeded defects",
+  "text": "</sub>  Keep benchmark recall based on seeded defects\n\nFor the AC8 seeded-benchmark runs, confirmed external defects do not exist by design, yet these lines import AC15(d)'s real-PR denominator and make recall and variance not applicable whenever there are none. This would make every fixture comparison N/A despite AC8 requiring per-seeded-defect recall, so Use Case 3 and AC8 cannot be implemented together. Define benchmark observations over seeded defects and reserve the confirmed-external-defect zero-denominator handling for AC15 real-PR evidence.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:98a45ce360e0a916273d43a2",
+  "capturedAt": "2026-09-30T14:51:48.346Z",
+  "updatedAt": "2026-09-30T14:51:48.346Z",
+  "mergeBaseSha": "6dfa172685306529679c4d205b87ac4e955626c8"
+}

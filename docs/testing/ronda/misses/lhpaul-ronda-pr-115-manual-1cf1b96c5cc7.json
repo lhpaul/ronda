@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-1cf1b96c5cc7",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "6687c417588557fdf1adb1eb09b690f3f4b55817",
+  "rondaResultHeadSha": "6687c417588557fdf1adb1eb09b690f3f4b55817",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1020",
+  "locationUnresolved": false,
+  "title": "</sub>  Count duplicate outcomes as confirmed defects",
+  "text": "</sub>  Count duplicate outcomes as confirmed defects\n\nWhen the comparison record marks a finding as `duplicate`, excluding that outcome removes a valid defect that both reviewers found instead of including it once in the denominator and numerator. Fresh evidence beyond the earlier denominator fix is the existing benchmark contract at `docs/specs/developments/20260910143722_24-review-quality-benchmark-suite/1_24-review-quality-benchmark-suite_specs.md:250-251`, which defines `duplicate` as both reviewers finding the same underlying issue; `src/cli/summarize-review-comparisons.ts:118-120` also maps an `already_found` miss verdict to this outcome. Treat `duplicate` as a confirmed defect and deduplicate it by underlying identity rather than excluding it.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:b29f6a464dadf7283bb39635",
+  "capturedAt": "2026-09-30T14:53:16.365Z",
+  "updatedAt": "2026-09-30T14:53:16.365Z",
+  "mergeBaseSha": "6687c417588557fdf1adb1eb09b690f3f4b55817"
+}

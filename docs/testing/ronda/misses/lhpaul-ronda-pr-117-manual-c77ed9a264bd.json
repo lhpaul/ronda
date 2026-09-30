@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-c77ed9a264bd",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "194f66e5f3d469bc897e78ce4058c4883fa93ca0",
+  "rondaResultHeadSha": "194f66e5f3d469bc897e78ce4058c4883fa93ca0",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:69",
+  "locationUnresolved": false,
+  "title": "</sub>  Keep finding titles out of sweep logs",
+  "text": "</sub>  Keep finding titles out of sweep logs\n\nAdding `title` to `SweepFindingAttribution` also sends every title through the shared `sweep_pass_record` log event, including for superseded passes or publication failures where the finding was never public. Model-generated titles can repeat PR content, while the parser only redacts the limited sensitive-literal patterns it recognizes; this conflicts with the spec's requirement that logs contain non-sensitive counts and never credential values. Use the stable finding index plus category identifiers for the logged mapping, and render titles only on an appropriate user-facing or evidence surface if needed.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "security",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:685949ca00085b2ebc29c2e9",
+  "capturedAt": "2026-09-30T15:02:00.573Z",
+  "updatedAt": "2026-09-30T15:02:00.573Z",
+  "mergeBaseSha": "194f66e5f3d469bc897e78ce4058c4883fa93ca0"
+}

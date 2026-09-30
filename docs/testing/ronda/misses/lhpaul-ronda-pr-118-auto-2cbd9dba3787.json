@@ -1,0 +1,22 @@
+{
+  "id": "lhpaul-ronda-pr-118-auto-2cbd9dba3787",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "rondaResultHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "staleEvidence": false,
+  "externalReviewer": "chatgpt-codex-connector[bot]",
+  "location": "src/cli/recall-benchmark.ts:793",
+  "locationUnresolved": false,
+  "title": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Include precision prompts in the",
+  "text": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Include precision prompts in the configuration fingerprint**\n\nFor `--quality` campaigns, the effective configuration includes the separately composed precision prompts, but this fingerprint hashes only `buildRecallPrompt`. If precision-specific prompt construction changes between the separately executed sweep-off and sweep-on legs while the recall prompt remains unchanged, both records retain the same fingerprint and can incorrectly appear identical apart from `sweepMode`. Hash every prompt issued by the run, preferably as per-request fingerprints, so the precision comparison can actually detect configuration drift.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/03c12efd308ef1a20b6fb6ccbc8a4ae62174e5ad/AGENTS.md#L45-L45)\n\nUseful? React with 👍 / 👎.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "automatic",
+  "sourceId": "comment:4123897510:0",
+  "capturedAt": "2026-09-30T15:02:50.992Z",
+  "updatedAt": "2026-09-30T15:02:50.992Z",
+  "mergeBaseSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95"
+}

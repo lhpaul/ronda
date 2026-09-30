@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-610a8753e569",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586",
+  "rondaResultHeadSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1510",
+  "locationUnresolved": false,
+  "title": "</sub>  Prevent category-list version reuse",
+  "text": "</sub>  Prevent category-list version reuse\n\nExact string equality is unsafe unless version values are globally unique or immutable. If revisions move from `v1` to `v2` and later reuse `v1`, evidence from the original list becomes indistinguishable from evidence for the newly activated list, allowing old pull requests and precision runs to satisfy AC15's current-version gates. Require every revision to use a never-before-used version, or key evidence to an immutable revision/content identity rather than the reusable display string.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:f15421e253d8ae9745b5f7ce",
+  "capturedAt": "2026-09-30T15:06:40.595Z",
+  "updatedAt": "2026-09-30T15:06:40.595Z",
+  "mergeBaseSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-2d3fd27fc460",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "e991d21c556228526c84876ac0dac773f98aabe8",
+  "rondaResultHeadSha": "e991d21c556228526c84876ac0dac773f98aabe8",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:217",
+  "locationUnresolved": false,
+  "title": "</sub>  Omit per-category records from sweep-off runs",
+  "text": "</sub>  Omit per-category records from sweep-off runs\n\nThis output contract applies the per-category pass record to every run, including the sweep-off arm, but AC1 only assigns that record to an enabled sweep and AC18 requires an ordinary disabled run to have no per-category result. An implementation following this line would either fabricate `produced_none` outcomes for categories it never considered or classify findings despite the sweep being disabled, corrupting the control evidence. Require `SweepPassRecord` only for sweep-on runs and test its absence for sweep-off output.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:e7138bc03fcd7161023d461f",
+  "capturedAt": "2026-09-30T14:58:31.888Z",
+  "updatedAt": "2026-09-30T14:58:31.888Z",
+  "mergeBaseSha": "e991d21c556228526c84876ac0dac773f98aabe8"
+}

@@ -1,0 +1,22 @@
+{
+  "id": "lhpaul-ronda-pr-118-auto-ef4f04586a01",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "rondaResultHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "staleEvidence": false,
+  "externalReviewer": "chatgpt-codex-connector[bot]",
+  "location": "src/cli/recall-benchmark.ts:1187",
+  "locationUnresolved": false,
+  "title": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Preserve findings from every pre",
+  "text": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Preserve findings from every precision sweep**\n\nWhen `--quality` is used and a precision fixture produces an unexpected finding, only the recall pass's `pass.findings` are classified here; `PrecisionFixtureRun` discards the precision findings, and the emitted precision summaries have no category attribution. The resulting sweep-on evidence therefore cannot attribute each precision finding to a category or `uncategorized`, and it records no independent per-category outcome for the precision request, contrary to AC9. Retain and classify each precision result's findings separately.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/03c12efd308ef1a20b6fb6ccbc8a4ae62174e5ad/AGENTS.md#L45-L45)\n\nUseful? React with 👍 / 👎.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "automatic",
+  "sourceId": "comment:4123897499:0",
+  "capturedAt": "2026-09-30T15:02:50.989Z",
+  "updatedAt": "2026-09-30T15:02:50.989Z",
+  "mergeBaseSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95"
+}

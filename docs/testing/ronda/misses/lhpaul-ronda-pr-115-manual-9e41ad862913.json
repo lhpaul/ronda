@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-9e41ad862913",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "de11c0179874a73c74e055c40aed8d179ea9892d",
+  "rondaResultHeadSha": "de11c0179874a73c74e055c40aed8d179ea9892d",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:262",
+  "locationUnresolved": false,
+  "title": "</sub>  Re-run the original fixture before comparing the baseline",
+  "text": "</sub>  Re-run the original fixture before comparing the baseline\n\nWhen Use Case 5 adds patches for the new seeds, reporting only the original thirteen result IDs does not make those results comparable with the 2026-09-10 baseline: `runRecallBenchmark` supplies the entire `changedFiles` array in one model prompt (`src/cli/recall-benchmark.ts:156-164`), so the additional patches can change model behavior or truncation for the original defects. This can misattribute a context-induced recall change to the sweep. Require separate runs against the original fixture version, with the historical model/configuration controlled, or remove the claim that the subset preserves baseline comparability.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:82308598aeca4120e0ebebc8",
+  "capturedAt": "2026-09-30T14:52:32.265Z",
+  "updatedAt": "2026-09-30T14:52:32.265Z",
+  "mergeBaseSha": "de11c0179874a73c74e055c40aed8d179ea9892d"
+}

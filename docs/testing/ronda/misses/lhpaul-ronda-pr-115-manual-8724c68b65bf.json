@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-8724c68b65bf",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586",
+  "rondaResultHeadSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1334",
+  "locationUnresolved": false,
+  "title": "</sub>  Define the real-PR variance aggregation unit",
+  "text": "</sub>  Define the real-PR variance aggregation unit\n\nThe newly added standard-deviation clause fixes the formula but still does not define one `per-run recall` observation when every repetition covers multiple heads. Implementers could pool all per-head recalls, macro-average the heads for each repetition, or compute one defect-weighted recall across the complete head set; these approaches produce different standard deviations and can even reverse the claimed direction because heads have different defect denominators. Specify how results across heads form each observation before permitting the variance claim; this multi-head aggregation ambiguity remains after the earlier metric fix.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:dc600685eaf99d3c96830636",
+  "capturedAt": "2026-09-30T15:06:02.721Z",
+  "updatedAt": "2026-09-30T15:06:02.721Z",
+  "mergeBaseSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586"
+}

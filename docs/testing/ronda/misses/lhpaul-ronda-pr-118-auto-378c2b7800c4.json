@@ -1,0 +1,22 @@
+{
+  "id": "lhpaul-ronda-pr-118-auto-378c2b7800c4",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "rondaResultHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "staleEvidence": false,
+  "externalReviewer": "chatgpt-codex-connector[bot]",
+  "location": "src/cli/recall-benchmark.ts:896",
+  "locationUnresolved": false,
+  "title": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Reject duplicate IDs before buil",
+  "text": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Reject duplicate IDs before building the original subset**\n\nWhen a custom manifest contains all thirteen original IDs plus a duplicate of any one of them, converting the matching entries to a `Set` makes this check pass. `classifyFindings` still processes both duplicate seed entries while allowing each finding to match only once, so the same ID can then appear in both the subset's found and missed arrays (or appear repeatedly), corrupting the supposedly self-checking original-thirteen evidence. The fresh evidence beyond the previously fixed omitted-ID case is that this new membership check still masks duplicates; validate seed-ID uniqueness or require exactly one occurrence of every original ID before emitting the subset.\n\nUseful? React with 👍 / 👎.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "automatic",
+  "sourceId": "comment:4132577450:0",
+  "capturedAt": "2026-09-30T15:02:50.994Z",
+  "updatedAt": "2026-09-30T15:02:50.994Z",
+  "mergeBaseSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95"
+}

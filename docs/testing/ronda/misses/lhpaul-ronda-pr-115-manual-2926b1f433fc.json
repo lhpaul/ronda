@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-2926b1f433fc",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "8e056725c036da8879fd64a56fb691b74a98286c",
+  "rondaResultHeadSha": "8e056725c036da8879fd64a56fb691b74a98286c",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:772",
+  "locationUnresolved": false,
+  "title": "</sub>  Supply the separately required failure-shape values",
+  "text": "</sub>  Supply the separately required failure-shape values\n\nThe normative initial-list table still provides only one `Description` cell per category, although AC4 and AC19 now require `description` and `failure shape` as separate mandatory fields. These cells currently contain the failure shape plus the count, so an implementer cannot populate both required fields from the specified list without inventing an additional description or duplicating the same text; add distinct columns and authoritative values for every required field.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/4955e7cfeb8dee38ec5e57399a1856ffbfe76859/AGENTS.md#L45-L45)",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:27a1fededa78f38c48bf065c",
+  "capturedAt": "2026-09-30T14:56:28.293Z",
+  "updatedAt": "2026-09-30T14:56:28.293Z",
+  "mergeBaseSha": "8e056725c036da8879fd64a56fb691b74a98286c"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-005dbb7aab73",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "ff7ea2bb59310edf8224c0abb1b78a0937662720",
+  "rondaResultHeadSha": "ff7ea2bb59310edf8224c0abb1b78a0937662720",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1186",
+  "locationUnresolved": false,
+  "title": "</sub>  Bind precision evidence to the cohort model",
+  "text": "</sub>  Bind precision evidence to the cohort model\n\nWhen the real-PR cohort uses a different model from the precision fixtures, this gate can still admit the recall claim: AC9's “same model” requirement only binds the sweep-on and sweep-off precision arms to each other, while this text explicitly binds only the category-list version and effective sweep configuration to the claimed heads. A clean precision result from model A can therefore support a recall claim measured with model B even though false-positive behavior is model-dependent; require the precision evidence's model identity to match the real-PR comparison's model.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:c3b11cfea7f175b421eb5866",
+  "capturedAt": "2026-09-30T14:54:42.475Z",
+  "updatedAt": "2026-09-30T14:54:42.475Z",
+  "mergeBaseSha": "ff7ea2bb59310edf8224c0abb1b78a0937662720"
+}

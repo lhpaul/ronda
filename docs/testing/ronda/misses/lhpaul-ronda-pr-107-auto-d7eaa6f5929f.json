@@ -1,0 +1,22 @@
+{
+  "id": "lhpaul-ronda-pr-107-auto-d7eaa6f5929f",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 107,
+  "reviewedHeadSha": "66c7136b2688957ef15de2efd5b1a17a554c6972",
+  "rondaResultHeadSha": "66c7136b2688957ef15de2efd5b1a17a554c6972",
+  "staleEvidence": false,
+  "externalReviewer": "chatgpt-codex-connector[bot]",
+  "location": ".github/workflows/ronda-review-dogfood.yml:64",
+  "locationUnresolved": false,
+  "title": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Keep the model secret out of PR-",
+  "text": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Keep the model secret out of PR-controlled workflows**\n\nFor a same-repository PR, an author can modify this local reusable workflow—or the caller itself—to run arbitrary steps while it receives `RONDA_MODEL_API_KEY` and a write-capable token, allowing credential exfiltration before review. [GitHub’s reusable-workflow documentation](https://docs.github.com/en/actions/how-tos/sharing-automations/reusing-workflows#calling-a-reusable-workflow) specifies that the `./...` form resolves the called workflow from the same commit as the caller, so checking the Ronda source out from `main` does not protect the workflow definition. Invoke only a trusted workflow definition and avoid exposing the secret to PR-controlled YAML, or place it behind an approval-protected environment.\n\nUseful? React with 👍 / 👎.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "security",
+  "intendedFollowUp": "undecided",
+  "captureSource": "automatic",
+  "sourceId": "comment:4096969303:0",
+  "capturedAt": "2026-09-30T14:49:33.666Z",
+  "updatedAt": "2026-09-30T14:49:33.666Z",
+  "mergeBaseSha": "66c7136b2688957ef15de2efd5b1a17a554c6972"
+}

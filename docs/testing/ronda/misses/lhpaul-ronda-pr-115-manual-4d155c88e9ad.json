@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-4d155c88e9ad",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "ca420884cbd89e6852142e7cc790eb36fe2efc51",
+  "rondaResultHeadSha": "ca420884cbd89e6852142e7cc790eb36fe2efc51",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:816",
+  "locationUnresolved": false,
+  "title": "</sub>  Define jointly raised rejected findings",
+  "text": "</sub>  Define jointly raised rejected findings\n\nWhen the external reviewer and either Ronda configuration report the same finding and adjudication rejects it or marks it out of scope, both origin rules apply: `ronda_better` is prescribed for the external-reviewer origin while `ronda_rejected` is prescribed for the Ronda origin, and `duplicate` cannot resolve the overlap because this spec defines it as a valid defect. Fresh evidence after the prior rejection-code fix is this newly introduced origin split; specify precedence or a distinct outcome so implementations record the same terminal value for jointly raised noise.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/ca420884cbd89e6852142e7cc790eb36fe2efc51/AGENTS.md#L45-L45)",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:744a0158a4bf97694369f98a",
+  "capturedAt": "2026-09-30T14:55:13.060Z",
+  "updatedAt": "2026-09-30T14:55:13.060Z",
+  "mergeBaseSha": "ca420884cbd89e6852142e7cc790eb36fe2efc51"
+}

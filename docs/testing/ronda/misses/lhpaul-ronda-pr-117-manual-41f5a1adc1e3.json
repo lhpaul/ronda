@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-41f5a1adc1e3",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "a244cabd81e27645ba87311893267e365c0927f1",
+  "rondaResultHeadSha": "a244cabd81e27645ba87311893267e365c0927f1",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:223",
+  "locationUnresolved": false,
+  "title": "</sub>  Give each repeated run its own pass deadline",
+  "text": "</sub>  Give each repeated run its own pass deadline\n\nWhen a real-model campaign uses the prescribed `--runs 5`, the current `main` creates one `AbortController` and one `passTimeoutMs` timer for the entire invocation (`src/cli/recall-benchmark.ts:447-449`). Merely repeating the benchmark inside that structure means the aggregate duration of otherwise valid runs can expire the shared signal, aborting later samples and preventing the mandatory five-run evidence campaign. Specify that each iteration creates and disposes its own controller/timer so the existing pass timeout remains a per-pass limit.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "timeouts",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:3b54da5214ea9f5c001f5f80",
+  "capturedAt": "2026-09-30T14:59:58.609Z",
+  "updatedAt": "2026-09-30T14:59:58.609Z",
+  "mergeBaseSha": "a244cabd81e27645ba87311893267e365c0927f1"
+}

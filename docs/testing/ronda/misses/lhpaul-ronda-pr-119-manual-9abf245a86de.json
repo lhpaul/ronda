@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-119-manual-9abf245a86de",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 119,
+  "reviewedHeadSha": "81fa5a7b881ea3c746a476aa37dee3bcf0e8464d",
+  "rondaResultHeadSha": "81fa5a7b881ea3c746a476aa37dee3bcf0e8464d",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/testing/ronda/sweep-effect-evidence.md:37",
+  "locationUnresolved": false,
+  "title": "</sub>  Preserve the fail-fast guard in campaign commands",
+  "text": "</sub>  Preserve the fail-fast guard in campaign commands\n\nThis block contains six commands that overwrite committed campaign records, but unlike the runbook blocks it calls “verbatim,” it omits `set -euo pipefail`. If any earlier arm exits nonzero, a copied execution continues into later arms and can leave a mixed or partial evidence set that appears to be a complete campaign; include the fail-fast guard before the first command.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/f0c4d5cee20193530da9c6665a8fddaa578d0ad2/AGENTS.md#L45-L45)",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "other",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:55e5888da5b99f505182c16a",
+  "capturedAt": "2026-09-30T15:07:22.339Z",
+  "updatedAt": "2026-09-30T15:07:22.339Z",
+  "mergeBaseSha": "81fa5a7b881ea3c746a476aa37dee3bcf0e8464d"
+}

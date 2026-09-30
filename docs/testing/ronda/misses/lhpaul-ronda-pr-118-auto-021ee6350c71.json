@@ -1,0 +1,22 @@
+{
+  "id": "lhpaul-ronda-pr-118-auto-021ee6350c71",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "rondaResultHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "staleEvidence": false,
+  "externalReviewer": "chatgpt-codex-connector[bot]",
+  "location": "src/cli/recall-benchmark.ts:837",
+  "locationUnresolved": false,
+  "title": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Record the durability mode actua",
+  "text": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Record the durability mode actually used**\n\nWhen operator configuration forces durability mode on, these fields say the campaign used that configuration, but neither `buildRecallPrompt` nor `runPrecisionPass` resolves or passes a `durabilityMode` to `buildReviewPrompt`, so the benchmark requests omit the durability instructions and mode document. This can make precision evidence appear configuration-matched to real PR reviews where durability mode was active even though their prompts differ; either apply the recorded mode to the benchmark requests or record its actual inactive/unavailable resolution.\n\nUseful? React with 👍 / 👎.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "automatic",
+  "sourceId": "comment:4132016345:0",
+  "capturedAt": "2026-09-30T15:02:50.993Z",
+  "updatedAt": "2026-09-30T15:02:50.993Z",
+  "mergeBaseSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95"
+}

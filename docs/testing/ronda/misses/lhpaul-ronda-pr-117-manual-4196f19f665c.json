@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-4196f19f665c",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "194f66e5f3d469bc897e78ce4058c4883fa93ca0",
+  "rondaResultHeadSha": "194f66e5f3d469bc897e78ce4058c4883fa93ca0",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:223",
+  "locationUnresolved": false,
+  "title": "</sub>  Resolve the contradictory single-run output contract",
+  "text": "</sub>  Resolve the contradictory single-run output contract\n\nThe claim that the default `--runs 1` output remains identical cannot coexist with the later requirement that every run unconditionally gains cost, fixture, and configuration fields and is emitted as a per-run record. Existing callers also consume the current single `RecallBenchmarkSummary` shape, including `--previous-summary-file`, so an implementer cannot tell whether to preserve that contract or introduce the campaign record shape. Specify the backward-compatible envelope or explicitly migrate the existing consumers and tests.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:7f96bf54a7c393eab21e67b4",
+  "capturedAt": "2026-09-30T15:02:09.672Z",
+  "updatedAt": "2026-09-30T15:02:09.672Z",
+  "mergeBaseSha": "194f66e5f3d469bc897e78ce4058c4883fa93ca0"
+}

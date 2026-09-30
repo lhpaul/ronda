@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-56ebac10e05d",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "3a61a49ba6a7e3f336a6a9470df283130cf8f65d",
+  "rondaResultHeadSha": "3a61a49ba6a7e3f336a6a9470df283130cf8f65d",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:807",
+  "locationUnresolved": false,
+  "title": "</sub>  Define the metric used for variance claims",
+  "text": "</sub>  Define the metric used for variance claims\n\nRepeated runs alone do not determine whether run-to-run variance changed: AC8 records per-run recall and the minimum/maximum, but the spec never says whether this claim compares range width, sample variance, standard deviation, or another statistic. For example, two configurations can have the same range but different statistical variance, so compliant implementations could publish conflicting effect claims from identical evidence. Name the metric and comparison rule before permitting this claim.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:642b88a73cbe3fda3c217f34",
+  "capturedAt": "2026-09-30T14:51:02.216Z",
+  "updatedAt": "2026-09-30T14:51:02.216Z",
+  "mergeBaseSha": "3a61a49ba6a7e3f336a6a9470df283130cf8f65d"
+}

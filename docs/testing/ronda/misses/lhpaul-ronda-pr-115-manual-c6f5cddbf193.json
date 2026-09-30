@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-c6f5cddbf193",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586",
+  "rondaResultHeadSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1421",
+  "locationUnresolved": false,
+  "title": "</sub>  Aggregate cost across repeated passes",
+  "text": "</sub>  Aggregate cost across repeated passes\n\nWhen variance evidence repeats each configuration on the same head set, every head has multiple model-call and elapsed-time observations, but this metric specifies only averaging across heads. The remaining repeated-run path is fresh evidence not resolved by the earlier cost-aggregation fix: selecting the first repetition, averaging within each head, or averaging all head/run pairs can produce different reported effects. Define how repetitions are paired and reduced before computing the per-head mean.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:c917ef2d497a2d3c71d368b4",
+  "capturedAt": "2026-09-30T15:06:29.524Z",
+  "updatedAt": "2026-09-30T15:06:29.524Z",
+  "mergeBaseSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586"
+}

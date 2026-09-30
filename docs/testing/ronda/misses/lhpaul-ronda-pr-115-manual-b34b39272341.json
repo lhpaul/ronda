@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-b34b39272341",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "8a637efc47e64344f3f0fb6616cc2eab328da712",
+  "rondaResultHeadSha": "8a637efc47e64344f3f0fb6616cc2eab328da712",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1165",
+  "locationUnresolved": false,
+  "title": "</sub>  Precommit the cohort cutoff before observing results",
+  "text": "</sub>  Precommit the cohort cutoff before observing results\n\nRecording the cutoff only before adjudication still permits outcome-aware cohort selection because every included sweep pass has already completed and its findings are visible. An operator can inspect twelve completed reviews, choose a cutoff that includes the first ten favorable ones, and exclude later unfavorable results while satisfying this rule. The new cutoff language therefore does not fully close the selection-bias path identified earlier; require the cutoff or deterministic sampling window to be fixed before the eligible pass results are observed.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/8a637efc47e64344f3f0fb6616cc2eab328da712/AGENTS.md#L45-L45)",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "other",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:af3bce2a84eee7b07c0725bd",
+  "capturedAt": "2026-09-30T14:57:02.400Z",
+  "updatedAt": "2026-09-30T14:57:02.400Z",
+  "mergeBaseSha": "8a637efc47e64344f3f0fb6616cc2eab328da712"
+}

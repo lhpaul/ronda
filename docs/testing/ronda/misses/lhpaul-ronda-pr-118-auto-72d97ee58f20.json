@@ -1,0 +1,22 @@
+{
+  "id": "lhpaul-ronda-pr-118-auto-72d97ee58f20",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "rondaResultHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "staleEvidence": false,
+  "externalReviewer": "chatgpt-codex-connector[bot]",
+  "location": "src/cli/recall-benchmark.ts:1386",
+  "locationUnresolved": false,
+  "title": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Apply the recall gate to every c",
+  "text": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Apply the recall gate to every campaign run**\n\nWhen `--runs` is greater than 1, this branch returns success whenever no run threw, even if one or every successful record fails `recallGate` (for example, fewer than six defects found or an unexpected false positive). This breaks the approved plan's requirement that an all-successful campaign retain the existing recall gate and lets scripted multi-run campaigns report exit 0 for failing results; evaluate `recallGate` across all successful records in addition to checking failure records.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/3a424ac0b8cafc06e9ec0f186b146fc11ba72430/AGENTS.md#L45-L45)\n\nUseful? React with 👍 / 👎.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "automatic",
+  "sourceId": "comment:4128192480:0",
+  "capturedAt": "2026-09-30T15:02:50.992Z",
+  "updatedAt": "2026-09-30T15:02:50.992Z",
+  "mergeBaseSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95"
+}

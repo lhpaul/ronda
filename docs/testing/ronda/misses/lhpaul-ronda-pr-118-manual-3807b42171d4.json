@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-118-manual-3807b42171d4",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "513405577c9c2ab37280f4fa019bb544797ae2a8",
+  "rondaResultHeadSha": "513405577c9c2ab37280f4fa019bb544797ae2a8",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "src/cli/recall-benchmark.ts:985",
+  "locationUnresolved": false,
+  "title": "</sub>  Preserve the rejection that triggered sibling cancellation",
+  "text": "</sub>  Preserve the rejection that triggered sibling cancellation\n\nWith multiple precision fixtures, a later-index request can fail first with `model_unavailable`, aborting an earlier-index sibling whose client then rejects with `timed_out`. The new `Promise.allSettled(...).find(...)` selects the rejection by input order rather than failure order, so `runOneCampaignRun` can record this ordinary provider failure as a timeout and hide the actual cause. Capture the first chronologically observed rejection before aborting the siblings, then rethrow that error after draining them.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "concurrency",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:4b117a3533082140b6e4e466",
+  "capturedAt": "2026-09-30T15:03:40.038Z",
+  "updatedAt": "2026-09-30T15:03:40.038Z",
+  "mergeBaseSha": "513405577c9c2ab37280f4fa019bb544797ae2a8"
+}

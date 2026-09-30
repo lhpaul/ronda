@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-118-manual-3d6d03213c4f",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "dbd0fb14c1263e0ff578302a43b36a9a642fbca6",
+  "rondaResultHeadSha": "dbd0fb14c1263e0ff578302a43b36a9a642fbca6",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "tests/fixtures/recall-benchmark/patches.json:98",
+  "locationUnresolved": false,
+  "title": "</sub>  Seed a demonstrably lossy external-output contract",
+  "text": "</sub>  Seed a demonstrably lossy external-output contract\n\nThe `external-output-parsing-lossy` fixture never establishes that non-`- ` lines represent valid items, so `classifyItems` may simply be a correct parser for a bullet-list format. Neither the patch nor a caller supplies mixed-format input that this function is required to preserve; consequently, a model can identify the expected defect only by assuming or parroting the sweep category, making the committed recall measurements for this required real-theme seed invalid. Add an explicit external-output grammar or caller/example containing valid items that this implementation actually loses or merges.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:d64e56bd95d3803bf2a66745",
+  "capturedAt": "2026-09-30T15:03:57.884Z",
+  "updatedAt": "2026-09-30T15:03:57.884Z",
+  "mergeBaseSha": "dbd0fb14c1263e0ff578302a43b36a9a642fbca6"
+}

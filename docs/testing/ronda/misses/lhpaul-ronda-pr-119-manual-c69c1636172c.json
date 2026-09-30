@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-119-manual-c69c1636172c",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 119,
+  "reviewedHeadSha": "5fd49f134fef24d789a22fc8a2c95f9679d7a198",
+  "rondaResultHeadSha": "5fd49f134fef24d789a22fc8a2c95f9679d7a198",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/testing/ronda/105-category-forced-review-sweep.smoke-test.md:438",
+  "locationUnresolved": false,
+  "title": "</sub>  Leave AC8 and AC9 open until the model is immutable",
+  "text": "</sub>  Leave AC8 and AC9 open until the model is immutable\n\nThe fresh campaign changes the reported name from the mutable alias to a dated snapshot, but its own attestation still says frozen-artifact status is not independently verified. The runbook's model-identity rule explicitly says a reported identity is not proof of immutability and admits the comparison only when the operator has recorded that the endpoint pins a frozen artifact; relying solely on the provider's naming does not establish that requirement. Consequently these boxes and the overall sign-off should remain incomplete until the endpoint's immutability is attested, rather than treating the sweep-arm comparison as AC8/AC9 evidence.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:bb76e63ac4e178e5e4cf23d0",
+  "capturedAt": "2026-09-30T15:04:40.067Z",
+  "updatedAt": "2026-09-30T15:04:40.067Z",
+  "mergeBaseSha": "5fd49f134fef24d789a22fc8a2c95f9679d7a198"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-1fa29e64b253",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "6b27ef7b6325e310fc0c9b6a888ceca353e48e58",
+  "rondaResultHeadSha": "6b27ef7b6325e310fc0c9b6a888ceca353e48e58",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:985",
+  "locationUnresolved": false,
+  "title": "</sub>  Represent failed category evaluations separately",
+  "text": "</sub>  Represent failed category evaluations separately\n\nWhen the issued model request fails or its credential is rejected, this rule marks every category as reached even though no response exists, but the spec defines the per-category record only as “produced findings” or “produced none.” Implementations must therefore either misreport an unevaluated category as a genuine no-finding result or invent a third state. Define a failed/not-evaluated outcome for reached categories, or move the reached boundary to a successful response.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/6b27ef7b6325e310fc0c9b6a888ceca353e48e58/AGENTS.md#L45-L45)",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "partial_success",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:addbd4d29581bcf496d794aa",
+  "capturedAt": "2026-09-30T14:55:48.811Z",
+  "updatedAt": "2026-09-30T14:55:48.811Z",
+  "mergeBaseSha": "6b27ef7b6325e310fc0c9b6a888ceca353e48e58"
+}

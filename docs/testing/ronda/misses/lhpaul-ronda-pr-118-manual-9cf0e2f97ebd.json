@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-118-manual-9cf0e2f97ebd",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "513405577c9c2ab37280f4fa019bb544797ae2a8",
+  "rondaResultHeadSha": "513405577c9c2ab37280f4fa019bb544797ae2a8",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "src/cli/recall-benchmark.ts:856",
+  "locationUnresolved": false,
+  "title": "</sub>  Verify original-seed membership instead of entry count",
+  "text": "</sub>  Verify original-seed membership instead of entry count\n\nWhen a supplied manifest duplicates one original seed ID while omitting another, `held.length` can still equal thirteen, causing `buildOriginalThirteenSubset` to emit a block labeled as the complete original set even though its found/missed lists cannot cover all thirteen IDs. This corrupts the campaign's self-checking subset evidence; compare the unique held-ID set against every `ORIGINAL_THIRTEEN_IDS` member rather than checking the number of matching entries.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:2269f068a90b57c39d632447",
+  "capturedAt": "2026-09-30T15:03:49.475Z",
+  "updatedAt": "2026-09-30T15:03:49.475Z",
+  "mergeBaseSha": "513405577c9c2ab37280f4fa019bb544797ae2a8"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-8766a659b9e5",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "194f66e5f3d469bc897e78ce4058c4883fa93ca0",
+  "rondaResultHeadSha": "194f66e5f3d469bc897e78ce4058c4883fa93ca0",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:225",
+  "locationUnresolved": false,
+  "title": "</sub>  Report the 13-seed subset from the extended runs",
+  "text": "</sub>  Report the 13-seed subset from the extended runs\n\nThese campaign legs produce overall results for the 18-seed extended fixture and a separate run against the standalone 13-seed snapshot, but they never require per-run recall/variance for the original thirteen within the extended-fixture runs. AC8 requires that subset alongside the extended result in addition to the repeated original-fixture control, because the five added patches share the extended prompt and can change how the model handles the original defects. Derive and report the 13-seed subset from every extended run separately from the standalone control.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:533d62919a794fd07065b83b",
+  "capturedAt": "2026-09-30T15:01:48.522Z",
+  "updatedAt": "2026-09-30T15:01:48.522Z",
+  "mergeBaseSha": "194f66e5f3d469bc897e78ce4058c4883fa93ca0"
+}

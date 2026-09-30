@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-9b7690fe3c00",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "a244cabd81e27645ba87311893267e365c0927f1",
+  "rondaResultHeadSha": "a244cabd81e27645ba87311893267e365c0927f1",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:69",
+  "locationUnresolved": false,
+  "title": "</sub>  Keep the category version at the list level",
+  "text": "</sub>  Keep the category version at the list level\n\nThe recorded artifact and loader define one top-level list version, but this type definition also requires every `SweepCategory` to carry a `version` field. The planned JSON categories do not contain that field, leaving the implementer to either reject the committed artifact, synthesize an undocumented value, or weaken the declared type. Remove the per-category field or add it consistently to the artifact and validation contract.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:39770d033034db8480a42809",
+  "capturedAt": "2026-09-30T15:01:28.288Z",
+  "updatedAt": "2026-09-30T15:01:28.288Z",
+  "mergeBaseSha": "a244cabd81e27645ba87311893267e365c0927f1"
+}

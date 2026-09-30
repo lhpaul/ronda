@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-d32459c479e3",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "194f66e5f3d469bc897e78ce4058c4883fa93ca0",
+  "rondaResultHeadSha": "194f66e5f3d469bc897e78ce4058c4883fa93ca0",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:229",
+  "locationUnresolved": false,
+  "title": "</sub>  Add an input for the version attestation",
+  "text": "</sub>  Add an input for the version attestation\n\nThe follow-up now makes an operator-recorded version-attestation basis mandatory for admissible AC8/AC9 evidence, but the driver adds only `--sweep-mode`, `--runs`, and `--output-file`, and no planned config field supplies the attestation. Consequently, the prescribed campaign commands can only emit an absent/unattested value, which line 232 then declares inconclusive, unless the operator hand-edits generated evidence. Add a CLI/config input for the attestation, include it in the commands, and verify it is equal across paired arms.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:b016d615e6b97c2fbcad48b8",
+  "capturedAt": "2026-09-30T15:01:38.548Z",
+  "updatedAt": "2026-09-30T15:01:38.548Z",
+  "mergeBaseSha": "194f66e5f3d469bc897e78ce4058c4883fa93ca0"
+}

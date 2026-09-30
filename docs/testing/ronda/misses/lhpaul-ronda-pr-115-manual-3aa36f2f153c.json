@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-3aa36f2f153c",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "c411fdbb40972a9d3eb9a7ccaa1c32e31af71c90",
+  "rondaResultHeadSha": "c411fdbb40972a9d3eb9a7ccaa1c32e31af71c90",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1034",
+  "locationUnresolved": false,
+  "title": "</sub>  Include all confirmed defects in the recall denominator",
+  "text": "</sub>  Include all confirmed defects in the recall denominator\n\nRestricting the denominator to external findings makes the comparison blind to real defects found only by either Ronda configuration, even though the other reviewer is explicitly a second opinion rather than truth (`docs/project/3-software-architecture.md:39-43`). For example, if sweep-off finds a human-confirmed defect that sweep-on and the external reviewer miss, the defect never enters this denominator, so the metric hides the sweep regression. Build the denominator from deduplicated, human-confirmed defects found by any compared reviewer, or label the metric as external-finding recall and prohibit a general real-PR recall-effect claim.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:06ecb65b9f30d125583be29d",
+  "capturedAt": "2026-09-30T14:53:36.446Z",
+  "updatedAt": "2026-09-30T14:53:36.446Z",
+  "mergeBaseSha": "c411fdbb40972a9d3eb9a7ccaa1c32e31af71c90"
+}

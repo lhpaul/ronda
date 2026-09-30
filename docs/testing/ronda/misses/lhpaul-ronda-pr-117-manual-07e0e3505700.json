@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-07e0e3505700",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "5c7e3f82e2edac5b5fe3c03cab2972bbc0861fa7",
+  "rondaResultHeadSha": "5c7e3f82e2edac5b5fe3c03cab2972bbc0861fa7",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:233",
+  "locationUnresolved": false,
+  "title": "</sub>  Record all inference parameters in campaign identity",
+  "text": "</sub>  Record all inference parameters in campaign identity\n\nThe proposed `configuration` block omits the fixed inference parameters used in the request; for example, `src/inference/openai-compatible-client.ts:38` currently hard-codes `temperature: 0`. Because the sweep arms are executed as separate commands, that value could change between them while the model identity, operator config, and prompt fingerprint still compare equal, causing the evidence to claim the effective review configuration differed only by `sweepMode` even though AC9 explicitly includes inference parameters. Include the effective request parameters (or a fingerprint of the complete non-prompt request configuration) in this block and in the arm-equality check.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:472cbfd19fd4e55a3a499d48",
+  "capturedAt": "2026-09-30T15:02:21.078Z",
+  "updatedAt": "2026-09-30T15:02:21.078Z",
+  "mergeBaseSha": "5c7e3f82e2edac5b5fe3c03cab2972bbc0861fa7"
+}

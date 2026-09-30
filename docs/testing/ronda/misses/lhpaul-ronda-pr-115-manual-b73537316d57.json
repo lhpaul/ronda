@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-b73537316d57",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "3c5c3595dcf12a0940219d6571e6e550fb744595",
+  "rondaResultHeadSha": "3c5c3595dcf12a0940219d6571e6e550fb744595",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:730",
+  "locationUnresolved": false,
+  "title": "</sub>  Add the omitted claim-admissibility gate to the matrix",
+  "text": "</sub>  Add the omitted claim-admissibility gate to the matrix\n\nThis normative row makes claim admissibility depend only on the evidence tier, but AC15(d) requires additional inputs that the row never considers: a matched sweep-off control for comparative claims, repeated equal-size runs for variance, and a nonzero confirmed-defect denominator for recall and variance. An implementation following the matrix could therefore admit a comparative claim immediately at `real_pr_measured` without the required control evidence. Add a separate claim-admissibility row, or extend this row with those inputs, outcomes, and next actions.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:3b66bdd0589f04e54c2cb44e",
+  "capturedAt": "2026-09-30T14:52:22.075Z",
+  "updatedAt": "2026-09-30T14:52:22.075Z",
+  "mergeBaseSha": "3c5c3595dcf12a0940219d6571e6e550fb744595"
+}

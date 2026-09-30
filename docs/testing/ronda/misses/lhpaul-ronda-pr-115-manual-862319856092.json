@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-862319856092",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "155e78d8062ca415680fb62cec0a455cb685ca24",
+  "rondaResultHeadSha": "155e78d8062ca415680fb62cec0a455cb685ca24",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:938",
+  "locationUnresolved": false,
+  "title": "</sub>  Provide repository-scoped webhook enablement",
+  "text": "</sub>  Provide repository-scoped webhook enablement\n\nWhen one webhook process reviews multiple repositories, the declared sources cannot independently enable the sweep for one repository and disable it for another: `runWebhookReviewJob` calls the process-global `loadConfig()` (`src/webhook/webhook-job.ts:218-220`), whose environment and operator file contain one value for every job, while workflow inputs exist only on the Actions ingress. Either define a repository-keyed webhook configuration source or narrow this requirement to deployment-wide enablement; otherwise AC18 is not implementable for a normal multi-repository webhook installation.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:4f190f618fbdce59b6b96c29",
+  "capturedAt": "2026-09-30T14:52:10.399Z",
+  "updatedAt": "2026-09-30T14:52:10.399Z",
+  "mergeBaseSha": "155e78d8062ca415680fb62cec0a455cb685ca24"
+}

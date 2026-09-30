@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-119-manual-6de6ca52fa75",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 119,
+  "reviewedHeadSha": "053f39a595006f29d212f536e0120a5233828524",
+  "rondaResultHeadSha": "053f39a595006f29d212f536e0120a5233828524",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/testing/ronda/sweep-real-pr-evidence.md:205",
+  "locationUnresolved": false,
+  "title": "</sub>  Close the cohort before any finding is visible",
+  "text": "</sub>  Close the cohort before any finding is visible\n\nWhen real-PR evidence starts accumulating, this only requires closing the cohort before adjudication, but AC15 requires a cutoff fixed before any eligible pass's findings are visible. Because this is the operator-maintained ledger that governs promotion to `real_pr_measured`, the weaker rule permits selecting the cohort after observing results and can produce an outcome-selected measurement; record the cutoff and eligible heads before their review results are observed.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "other",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:8346718651a2250dcbf29f80",
+  "capturedAt": "2026-09-30T15:04:49.079Z",
+  "updatedAt": "2026-09-30T15:04:49.079Z",
+  "mergeBaseSha": "053f39a595006f29d212f536e0120a5233828524"
+}

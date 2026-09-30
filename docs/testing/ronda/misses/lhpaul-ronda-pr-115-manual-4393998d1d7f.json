@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-4393998d1d7f",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "90a694eabddd7a1d3a45d741c85e45d0c19df7b6",
+  "rondaResultHeadSha": "90a694eabddd7a1d3a45d741c85e45d0c19df7b6",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1139",
+  "locationUnresolved": false,
+  "title": "</sub>  Treat the historical baseline as non-comparable",
+  "text": "</sub>  Treat the historical baseline as non-comparable\n\nWhen a new run uses the current prompt/model configuration, this clause correctly says it cannot reproduce the 2026-09-10 baseline, but AC8 and its mirrors still call that run “baseline comparable.” Reusing only the fixture and five-run sample count cannot make recall or variance comparable to the historical 6–8/13 result when no prompt, inference, or immutable-model field is matched; any difference could come from those dimensions rather than the sweep. Require the record to label the historical baseline non-comparable and treat this solely as a fresh sweep-off/on control, unless the historical configuration can actually be pinned.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/90a694eabddd7a1d3a45d741c85e45d0c19df7b6/AGENTS.md#L45-L45)",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:83de80127e77518e60f6a401",
+  "capturedAt": "2026-09-30T14:57:58.066Z",
+  "updatedAt": "2026-09-30T14:57:58.066Z",
+  "mergeBaseSha": "90a694eabddd7a1d3a45d741c85e45d0c19df7b6"
+}

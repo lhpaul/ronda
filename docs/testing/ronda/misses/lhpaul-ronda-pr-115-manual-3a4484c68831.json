@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-3a4484c68831",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586",
+  "rondaResultHeadSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586",
+  "staleEvidence": false,
+  "externalReviewer": "codex",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1371",
+  "locationUnresolved": false,
+  "title": "</sub>  Define zero-denominator recall behavior",
+  "text": "</sub>  Define zero-denominator recall behavior\n\nWhen all ten qualifying pull requests have confirmed-clean external reviews—a case explicitly allowed by AC15(b)—the denominator defined here is zero. AC15(d) still permits a comparative recall claim once matched controls exist, but recall is undefined at 0/0, leaving implementers to choose among 0%, 100%, or N/A. Require at least one adjudicated external finding for a recall-effect claim, or specify that zero-denominator evidence is reported as N/A and cannot support such a claim.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:96233bae61129ac632e37a20",
+  "capturedAt": "2026-09-30T15:05:37.662Z",
+  "updatedAt": "2026-09-30T15:05:37.662Z",
+  "mergeBaseSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586"
+}

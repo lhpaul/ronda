@@ -1,0 +1,22 @@
+{
+  "id": "lhpaul-ronda-pr-118-auto-a4495f6775dc",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "rondaResultHeadSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "staleEvidence": false,
+  "externalReviewer": "chatgpt-codex-connector[bot]",
+  "location": "src/cli/recall-benchmark.ts:1245",
+  "locationUnresolved": false,
+  "title": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Retain sweep records when benchm",
+  "text": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Retain sweep records when benchmark runs fail**\n\nFor a sweep-on benchmark whose model request throws after being issued, this catch emits only `BenchmarkRunFailure` and never writes the required `sweep_pass_record` with `not_determined` outcomes; if recall completed and a later precision request throws, it also discards the already-established recall classification. Thus terminally failed benchmark passes lose the per-category log evidence required for every category they reached. Track request/classification state here as the review-pass path does and emit the appropriate record before returning the failure.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/017546a803dd073733d47d0f3fe73f3ffd072b5d/AGENTS.md#L45-L45)\n\nUseful? React with 👍 / 👎.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "observability",
+  "intendedFollowUp": "undecided",
+  "captureSource": "automatic",
+  "sourceId": "comment:4128449858:0",
+  "capturedAt": "2026-09-30T15:02:50.992Z",
+  "updatedAt": "2026-09-30T15:02:50.992Z",
+  "mergeBaseSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95"
+}
