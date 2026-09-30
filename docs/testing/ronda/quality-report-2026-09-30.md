@@ -15,6 +15,12 @@ dogfood passes on PRs #107, #115, #117, #118 and #119, produced with
    ends with that statement. Do not cite these as per-record human
    adjudication. The `true_positive` counts below are an assistant's reading of
    the evidence, and the owner's acceptance is of the batch only.
+   **Until [#139](https://github.com/lhpaul/ronda/issues/139) lands, read
+   every "confirmed" or `true_positive` figure in this report as an
+   owner-accepted draft.** The owner accepted the verdicts for this PR only
+   (decision on #138), knowing they do not meet the #53 bar for confirmed
+   misses as written. #139 adds a verdict-provenance field, backfills these
+   records, and makes `quality:report` show accepted drafts separately.
 2. **Baseline label: released v0.2.0, no sweep, no repository context.** Every
    pass ran v0.2.0 (`ronda_ref: main` is still v0.2.0, see #135). These records
    measure the released reviewer. They are the baseline #135's passes will be
