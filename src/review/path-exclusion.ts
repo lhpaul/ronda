@@ -44,6 +44,28 @@ export const DEFAULT_EXCLUDED_PATH_GLOBS: readonly string[] = [
 ];
 
 /**
+ * Step counter incremented once per loop iteration in {@link matchSegment}
+ * and {@link segmentsMatch} (#137 review finding: replaces a wall-clock
+ * `Date.now()` regression assertion, which is flaky under system load, with
+ * a deterministic operation-count proxy for "polynomial, not exponential").
+ * Exported only for the regression tests below; production callers never
+ * read it. Incrementing a module-level counter is cheap enough (one integer
+ * add per iteration) to leave enabled unconditionally rather than gating it
+ * behind a flag.
+ */
+let globMatchStepCount = 0;
+
+/** Resets {@link globMatchStepCount}. Test-only. */
+export function resetGlobMatchStepCounterForTests(): void {
+  globMatchStepCount = 0;
+}
+
+/** Reads {@link globMatchStepCount}. Test-only. */
+export function getGlobMatchStepCounterForTests(): number {
+  return globMatchStepCount;
+}
+
+/**
  * Matches one path segment (no `/`) against one glob segment (no `/`)
  * supporting `*` (any run of characters, including none) and `?` (exactly
  * one character). Implemented as the classic linear two-pointer wildcard
@@ -61,6 +83,7 @@ function matchSegment(text: string, pattern: string): boolean {
   let starIdx = -1;
   let matchIdx = 0;
   while (ti < text.length) {
+    globMatchStepCount += 1;
     // `pattern[pi] !== "*"` keeps a literal "*" in `pattern` out of this
     // literal/`?` branch even when `text[ti]` also happens to be a literal
     // "*" (a filename can legitimately contain one). Without the guard,
@@ -107,6 +130,7 @@ function segmentsMatch(pathSegs: string[], globSegs: string[]): boolean {
   let starIdx = -1;
   let matchIdx = 0;
   while (pi < pathSegs.length) {
+    globMatchStepCount += 1;
     if (gi < globSegs.length && globSegs[gi] !== "**" && matchSegment(pathSegs[pi], globSegs[gi])) {
       pi += 1;
       gi += 1;

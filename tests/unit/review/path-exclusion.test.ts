@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_EXCLUDED_PATH_GLOBS,
   filterExcludedFiles,
+  getGlobMatchStepCounterForTests,
   matchesGlob,
+  resetGlobMatchStepCounterForTests,
 } from "../../../src/review/path-exclusion.js";
 import type { ChangedFile } from "../../../src/domain/review-pass.types.js";
 
@@ -110,24 +112,41 @@ test("filterExcludedFiles: an empty changed-file list returns empty results with
 // glob matcher must stay polynomial — never exponential — under an
 // adversarial path, even for a glob with several chained wildcards.
 
-test("matchesGlob: many chained ** segments against a deep non-matching path completes in linear time, not exponential", () => {
+// These two tests assert an operation-count bound rather than a wall-clock
+// duration: `getGlobMatchStepCounterForTests()` counts the loop iterations
+// `matchSegment`/`segmentsMatch` actually perform (#137 review finding — a
+// `Date.now()` threshold is flaky under system load; an operation count is
+// deterministic and machine-independent). A polynomial two-pointer matcher
+// performs at most a small constant multiple of `path.length + glob.length`
+// iterations; the exponential backtracking this guards against would blow
+// past that bound by orders of magnitude for these adversarial inputs.
+
+test("matchesGlob: many chained ** segments against a deep non-matching path stays within a linear operation bound, not exponential", () => {
   const glob = "**/**/**/**/**/**/**/**/**/**/*.json";
   const path = `${"a/".repeat(30)}b`;
-  const start = Date.now();
+  resetGlobMatchStepCounterForTests();
   const result = matchesGlob(path, glob);
-  const elapsedMs = Date.now() - start;
+  const steps = getGlobMatchStepCounterForTests();
+  const linearBound = 20 * (path.length + glob.length);
   assert.equal(result, false);
-  assert.ok(elapsedMs < 200, `expected linear-time matching, took ${elapsedMs}ms`);
+  assert.ok(
+    steps < linearBound,
+    `expected a linear-time step count (< ${linearBound}), counted ${steps}`,
+  );
 });
 
-test("matchesGlob: many chained * wildcards within one segment against a non-matching run completes in linear time", () => {
+test("matchesGlob: many chained * wildcards within one segment against a non-matching run stays within a linear operation bound", () => {
   const glob = `${"*a".repeat(30)}*.json`;
   const path = `${"a".repeat(40)}x`;
-  const start = Date.now();
+  resetGlobMatchStepCounterForTests();
   const result = matchesGlob(path, glob);
-  const elapsedMs = Date.now() - start;
+  const steps = getGlobMatchStepCounterForTests();
+  const linearBound = 20 * (path.length + glob.length);
   assert.equal(result, false);
-  assert.ok(elapsedMs < 200, `expected linear-time matching, took ${elapsedMs}ms`);
+  assert.ok(
+    steps < linearBound,
+    `expected a linear-time step count (< ${linearBound}), counted ${steps}`,
+  );
 });
 
 test("matchesGlob: ** requires a segment boundary, not a mid-filename prefix", () => {

@@ -180,6 +180,24 @@ export function buildReviewSummary(input: ReviewSummaryInput): string {
 }
 
 /**
+ * Renders `text` as a CommonMark inline code span that is safe for arbitrary
+ * input (including text that itself contains backticks). Code spans cannot
+ * escape backticks with a backslash, so the delimiter run must be longer
+ * than the longest backtick run in `text`, per the CommonMark spec. A
+ * leading/trailing space is added as padding when `text` starts or ends with
+ * a backtick (or space) so the delimiter doesn't visually merge with it.
+ */
+function renderInlineCode(text: string): string {
+  const backtickRuns = text.match(/`+/g) ?? [];
+  const longestRun = backtickRuns.reduce((max, run) => Math.max(max, run.length), 0);
+  const fence = "`".repeat(longestRun + 1);
+  const needsPadding =
+    text.startsWith("`") || text.endsWith("`") || text.startsWith(" ") || text.endsWith(" ");
+  const body = needsPadding ? ` ${text} ` : text;
+  return `${fence}${body}${fence}`;
+}
+
+/**
  * Renders the excluded-files section (#134): a count plus a bounded list, so
  * an exclusion is always visible rather than silently dropping the file from
  * the "Reviewed N changed file(s)" line above with no further explanation.
@@ -189,7 +207,7 @@ function renderExcludedFilesSection(excludedFiles: ExcludedFile[]): string[] {
   lines.push(`${excludedFiles.length} file(s) excluded before review:`);
   const listed = excludedFiles.slice(0, MAX_EXCLUDED_FILES_LISTED);
   for (const file of listed) {
-    lines.push(`- \`${file.path}\``);
+    lines.push(`- ${renderInlineCode(file.path)}`);
   }
   const remaining = excludedFiles.length - listed.length;
   if (remaining > 0) {
