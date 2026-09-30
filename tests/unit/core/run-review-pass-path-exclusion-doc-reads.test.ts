@@ -279,3 +279,126 @@ test("path exclusion: without the exclusion configured, the durability-mode docu
   assert.ok(resolvedEvent);
   assert.equal((resolvedEvent!.data as { state?: string }).state, "active");
 });
+
+// #137 (repository context phase gap): when an included file imports an
+// excluded file (via dependency resolution), the excluded file must not be
+// read, even in repository context mode. This isolates the specific scenario
+// where a changed file has a patch and is included, but imports a file that
+// has no patch (GitHub returned no diff) and is therefore excluded.
+
+const EXCLUDED_FILE_MARKER = "EXCLUDED-FILE-PLANTED-MARKER-DO-NOT-REACH-PROMPT";
+const INCLUDED_FILE_MARKER = "INCLUDED-FILE-PLANTED-MARKER-SHOULD-REACH-PROMPT";
+
+test("repository context: an included file importing a patchless (no_patch) file never fetches the excluded dependency — isolating proof", async () => {
+  // included-caller.ts has a patch and is included. excluded-helper.ts has
+  // no patch (GitHub returns undefined) and is excluded for no_patch reason.
+  const github = createFakeGithub([
+    {
+      path: "src/included-caller.ts",
+      status: "modified",
+      additions: 1,
+      deletions: 0,
+      patch: "@@ -1,1 +1,2 @@\n+import helper from './excluded-helper';\n old",
+    },
+    {
+      path: "src/excluded-helper.ts",
+      status: "modified",
+      additions: 5,
+      deletions: 0,
+      patch: undefined, // no patch — binary or GitHub declined to return it
+    },
+  ]);
+
+  const ops: GithubOperations = {
+    ...github.ops,
+    async readFileAtRef(_owner, _repo, path) {
+      github.readPaths.push(path);
+      if (path === "src/included-caller.ts") {
+        return INCLUDED_FILE_MARKER;
+      }
+      if (path === "src/excluded-helper.ts") {
+        return EXCLUDED_FILE_MARKER;
+      }
+      return undefined;
+    },
+  };
+
+  const { model, requests } = createFakeModel('{"findings":[]}');
+  const { logger } = createRecordingLogger();
+
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 7, trigger: "automatic" },
+    {
+      github: ops,
+      model,
+      config: createConfig({
+        excludePathGlobs: [],
+        repositoryContextMode: "on",
+      }),
+      clock: { now: () => Date.now(), isoNow: () => new Date().toISOString() },
+      logger,
+    },
+  );
+
+  assert.equal(result.outcome, "succeeded");
+
+  // The excluded file's path must never reach readFileAtRef, even when the
+  // symbol resolver tries to resolve the import in included-caller.ts.
+  assert.ok(
+    !github.readPaths.includes("src/excluded-helper.ts"),
+    `src/excluded-helper.ts must not be read; read paths: ${github.readPaths.join(", ")}`,
+  );
+
+  // The excluded file's content must not reach the model prompt.
+  assert.equal(requests.length, 1);
+  assert.doesNotMatch(requests[0].userPrompt, new RegExp(EXCLUDED_FILE_MARKER));
+
+  // The included file is read for repository context (it's in changedFiles).
+  assert.ok(
+    github.readPaths.includes("src/included-caller.ts"),
+    `src/included-caller.ts should be read; read paths: ${github.readPaths.join(", ")}`,
+  );
+});
+
+test("repository context: without repository context mode, the excluded file is not read anyway (it's filtered pre-prompt) — the isolating negative", async () => {
+  const github = createFakeGithub([
+    {
+      path: "src/included-caller.ts",
+      status: "modified",
+      additions: 1,
+      deletions: 0,
+      patch: "@@ -1,1 +1,2 @@\n+import helper from './excluded-helper';\n old",
+    },
+    {
+      path: "src/excluded-helper.ts",
+      status: "modified",
+      additions: 5,
+      deletions: 0,
+      patch: undefined,
+    },
+  ]);
+
+  const { model } = createFakeModel('{"findings":[]}');
+  const { logger } = createRecordingLogger();
+
+  await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 7, trigger: "automatic" },
+    {
+      github: github.ops,
+      model,
+      config: createConfig({
+        excludePathGlobs: [],
+        repositoryContextMode: "off",
+      }),
+      clock: { now: () => Date.now(), isoNow: () => new Date().toISOString() },
+      logger,
+    },
+  );
+
+  // Without repository context mode, the excluded file is simply not in the
+  // changed files list (it's filtered by filterExcludedFiles), so the
+  // symbol resolver never runs and the file is never imported. This test
+  // proves the repository-context-specific path and that the fix is needed
+  // only when repository context is on.
+  assert.ok(!github.readPaths.includes("src/excluded-helper.ts"));
+});

@@ -328,6 +328,11 @@ export async function runReviewPass(
       });
     }
 
+    // Create a Set of all excluded paths for efficient membership checks across
+    // the review pass, including durability-mode document selection, authoritative-doc
+    // selection, and repository-context phase (#134/#137).
+    const excludedPathsSet = new Set(excludedFiles.map((f) => f.path));
+
     const changedPaths = collectChangedPaths(changedFiles);
     const preResolve = resolveDurabilityMode({
       headBranch: pr.headBranch,
@@ -354,7 +359,10 @@ export async function runReviewPass(
       // candidate. Treated the same as a missing (404) document: unavailable
       // from the head, with the usual local-document fallback still applying
       // when this isn't a self-review of Ronda's own repository.
-      if (isPathExcluded(DURABILITY_MODE_DOCUMENT_PATH, deps.config.excludePathGlobs)) {
+      if (
+        isPathExcluded(DURABILITY_MODE_DOCUMENT_PATH, deps.config.excludePathGlobs) ||
+        excludedPathsSet.has(DURABILITY_MODE_DOCUMENT_PATH)
+      ) {
         deps.logger.event("durability_mode_document_excluded", {
           path: DURABILITY_MODE_DOCUMENT_PATH,
         });
@@ -465,7 +473,7 @@ export async function runReviewPass(
     // exactly like the other authoritative-doc skip reasons.
     const excludedAuthoritativeDocSkips: AuthoritativeDocSkip[] = [];
     for (const candidate of phase1.candidates) {
-      if (isPathExcluded(candidate.path, deps.config.excludePathGlobs)) {
+      if (isPathExcluded(candidate.path, deps.config.excludePathGlobs) || excludedPathsSet.has(candidate.path)) {
         excludedAuthoritativeDocSkips.push({
           id: candidate.id,
           path: candidate.path,
@@ -512,6 +520,7 @@ export async function runReviewPass(
       input,
       pr,
       changedFiles,
+      excludedPathsSet,
       deps,
       deadline.signal,
       startMs,
@@ -985,6 +994,7 @@ async function runRepositoryContextPhase(
   input: ReviewPassInput,
   pr: PullRequestMetadata,
   changedFiles: ChangedFile[],
+  excludedPathsSet: Set<string>,
   deps: ReviewPassDeps,
   deadlineSignal: AbortSignal,
   passStartMs: number,
@@ -1023,7 +1033,10 @@ async function runRepositoryContextPhase(
   // is refused exactly like other real-but-unusable content.
   const readFileWithSignal = (signal: AbortSignal): RepositoryContextReadFile => {
     return async (path, options) => {
-      if (isPathExcluded(path, deps.config.excludePathGlobs)) {
+      // Check both glob patterns and the full excluded-path set (#134/#137).
+      // The excluded-path set includes all reasons: globs, defaults, and
+      // no_patch files that were filtered before repository-context phase.
+      if (isPathExcluded(path, deps.config.excludePathGlobs) || excludedPathsSet.has(path)) {
         throw new RepositoryContextUnusableContentError(path, "excluded_path");
       }
       try {
