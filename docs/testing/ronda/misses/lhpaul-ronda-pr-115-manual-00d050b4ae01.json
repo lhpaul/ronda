@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-00d050b4ae01",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "6b27ef7b6325e310fc0c9b6a888ceca353e48e58",
+  "rondaResultHeadSha": "6b27ef7b6325e310fc0c9b6a888ceca353e48e58",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:980",
+  "locationUnresolved": false,
+  "title": "Criteria/matrix mismatch",
+  "text": "Criteria/matrix mismatch: a terminal failure after issuing the model request must record every category the request carried, but the per-category record defines only “produced findings” or “produced none.” When the model request fails or its response is unavailable, neither outcome is knowable. Define an explicit incomplete/unknown outcome and its surfaces, or state that these failures record only which categories were reached without claiming a finding result; otherwise implementation must invent the contract.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "partial_success",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:c7c25137bad707aba5c3c5f5",
+  "capturedAt": "2026-09-30T16:15:03.724Z",
+  "updatedAt": "2026-09-30T16:15:03.724Z",
+  "mergeBaseSha": "6b27ef7b6325e310fc0c9b6a888ceca353e48e58"
+}

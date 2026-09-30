@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-edf771010fb4",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "6edccbe9913be28d399e821dfee54765c740a4d0",
+  "rondaResultHeadSha": "6edccbe9913be28d399e821dfee54765c740a4d0",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:78",
+  "locationUnresolved": false,
+  "title": "The invalid-list path does not say to hold `sweep-did-not-run` until the review request is issued, unlike the ",
+  "text": "The invalid-list path does not say to hold `sweep-did-not-run` until the review request is issued, unlike the unrecognized-value path. A failure after list loading but before the request could emit forbidden sweep metadata, contrary to AC1/AC19. Specify the pending record and its exact logging behavior for pre-request and post-request failures, and test both.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "partial_success",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:0e7a9eef86e707fd0e9e4c3f",
+  "capturedAt": "2026-09-30T16:02:46.219Z",
+  "updatedAt": "2026-09-30T16:02:46.219Z",
+  "mergeBaseSha": "6edccbe9913be28d399e821dfee54765c740a4d0"
+}

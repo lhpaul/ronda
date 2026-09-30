@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-787814ec588b",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "aaec1e05df2f0d205f92a8c3e9a6ba39d5450dfe",
+  "rondaResultHeadSha": "aaec1e05df2f0d205f92a8c3e9a6ba39d5450dfe",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:140",
+  "locationUnresolved": false,
+  "title": "Decision-gate matrix mismatch",
+  "text": "Decision-gate matrix mismatch: the evidence-tier row omits the required action for a list revision while already `real_pr_provisional`—the tier remains provisional but the counted-pull-request total must restart at zero. It also reduces the required action to labeling the tier. Add the reset behavior and evidence-record update so AC15/AC16 can be implemented without guessing.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "observability",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:0fb0370bcfdba149b3efd580",
+  "capturedAt": "2026-09-30T16:04:24.988Z",
+  "updatedAt": "2026-09-30T16:04:24.988Z",
+  "mergeBaseSha": "aaec1e05df2f0d205f92a8c3e9a6ba39d5450dfe"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-59708cda78da",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "d22378a6265569b80e6cc6e830f7656063aed3bc",
+  "rondaResultHeadSha": "d22378a6265569b80e6cc6e830f7656063aed3bc",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:71",
+  "locationUnresolved": false,
+  "title": "The plan treats the OpenAI-compatible response `model` string as an immutable version, but the vendor-neutral ",
+  "text": "The plan treats the OpenAI-compatible response `model` string as an immutable version, but the vendor-neutral seam cannot establish that it is not a mutable alias. It also stores only a shared client’s most-recent response value, which is unsafe for the parallel precision calls. Specify a per-request immutable-version attestation/validation mechanism, or mark campaigns without one inadmissible for AC8/AC9; record and compare the value for every inference request.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "concurrency",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:67913989380f2ed672f5965f",
+  "capturedAt": "2026-09-30T16:02:39.160Z",
+  "updatedAt": "2026-09-30T16:02:39.160Z",
+  "mergeBaseSha": "d22378a6265569b80e6cc6e830f7656063aed3bc"
+}

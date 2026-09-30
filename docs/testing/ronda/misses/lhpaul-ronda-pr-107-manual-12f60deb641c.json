@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-107-manual-12f60deb641c",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 107,
+  "reviewedHeadSha": "42f6e1ceb0444fbff3c840df23910cabfa02f975",
+  "rondaResultHeadSha": "42f6e1ceb0444fbff3c840df23910cabfa02f975",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/testing/ronda/dogfood-evidence-103.md:51",
+  "locationUnresolved": false,
+  "title": "The PR introduces an automated review/CI gate but lacks REVIEW.md's required planted-violation proof",
+  "text": "The PR introduces an automated review/CI gate but lacks REVIEW.md's required planted-violation proof. The recorded live pass reports an unadjudicated alleged false positive; it does not demonstrate an isolating deliberate violation at a concrete location being detected and then a clean result after that violation is removed. Add the paired fail/pass evidence in this PR.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "observability",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:7a6914ff19268b3a5ee210f5",
+  "capturedAt": "2026-09-30T15:59:15.119Z",
+  "updatedAt": "2026-09-30T15:59:15.119Z",
+  "mergeBaseSha": "42f6e1ceb0444fbff3c840df23910cabfa02f975"
+}

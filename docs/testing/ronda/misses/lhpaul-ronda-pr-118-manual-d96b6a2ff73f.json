@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-118-manual-d96b6a2ff73f",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "f358d7da3698122c89c57fc5ebeceb0f7d200eba",
+  "rondaResultHeadSha": "f358d7da3698122c89c57fc5ebeceb0f7d200eba",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "src/cli/recall-benchmark.ts:1017",
+  "locationUnresolved": false,
+  "title": "A timed-out run whose recall client ignores abort can resume later and start precision requests after its fail",
+  "text": "A timed-out run whose recall client ignores abort can resume later and start precision requests after its failure record was returned; this overlaps later runs and emits stale model calls/logs. Check the aborted signal after awaited work before starting precision or publishing results.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "timeouts",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:8c766f7041b3b3303d5132c5",
+  "capturedAt": "2026-09-30T16:01:03.211Z",
+  "updatedAt": "2026-09-30T16:01:03.211Z",
+  "mergeBaseSha": "f358d7da3698122c89c57fc5ebeceb0f7d200eba"
+}

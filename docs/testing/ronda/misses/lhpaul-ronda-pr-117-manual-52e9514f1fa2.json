@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-52e9514f1fa2",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "40baf55eae0434a8d67b5ebc303d5e79944c1d10",
+  "rondaResultHeadSha": "40baf55eae0434a8d67b5ebc303d5e79944c1d10",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/testing/ronda/105-category-forced-review-sweep.smoke-test.md:373",
+  "locationUnresolved": false,
+  "title": "The troubleshooting row says an empty higher-precedence value can make the sweep never run",
+  "text": "The troubleshooting row says an empty higher-precedence value can make the sweep never run. This contradicts the plan’s AC18 rule that an empty/whitespace higher-precedence value defers to the lower-precedence source; if that lower source is `on`, the sweep must run. Correct the diagnosis and remediation so the runbook has one unambiguous precedence contract.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:d7779e9c7587b0a9f95c1a7a",
+  "capturedAt": "2026-09-30T16:02:22.568Z",
+  "updatedAt": "2026-09-30T16:02:22.568Z",
+  "mergeBaseSha": "40baf55eae0434a8d67b5ebc303d5e79944c1d10"
+}

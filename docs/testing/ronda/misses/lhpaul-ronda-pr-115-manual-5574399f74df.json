@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-5574399f74df",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "d0ed019f0fab0a7a3817fd1252fe99507e483b71",
+  "rondaResultHeadSha": "d0ed019f0fab0a7a3817fd1252fe99507e483b71",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:727",
+  "locationUnresolved": false,
+  "title": "Criteria/matrix mismatch",
+  "text": "Criteria/matrix mismatch: the normative sweep-enablement row omits the recognized-off input required by AC18. Add the recognized-off outcome and its required non-sweep action so implementers do not have to infer it.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:407b737035c23dad57808067",
+  "capturedAt": "2026-09-30T16:13:00.430Z",
+  "updatedAt": "2026-09-30T16:13:00.430Z",
+  "mergeBaseSha": "d0ed019f0fab0a7a3817fd1252fe99507e483b71"
+}

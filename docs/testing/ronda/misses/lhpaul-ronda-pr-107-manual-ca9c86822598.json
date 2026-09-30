@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-107-manual-ca9c86822598",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 107,
+  "reviewedHeadSha": "892de0bcb310cf8301699a8310318b5fbf3d475b",
+  "rondaResultHeadSha": "892de0bcb310cf8301699a8310318b5fbf3d475b",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "changelog.d/103.added.dogfood-ronda-review.md:3",
+  "locationUnresolved": false,
+  "title": "The claim that the workflow runs on every non-draft PR targeting `develop` omits the documented exception for ",
+  "text": "The claim that the workflow runs on every non-draft PR targeting `develop` omits the documented exception for PRs retargeted to `develop`, which receive no run until another push or reopen. State that limitation so the release note matches implemented behavior.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:29412f865f65c12d2f90c96e",
+  "capturedAt": "2026-09-30T15:59:40.069Z",
+  "updatedAt": "2026-09-30T15:59:40.069Z",
+  "mergeBaseSha": "892de0bcb310cf8301699a8310318b5fbf3d475b"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-1cb3816b6060",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "958fde7e15afbdbb3b56c01a8b1b77d9c1abd790",
+  "rondaResultHeadSha": "958fde7e15afbdbb3b56c01a8b1b77d9c1abd790",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:442",
+  "locationUnresolved": false,
+  "title": "Criteria/matrix mismatch",
+  "text": "Criteria/matrix mismatch: the counting rule requires a clean result from “both Ronda configurations,” which implies a sweep-off control is needed before a pull request can count, but lines 461–464 and 496–503 say the sweep-off control is required only for comparative claims and that the ten-item count defines no sweep-off baseline. Specify whether descriptive-tier counting requires sweep-off evidence and make UC6, AC15(b), and the decision matrix agree.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:fc434ba1b5be2cc6851f09d8",
+  "capturedAt": "2026-09-30T16:14:36.673Z",
+  "updatedAt": "2026-09-30T16:14:36.673Z",
+  "mergeBaseSha": "958fde7e15afbdbb3b56c01a8b1b77d9c1abd790"
+}

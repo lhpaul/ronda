@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-f5531b2144bc",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "a691d010a5bbefe2e77b1750f634d26b95c152f6",
+  "rondaResultHeadSha": "a691d010a5bbefe2e77b1750f634d26b95c152f6",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:552",
+  "locationUnresolved": false,
+  "title": "Resolve Open Question 7 by naming the operator-facing surface for the per-category pass record",
+  "text": "Resolve Open Question 7 by naming the operator-facing surface for the per-category pass record. AC1 and AC20 require observable records, but logs, check-run output, benchmark output, or multiple surfaces have materially different product visibility and verification contracts.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "observability",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:0020545529b7958b1bdecd47",
+  "capturedAt": "2026-09-30T16:07:57.603Z",
+  "updatedAt": "2026-09-30T16:07:57.603Z",
+  "mergeBaseSha": "a691d010a5bbefe2e77b1750f634d26b95c152f6"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-e5ff0a19edf7",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "1c3d10a7091965e1f200fa1859c2e49b1c9cdb71",
+  "rondaResultHeadSha": "1c3d10a7091965e1f200fa1859c2e49b1c9cdb71",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:225",
+  "locationUnresolved": false,
+  "title": "The `--runs` design promises to record an aborted iteration and preserve partial campaign evidence, but specif",
+  "text": "The `--runs` design promises to record an aborted iteration and preserve partial campaign evidence, but specifies neither a per-run failure result nor catch/persist/continue behavior. The current runner throws on model failure, so this leaves implementation to guess and can discard all prior runs, contradicting the runbook requirement never to silently drop attempted runs. Define the failure-record schema, output/exit behavior, and tests for a mid-campaign failure.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "timeouts",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:b762bb68fe01e91b2046ce6b",
+  "capturedAt": "2026-09-30T16:03:56.213Z",
+  "updatedAt": "2026-09-30T16:03:56.213Z",
+  "mergeBaseSha": "1c3d10a7091965e1f200fa1859c2e49b1c9cdb71"
+}

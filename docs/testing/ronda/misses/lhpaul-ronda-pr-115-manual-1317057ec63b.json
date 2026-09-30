@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-1317057ec63b",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "a691d010a5bbefe2e77b1750f634d26b95c152f6",
+  "rondaResultHeadSha": "a691d010a5bbefe2e77b1750f634d26b95c152f6",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:515",
+  "locationUnresolved": false,
+  "title": "Resolve Open Questions 1 and 8 before approval",
+  "text": "Resolve Open Questions 1 and 8 before approval. AC6 requires every candidate to be swept or explicitly excluded, but spec-AC-compliance and per-finding-resolution remain undecided, so no valid current category list can satisfy the sweep precondition.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:e5255506de6980aba66c09b4",
+  "capturedAt": "2026-09-30T16:07:36.473Z",
+  "updatedAt": "2026-09-30T16:07:36.473Z",
+  "mergeBaseSha": "a691d010a5bbefe2e77b1750f634d26b95c152f6"
+}

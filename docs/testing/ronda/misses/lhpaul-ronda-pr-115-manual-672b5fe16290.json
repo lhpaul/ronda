@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-672b5fe16290",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "1de209ce7d56c76b206169c0626ca29dae9214d7",
+  "rondaResultHeadSha": "1de209ce7d56c76b206169c0626ca29dae9214d7",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:972",
+  "locationUnresolved": false,
+  "title": "Criteria/matrix mismatch",
+  "text": "Criteria/matrix mismatch: Operational Visibility describes an unrecognized enablement value as a `sweep-did-not-run` record, while the decision matrix and AC18 define a distinct unrecognized-enablement record and reserve `sweep-did-not-run` for an unreadable, empty, or malformed category list. Define whether these are separate record types or one record with reason values, then align every surface.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "observability",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:3978368c3a54416ab1e7d824",
+  "capturedAt": "2026-09-30T16:15:52.927Z",
+  "updatedAt": "2026-09-30T16:15:52.927Z",
+  "mergeBaseSha": "1de209ce7d56c76b206169c0626ca29dae9214d7"
+}

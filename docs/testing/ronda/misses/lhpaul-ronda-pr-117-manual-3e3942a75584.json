@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-3e3942a75584",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "a64c339b3f380a9859e820099f88a7bcdb87e6c2",
+  "rondaResultHeadSha": "a64c339b3f380a9859e820099f88a7bcdb87e6c2",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/testing/ronda/105-category-forced-review-sweep.smoke-test.md:206",
+  "locationUnresolved": false,
+  "title": "The multi-command campaign blocks write committed evidence files but lack fail-fast handling; a failed first a",
+  "text": "The multi-command campaign blocks write committed evidence files but lack fail-fast handling; a failed first arm can be masked by a succeeding later command. Add an explicit failure guard (for example, set -euo pipefail) or make each command's required success check explicit.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "partial_success",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:f96c31519fe6ee66e901533d",
+  "capturedAt": "2026-09-30T16:04:40.415Z",
+  "updatedAt": "2026-09-30T16:04:40.415Z",
+  "mergeBaseSha": "a64c339b3f380a9859e820099f88a7bcdb87e6c2"
+}

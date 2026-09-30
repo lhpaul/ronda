@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-107-manual-3ad36bc46d73",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 107,
+  "reviewedHeadSha": "42f6e1ceb0444fbff3c840df23910cabfa02f975",
+  "rondaResultHeadSha": "42f6e1ceb0444fbff3c840df23910cabfa02f975",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": ".github/workflows/ronda-review-dogfood.yml:62",
+  "locationUnresolved": false,
+  "title": "Trigger ambiguity",
+  "text": "Trigger ambiguity: a collaborator comment that merely contains `/ronda review` passes this pre-filter and enters the concurrency group before Ronda performs its exact-command check. An invalid comment can therefore cancel an in-flight review and then be skipped, leaving no terminal Ronda check—the failure mode this change claims to prevent. Gate exact command acceptance before joining the concurrency group, or otherwise prevent non-command comments from cancelling runs.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "concurrency",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:450a0010f21c3d27b1f4328a",
+  "capturedAt": "2026-09-30T15:59:07.588Z",
+  "updatedAt": "2026-09-30T15:59:07.588Z",
+  "mergeBaseSha": "42f6e1ceb0444fbff3c840df23910cabfa02f975"
+}

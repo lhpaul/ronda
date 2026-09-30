@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-7e26b1349a52",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "3d317ae95ad61fa98ab160fecb9ee08c638199e2",
+  "rondaResultHeadSha": "3d317ae95ad61fa98ab160fecb9ee08c638199e2",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:748",
+  "locationUnresolved": false,
+  "title": "The enablement matrix contradicts itself",
+  "text": "The enablement matrix contradicts itself: the outcome forbids exposing the raw unrecognized value, but the required action says to record that value. This security-sensitive record contract must consistently require recording only that the value was unrecognized.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "observability",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:3366948c29e5a4392b0f0685",
+  "capturedAt": "2026-09-30T16:13:46.623Z",
+  "updatedAt": "2026-09-30T16:13:46.623Z",
+  "mergeBaseSha": "3d317ae95ad61fa98ab160fecb9ee08c638199e2"
+}

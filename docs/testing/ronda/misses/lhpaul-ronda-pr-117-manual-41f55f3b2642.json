@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-41f55f3b2642",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "151743acf1e476a66802b0773256b730e6a4a8ae",
+  "rondaResultHeadSha": "151743acf1e476a66802b0773256b730e6a4a8ae",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:108",
+  "locationUnresolved": false,
+  "title": "[Criteria/matrix mismatch] The pass test matrix treats every post-execution failure as logs-only `not_determin",
+  "text": "[Criteria/matrix mismatch] The pass test matrix treats every post-execution failure as logs-only `not_determined`, but AC1 and plan line 79 require a distinct post-publication/check-run-write failure case that records ordinary produced outcomes and preserves any success check-run surface that landed. Add that explicit scenario and assertions; otherwise a required AC1 branch is unvalidated and the plan is internally inconsistent.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "partial_success",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:b6f909fd77dc8e8fa90fc49f",
+  "capturedAt": "2026-09-30T16:02:15.181Z",
+  "updatedAt": "2026-09-30T16:02:15.181Z",
+  "mergeBaseSha": "151743acf1e476a66802b0773256b730e6a4a8ae"
+}

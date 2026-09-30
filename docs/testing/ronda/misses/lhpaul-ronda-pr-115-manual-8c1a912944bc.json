@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-8c1a912944bc",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "40b89f74c8fd1c723d2ef121e88af7bb7a3bb03f",
+  "rondaResultHeadSha": "40b89f74c8fd1c723d2ef121e88af7bb7a3bb03f",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1149",
+  "locationUnresolved": false,
+  "title": "Remove the duplicated word \"used.\" so AC9 reads coherently.",
+  "text": "Remove the duplicated word \"used.\" so AC9 reads coherently.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:5659c3f0662757d3267e7eda",
+  "capturedAt": "2026-09-30T16:15:41.801Z",
+  "updatedAt": "2026-09-30T16:15:41.801Z",
+  "mergeBaseSha": "40b89f74c8fd1c723d2ef121e88af7bb7a3bb03f"
+}

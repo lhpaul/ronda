@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-d807cd734353",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "9e245bbc88125a1f9535f5cf053aacb7028c9ba7",
+  "rondaResultHeadSha": "9e245bbc88125a1f9535f5cf053aacb7028c9ba7",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1002",
+  "locationUnresolved": false,
+  "title": "Criteria/matrix mismatch",
+  "text": "Criteria/matrix mismatch: AC19 accepts a finding-instance count of zero, while the overview, Use Case 2, and business rules require every swept category to be justified by supporting real-PR findings. Require a positive count or explicitly define how zero findings can justify inclusion.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:8d87f96af6178d2e4759f945",
+  "capturedAt": "2026-09-30T16:11:21.466Z",
+  "updatedAt": "2026-09-30T16:11:21.466Z",
+  "mergeBaseSha": "9e245bbc88125a1f9535f5cf053aacb7028c9ba7"
+}

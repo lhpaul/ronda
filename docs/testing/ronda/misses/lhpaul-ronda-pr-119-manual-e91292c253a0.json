@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-119-manual-e91292c253a0",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 119,
+  "reviewedHeadSha": "cb08b49314237ffdafab356f7c3f98c46ab92baf",
+  "rondaResultHeadSha": "cb08b49314237ffdafab356f7c3f98c46ab92baf",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/testing/ronda/sweep-real-pr-evidence.md:210",
+  "locationUnresolved": false,
+  "title": "The ten-count rule omits AC15's explicit requirement that a pull request with no recorded external review is n",
+  "text": "The ten-count rule omits AC15's explicit requirement that a pull request with no recorded external review is never adjudicated. As written, a head containing only Ronda findings can satisfy the listed terminal outcomes and count vacuously. Require same-head external-review evidence before a cohort head can be terminal/count, and cover this rule in the evidence-record test.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "observability",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:89040c40c3ca863a2e67e0d5",
+  "capturedAt": "2026-09-30T16:00:22.856Z",
+  "updatedAt": "2026-09-30T16:00:22.856Z",
+  "mergeBaseSha": "cb08b49314237ffdafab356f7c3f98c46ab92baf"
+}

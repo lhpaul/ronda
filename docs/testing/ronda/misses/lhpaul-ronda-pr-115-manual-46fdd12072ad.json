@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-46fdd12072ad",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "40b89f74c8fd1c723d2ef121e88af7bb7a3bb03f",
+  "rondaResultHeadSha": "40b89f74c8fd1c723d2ef121e88af7bb7a3bb03f",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:948",
+  "locationUnresolved": false,
+  "title": "Remove the duplicated trailing sentence fragment \"they do not pair the claim.\" from the matrix example.",
+  "text": "Remove the duplicated trailing sentence fragment \"they do not pair the claim.\" from the matrix example.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:b975634b01ab73a855607b5f",
+  "capturedAt": "2026-09-30T16:15:29.994Z",
+  "updatedAt": "2026-09-30T16:15:29.994Z",
+  "mergeBaseSha": "40b89f74c8fd1c723d2ef121e88af7bb7a3bb03f"
+}

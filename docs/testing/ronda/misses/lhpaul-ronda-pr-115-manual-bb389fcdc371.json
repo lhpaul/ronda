@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-bb389fcdc371",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "3e6e6bbde482d15f42faa69a0f6be0516e7f5904",
+  "rondaResultHeadSha": "3e6e6bbde482d15f42faa69a0f6be0516e7f5904",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:873",
+  "locationUnresolved": false,
+  "title": "Criteria/matrix mismatch",
+  "text": "Criteria/matrix mismatch: AC15 defines comparative variance from the standard deviation of per-run recall, but its zero-denominator branch only forbids a recall claim. Because per-run recall is undefined when there are no confirmed defects, the spec must also define the variance result as not applicable and prohibit a comparative variance claim for this case.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:df7ef66098e659caec6ca10d",
+  "capturedAt": "2026-09-30T16:10:23.374Z",
+  "updatedAt": "2026-09-30T16:10:23.374Z",
+  "mergeBaseSha": "3e6e6bbde482d15f42faa69a0f6be0516e7f5904"
+}

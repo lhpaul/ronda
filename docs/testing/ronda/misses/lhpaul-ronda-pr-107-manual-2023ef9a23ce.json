@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-107-manual-2023ef9a23ce",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 107,
+  "reviewedHeadSha": "3d256314303e2d66e8733a116a08143d880bd06e",
+  "rondaResultHeadSha": "3d256314303e2d66e8733a116a08143d880bd06e",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": ".github/workflows/ronda-review-dogfood.yml:29",
+  "locationUnresolved": false,
+  "title": "The new CI workflow's `develop` branch-filter assertion lacks the required same-PR isolating planted-violation",
+  "text": "The new CI workflow's `develop` branch-filter assertion lacks the required same-PR isolating planted-violation proof; the evidence explicitly marks it unplanted and unverified. REVIEW.md requires demonstrated fail/pass evidence for every new assertion in an added CI job.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:99b0d695f8986e74807cf2ea",
+  "capturedAt": "2026-09-30T15:59:21.283Z",
+  "updatedAt": "2026-09-30T15:59:21.283Z",
+  "mergeBaseSha": "3d256314303e2d66e8733a116a08143d880bd06e"
+}

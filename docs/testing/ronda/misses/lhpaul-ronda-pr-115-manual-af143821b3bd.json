@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-af143821b3bd",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "d0ed019f0fab0a7a3817fd1252fe99507e483b71",
+  "rondaResultHeadSha": "d0ed019f0fab0a7a3817fd1252fe99507e483b71",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:729",
+  "locationUnresolved": false,
+  "title": "Criteria/matrix mismatch",
+  "text": "Criteria/matrix mismatch: the pass-outcome row has no outcome for a pass that completes review execution but is superseded before publication. Existing behavior publishes neither review nor check run, while the matrix's generic Completion outcome requires check-run output. Add this branch and specify its actual record surfaces consistently with AC1/AC2.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "observability",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:55eda22902dd874acbb89cd3",
+  "capturedAt": "2026-09-30T16:13:12.859Z",
+  "updatedAt": "2026-09-30T16:13:12.859Z",
+  "mergeBaseSha": "d0ed019f0fab0a7a3817fd1252fe99507e483b71"
+}

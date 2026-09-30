@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-62bf5962a089",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "58d4cfd09574e8f0341c76a136fc8e09490b5a76",
+  "rondaResultHeadSha": "58d4cfd09574e8f0341c76a136fc8e09490b5a76",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:69",
+  "locationUnresolved": false,
+  "title": "`SweepPassRecord` retains only per-category outcomes plus an uncategorized count, yet the benchmark reuses it",
+  "text": "`SweepPassRecord` retains only per-category outcomes plus an uncategorized count, yet the benchmark reuses it. That cannot attribute each sweep-on unexpected finding to its category/categories/uncategorized as AC9 requires. Specify a per-finding attribution mapping in the record/output and tests.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "observability",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:ad0267b546569987c1cdaa65",
+  "capturedAt": "2026-09-30T16:03:40.947Z",
+  "updatedAt": "2026-09-30T16:03:40.947Z",
+  "mergeBaseSha": "58d4cfd09574e8f0341c76a136fc8e09490b5a76"
+}

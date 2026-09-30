@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-b550c486c08f",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "e78e4df385e65e9d0e95d49e68bd604722f20587",
+  "rondaResultHeadSha": "e78e4df385e65e9d0e95d49e68bd604722f20587",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:112",
+  "locationUnresolved": false,
+  "title": "AC14 requires no real credential in any evidence or fixture, but the planned executable scan is limited to the",
+  "text": "AC14 requires no real credential in any evidence or fixture, but the planned executable scan is limited to the benchmark tree while the new evidence documents are under docs/testing/ronda/. Extend the test/verification targets to include those committed evidence artifacts and campaign outputs.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "security",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:d0528b224141fd9f588f8dab",
+  "capturedAt": "2026-09-30T16:03:32.805Z",
+  "updatedAt": "2026-09-30T16:03:32.805Z",
+  "mergeBaseSha": "e78e4df385e65e9d0e95d49e68bd604722f20587"
+}

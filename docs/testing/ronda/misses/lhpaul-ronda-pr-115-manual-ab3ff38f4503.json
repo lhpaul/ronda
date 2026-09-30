@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-ab3ff38f4503",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "c1df9fe46c800704655c525e35282b0d99148e66",
+  "rondaResultHeadSha": "c1df9fe46c800704655c525e35282b0d99148e66",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:685",
+  "locationUnresolved": false,
+  "title": "Criteria/matrix mismatch",
+  "text": "Criteria/matrix mismatch: this business rule requires at least two runs per configuration for comparative recall and cost claims, while AC15(d) and the claim-admissibility matrix permit a claim from one matched run per configuration and impose equal run counts only when runs are repeated. Specify whether one matched run is admissible and align every mirror surface.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:85198478997fb5326946e6ad",
+  "capturedAt": "2026-09-30T16:14:52.655Z",
+  "updatedAt": "2026-09-30T16:14:52.655Z",
+  "mergeBaseSha": "c1df9fe46c800704655c525e35282b0d99148e66"
+}

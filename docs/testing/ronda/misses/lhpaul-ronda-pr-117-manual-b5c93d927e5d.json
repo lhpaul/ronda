@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-b5c93d927e5d",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "6edccbe9913be28d399e821dfee54765c740a4d0",
+  "rondaResultHeadSha": "6edccbe9913be28d399e821dfee54765c740a4d0",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:225",
+  "locationUnresolved": false,
+  "title": "The planned benchmark output gives sweep-on runs a `SweepPassRecord`, but that type does not include the categ",
+  "text": "The planned benchmark output gives sweep-on runs a `SweepPassRecord`, but that type does not include the category-list version; the identity block also omits it. AC9 requires the precision evidence to record the category-list version used, so the implementation/evidence steps cannot satisfy it without guessing. Add an explicit list-version field to the sweep-on benchmark and precision records, evidence assembly, and tests.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "observability",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:adbebffe59e0680d24456495",
+  "capturedAt": "2026-09-30T16:02:53.145Z",
+  "updatedAt": "2026-09-30T16:02:53.145Z",
+  "mergeBaseSha": "6edccbe9913be28d399e821dfee54765c740a4d0"
+}

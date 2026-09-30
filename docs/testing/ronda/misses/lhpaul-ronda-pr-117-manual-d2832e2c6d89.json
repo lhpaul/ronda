@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-d2832e2c6d89",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "6dd737d7c1d9ae7f7052b0fa85cbc993640054c7",
+  "rondaResultHeadSha": "6dd737d7c1d9ae7f7052b0fa85cbc993640054c7",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:221",
+  "locationUnresolved": false,
+  "title": "The plan requires recording an immutable model version for AC8/AC9, but the existing ModelClient/OpenAI-compat",
+  "text": "The plan requires recording an immutable model version for AC8/AC9, but the existing ModelClient/OpenAI-compatible client exposes only modelName (the configured alias) and returns only content. No implementation step adds a version source, captures the API response model identifier, or rejects mutable aliases; therefore the proposed evidence cannot establish the required immutable model version or admissible same-configuration comparisons.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "observability",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:091f69afd260e2f7ba39e991",
+  "capturedAt": "2026-09-30T16:02:31.821Z",
+  "updatedAt": "2026-09-30T16:02:31.821Z",
+  "mergeBaseSha": "6dd737d7c1d9ae7f7052b0fa85cbc993640054c7"
+}

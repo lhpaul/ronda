@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-a027ff845a54",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "aaec1e05df2f0d205f92a8c3e9a6ba39d5450dfe",
+  "rondaResultHeadSha": "aaec1e05df2f0d205f92a8c3e9a6ba39d5450dfe",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:68",
+  "locationUnresolved": false,
+  "title": "The category-list loader says it loads by an absolute path from the checkout, but never defines how that check",
+  "text": "The category-list loader says it loads by an absolute path from the checkout, but never defines how that checkout root is resolved or tests it. The existing pass accepts a cwd and the webhook/CLI can run outside the repository root, so implementation would have to guess between cwd-relative and module-relative resolution, risking an AC19 degradation in deployed runs. Specify the authoritative resolution mechanism and a non-root-CWD test.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:3f7701929e60b8662ad7bbb7",
+  "capturedAt": "2026-09-30T16:04:18.084Z",
+  "updatedAt": "2026-09-30T16:04:18.084Z",
+  "mergeBaseSha": "aaec1e05df2f0d205f92a8c3e9a6ba39d5450dfe"
+}

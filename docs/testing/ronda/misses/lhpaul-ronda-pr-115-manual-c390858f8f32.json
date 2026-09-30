@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-c390858f8f32",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "01cbdde8521ef21e6bc3251490c6348b9d6abfc5",
+  "rondaResultHeadSha": "01cbdde8521ef21e6bc3251490c6348b9d6abfc5",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:825",
+  "locationUnresolved": false,
+  "title": "AC15(d) contradicts itself by requiring the sample standard deviation while immediately stating that the popul",
+  "text": "AC15(d) contradicts itself by requiring the sample standard deviation while immediately stating that the population standard deviation is computed. These use different denominators and can produce different variance comparisons. Choose one metric and align AC15(d) and every cross-reference so implementation and evidence generation are testable without guessing.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:bde911bdde36e08e52d53e41",
+  "capturedAt": "2026-09-30T16:10:10.422Z",
+  "updatedAt": "2026-09-30T16:10:10.422Z",
+  "mergeBaseSha": "01cbdde8521ef21e6bc3251490c6348b9d6abfc5"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-119-manual-0257ea7fc76d",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 119,
+  "reviewedHeadSha": "db7c2f749fd036d75dc401d72f738ebfca4301f1",
+  "rondaResultHeadSha": "db7c2f749fd036d75dc401d72f738ebfca4301f1",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/testing/ronda/sweep-categories.json:2",
+  "locationUnresolved": false,
+  "title": "This runtime artifact is included despite the PR context explicitly reserving it for #118",
+  "text": "This runtime artifact is included despite the PR context explicitly reserving it for #118. Remove it from this evidence-only PR or update the approved split/order rationale before readiness.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:95d68acd87f3921d9e78e96a",
+  "capturedAt": "2026-09-30T16:00:01.418Z",
+  "updatedAt": "2026-09-30T16:00:01.418Z",
+  "mergeBaseSha": "db7c2f749fd036d75dc401d72f738ebfca4301f1"
+}

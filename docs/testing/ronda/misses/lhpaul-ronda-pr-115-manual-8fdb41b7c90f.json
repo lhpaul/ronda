@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-8fdb41b7c90f",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "9e245bbc88125a1f9535f5cf053aacb7028c9ba7",
+  "rondaResultHeadSha": "9e245bbc88125a1f9535f5cf053aacb7028c9ba7",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:783",
+  "locationUnresolved": false,
+  "title": "Criteria/matrix mismatch",
+  "text": "Criteria/matrix mismatch: Use Case 2 requires each revision's date and the date the current version became active, but AC7 requires only a version, evidence, and revision-history entry. Add the date requirements to the acceptance contract so the use case is testable.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:253789849bf4d95389647ea4",
+  "capturedAt": "2026-09-30T16:11:09.405Z",
+  "updatedAt": "2026-09-30T16:11:09.405Z",
+  "mergeBaseSha": "9e245bbc88125a1f9535f5cf053aacb7028c9ba7"
+}

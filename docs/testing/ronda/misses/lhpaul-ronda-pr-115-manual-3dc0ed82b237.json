@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-3dc0ed82b237",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "4f24a576cc2fc2591f3cea5a5eb33fc9ffd3e559",
+  "rondaResultHeadSha": "4f24a576cc2fc2591f3cea5a5eb33fc9ffd3e559",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:744",
+  "locationUnresolved": false,
+  "title": "AC1 leaves “reaches review execution” undefined for terminal failures after the two named pre-review skips, in",
+  "text": "AC1 leaves “reaches review execution” undefined for terminal failures after the two named pre-review skips, including missing credentials, model/GitHub errors, and timeouts. It is therefore unclear whether such a pass must emit per-category produced-none records, a sweep-did-not-run record, partial metadata, or no sweep metadata. Define the boundary and outcome for these existing failure paths so implementation does not have to guess or falsely report that categories were considered.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "security",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:cc99ccdb988a8bc998419040",
+  "capturedAt": "2026-09-30T16:11:35.494Z",
+  "updatedAt": "2026-09-30T16:11:35.494Z",
+  "mergeBaseSha": "4f24a576cc2fc2591f3cea5a5eb33fc9ffd3e559"
+}

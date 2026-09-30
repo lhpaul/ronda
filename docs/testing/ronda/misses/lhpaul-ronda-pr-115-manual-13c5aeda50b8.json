@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-13c5aeda50b8",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "9bc88e8391c578449f61588afd54cc0afa24fcfa",
+  "rondaResultHeadSha": "9bc88e8391c578449f61588afd54cc0afa24fcfa",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:1041",
+  "locationUnresolved": false,
+  "title": "Gate-matrix/criteria mismatch",
+  "text": "Gate-matrix/criteria mismatch: AC15 defines repeated-run recall and cost aggregation only when both configurations were repeated, but comparative recall and cost claims do not otherwise require equal run counts. A reachable sweep-on N>1 / sweep-off N=1 evidence set therefore has no defined aggregation or admissibility outcome. Require equal run counts or explicitly define/reject asymmetric runs consistently in AC15 and the claim-admissibility matrix.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:8842b0918330af47c396b2de",
+  "capturedAt": "2026-09-30T16:14:13.548Z",
+  "updatedAt": "2026-09-30T16:14:13.548Z",
+  "mergeBaseSha": "9bc88e8391c578449f61588afd54cc0afa24fcfa"
+}

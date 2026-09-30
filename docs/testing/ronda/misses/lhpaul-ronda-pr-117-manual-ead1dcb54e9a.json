@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-ead1dcb54e9a",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "a79e9221eecd8bba6ae5de6d53cf0c4b04eb9ed6",
+  "rondaResultHeadSha": "a79e9221eecd8bba6ae5de6d53cf0c4b04eb9ed6",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:71",
+  "locationUnresolved": false,
+  "title": "The plan relies on the behavioral API-contract claim that every OpenAI-compatible endpoint returns a top-level",
+  "text": "The plan relies on the behavioral API-contract claim that every OpenAI-compatible endpoint returns a top-level non-empty `model` field, but provides neither an authoritative reference nor repository evidence for that claim. REVIEW.md requires such runtime/API claims to be verifiable or explicitly marked unverified; cite the authoritative response schema and define the implementation fallback for incompatible providers.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "configuration",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:1bee4cbc909af2409c118485",
+  "capturedAt": "2026-09-30T16:03:00.893Z",
+  "updatedAt": "2026-09-30T16:03:00.893Z",
+  "mergeBaseSha": "a79e9221eecd8bba6ae5de6d53cf0c4b04eb9ed6"
+}

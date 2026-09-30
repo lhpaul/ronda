@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-107-manual-df498123ccc7",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 107,
+  "reviewedHeadSha": "892de0bcb310cf8301699a8310318b5fbf3d475b",
+  "rondaResultHeadSha": "892de0bcb310cf8301699a8310318b5fbf3d475b",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": ".github/workflows/ronda-review-dogfood.yml:3",
+  "locationUnresolved": false,
+  "title": "This activates dogfooding in Ronda while the locked v0 contract and architecture still specify one dogfood rep",
+  "text": "This activates dogfooding in Ronda while the locked v0 contract and architecture still specify one dogfood repository, `lhpaul/ai-dev-framework-template`. Reconcile the authoritative documentation with an explicitly approved scope change, or preserve the single-repository contract.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:f88a0083dda00af87ba419ee",
+  "capturedAt": "2026-09-30T15:59:33.804Z",
+  "updatedAt": "2026-09-30T15:59:33.804Z",
+  "mergeBaseSha": "892de0bcb310cf8301699a8310318b5fbf3d475b"
+}

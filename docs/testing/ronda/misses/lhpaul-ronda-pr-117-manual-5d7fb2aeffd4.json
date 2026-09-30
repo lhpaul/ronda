@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-117-manual-5d7fb2aeffd4",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 117,
+  "reviewedHeadSha": "d731fe1eacf3fb4e619360e7c34d05196b80b2c3",
+  "rondaResultHeadSha": "d731fe1eacf3fb4e619360e7c34d05196b80b2c3",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/2_105-category-forced-review-sweep_implementation-plan.md:168",
+  "locationUnresolved": false,
+  "title": "Cross-section inconsistency",
+  "text": "Cross-section inconsistency: this assigns AC17’s regression-gate statement to `sweep-effect-evidence.md`, but the smoke runbook requires it in `sweep-real-pr-evidence.md` (line 375). Choose one authoritative artifact and align the implementation step, smoke assertion, and test coverage so implementation does not have to guess.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:1b7c21fbb5cd1a9e447c5baa",
+  "capturedAt": "2026-09-30T16:04:10.787Z",
+  "updatedAt": "2026-09-30T16:04:10.787Z",
+  "mergeBaseSha": "d731fe1eacf3fb4e619360e7c34d05196b80b2c3"
+}

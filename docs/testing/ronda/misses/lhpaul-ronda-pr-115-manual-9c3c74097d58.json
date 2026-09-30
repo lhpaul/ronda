@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-9c3c74097d58",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "d0ed019f0fab0a7a3817fd1252fe99507e483b71",
+  "rondaResultHeadSha": "d0ed019f0fab0a7a3817fd1252fe99507e483b71",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:730",
+  "locationUnresolved": false,
+  "title": "Criteria/matrix mismatch",
+  "text": "Criteria/matrix mismatch: the evidence-tier gate lists only counted pull requests and list revision as inputs, but fixture_only versus real_pr_provisional also depends on whether any sweep-enabled real-PR review has been recorded, even when its evidence is unadjudicated and the counted total remains zero. Add that input and the zero-count transition case.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "observability",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:0cd9b9b8760e0448a7518317",
+  "capturedAt": "2026-09-30T16:13:26.172Z",
+  "updatedAt": "2026-09-30T16:13:26.172Z",
+  "mergeBaseSha": "d0ed019f0fab0a7a3817fd1252fe99507e483b71"
+}

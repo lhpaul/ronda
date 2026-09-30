@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-fc2583c080d9",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "40b89f74c8fd1c723d2ef121e88af7bb7a3bb03f",
+  "rondaResultHeadSha": "40b89f74c8fd1c723d2ef121e88af7bb7a3bb03f",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:749",
+  "locationUnresolved": false,
+  "title": "Remove the extra closing parenthesis after the AC15(d) reference.",
+  "text": "Remove the extra closing parenthesis after the AC15(d) reference.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:794ed460b6ced0c5a5011c76",
+  "capturedAt": "2026-09-30T16:15:17.158Z",
+  "updatedAt": "2026-09-30T16:15:17.158Z",
+  "mergeBaseSha": "40b89f74c8fd1c723d2ef121e88af7bb7a3bb03f"
+}

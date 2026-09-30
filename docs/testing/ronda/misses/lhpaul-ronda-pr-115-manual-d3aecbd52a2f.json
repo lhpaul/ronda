@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-d3aecbd52a2f",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "94d086e49b4ffd4cc13e2b384072616d799667ba",
+  "rondaResultHeadSha": "94d086e49b4ffd4cc13e2b384072616d799667ba",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:848",
+  "locationUnresolved": false,
+  "title": "Criteria/matrix mismatch",
+  "text": "Criteria/matrix mismatch: AC18 says an unrecognized enablement value “still publishes” a review, and AC19 makes the same unconditional promise for an invalid category list, but AC2 requires draft-skipped or superseded passes to publish no review. State that both fallbacks preserve the existing publication eligibility and publish only when the ordinary flow would; otherwise implementation requires choosing between contradictory acceptance criteria.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:c4d8d1d4c9a8e5e458368759",
+  "capturedAt": "2026-09-30T16:10:00.603Z",
+  "updatedAt": "2026-09-30T16:10:00.603Z",
+  "mergeBaseSha": "94d086e49b4ffd4cc13e2b384072616d799667ba"
+}

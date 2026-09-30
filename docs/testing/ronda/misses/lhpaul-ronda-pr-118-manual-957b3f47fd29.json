@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-118-manual-957b3f47fd29",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "d0a6afc91706df8a992fd9ddf743e07b640139cb",
+  "rondaResultHeadSha": "d0a6afc91706df8a992fd9ddf743e07b640139cb",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "src/cli/recall-benchmark.ts:1162",
+  "locationUnresolved": false,
+  "title": "`Promise.race` returns the timeout record without awaiting `runBody()`",
+  "text": "`Promise.race` returns the timeout record without awaiting `runBody()`. A model client that ignores abort can keep its request in flight while the next campaign run begins, causing overlapping/duplicate external calls and corrupting per-run cost evidence. Drain or otherwise prevent advancement until the timed-out request settles.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "timeouts",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:9585fba968ba3ab8f072463a",
+  "capturedAt": "2026-09-30T16:01:10.459Z",
+  "updatedAt": "2026-09-30T16:01:10.459Z",
+  "mergeBaseSha": "d0a6afc91706df8a992fd9ddf743e07b640139cb"
+}

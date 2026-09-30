@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-118-manual-d38bd48e5b15",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 118,
+  "reviewedHeadSha": "720180d9892222fefdaad4cc3faed7c2c7d59c8b",
+  "rondaResultHeadSha": "720180d9892222fefdaad4cc3faed7c2c7d59c8b",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "src/review/sweep-categories.ts:207",
+  "locationUnresolved": false,
+  "title": "Add a trailing newline to satisfy repository formatting conventions.",
+  "text": "Add a trailing newline to satisfy repository formatting conventions.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:beb297d75a82a7b5910af1ef",
+  "capturedAt": "2026-09-30T16:00:46.598Z",
+  "updatedAt": "2026-09-30T16:00:46.598Z",
+  "mergeBaseSha": "720180d9892222fefdaad4cc3faed7c2c7d59c8b"
+}

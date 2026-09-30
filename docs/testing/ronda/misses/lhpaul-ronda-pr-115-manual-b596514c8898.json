@@ -1,0 +1,23 @@
+{
+  "id": "lhpaul-ronda-pr-115-manual-b596514c8898",
+  "repository": "lhpaul/ronda",
+  "pullNumber": 115,
+  "reviewedHeadSha": "a691d010a5bbefe2e77b1750f634d26b95c152f6",
+  "rondaResultHeadSha": "a691d010a5bbefe2e77b1750f634d26b95c152f6",
+  "staleEvidence": false,
+  "externalReviewer": "local-ai-reviewer",
+  "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:643",
+  "locationUnresolved": false,
+  "title": "Resolve Open Question 4 and make AC15 definitive",
+  "text": "Resolve Open Question 4 and make AC15 definitive. The measured-tier threshold and adjudication requirement are still provisional, leaving the acceptance criterion and evidence-tier transition dependent on an unresolved product decision.",
+  "textTruncated": false,
+  "verdict": "unadjudicated",
+  "affectedCategory": "correctness",
+  "intendedFollowUp": "undecided",
+  "captureSource": "manual",
+  "sourceId": null,
+  "identityDigest": "manual:6acee7cf56ef2891656936ab",
+  "capturedAt": "2026-09-30T16:07:46.947Z",
+  "updatedAt": "2026-09-30T16:07:46.947Z",
+  "mergeBaseSha": "a691d010a5bbefe2e77b1750f634d26b95c152f6"
+}
