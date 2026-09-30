@@ -61,7 +61,18 @@ function matchSegment(text: string, pattern: string): boolean {
   let starIdx = -1;
   let matchIdx = 0;
   while (ti < text.length) {
-    if (pi < pattern.length && (pattern[pi] === "?" || pattern[pi] === text[ti])) {
+    // `pattern[pi] !== "*"` keeps a literal "*" in `pattern` out of this
+    // literal/`?` branch even when `text[ti]` also happens to be a literal
+    // "*" (a filename can legitimately contain one). Without the guard,
+    // `pattern[pi] === text[ti]` is true for two literal "*" characters and
+    // this branch consumes the wildcard as a one-for-one literal match
+    // instead of recording a backtracking position, so a later mismatch
+    // fails outright instead of retrying with the wildcard expanded.
+    if (
+      pi < pattern.length &&
+      pattern[pi] !== "*" &&
+      (pattern[pi] === "?" || pattern[pi] === text[ti])
+    ) {
       ti += 1;
       pi += 1;
     } else if (pi < pattern.length && pattern[pi] === "*") {

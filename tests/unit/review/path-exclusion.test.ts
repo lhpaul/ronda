@@ -142,3 +142,16 @@ test("matchesGlob: regex-special characters in a literal segment are matched lit
   assert.equal(matchesGlob("docs/testing/ronda/a.json", "docs/testing/ronda/a.json"), true);
   assert.equal(matchesGlob("docsXtesting/ronda/a.json", "docs.testing/ronda/a.json"), false);
 });
+
+// Regression test for a literal "*" in a path segment defeating the
+// wildcard-position backtracking (#137 review finding on PR #137): a filename
+// that itself contains "*" must not short-circuit into a literal-equality
+// match against a "*" in the pattern, or the matcher loses its backtracking
+// position and a later mismatch fails outright instead of retrying with the
+// wildcard expanded further.
+test("matchesGlob: a literal '*' in the filename does not defeat wildcard backtracking", () => {
+  assert.equal(matchesGlob("src/*foo.generated.ts", "**/*.generated.*"), true);
+  assert.equal(matchesGlob("*.generated.ts", "**/*.generated.*"), true);
+  assert.equal(matchesGlob("src/a*b*c.generated.ts", "**/*.generated.*"), true);
+  assert.equal(matchesGlob("src/*foo.generated.ts", "**/*.txt"), false);
+});
