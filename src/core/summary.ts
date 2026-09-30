@@ -59,6 +59,9 @@ export interface ReviewSummaryInput {
 
 /** Bounds the excluded-file list rendered in the summary body (#134). */
 const MAX_EXCLUDED_FILES_LISTED = 20;
+// Cumulative cap on rendered path characters: a valid Git path can be thousands
+// of characters, so the entry count alone does not bound the review body.
+const MAX_EXCLUDED_FILES_LISTED_CHARS = 2_000;
 
 /** The spec's display labels for a repository-context outcome (Statuses / Enum Values). */
 const REPOSITORY_CONTEXT_OUTCOME_LABELS: Record<RepositoryContextOutcome, string> = {
@@ -205,11 +208,18 @@ function renderInlineCode(text: string): string {
 function renderExcludedFilesSection(excludedFiles: ExcludedFile[]): string[] {
   const lines = ["### Excluded from review", ""];
   lines.push(`${excludedFiles.length} file(s) excluded before review:`);
-  const listed = excludedFiles.slice(0, MAX_EXCLUDED_FILES_LISTED);
-  for (const file of listed) {
-    lines.push(`- ${renderInlineCode(file.path)}`);
+  let listedCount = 0;
+  let renderedChars = 0;
+  for (const file of excludedFiles.slice(0, MAX_EXCLUDED_FILES_LISTED)) {
+    const entry = `- ${renderInlineCode(file.path)}`;
+    if (listedCount > 0 && renderedChars + entry.length > MAX_EXCLUDED_FILES_LISTED_CHARS) {
+      break;
+    }
+    lines.push(entry);
+    listedCount += 1;
+    renderedChars += entry.length;
   }
-  const remaining = excludedFiles.length - listed.length;
+  const remaining = excludedFiles.length - listedCount;
   if (remaining > 0) {
     lines.push(`- (+${remaining} more)`);
   }

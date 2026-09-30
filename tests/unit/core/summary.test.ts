@@ -312,6 +312,32 @@ test("buildReviewSummary bounds the excluded-file list and states the remainder"
   assert.doesNotMatch(summary, /docs\/testing\/ronda\/case-20\.json/);
 });
 
+test("buildReviewSummary bounds the excluded-file section by rendered length, not just entry count", () => {
+  const longSegment = "a".repeat(200);
+  const excludedFiles = Array.from({ length: 20 }, (_, i) => ({
+    path: `${Array.from({ length: 20 }, () => longSegment).join("/")}/file-${i}.json`,
+    reason: "configured_glob" as const,
+  }));
+  const summary = buildReviewSummary({
+    changedFileCount: 1,
+    additions: 1,
+    deletions: 0,
+    findings: [],
+    unmappedFindings: [],
+    modelName: "qwen-plus",
+    durationMs: 1000,
+    trigger: "automatic",
+    malformedCount: 0,
+    coercedSeverityCount: 0,
+    duplicateCount: 0,
+    excludedFiles,
+  });
+  const section = summary.slice(summary.indexOf("### Excluded from review"));
+  assert.ok(section.length < 6_000, `excluded section was ${section.length} chars`);
+  assert.match(section, /20 file\(s\) excluded before review/);
+  assert.match(section, /\(\+\d+ more\)/);
+});
+
 test("buildReviewSummary states explicitly when every changed file was excluded — not a clean-looking review", () => {
   const summary = buildReviewSummary({
     changedFileCount: 0,
