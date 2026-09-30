@@ -16,7 +16,7 @@ implementation PR.
 | --- | --- |
 | Tier | `fixture_only` |
 | Counted pull requests | 0 |
-| Configuration the count accrues under | `RONDA_REPOSITORY_CONTEXT=on` on this repository's dogfood pass (reusable-workflow ingress only), recorded budget defaults, since 2026-09-30T14:24:02Z (see **Switch history**) |
+| Configuration the count accrues under | `RONDA_REPOSITORY_CONTEXT=on` on this repository's dogfood pass (reusable-workflow ingress only), recorded budget defaults — **effective only from the first release containing #106 on `main`**, not from the variable's creation (see **Switch history**) |
 | Date recorded | 2026-09-30 |
 
 No real-pull-request review with repository context enabled was recorded when
@@ -32,6 +32,18 @@ and the setting's change.
 | Time (UTC) | Change | By | Ordering evidence |
 | --- | --- | --- | --- |
 | 2026-09-30T14:24:02Z | `RONDA_REPOSITORY_CONTEXT` repository variable created with value `on` | Repository owner | The AC4/AC5 record (`repository-context-read-only-evidence-106.md`) and the AC23 record (`repository-context-resolution-precision-106.md`, precision 6 / 6 = 100%) reached `develop` with PR [#130](https://github.com/lhpaul/ronda/pull/130), merged 2026-09-30T14:16:57Z — before the switch. Timestamp read from the Actions variables API (`created_at`). |
+
+**The variable being `on` is not the feature being active.** The dogfood
+pass (`.github/workflows/ronda-review-dogfood.yml`) runs Ronda's code checked
+out from `ronda_ref`, which defaults to `main`. When the variable was created,
+`main` was release v0.2.0, which predates #106 and ignores the input: the
+first pass after the switch (PR
+[#133](https://github.com/lhpaul/ronda/pull/133), 2026-09-30T14:26Z) received
+`RONDA_REPOSITORY_CONTEXT: on` and published a review with no
+repository-context line. Repository context becomes active on the first pass
+that runs a release containing #106. Record that release and the time it
+reached `main` as the next row of this table; the ledger's counted pull
+requests start from it, not from the variable's creation.
 
 The webhook ingress stays off until
 [#131](https://github.com/lhpaul/ronda/issues/131) moves the synchronous
