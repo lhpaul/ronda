@@ -39,13 +39,22 @@ dogfood passes on PRs #107, #115, #117, #118 and #119, produced with
 
 - **Sources.** Codex GitHub inline review comments (91) and `local-ai-reviewer`
   findings (81 captured). No other external reviewer was read.
-- **Capture.** `quality:misses -- capture` where the tool could read the
-  evidence (#107: 1, #118: 9). `capture-manual` for everything else, because
-  the automatic path reads only current-head findings (older heads are out of
-  its reach), and on #115 and #119 it refused with "the Codex GitHub reviewer
-  has no readable presence on this pull request", so those current-head
-  findings went in manually too. Manual records carry `--reviewed-head`, which
-  the tool checks against the PR's real heads.
+- **Capture.** `quality:misses -- capture` first, then `capture-manual` for
+  nearly everything, because the automatic path reads only current-head
+  findings (older heads are out of its reach), and on #115 and #119 it refused
+  with "the Codex GitHub reviewer has no readable presence on this pull
+  request". Manual records carry `--reviewed-head`, which the tool checks
+  against the PR's real heads. Manual records store the unmodified comment
+  body. 170 records are manual and 2 are automatic.
+- **Reviewed-head attribution for Codex.** GitHub advances an inline
+  comment's `commit_id` as the PR moves, while `original_commit_id` is the head
+  Codex reviewed (the reviewer-loop summaries name the same heads). The capture
+  tool prefers `commit_id`, so 27 of the 91 Codex comments would have been
+  attributed to a later head. 25 were recaptured against `original_commit_id`
+  (verdicts, follow-ups and rationales carried over unchanged). The other 2
+  (#118, automatic records) stay on the current head, because their original
+  head is an intermediate commit that the tool refuses as never a PR tip. The
+  tool's head preference is a finding for the capture tooling, not fixed here.
 - **`local-ai-reviewer` recovery.** The final reviewer-loop summaries
   rewrite local findings to "clean" or "escalate" and drop the text. The text
   survives in each summary comment's embedded `reviewer_loop_history.v1`
@@ -99,7 +108,7 @@ are omitted below for length; they are reproducible from the same command.
 
 ### Ronda review quality report
 
-Generated: 2026-09-30T20:02:15.163Z
+Generated: 2026-09-30T20:22:05.513Z
 
 ## Scope
 - Comparisons: 6 record(s) from 6 file(s)

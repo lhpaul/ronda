@@ -1,9 +1,9 @@
 {
-  "id": "lhpaul-ronda-pr-115-manual-81bcacf2a719",
+  "id": "lhpaul-ronda-pr-115-manual-08d58d431826",
   "repository": "lhpaul/ronda",
   "pullNumber": 115,
-  "reviewedHeadSha": "0bc7b18b399f7d4865d2160959cfbc81dbd43409",
-  "rondaResultHeadSha": "0bc7b18b399f7d4865d2160959cfbc81dbd43409",
+  "reviewedHeadSha": "cae5d67d0363f7b06b4dfabbf147781eb48a21de",
+  "rondaResultHeadSha": "cae5d67d0363f7b06b4dfabbf147781eb48a21de",
   "staleEvidence": false,
   "externalReviewer": "codex",
   "location": "docs/specs/developments/20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md:820",
@@ -16,10 +16,10 @@
   "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
-  "identityDigest": "manual:29e928df2dd2f20843725853",
-  "capturedAt": "2026-09-30T19:10:34.738Z",
-  "updatedAt": "2026-09-30T19:10:45.175Z",
-  "mergeBaseSha": "0bc7b18b399f7d4865d2160959cfbc81dbd43409",
+  "identityDigest": "manual:c3039350726899c0c81486e2",
+  "capturedAt": "2026-09-30T20:17:42.947Z",
+  "updatedAt": "2026-09-30T20:17:52.724Z",
+  "mergeBaseSha": "cae5d67d0363f7b06b4dfabbf147781eb48a21de",
   "rationale": "Author fixed it: Fixed in 84b93e4. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
   "rationaleTruncated": false
 }
