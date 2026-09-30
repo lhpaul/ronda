@@ -195,7 +195,7 @@ synchronous compiler work would be flaky across CI runners; the owner
 explicitly waived requiring one).
 
 **Observed on**: 2026-09-30, `feature/106-read-only-symbol-context`, machine
-`Darwin 25.6.0 arm64` (`MacBook-Pro-de-Luis.local`), Node `v26.7.0`,
+`Darwin 25.6.0 arm64` (Apple silicon Mac), Node `v26.7.0`,
 `typescript` `5.8.3`.
 
 **Method**: a synthetic changed-file set built to sit exactly at both caps
