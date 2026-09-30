@@ -11,13 +11,15 @@
   "title": "</sub>  Include all confirmed defects in the recall denominator",
   "text": "</sub>  Include all confirmed defects in the recall denominator\n\nRestricting the denominator to external findings makes the comparison blind to real defects found only by either Ronda configuration, even though the other reviewer is explicitly a second opinion rather than truth (`docs/project/3-software-architecture.md:39-43`). For example, if sweep-off finds a human-confirmed defect that sweep-on and the external reviewer miss, the defect never enters this denominator, so the metric hides the sweep regression. Build the denominator from deduplicated, human-confirmed defects found by any compared reviewer, or label the metric as external-finding recall and prohibit a general real-PR recall-effect claim.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:06ecb65b9f30d125583be29d",
   "capturedAt": "2026-09-30T14:53:36.446Z",
-  "updatedAt": "2026-09-30T14:53:36.446Z",
-  "mergeBaseSha": "c411fdbb40972a9d3eb9a7ccaa1c32e31af71c90"
+  "updatedAt": "2026-09-30T16:45:35.428Z",
+  "mergeBaseSha": "c411fdbb40972a9d3eb9a7ccaa1c32e31af71c90",
+  "rationale": "Author fixed it: Fixed in ead74e7. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

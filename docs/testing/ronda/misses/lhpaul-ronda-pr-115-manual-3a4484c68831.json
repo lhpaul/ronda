@@ -11,13 +11,15 @@
   "title": "</sub>  Define zero-denominator recall behavior",
   "text": "</sub>  Define zero-denominator recall behavior\n\nWhen all ten qualifying pull requests have confirmed-clean external reviews—a case explicitly allowed by AC15(b)—the denominator defined here is zero. AC15(d) still permits a comparative recall claim once matched controls exist, but recall is undefined at 0/0, leaving implementers to choose among 0%, 100%, or N/A. Require at least one adjudicated external finding for a recall-effect claim, or specify that zero-denominator evidence is reported as N/A and cannot support such a claim.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:96233bae61129ac632e37a20",
   "capturedAt": "2026-09-30T15:05:37.662Z",
-  "updatedAt": "2026-09-30T15:05:37.662Z",
-  "mergeBaseSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586"
+  "updatedAt": "2026-09-30T16:49:20.504Z",
+  "mergeBaseSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586",
+  "rationale": "Author fixed it: Fixed in 3821c60. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

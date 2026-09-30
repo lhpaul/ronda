@@ -11,13 +11,15 @@
   "title": "</sub>  Bind precision evidence to the cohort configuration",
   "text": "</sub>  Bind precision evidence to the cohort configuration\n\nWhen the precision fixtures use different prompt, inference, or other non-model settings from the real-PR cohort, this clause can still admit the recall claim because it binds only the category-list version, effective sweep configuration, and model identity to the claimed heads; AC9 merely requires the two precision arms to match each other. A low-noise precision result from configuration A can therefore validate recall measured under configuration B even though false-positive behavior is configuration-dependent. Require the precision evidence to match the cohort's full effective review configuration apart from the fixture target and sweep arm.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/8c28ba8c8f42b22cb569f6d4a6d25002886be8e0/AGENTS.md#L45-L45)",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "configuration",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:da8bf92b130f9cdbfe045f73",
   "capturedAt": "2026-09-30T14:57:46.432Z",
-  "updatedAt": "2026-09-30T14:57:46.432Z",
-  "mergeBaseSha": "8c28ba8c8f42b22cb569f6d4a6d25002886be8e0"
+  "updatedAt": "2026-09-30T16:48:40.923Z",
+  "mergeBaseSha": "8c28ba8c8f42b22cb569f6d4a6d25002886be8e0",
+  "rationale": "Author fixed it: Fixed in 40b89f7. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

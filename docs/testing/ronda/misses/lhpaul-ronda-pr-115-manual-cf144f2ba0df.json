@@ -11,13 +11,15 @@
   "title": "AC1 classifies every post-execution GitHub error, including publication errors, as an outcome that publishes n",
   "text": "AC1 classifies every post-execution GitHub error, including publication errors, as an outcome that publishes no review. The existing flow has a terminal check-run publication failure after the review is already public, so this contradicts the stated preservation of existing publication/check-run behavior and leaves that real outcome unspecified. Separate post-review failures from failures before review publication and define the review, check-run, and per-category-record surfaces for each.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "partial_success",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:01696719f8b736f3d753893d",
   "capturedAt": "2026-09-30T16:12:14.373Z",
-  "updatedAt": "2026-09-30T16:12:14.373Z",
-  "mergeBaseSha": "98f9dd659cbae7c99bdaa3d43b5e5221fa391605"
+  "updatedAt": "2026-09-30T16:40:57.549Z",
+  "mergeBaseSha": "98f9dd659cbae7c99bdaa3d43b5e5221fa391605",
+  "rationale": "Real defect: the flagged lines changed in f57cbef, the next commit. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

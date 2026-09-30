@@ -11,13 +11,15 @@
   "title": "Criteria/matrix mismatch",
   "text": "Criteria/matrix mismatch: the evidence-tier gate lists only counted pull requests and list revision as inputs, but fixture_only versus real_pr_provisional also depends on whether any sweep-enabled real-PR review has been recorded, even when its evidence is unadjudicated and the counted total remains zero. Add that input and the zero-count transition case.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "observability",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:0cd9b9b8760e0448a7518317",
   "capturedAt": "2026-09-30T16:13:26.172Z",
-  "updatedAt": "2026-09-30T16:13:26.172Z",
-  "mergeBaseSha": "d0ed019f0fab0a7a3817fd1252fe99507e483b71"
+  "updatedAt": "2026-09-30T16:39:26.379Z",
+  "mergeBaseSha": "d0ed019f0fab0a7a3817fd1252fe99507e483b71",
+  "rationale": "Real defect: the flagged lines changed in 3c5c359, the next commit. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

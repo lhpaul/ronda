@@ -11,13 +11,15 @@
   "title": "AC14 requires no real credential in any evidence or fixture, but the planned executable scan is limited to the",
   "text": "AC14 requires no real credential in any evidence or fixture, but the planned executable scan is limited to the benchmark tree while the new evidence documents are under docs/testing/ronda/. Extend the test/verification targets to include those committed evidence artifacts and campaign outputs.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "security",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:d0528b224141fd9f588f8dab",
   "capturedAt": "2026-09-30T16:03:32.805Z",
-  "updatedAt": "2026-09-30T16:03:32.805Z",
-  "mergeBaseSha": "e78e4df385e65e9d0e95d49e68bd604722f20587"
+  "updatedAt": "2026-09-30T16:52:00.060Z",
+  "mergeBaseSha": "e78e4df385e65e9d0e95d49e68bd604722f20587",
+  "rationale": "Real defect: the flagged lines changed in 58d4cfd, the next commit. Ronda v0.2.0 posted no matching finding on this head. Plan PR counted in scope: Ronda reviews plan PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

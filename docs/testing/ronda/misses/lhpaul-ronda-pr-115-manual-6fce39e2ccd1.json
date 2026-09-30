@@ -11,13 +11,15 @@
   "title": "</sub>  Record sweep-off misses in terminal miss records",
   "text": "</sub>  Record sweep-off misses in terminal miss records\n\nWhen a matched sweep-off control exists and all three compared reviewers are clean, a human-only confirmed defect was also missed by the control, but this enum can record only the sweep-enabled and external misses and declares those two sufficient for terminality. AC15(d) then uses that same defect to calculate the sweep-off arm's recall, leaving implementations to invent a control-miss code or close the head without explicitly adjudicating that arm. Add a sweep-off miss entry and require it whenever a control is among the compared reviewers.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/90a694eabddd7a1d3a45d741c85e45d0c19df7b6/AGENTS.md#L45-L45)",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:1760603e7f21b0600a222eb1",
   "capturedAt": "2026-09-30T15:07:02.320Z",
-  "updatedAt": "2026-09-30T15:07:02.320Z",
-  "mergeBaseSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586"
+  "updatedAt": "2026-09-30T16:43:13.085Z",
+  "mergeBaseSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586",
+  "rationale": "Author fixed it: Fixed in 7daafde. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

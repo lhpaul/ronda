@@ -11,13 +11,15 @@
   "title": "The plan says it adds three CLI flags, but specifies four",
   "text": "The plan says it adds three CLI flags, but specifies four: --sweep-mode, --runs, --output-file, and --version-attestation. Correct the count.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "configuration",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:bf354c27ae865c7bb3802d58",
   "capturedAt": "2026-09-30T16:04:33.164Z",
-  "updatedAt": "2026-09-30T16:04:33.164Z",
-  "mergeBaseSha": "a64c339b3f380a9859e820099f88a7bcdb87e6c2"
+  "updatedAt": "2026-09-30T16:53:21.816Z",
+  "mergeBaseSha": "a64c339b3f380a9859e820099f88a7bcdb87e6c2",
+  "rationale": "Real defect: the flagged lines changed in 472dd21, the next commit. Ronda v0.2.0 posted no matching finding on this head. Plan PR counted in scope: Ronda reviews plan PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

@@ -11,13 +11,15 @@
   "title": "Use Case 1 promises that an operator can disable the sweep for an individual repository, while AC18 and Out of",
   "text": "Use Case 1 promises that an operator can disable the sweep for an individual repository, while AC18 and Out of Scope define webhook enablement as process-wide and explicitly exclude repository-keyed webhook configuration. Qualify this action by ingress—per-repository for Actions and deployment-wide for webhook—or otherwise reconcile the product contract.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "configuration",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:edc8ef4298356b87aa3a869a",
   "capturedAt": "2026-09-30T16:13:59.315Z",
-  "updatedAt": "2026-09-30T16:13:59.315Z",
-  "mergeBaseSha": "3d317ae95ad61fa98ab160fecb9ee08c638199e2"
+  "updatedAt": "2026-09-30T16:36:15.812Z",
+  "mergeBaseSha": "3d317ae95ad61fa98ab160fecb9ee08c638199e2",
+  "rationale": "Real defect: the flagged lines changed in f9d97a5, the next commit. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

@@ -11,12 +11,14 @@
   "title": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Retain sweep records when benchm",
   "text": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Retain sweep records when benchmark runs fail**\n\nFor a sweep-on benchmark whose model request throws after being issued, this catch emits only `BenchmarkRunFailure` and never writes the required `sweep_pass_record` with `not_determined` outcomes; if recall completed and a later precision request throws, it also discards the already-established recall classification. Thus terminally failed benchmark passes lose the per-category log evidence required for every category they reached. Track request/classification state here as the review-pass path does and emit the appropriate record before returning the failure.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/017546a803dd073733d47d0f3fe73f3ffd072b5d/AGENTS.md#L45-L45)\n\nUseful? React with 👍 / 👎.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "false_positive",
   "affectedCategory": "observability",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "no_action",
   "captureSource": "automatic",
   "sourceId": "comment:4128449858:0",
   "capturedAt": "2026-09-30T15:02:50.992Z",
-  "updatedAt": "2026-09-30T15:02:50.992Z",
-  "mergeBaseSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95"
+  "updatedAt": "2026-09-30T16:56:33.707Z",
+  "mergeBaseSha": "700df9f3f0809ded89e5e3f937c786a4c8460a95",
+  "rationale": "Author showed it is by design: the AC1 records apply to review passes, and the benchmark harness records a failed run as a failure record per plan item 7. Not a defect. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

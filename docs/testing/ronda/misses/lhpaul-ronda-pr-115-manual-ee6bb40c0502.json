@@ -11,13 +11,15 @@
   "title": "</sub>  Define the sweep-claim membership rule",
   "text": "</sub>  Define the sweep-claim membership rule\n\nWhen adjudication finds a real defect that is not an obvious match for one of the five categories, “the defects the sweep was meant to catch” provides no test for deciding whether it belongs to this universe. Because an out-of-scope classification records `ronda_rejected` and removes the defect from both the denominator and numerator, two adjudicators can derive different recall effects from the same closed cohort, and misses can be excluded post hoc. Define an objective, pre-adjudication membership rule—such as explicit category-matching criteria—and require the evidence to record that decision before admitting a comparative recall claim.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:8067d8718a887a5771340dc9",
   "capturedAt": "2026-09-30T14:56:04.070Z",
-  "updatedAt": "2026-09-30T14:56:04.070Z",
-  "mergeBaseSha": "c411fdbb40972a9d3eb9a7ccaa1c32e31af71c90"
+  "updatedAt": "2026-09-30T16:47:40.968Z",
+  "mergeBaseSha": "c411fdbb40972a9d3eb9a7ccaa1c32e31af71c90",
+  "rationale": "Author fixed it: Fixed in 4a72d94. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

@@ -11,13 +11,15 @@
   "title": "The plan requires the model to place each matching category identifier in the published finding title/body",
   "text": "The plan requires the model to place each matching category identifier in the published finding title/body. That exposes the per-category mapping in the review body, contrary to AC1's requirement that the per-category record is never published there. Define a non-public attribution mechanism instead.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "observability",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:3783ac6d6e180387cc8aad1b",
   "capturedAt": "2026-09-30T16:04:47.902Z",
-  "updatedAt": "2026-09-30T16:04:47.902Z",
-  "mergeBaseSha": "472dd21f664e455b4c0b5cf0f0435b311192850a"
+  "updatedAt": "2026-09-30T16:50:32.522Z",
+  "mergeBaseSha": "472dd21f664e455b4c0b5cf0f0435b311192850a",
+  "rationale": "Real defect: the flagged lines changed in c951748, the next commit. Ronda v0.2.0 posted no matching finding on this head. Plan PR counted in scope: Ronda reviews plan PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

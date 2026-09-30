@@ -11,13 +11,15 @@
   "title": "The plan treats the OpenAI-compatible response `model` string as an immutable version, but the vendor-neutral ",
   "text": "The plan treats the OpenAI-compatible response `model` string as an immutable version, but the vendor-neutral seam cannot establish that it is not a mutable alias. It also stores only a shared client’s most-recent response value, which is unsafe for the parallel precision calls. Specify a per-request immutable-version attestation/validation mechanism, or mark campaigns without one inadmissible for AC8/AC9; record and compare the value for every inference request.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "concurrency",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:67913989380f2ed672f5965f",
   "capturedAt": "2026-09-30T16:02:39.160Z",
-  "updatedAt": "2026-09-30T16:02:39.160Z",
-  "mergeBaseSha": "d22378a6265569b80e6cc6e830f7656063aed3bc"
+  "updatedAt": "2026-09-30T16:50:38.983Z",
+  "mergeBaseSha": "d22378a6265569b80e6cc6e830f7656063aed3bc",
+  "rationale": "Real defect: the flagged lines changed in 4456d81, the next commit. Ronda v0.2.0 posted no matching finding on this head. Plan PR counted in scope: Ronda reviews plan PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

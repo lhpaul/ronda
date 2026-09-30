@@ -11,13 +11,15 @@
   "title": "The multi-command campaign blocks write committed evidence files but lack fail-fast handling; a failed first a",
   "text": "The multi-command campaign blocks write committed evidence files but lack fail-fast handling; a failed first arm can be masked by a succeeding later command. Add an explicit failure guard (for example, set -euo pipefail) or make each command's required success check explicit.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "partial_success",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:f96c31519fe6ee66e901533d",
   "capturedAt": "2026-09-30T16:04:40.415Z",
-  "updatedAt": "2026-09-30T16:04:40.415Z",
-  "mergeBaseSha": "a64c339b3f380a9859e820099f88a7bcdb87e6c2"
+  "updatedAt": "2026-09-30T16:54:07.618Z",
+  "mergeBaseSha": "a64c339b3f380a9859e820099f88a7bcdb87e6c2",
+  "rationale": "Real defect: the flagged lines changed in 472dd21, the next commit. Ronda v0.2.0 posted no matching finding on this head. Plan PR counted in scope: Ronda reviews plan PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

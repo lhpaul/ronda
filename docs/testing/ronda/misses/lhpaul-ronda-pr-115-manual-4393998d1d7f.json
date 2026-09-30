@@ -11,13 +11,15 @@
   "title": "</sub>  Treat the historical baseline as non-comparable",
   "text": "</sub>  Treat the historical baseline as non-comparable\n\nWhen a new run uses the current prompt/model configuration, this clause correctly says it cannot reproduce the 2026-09-10 baseline, but AC8 and its mirrors still call that run “baseline comparable.” Reusing only the fixture and five-run sample count cannot make recall or variance comparable to the historical 6–8/13 result when no prompt, inference, or immutable-model field is matched; any difference could come from those dimensions rather than the sweep. Require the record to label the historical baseline non-comparable and treat this solely as a fresh sweep-off/on control, unless the historical configuration can actually be pinned.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/90a694eabddd7a1d3a45d741c85e45d0c19df7b6/AGENTS.md#L45-L45)",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:83de80127e77518e60f6a401",
   "capturedAt": "2026-09-30T14:57:58.066Z",
-  "updatedAt": "2026-09-30T14:57:58.066Z",
-  "mergeBaseSha": "90a694eabddd7a1d3a45d741c85e45d0c19df7b6"
+  "updatedAt": "2026-09-30T16:46:13.661Z",
+  "mergeBaseSha": "90a694eabddd7a1d3a45d741c85e45d0c19df7b6",
+  "rationale": "Author fixed it: Fixed in 7daafde. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

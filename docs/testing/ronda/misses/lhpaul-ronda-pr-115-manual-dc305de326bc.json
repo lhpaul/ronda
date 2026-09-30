@@ -11,13 +11,15 @@
   "title": "</sub>  Define membership across repeated pass records",
   "text": "</sub>  Define membership across repeated pass records\n\nWhen AC15's variance path repeats the sweep-on configuration, the same underlying defect can be categorized in one run and marked uncategorized in another, leaving multiple pass entries that this rule declares authoritative. The fresh case beyond the prior joint-review fix is this repeated-run path: the later mean-recall and standard-deviation calculations require one fixed confirmed-defect universe, but the spec does not say which run's entry determines membership, so implementations can produce different recall and variance claims from identical evidence. Define one cohort-level membership or deterministic precedence across repeated pass records.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:6320653d23e68d2a9b8222dd",
   "capturedAt": "2026-09-30T14:56:51.617Z",
-  "updatedAt": "2026-09-30T14:56:51.617Z",
-  "mergeBaseSha": "20f75b8538b4c5962d80549b1e387200a8b2cc8a"
+  "updatedAt": "2026-09-30T16:48:11.111Z",
+  "mergeBaseSha": "20f75b8538b4c5962d80549b1e387200a8b2cc8a",
+  "rationale": "Author fixed it: Addressed in 8a637ef. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

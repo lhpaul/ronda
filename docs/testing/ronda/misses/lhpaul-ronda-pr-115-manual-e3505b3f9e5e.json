@@ -11,13 +11,15 @@
   "title": "</sub>  Resolve conflicting membership for jointly reported defects",
   "text": "</sub>  Resolve conflicting membership for jointly reported defects\n\nWhen the sweep-on review and an external reviewer report the same defect, this rule can assign membership twice using different authorities: the sweep's model-produced pass record may mark it uncategorized while the external finding's human adjudication maps it to a swept category. The spec gives no precedence for that conflict, so implementations can either exclude or include the same confirmed defect and produce different recall results. Fresh evidence after the earlier membership fixes is this new split between review-time attribution and adjudicated attribution; require one uniform adjudicated membership decision for each underlying defect, while retaining the pass attribution separately.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:18eb4fd02f0750a6265a97cc",
   "capturedAt": "2026-09-30T14:56:40.619Z",
-  "updatedAt": "2026-09-30T14:56:40.619Z",
-  "mergeBaseSha": "674ec7d3fd31c2720915a5a854fcc22e56ccb019"
+  "updatedAt": "2026-09-30T16:48:21.397Z",
+  "mergeBaseSha": "674ec7d3fd31c2720915a5a854fcc22e56ccb019",
+  "rationale": "Author fixed it: Addressed in 20f75b8. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

@@ -11,13 +11,15 @@
   "title": "Criteria/matrix mismatch",
   "text": "Criteria/matrix mismatch: Use Case 1 requires every category to be recorded on both the check-run output and logs, and its postcondition says every category was considered, but AC1 explicitly permits a terminally failing pass to reach only some categories and, before review publication, record them in logs only. Condition these use-case requirements on completed review execution and reflect the two terminal-failure surfaces so the normative sections do not contradict each other.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "partial_success",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:f7b6f227af86a4f9bfd1e541",
   "capturedAt": "2026-09-30T16:12:25.416Z",
-  "updatedAt": "2026-09-30T16:12:25.416Z",
-  "mergeBaseSha": "f57cbef89695059f6a945fca3042cd8a45f90081"
+  "updatedAt": "2026-09-30T16:36:06.161Z",
+  "mergeBaseSha": "f57cbef89695059f6a945fca3042cd8a45f90081",
+  "rationale": "Real defect: the flagged lines changed in b0c7b1e, the next commit. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

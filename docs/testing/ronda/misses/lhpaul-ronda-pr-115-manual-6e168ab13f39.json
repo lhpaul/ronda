@@ -11,13 +11,15 @@
   "title": "</sub>  Demote measured evidence when controls reopen adjudication",
   "text": "</sub>  Demote measured evidence when controls reopen adjudication\n\nWhen a cohort reaches `real_pr_measured` without controls and sweep-off controls are subsequently recorded, any new unadjudicated control findings become compared findings and make those pull requests uncounted under the rule at lines 643–649. This clause nevertheless forbids demotion unless the list is revised, contradicting AC15(b), which permits `real_pr_measured` only while at least ten counted pull requests exist; require a temporary demotion when newly recorded evidence reopens adjudication.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:b2394a786ee99da411cb6650",
   "capturedAt": "2026-09-30T14:54:20.590Z",
-  "updatedAt": "2026-09-30T14:54:20.590Z",
-  "mergeBaseSha": "c736b281a6aca334ea9f38bb3312c3667584459c"
+  "updatedAt": "2026-09-30T16:41:35.308Z",
+  "mergeBaseSha": "c736b281a6aca334ea9f38bb3312c3667584459c",
+  "rationale": "Author fixed it: Fixed in 0bc7b18. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

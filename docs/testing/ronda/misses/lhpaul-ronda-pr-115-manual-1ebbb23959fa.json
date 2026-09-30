@@ -11,13 +11,15 @@
   "title": "</sub>  Exclude pre-review skips from the sweep criterion",
   "text": "</sub>  Exclude pre-review skips from the sweep criterion\n\nWhen an enabled trigger targets a draft PR or an automatic run finds an existing check, the current flow returns before reading changed files or invoking the model (`src/core/run-review-pass.ts:141-176`), while AC2 explicitly preserves draft-skip behavior. AC1 nevertheless requires every review pass to consider every category and emit a per-category log record, making the acceptance criteria incompatible for those inputs. Scope AC1 to passes that reach review execution and state whether early skips emit any sweep metadata.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:694b05e049047b7416afc05f",
   "capturedAt": "2026-09-30T14:51:14.732Z",
-  "updatedAt": "2026-09-30T14:51:14.732Z",
-  "mergeBaseSha": "20759da0b0660d4279348d6ce5870ec49fdd67ca"
+  "updatedAt": "2026-09-30T16:38:22.041Z",
+  "mergeBaseSha": "20759da0b0660d4279348d6ce5870ec49fdd67ca",
+  "rationale": "Author fixed it: Fixed in 01cbdde. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

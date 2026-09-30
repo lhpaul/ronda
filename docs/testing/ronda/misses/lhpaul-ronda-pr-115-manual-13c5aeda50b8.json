@@ -11,13 +11,15 @@
   "title": "Gate-matrix/criteria mismatch",
   "text": "Gate-matrix/criteria mismatch: AC15 defines repeated-run recall and cost aggregation only when both configurations were repeated, but comparative recall and cost claims do not otherwise require equal run counts. A reachable sweep-on N>1 / sweep-off N=1 evidence set therefore has no defined aggregation or admissibility outcome. Require equal run counts or explicitly define/reject asymmetric runs consistently in AC15 and the claim-admissibility matrix.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "configuration",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:8842b0918330af47c396b2de",
   "capturedAt": "2026-09-30T16:14:13.548Z",
-  "updatedAt": "2026-09-30T16:14:13.548Z",
-  "mergeBaseSha": "9bc88e8391c578449f61588afd54cc0afa24fcfa"
+  "updatedAt": "2026-09-30T16:45:54.797Z",
+  "mergeBaseSha": "9bc88e8391c578449f61588afd54cc0afa24fcfa",
+  "rationale": "Real defect: the flagged lines changed in 5628629, the next commit. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

@@ -11,13 +11,15 @@
   "title": "The AC19 pass-level degrade test is not executable as planned",
   "text": "The AC19 pass-level degrade test is not executable as planned: `loadSweepList({ path })` is only a direct loader seam, while production `run-review-pass` calls it with no argument and the current pass dependency surface provides no loader/path injection. Specify an injected loader (or an isolated cwd/filesystem seam) so the orchestration test can actually exercise malformed-list degradation without mutating the committed artifact.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "security",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:25693cf8bf15367f5efe65da",
   "capturedAt": "2026-09-30T16:03:49.103Z",
-  "updatedAt": "2026-09-30T16:03:49.103Z",
-  "mergeBaseSha": "39febf3aa9ed2644bdb8d4d724dcb60c9d7a83f5"
+  "updatedAt": "2026-09-30T16:51:39.918Z",
+  "mergeBaseSha": "39febf3aa9ed2644bdb8d4d724dcb60c9d7a83f5",
+  "rationale": "Real defect: the flagged lines changed in 0fd9102, the next commit. Ronda v0.2.0 posted no matching finding on this head. Plan PR counted in scope: Ronda reviews plan PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

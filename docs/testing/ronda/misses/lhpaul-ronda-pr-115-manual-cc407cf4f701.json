@@ -11,13 +11,15 @@
   "title": "AC2 unconditionally requires exactly one published review whenever the sweep is enabled, contradicting lines 8",
   "text": "AC2 unconditionally requires exactly one published review whenever the sweep is enabled, contradicting lines 85-87, which preserve draft-skip and supersede behavior where no review is published. Qualify AC2 to apply only when the existing review flow reaches publication so implementation and acceptance tests do not have conflicting outcomes.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:f657b3d4de728581c9a4e156",
   "capturedAt": "2026-09-30T16:09:49.784Z",
-  "updatedAt": "2026-09-30T16:09:49.784Z",
-  "mergeBaseSha": "3821c604c40439ecf00fbba3bf687d0ba8bc46f3"
+  "updatedAt": "2026-09-30T16:38:43.746Z",
+  "mergeBaseSha": "3821c604c40439ecf00fbba3bf687d0ba8bc46f3",
+  "rationale": "Real defect: the flagged lines changed in 94d086e, the next commit. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

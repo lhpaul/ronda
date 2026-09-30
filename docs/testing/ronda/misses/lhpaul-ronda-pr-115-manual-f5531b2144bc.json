@@ -11,13 +11,15 @@
   "title": "Resolve Open Question 7 by naming the operator-facing surface for the per-category pass record",
   "text": "Resolve Open Question 7 by naming the operator-facing surface for the per-category pass record. AC1 and AC20 require observable records, but logs, check-run output, benchmark output, or multiple surfaces have materially different product visibility and verification contracts.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "observability",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:0020545529b7958b1bdecd47",
   "capturedAt": "2026-09-30T16:07:57.603Z",
-  "updatedAt": "2026-09-30T16:07:57.603Z",
-  "mergeBaseSha": "a691d010a5bbefe2e77b1750f634d26b95c152f6"
+  "updatedAt": "2026-09-30T16:37:32.576Z",
+  "mergeBaseSha": "a691d010a5bbefe2e77b1750f634d26b95c152f6",
+  "rationale": "Real defect: the flagged lines changed in e8485e6, the next commit. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

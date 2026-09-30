@@ -11,13 +11,15 @@
   "title": "The plan declares concurrent-event-source concerns not applicable, but later changes the benchmark runner to c",
   "text": "The plan declares concurrent-event-source concerns not applicable, but later changes the benchmark runner to create/dispose an AbortController and timeout per repeated run and continues after asynchronous failures. Add the required concurrency-safety section covering the seven checklist items, including timer cleanup, sequential-run re-entrancy, failure/output ordering, and async error propagation.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "timeouts",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:06bf5102a29765f98c0c04b8",
   "capturedAt": "2026-09-30T16:05:11.438Z",
-  "updatedAt": "2026-09-30T16:05:11.438Z",
-  "mergeBaseSha": "263cac241f72c92e14101b86702fd3c30c51fc77"
+  "updatedAt": "2026-09-30T16:52:21.093Z",
+  "mergeBaseSha": "263cac241f72c92e14101b86702fd3c30c51fc77",
+  "rationale": "Real defect: the flagged lines changed in 1342218, the next commit. Ronda v0.2.0 posted no matching finding on this head. Plan PR counted in scope: Ronda reviews plan PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

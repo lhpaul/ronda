@@ -11,13 +11,15 @@
   "title": "</sub>  Pin an immutable model for retrospective controls",
   "text": "</sub>  Pin an immutable model for retrospective controls\n\nIn AC15's retrospective matched-control path, “same model” can currently mean the same configured alias: `src/config/load-config.ts:89-90` supplies `modelName`, while the new AC8 text explicitly acknowledges that the recorded `qwen-plus` alias is mutable. If the provider updates that alias between the published sweep-on review and a later sweep-off control, the evidence can satisfy this condition while attributing model drift to the sweep. Require an immutable model version for both arms, or require controls to be collected in a precommitted window where that identity is guaranteed stable.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/90a694eabddd7a1d3a45d741c85e45d0c19df7b6/AGENTS.md#L45-L45)",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "configuration",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:27bf18ad3f30ef211af811f0",
   "capturedAt": "2026-09-30T14:58:09.703Z",
-  "updatedAt": "2026-09-30T14:58:09.703Z",
-  "mergeBaseSha": "90a694eabddd7a1d3a45d741c85e45d0c19df7b6"
+  "updatedAt": "2026-09-30T16:48:31.403Z",
+  "mergeBaseSha": "90a694eabddd7a1d3a45d741c85e45d0c19df7b6",
+  "rationale": "Author fixed it: Fixed in 7daafde. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

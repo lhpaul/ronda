@@ -11,13 +11,15 @@
   "title": "Trigger ambiguity",
   "text": "Trigger ambiguity: a collaborator comment that merely contains `/ronda review` passes this pre-filter and enters the concurrency group before Ronda performs its exact-command check. An invalid comment can therefore cancel an in-flight review and then be skipped, leaving no terminal Ronda check—the failure mode this change claims to prevent. Gate exact command acceptance before joining the concurrency group, or otherwise prevent non-command comments from cancelling runs.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "already_found",
   "affectedCategory": "concurrency",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "no_action",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:450a0010f21c3d27b1f4328a",
   "capturedAt": "2026-09-30T15:59:07.588Z",
-  "updatedAt": "2026-09-30T15:59:07.588Z",
-  "mergeBaseSha": "42f6e1ceb0444fbff3c840df23910cabfa02f975"
+  "updatedAt": "2026-09-30T16:35:38.577Z",
+  "mergeBaseSha": "42f6e1ceb0444fbff3c840df23910cabfa02f975",
+  "rationale": "Same defect as Ronda's substring comment-matching finding on this PR, raised on head 6cac87a rather than this head; dogfood-evidence-103 records Ronda reaching it independently. Revisit if already_found must be same-head. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

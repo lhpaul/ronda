@@ -11,13 +11,15 @@
   "title": "</sub>  Represent failed category evaluations separately",
   "text": "</sub>  Represent failed category evaluations separately\n\nWhen the issued model request fails or its credential is rejected, this rule marks every category as reached even though no response exists, but the spec defines the per-category record only as “produced findings” or “produced none.” Implementations must therefore either misreport an unevaluated category as a genuine no-finding result or invent a third state. Define a failed/not-evaluated outcome for reached categories, or move the reached boundary to a successful response.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/6b27ef7b6325e310fc0c9b6a888ceca353e48e58/AGENTS.md#L45-L45)",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "partial_success",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:addbd4d29581bcf496d794aa",
   "capturedAt": "2026-09-30T14:55:48.811Z",
-  "updatedAt": "2026-09-30T14:55:48.811Z",
-  "mergeBaseSha": "6b27ef7b6325e310fc0c9b6a888ceca353e48e58"
+  "updatedAt": "2026-09-30T16:44:29.476Z",
+  "mergeBaseSha": "6b27ef7b6325e310fc0c9b6a888ceca353e48e58",
+  "rationale": "Author fixed it: Fixed across 59df6d7 and bc24bf2. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

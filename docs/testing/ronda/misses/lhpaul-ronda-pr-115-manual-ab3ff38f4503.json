@@ -11,13 +11,15 @@
   "title": "Criteria/matrix mismatch",
   "text": "Criteria/matrix mismatch: this business rule requires at least two runs per configuration for comparative recall and cost claims, while AC15(d) and the claim-admissibility matrix permit a claim from one matched run per configuration and impose equal run counts only when runs are repeated. Specify whether one matched run is admissible and align every mirror surface.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "configuration",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:85198478997fb5326946e6ad",
   "capturedAt": "2026-09-30T16:14:52.655Z",
-  "updatedAt": "2026-09-30T16:14:52.655Z",
-  "mergeBaseSha": "c1df9fe46c800704655c525e35282b0d99148e66"
+  "updatedAt": "2026-09-30T16:38:12.158Z",
+  "mergeBaseSha": "c1df9fe46c800704655c525e35282b0d99148e66",
+  "rationale": "Real defect: the flagged lines changed in c1b6b71, the next commit. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

@@ -11,13 +11,15 @@
   "title": "If `onReviewPublished` fails after the review is public, the `reviewPublished` catch rethrows before `sweepMet",
   "text": "If `onReviewPublished` fails after the review is public, the `reviewPublished` catch rethrows before `sweepMetadata()` logs the established classification. This loses the required logs-only per-category record for a post-publication persistence/recovery failure. Emit the record before this callback (or in the `reviewPublished` failure path) and cover it.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "partial_success",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "eval_record",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:2a6b77d67f6eb8027dded5cb",
   "capturedAt": "2026-09-30T16:01:27.608Z",
-  "updatedAt": "2026-09-30T16:01:27.608Z",
-  "mergeBaseSha": "8310b84aac9172f347087b0b610bd2fde4a0d803"
+  "updatedAt": "2026-09-30T16:56:53.399Z",
+  "mergeBaseSha": "8310b84aac9172f347087b0b610bd2fde4a0d803",
+  "rationale": "Plausible real defect (logs-only sweep record lost on a post-publication failure); not changed before merge and not verified against the code. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

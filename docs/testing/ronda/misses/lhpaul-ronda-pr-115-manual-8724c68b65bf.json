@@ -11,13 +11,15 @@
   "title": "</sub>  Define the real-PR variance aggregation unit",
   "text": "</sub>  Define the real-PR variance aggregation unit\n\nThe newly added standard-deviation clause fixes the formula but still does not define one `per-run recall` observation when every repetition covers multiple heads. Implementers could pool all per-head recalls, macro-average the heads for each repetition, or compute one defect-weighted recall across the complete head set; these approaches produce different standard deviations and can even reverse the claimed direction because heads have different defect denominators. Specify how results across heads form each observation before permitting the variance claim; this multi-head aggregation ambiguity remains after the earlier metric fix.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:dc600685eaf99d3c96830636",
   "capturedAt": "2026-09-30T15:06:02.721Z",
-  "updatedAt": "2026-09-30T15:06:02.721Z",
-  "mergeBaseSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586"
+  "updatedAt": "2026-09-30T16:49:01.055Z",
+  "mergeBaseSha": "c29dd59e4d42e297d22b8f63aebf6ab27594d586",
+  "rationale": "Author fixed it: Fixed in 3e6e6bb. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

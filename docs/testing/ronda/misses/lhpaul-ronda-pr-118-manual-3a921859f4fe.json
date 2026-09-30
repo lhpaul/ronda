@@ -11,13 +11,15 @@
   "title": "</sub>  Treat whitespace-only model identifiers as absent",
   "text": "</sub>  Treat whitespace-only model identifiers as absent\n\nWhen an OpenAI-compatible endpoint returns a whitespace-only `model` value, this condition records it as `reportedModel` even though it identifies no model. Benchmark evidence can then treat the identity field as present rather than taking the intended unattested, fail-closed path, potentially admitting an invalid same-version comparison. Reject strings whose trimmed value is empty while preserving valid reported identifiers.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "eval_record",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:ccd20cb63cbcc3d53adb5e76",
   "capturedAt": "2026-09-30T15:04:06.403Z",
-  "updatedAt": "2026-09-30T15:04:06.403Z",
-  "mergeBaseSha": "b27f344dca9d0f73df2ed1bf85315584cd6b85a9"
+  "updatedAt": "2026-09-30T16:56:59.993Z",
+  "mergeBaseSha": "b27f344dca9d0f73df2ed1bf85315584cd6b85a9",
+  "rationale": "Author fixed it: Fixed. Ronda v0.2.0 posted no matching finding on this head. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

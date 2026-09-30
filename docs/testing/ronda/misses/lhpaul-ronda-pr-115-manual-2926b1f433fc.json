@@ -11,13 +11,15 @@
   "title": "</sub>  Supply the separately required failure-shape values",
   "text": "</sub>  Supply the separately required failure-shape values\n\nThe normative initial-list table still provides only one `Description` cell per category, although AC4 and AC19 now require `description` and `failure shape` as separate mandatory fields. These cells currently contain the failure shape plus the count, so an implementer cannot populate both required fields from the specified list without inventing an additional description or duplicating the same text; add distinct columns and authoritative values for every required field.\n\nAGENTS.md reference: [AGENTS.md:L45-L45](https://github.com/lhpaul/ronda/blob/4955e7cfeb8dee38ec5e57399a1856ffbfe76859/AGENTS.md#L45-L45)",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:27a1fededa78f38c48bf065c",
   "capturedAt": "2026-09-30T14:56:28.293Z",
-  "updatedAt": "2026-09-30T14:56:28.293Z",
-  "mergeBaseSha": "8e056725c036da8879fd64a56fb691b74a98286c"
+  "updatedAt": "2026-09-30T16:40:37.946Z",
+  "mergeBaseSha": "8e056725c036da8879fd64a56fb691b74a98286c",
+  "rationale": "Author fixed it: Addressed in f3f67bb. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

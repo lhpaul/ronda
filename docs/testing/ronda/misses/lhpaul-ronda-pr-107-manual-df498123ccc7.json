@@ -11,13 +11,15 @@
   "title": "This activates dogfooding in Ronda while the locked v0 contract and architecture still specify one dogfood rep",
   "text": "This activates dogfooding in Ronda while the locked v0 contract and architecture still specify one dogfood repository, `lhpaul/ai-dev-framework-template`. Reconcile the authoritative documentation with an explicitly approved scope change, or preserve the single-repository contract.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "no_action",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:f88a0083dda00af87ba419ee",
   "capturedAt": "2026-09-30T15:59:33.804Z",
-  "updatedAt": "2026-09-30T15:59:33.804Z",
-  "mergeBaseSha": "892de0bcb310cf8301699a8310318b5fbf3d475b"
+  "updatedAt": "2026-09-30T16:34:58.208Z",
+  "mergeBaseSha": "892de0bcb310cf8301699a8310318b5fbf3d475b",
+  "rationale": "Real inconsistency between the dogfood change and the locked v0 contract (single dogfood repository); reachable through Ronda's binding docs. Owner approved the scope change via #103. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

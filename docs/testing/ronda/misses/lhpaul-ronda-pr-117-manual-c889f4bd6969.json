@@ -11,13 +11,15 @@
   "title": "</sub>  Add a distinct log record for benchmark runs",
   "text": "</sub>  Add a distinct log record for benchmark runs\n\nWhen the campaign uses the required `--output-file` commands, the JSON is written to the benchmark-output file instead of stdout, and the plan adds no logger dependency or event to the benchmark runner. The benchmark output therefore becomes the only record, although AC1 requires completed benchmark runs to carry the per-category record in both benchmark output and logs. Add an explicit non-sensitive logging path and a test that verifies it independently of the output file.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "observability",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:f1bd8918100d07798650fc59",
   "capturedAt": "2026-09-30T15:01:20.242Z",
-  "updatedAt": "2026-09-30T15:01:20.242Z",
-  "mergeBaseSha": "a244cabd81e27645ba87311893267e365c0927f1"
+  "updatedAt": "2026-09-30T16:51:24.712Z",
+  "mergeBaseSha": "a244cabd81e27645ba87311893267e365c0927f1",
+  "rationale": "Real defect: the flagged lines changed in e78e4df, the next commit. Ronda v0.2.0 posted no matching finding on this head. Plan PR counted in scope: Ronda reviews plan PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

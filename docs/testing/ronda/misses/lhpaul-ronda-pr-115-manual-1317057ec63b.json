@@ -11,13 +11,15 @@
   "title": "Resolve Open Questions 1 and 8 before approval",
   "text": "Resolve Open Questions 1 and 8 before approval. AC6 requires every candidate to be swept or explicitly excluded, but spec-AC-compliance and per-finding-resolution remain undecided, so no valid current category list can satisfy the sweep precondition.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:e5255506de6980aba66c09b4",
   "capturedAt": "2026-09-30T16:07:36.473Z",
-  "updatedAt": "2026-09-30T16:07:36.473Z",
-  "mergeBaseSha": "a691d010a5bbefe2e77b1750f634d26b95c152f6"
+  "updatedAt": "2026-09-30T16:37:04.050Z",
+  "mergeBaseSha": "a691d010a5bbefe2e77b1750f634d26b95c152f6",
+  "rationale": "Real defect: the flagged lines changed in e8485e6, the next commit. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

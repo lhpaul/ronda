@@ -11,13 +11,15 @@
   "title": "The proposed AC14 credential-shape test is a new automated guard, but the plan does not require a planted-viol",
   "text": "The proposed AC14 credential-shape test is a new automated guard, but the plan does not require a planted-violation proof: a concrete safe fixture/file-and-line that fails with the prohibited shape and passes once removed. Saying the test is “written to fail on a real credential” is not the required demonstrated fail/pass verification.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "security",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:894dfa922a93e5f09651522b",
   "capturedAt": "2026-09-30T16:04:03.319Z",
-  "updatedAt": "2026-09-30T16:04:03.319Z",
-  "mergeBaseSha": "8e4e69aff58dabab9db93d6cfc9dc0d4a560d1e2"
+  "updatedAt": "2026-09-30T16:51:53.457Z",
+  "mergeBaseSha": "8e4e69aff58dabab9db93d6cfc9dc0d4a560d1e2",
+  "rationale": "Real defect: the flagged lines changed in d731fe1, the next commit. Ronda v0.2.0 posted no matching finding on this head. Plan PR counted in scope: Ronda reviews plan PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

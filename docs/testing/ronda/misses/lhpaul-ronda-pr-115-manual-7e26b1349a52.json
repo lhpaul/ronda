@@ -11,13 +11,15 @@
   "title": "The enablement matrix contradicts itself",
   "text": "The enablement matrix contradicts itself: the outcome forbids exposing the raw unrecognized value, but the required action says to record that value. This security-sensitive record contract must consistently require recording only that the value was unrecognized.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "observability",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:3366948c29e5a4392b0f0685",
   "capturedAt": "2026-09-30T16:13:46.623Z",
-  "updatedAt": "2026-09-30T16:13:46.623Z",
-  "mergeBaseSha": "3d317ae95ad61fa98ab160fecb9ee08c638199e2"
+  "updatedAt": "2026-09-30T16:40:08.278Z",
+  "mergeBaseSha": "3d317ae95ad61fa98ab160fecb9ee08c638199e2",
+  "rationale": "Real defect: the flagged lines changed in f9d97a5, the next commit. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }

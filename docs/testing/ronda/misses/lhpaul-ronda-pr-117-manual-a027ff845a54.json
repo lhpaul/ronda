@@ -11,13 +11,15 @@
   "title": "The category-list loader says it loads by an absolute path from the checkout, but never defines how that check",
   "text": "The category-list loader says it loads by an absolute path from the checkout, but never defines how that checkout root is resolved or tests it. The existing pass accepts a cwd and the webhook/CLI can run outside the repository root, so implementation would have to guess between cwd-relative and module-relative resolution, risking an AC19 degradation in deployed runs. Specify the authoritative resolution mechanism and a non-root-CWD test.",
   "textTruncated": false,
-  "verdict": "unadjudicated",
+  "verdict": "true_positive",
   "affectedCategory": "correctness",
-  "intendedFollowUp": "undecided",
+  "intendedFollowUp": "prompt_change",
   "captureSource": "manual",
   "sourceId": null,
   "identityDigest": "manual:3f7701929e60b8662ad7bbb7",
   "capturedAt": "2026-09-30T16:04:18.084Z",
-  "updatedAt": "2026-09-30T16:04:18.084Z",
-  "mergeBaseSha": "aaec1e05df2f0d205f92a8c3e9a6ba39d5450dfe"
+  "updatedAt": "2026-09-30T16:50:05.063Z",
+  "mergeBaseSha": "aaec1e05df2f0d205f92a8c3e9a6ba39d5450dfe",
+  "rationale": "Real defect: the flagged lines changed in 5c7e3f8, the next commit. Ronda v0.2.0 posted no matching finding on this head. Plan PR counted in scope: Ronda reviews plan PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
+  "rationaleTruncated": false
 }
