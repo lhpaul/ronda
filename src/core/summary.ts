@@ -124,11 +124,12 @@ export function buildReviewSummary(input: ReviewSummaryInput): string {
 
   // #134: a PR whose every file was excluded must say so explicitly rather
   // than fall into the ordinary "No findings." text a genuinely clean review
-  // would show — nothing was ever sent to the model for this pass.
+  // would show — no changed-file content was sent to the model for this pass
+  // (PR metadata and guidance may still be present).
   const allFilesExcluded = input.changedFileCount === 0 && excludedFiles.length > 0;
   if (allFilesExcluded) {
     lines.push(
-      "Every changed file was excluded from review — no content was sent to the model for this pass.",
+      "Every changed file was excluded from review — no changed-file content was sent to the model for this pass.",
     );
   } else if (input.findings.length === 0) {
     lines.push("No findings.");
