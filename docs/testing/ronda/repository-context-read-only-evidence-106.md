@@ -9,6 +9,11 @@ output contract, per the spec's Use Case 3 and AC4/AC5.
 **Observed on**: 2026-09-29, feature branch `feature/106-read-only-symbol-context`,
 commit `bcc9542` (pre-hostile-fixture parent; this evidence's own commit adds
 the fixture and this document together). Node `v26.7.0`, `typescript` `5.8.3`.
+Re-observed on 2026-09-30 after the committed gitlink/`.gitmodules` were
+replaced with a test-time-constructed hostile git repository (owner
+decision — see "What the hostile head carries" below); the same 5/5 tests
+(one AC4 test now covers both the symlink and gitlink cases as subtests)
+still pass.
 
 **The guarantee is demonstrated, not asserted** (spec, Use Case 3
 considerations): every claim below names the reproducible test that produced
@@ -33,16 +38,31 @@ npx tsx --test tests/integration/core/repository-context-hostile-head.test.ts
   (`hook-shaped-script.sh`).
 - A script shaped like generated build/codegen tooling
   (`generated-tooling.js`).
-- A real symlink (git mode `120000`) whose target climbs above the repository
-  root (`escape-symlink`), and a second real symlink to a sibling directory
-  within the same fixture (`sibling-symlink`).
-- A real gitlink tree entry (git mode `160000`) plus a matching `.gitmodules`
-  block, naming a submodule this repository never fetches.
 - A `.gitattributes` entry naming a `filter` and a `diff` driver for
   `nested-project/*.bin`.
 - A source file (`instruction-shaped.ts`) whose leading comment is written as
   an instruction to a reviewer, asking it to report nothing and to hide that
   it was asked.
+
+**The git-special hostile objects are built at test time, not committed
+here** (owner decision, 2026-09-30): a real symlink (git mode `120000`)
+whose target climbs above the repository root (`escape-symlink`), a second
+real symlink to a sibling directory (`sibling-symlink`), a real gitlink tree
+entry (git mode `160000`), a matching `.gitmodules` naming that submodule,
+and the attribute filter/diff driver configuration `.gitattributes` names
+are all constructed by
+`tests/integration/core/repository-context-hostile-head.test.ts`'s
+`buildHostileGitRepo()` in a throwaway git repository under the OS temp
+directory, exercised, then deleted (`t.after`). An earlier version of this
+evidence recorded these as committed fixture content (a real gitlink plus a
+root-level `.gitmodules`); that construction was replaced because git only
+ever reads `.gitmodules` from the working tree root, and the unregistered
+gitlink tree entry it registered from a non-root location made
+`actions/checkout`'s own submodule cleanup step fail on every CI job. This
+repository's own tree now carries no `160000` tree entry and no
+`.gitmodules` file anywhere — verified by `git ls-files -s | grep ^160000`
+(empty) and `find . -name .gitmodules` (empty) — while the demonstration
+below still runs against real git objects, just ephemeral ones.
 
 Nothing under this directory is referenced by any `package.json` script or
 workflow `paths:` list, and no file uses a `.test.ts` suffix, so
@@ -84,7 +104,9 @@ seam:
 
 ### Observational (this run)
 
-Two tests exercise the fixture's actual git objects through this real code:
+Two subtests, under the same `t.after`-cleaned-up throwaway git repository
+`buildHostileGitRepo()` constructs, exercise real git objects through this
+real code:
 
 1. **"a symlink escaping the repository is refused, never followed, and
    nothing outside the repository is read"** — confirms, via `node:fs`'s own
@@ -97,12 +119,18 @@ Two tests exercise the fixture's actual git objects through this real code:
    call.
 2. **"a submodule (gitlink) tree entry is never fetched"** — confirms, via
    `git ls-files -s`, that `nested-project/other-repo` is a real gitlink
-   (mode `160000`) tree entry, and that no separate submodule-fetching code
-   path exists anywhere in this feature — the same structural refusal above
-   is what would apply if anything ever tried to read it.
+   (mode `160000`) tree entry inside the throwaway repository, and that no
+   separate submodule-fetching code path exists anywhere in this feature —
+   the same structural refusal above is what would apply if anything ever
+   tried to read it.
 
-Both tests passed on this observation (`npx tsx --test
-tests/integration/core/repository-context-hostile-head.test.ts` — 4/4 green).
+Both subtests passed on this observation (`npx tsx --test
+tests/integration/core/repository-context-hostile-head.test.ts` — 5/5 green,
+one test now covering both subtests). This repository's own committed tree
+carries neither object — confirmed by `git ls-files -s | grep ^160000`
+(empty) and no `.gitmodules` anywhere in the repository (`find . -name
+.gitmodules`, empty) — while the demonstration above still ran against real
+git objects.
 The `.gitattributes` filter/driver entry is not independently exercised
 because it requires no observation beyond the structural claim above: a
 `filter`/`diff` driver only ever runs during a local git checkout or a local

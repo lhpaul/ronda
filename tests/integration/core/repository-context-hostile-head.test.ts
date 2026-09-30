@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { lstatSync, readFileSync, readlinkSync } from "node:fs";
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Octokit } from "@octokit/rest";
@@ -25,11 +26,22 @@ import type { RondaConfig } from "../../../src/config/config.types.js";
 
 /**
  * AC4 / AC5's read-only demonstration, run against the deliberately hostile
- * fixture in `tests/fixtures/repository-context/hostile-head/`. See
- * `docs/testing/ronda/repository-context-read-only-evidence-106.md` for the
- * recorded observation this test produces, and which parts are structural
- * (guaranteed by construction, D1) versus observational (this run's own
- * output).
+ * fixture in `tests/fixtures/repository-context/hostile-head/` (executable-
+ * if-invoked content and instruction-shaped source, kept committed as
+ * ordinary files) plus a **git-special hostile head built at test time**
+ * (owner decision, 2026-09-30): a real symlink escaping its own directory
+ * and a real gitlink/submodule tree entry are constructed in a throwaway
+ * temporary git repository for the duration of this test file, then deleted
+ * — never committed to this repository's own tree, so `git ls-files -s`
+ * here never shows a `160000` entry and no `.gitmodules` file exists
+ * anywhere in this repository (a nested, non-root `.gitmodules` previously
+ * broke `actions/checkout`'s own submodule cleanup step for every CI job;
+ * see this PR's history).
+ *
+ * See `docs/testing/ronda/repository-context-read-only-evidence-106.md` for
+ * the recorded observation this test produces, and which parts are
+ * structural (guaranteed by construction, D1) versus observational (this
+ * run's own output).
  */
 
 const REPO_ROOT = join(dirname(fileURLToPath(new URL(import.meta.url))), "..", "..", "..");
@@ -38,11 +50,12 @@ function realFileContent(relativePath: string): string {
   return readFileSync(join(REPO_ROOT, relativePath), "utf8");
 }
 
-function createContentsApiFake(): Octokit {
+/** A fake Contents API whose reads resolve against an arbitrary root directory (the real fixture, or the ephemeral hostile git repo below). */
+function createContentsApiFake(rootDir: string): Octokit {
   return {
     repos: {
       getContent: async ({ path }: { path: string }) => {
-        const absolute = join(REPO_ROOT, path);
+        const absolute = join(rootDir, path);
         const stat = lstatSync(absolute);
         if (stat.isSymbolicLink()) {
           // GitHub's contents API reports a symlink tree entry with
@@ -63,31 +76,107 @@ function createContentsApiFake(): Octokit {
   } as unknown as Octokit;
 }
 
+/**
+ * Builds a throwaway git repository under the OS temp directory carrying the
+ * git-special hostile objects a normal committed fixture cannot safely hold
+ * in *this* repository's own tree: a real symlink escaping its own
+ * directory, a sibling symlink, a real gitlink (submodule) tree entry, a
+ * matching `.gitmodules`, and the attribute filter/diff driver configuration
+ * `.gitattributes` names. Returns the repo's root directory; the caller is
+ * responsible for `rmSync(repoDir, { recursive: true, force: true })`.
+ */
+function buildHostileGitRepo(): string {
+  const repoDir = mkdtempSync(join(tmpdir(), "ronda-hostile-head-"));
+  const gitEnv = {
+    ...process.env,
+    GIT_AUTHOR_NAME: "ronda-test",
+    GIT_AUTHOR_EMAIL: "ronda-test@example.invalid",
+    GIT_COMMITTER_NAME: "ronda-test",
+    GIT_COMMITTER_EMAIL: "ronda-test@example.invalid",
+  };
+  const git = (...args: string[]): void => {
+    execFileSync("git", args, { cwd: repoDir, env: gitEnv, stdio: "pipe" });
+  };
+
+  git("init", "--quiet");
+
+  mkdirSync(join(repoDir, "nested-project"), { recursive: true });
+  mkdirSync(join(repoDir, "outside-target"), { recursive: true });
+  writeFileSync(join(repoDir, "outside-target", "marker.txt"), "sibling target, not escaping the repo\n");
+
+  // A real symlink whose target climbs above the repository root (AC4's
+  // "escape" case). The target need not resolve to a real path on disk —
+  // the demonstration is that it is never followed, not that it works.
+  symlinkSync(
+    "../../../../../../../../etc/passwd",
+    join(repoDir, "nested-project", "escape-symlink"),
+  );
+  // A second real symlink to a sibling directory within the same repo.
+  symlinkSync("../outside-target", join(repoDir, "nested-project", "sibling-symlink"));
+
+  writeFileSync(
+    join(repoDir, ".gitattributes"),
+    "nested-project/*.bin filter=hostile-filter diff=hostile-differ\n",
+  );
+  writeFileSync(
+    join(repoDir, ".gitmodules"),
+    [
+      '[submodule "nested-project/other-repo"]',
+      "\tpath = nested-project/other-repo",
+      "\turl = https://example.invalid/hostile/other-repo.git",
+      "",
+    ].join("\n"),
+  );
+
+  // The attribute filter/diff driver config itself lives only in local git
+  // config, never in a trackable file — set it up so the fixture's own
+  // `.gitattributes` claim is backed by a real (harmless) driver definition.
+  git("config", "filter.hostile-filter.clean", "cat");
+  git("config", "filter.hostile-filter.smudge", "cat");
+  git("config", "diff.hostile-differ.textconv", "cat");
+
+  git("add", ".gitattributes", ".gitmodules", "outside-target/marker.txt", "nested-project/escape-symlink", "nested-project/sibling-symlink");
+
+  // A real gitlink (submodule) tree entry, mode 160000 — registered via
+  // `update-index`, never via `git submodule add` (which would require an
+  // actual reachable remote). The pinned sha is arbitrary; nothing ever
+  // fetches it.
+  git("update-index", "--add", "--cacheinfo", "160000,bcc95424e176d555455df83c6b5498c495721eb6,nested-project/other-repo");
+
+  git("commit", "--quiet", "-m", "hostile head test fixture");
+
+  return repoDir;
+}
+
 // --- AC4 (structural half): the read seam already refuses a symlink and a
 // submodule entry before decoding anything, and it never follows one.
 
-test("AC4: a symlink escaping the repository is refused, never followed, and nothing outside the repository is read", async () => {
-  const octokit = createContentsApiFake();
-  const relativePath = "tests/fixtures/repository-context/hostile-head/nested-project/escape-symlink";
-  const stat = lstatSync(join(REPO_ROOT, relativePath));
-  assert.ok(stat.isSymbolicLink(), "the fixture path must actually be a symlink");
-  const target = readlinkSync(join(REPO_ROOT, relativePath));
-  assert.ok(target.startsWith(".."), "the fixture symlink must actually escape its own directory");
+test("AC4: git-special hostile head (symlink, gitlink)", async (t) => {
+  const repoDir = buildHostileGitRepo();
+  t.after(() => rmSync(repoDir, { recursive: true, force: true }));
 
-  const result = await readRepositoryFileAtRef(octokit, "lhpaul", "ronda", relativePath, "HEAD");
-  assert.equal(result, undefined, "a symlink entry is refused, never returned as content");
-});
+  await t.test("a symlink escaping the repository is refused, never followed, and nothing outside the repository is read", async () => {
+    const octokit = createContentsApiFake(repoDir);
+    const relativePath = "nested-project/escape-symlink";
+    const stat = lstatSync(join(repoDir, relativePath));
+    assert.ok(stat.isSymbolicLink(), "the fixture path must actually be a symlink");
+    const target = readlinkSync(join(repoDir, relativePath));
+    assert.ok(target.startsWith(".."), "the fixture symlink must actually escape its own directory");
 
-test("AC4: a submodule (gitlink) tree entry is never fetched", () => {
-  const output = execFileSync(
-    "git",
-    ["ls-files", "-s", "--", "tests/fixtures/repository-context/hostile-head/nested-project/other-repo"],
-    { cwd: REPO_ROOT, encoding: "utf8" },
-  );
-  assert.match(output, /^160000 /, "the fixture path must actually be a gitlink (submodule) tree entry");
-  // The contents seam's own structural refusal for a non-"file" type
-  // (`src/github/repo-content-reader.ts`) is what AC4 rests on here — no
-  // separate submodule-specific code path exists to fetch or verify.
+    const result = await readRepositoryFileAtRef(octokit, "lhpaul", "ronda", relativePath, "HEAD");
+    assert.equal(result, undefined, "a symlink entry is refused, never returned as content");
+  });
+
+  await t.test("a submodule (gitlink) tree entry is never fetched", () => {
+    const output = execFileSync("git", ["ls-files", "-s", "--", "nested-project/other-repo"], {
+      cwd: repoDir,
+      encoding: "utf8",
+    });
+    assert.match(output, /^160000 /, "the fixture path must actually be a gitlink (submodule) tree entry");
+    // The contents seam's own structural refusal for a non-"file" type
+    // (`src/github/repo-content-reader.ts`) is what AC4 rests on here — no
+    // separate submodule-specific code path exists to fetch or verify.
+  });
 });
 
 // --- AC4 (structural half): nothing in this repository's own review pipeline

@@ -24,24 +24,26 @@ normal build, lint, or test commands.
   writes a marker file if actually run.
 - `outside-target/marker.txt` — the file a symlink escaping the repository
   would resolve to, if followed.
-- `nested-project/escape-symlink` — a symlink whose target path climbs above
-  the repository root.
-- `nested-project/sibling-symlink` — a symlink to `outside-target/`, a
-  sibling directory within this same fixture (still content Ronda must not
-  read through, since only literal read requests through the injected seam
-  are ever made — nothing resolves a symlink target on either side).
-- `nested-project/other-repo` — a real gitlink tree entry (git mode `160000`),
-  a submodule reference to another repository. Registered in the
-  **repository root's** `.gitmodules` (not a nested one under this
-  directory) — git only ever reads `.gitmodules` from the working tree
-  root, and an unregistered gitlink tree entry makes `git submodule status`
-  and `actions/checkout`'s own submodule cleanup step fail outright, which
-  would break CI for every PR rather than demonstrating anything. The
-  submodule is never initialized or fetched (`git submodule status` reports
-  it with the `-` "not initialized" prefix), which is itself part of the
-  demonstration: nothing about this repository's own tooling — real or
-  Ronda's — ever fetches it.
 - `.gitattributes` — names a `filter` and a `diff` driver for
   `nested-project/*.bin`.
 - `nested-project/instruction-shaped.ts` — a source file whose comments are
   written as instructions to a reviewer, to demonstrate AC5.
+
+## Git-special objects (constructed at test time, not committed here)
+
+A real symlink escaping its own directory, a second symlink to a sibling
+directory, a real gitlink (submodule) tree entry, and the matching
+`.gitmodules` are **not** committed in this repository's own tree (owner
+decision, 2026-09-30). Instead,
+`tests/integration/core/repository-context-hostile-head.test.ts`'s
+`buildHostileGitRepo()` constructs all four, plus the attribute filter/diff
+driver configuration `.gitattributes` above names, in a throwaway git
+repository under the OS temp directory for the duration of that test file,
+then deletes it. This is why an earlier version of this fixture — which did
+commit a gitlink tree entry and a root-level `.gitmodules` — is no longer
+present: a nested, non-root `.gitmodules` is never read by git tooling at
+all, and the unregistered gitlink tree entry it was meant to register broke
+`actions/checkout`'s own submodule cleanup step for every CI job. Building
+these objects at test time gives the same real-git-object demonstration
+without ever putting a submodule reference or an escaping symlink in this
+repository's own committed history.

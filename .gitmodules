@@ -1,3 +1,0 @@
-[submodule "tests/fixtures/repository-context/hostile-head/nested-project/other-repo"]
-	path = tests/fixtures/repository-context/hostile-head/nested-project/other-repo
-	url = https://example.invalid/hostile/other-repo.git
