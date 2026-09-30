@@ -150,6 +150,168 @@ Consequences). What it demonstrates, and what AC5 asks for, is that Ronda's
 own **published contract** — one review, one check run, nothing else — holds
 regardless of what the model does with the content it read.
 
+## Disclosed residual risk: synchronous compiler CPU-time worst-case measurement
+
+`src/review/symbol-resolver.ts`'s size backstops
+(`MAX_RESOLUTION_FILE_COUNT`, `MAX_RESOLUTION_TOTAL_CHARS`,
+`MAX_CHANGED_FILE_CHARS`) bound the *input size* the synchronous
+`ts.createProgram`/checker pass runs over, not its CPU time — a file set at
+or under the caps can, in a pathological case, still take longer to
+type-check than a naive size-based estimate would suggest, and nothing can
+preempt that call once started (documented in the module's own doc comment,
+and in the owner-facing residual-risk discussion on PR
+[#130](https://github.com/lhpaul/ronda/pull/130)). This section records a
+cheap, honest measurement of that worst case — not a proof of an upper
+bound, and not a CI-enforced assertion (a wall-clock assertion over
+synchronous compiler work would be flaky across CI runners; the owner
+explicitly waived requiring one).
+
+**Observed on**: 2026-09-30, `feature/106-read-only-symbol-context`, machine
+`Darwin 25.6.0 arm64` (`MacBook-Pro-de-Luis.local`), Node `v26.7.0`,
+`typescript` `5.8.3`.
+
+**Method**: a synthetic changed-file set built to sit exactly at both caps
+simultaneously — 100 files (`MAX_RESOLUTION_FILE_COUNT`), summing to
+1,000,000 characters (`MAX_RESOLUTION_TOTAL_CHARS`, i.e. 10,000 characters
+per file, under the 300,000-character single-file cap
+`MAX_CHANGED_FILE_CHARS`) — each file containing a chain of generic
+interfaces, a bounded-depth conditional type, a generic class with a dozen
+methods, and a cross-file import to a neighboring synthetic file (to force
+real cross-file symbol/alias resolution rather than trivially local
+binding), with every line marked "changed" so `identifyCandidates`'s
+identifier walk visits a realistic, large number of identifiers per file.
+`identifyCandidates` and `resolveSymbols` (the same production functions the
+review pass calls) were invoked directly against this set, with an in-memory
+`readFile` (no network latency, isolating compiler CPU time from the
+already-separately-budgeted fetch time).
+
+**Result** (four independent cold-process runs):
+
+| Run | `identifyCandidates` | `resolveSymbols` | Total synchronous compiler time |
+| --- | --- | --- | --- |
+| 1 | 583.6 ms | 197.0 ms | 780.7 ms |
+| 2 | 688.9 ms | 211.0 ms | 899.9 ms |
+| 3 | 548.2 ms | 204.3 ms | 752.5 ms |
+| 4 | 594.0 ms | 202.9 ms | 797.0 ms |
+
+At-cap synthetic worst case: **well under one second** of uninterruptible
+synchronous compiler time (≈0.75–0.9 s total across the two synchronous
+compiler passes), against this feature's default 120-second context time
+budget (`RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS`) and the pass deadline it
+is a sub-budget of. This is one synthetic construction, not an exhaustive
+search for the true worst case (a real pathological input — e.g. much deeper
+conditional-type recursion, or heavier cross-file generic instantiation —
+could take meaningfully longer), which is exactly why the follow-up
+(worker-thread isolation, filed as
+[#131](https://github.com/lhpaul/ronda/issues/131)) remains open rather than
+closed by this measurement.
+
+**Reproduce**: save the script below as `measure-worst-case.ts` at the
+repository root, then run `./node_modules/.bin/tsx measure-worst-case.ts`.
+
+```typescript
+import {
+  identifyCandidates,
+  resolveSymbols,
+  type InternalRequestedReference,
+} from "./src/review/symbol-resolver.ts";
+
+const MAX_RESOLUTION_FILE_COUNT = 100;
+const MAX_RESOLUTION_TOTAL_CHARS = 1_000_000;
+const MAX_CHANGED_FILE_CHARS = 300_000;
+
+// Build a synthetic worst-case changed-file set: as many files as the
+// file-count cap allows, each with substantial generic/class complexity,
+// summed to the combined-character cap (never exceeding the per-file cap).
+const FILE_COUNT = MAX_RESOLUTION_FILE_COUNT;
+const CHARS_PER_FILE = Math.floor(MAX_RESOLUTION_TOTAL_CHARS / FILE_COUNT); // 10,000
+if (CHARS_PER_FILE > MAX_CHANGED_FILE_CHARS) {
+  throw new Error("synthetic per-file size would exceed MAX_CHANGED_FILE_CHARS");
+}
+
+function genFile(index: number): string {
+  const lines: string[] = [];
+  lines.push(`// synthetic worst-case file ${index}`);
+  lines.push(`import { Base${(index + 1) % FILE_COUNT} } from "./file${(index + 1) % FILE_COUNT}.js";`);
+  lines.push(`export interface Base${index} { value: number; next?: Base${index}; }`);
+  lines.push(
+    `export type Cond${index}<T, D extends number = 8> = D extends 0 ? T : T extends Base${index} ? Cond${index}<T, 7> : Cond${index}<T, 6> | Base${(index + 1) % FILE_COUNT};`,
+  );
+  lines.push(`export class Impl${index}<T extends Base${index} = Base${index}> {`);
+  lines.push(`  constructor(private readonly seed: T) {}`);
+  for (let m = 0; m < 12; m += 1) {
+    lines.push(
+      `  method${m}(input: Cond${index}<T>): Base${index} { const local${m} = this.seed; return local${m}; }`,
+    );
+  }
+  lines.push(`}`);
+  // Pad with repeated, referenceable statements until we reach the target
+  // size — every line is a "changed" line, so identifyCandidates's identifier
+  // walk visits a large, realistic number of identifiers per file.
+  let body = lines.join("\n") + "\n";
+  let counter = 0;
+  while (body.length < CHARS_PER_FILE) {
+    body += `export const derived${index}_${counter}: Base${index} = new Impl${index}(new Impl${index}({ value: ${counter} }) as unknown as Base${index}).method0({ value: ${counter} } as unknown as Cond${index}<Base${index}>);\n`;
+    counter += 1;
+  }
+  return body.slice(0, CHARS_PER_FILE);
+}
+
+async function main() {
+  const changedFilePaths: string[] = [];
+  const changedLinesByFile = new Map<string, Set<number>>();
+  const files = new Map<string, string>();
+
+  for (let i = 0; i < FILE_COUNT; i += 1) {
+    const path = `file${i}.ts`;
+    const text = genFile(i);
+    files.set(path, text);
+    changedFilePaths.push(path);
+    const lineCount = text.split("\n").length;
+    const allLines = new Set<number>();
+    for (let line = 1; line <= lineCount; line += 1) allLines.add(line);
+    changedLinesByFile.set(path, allLines);
+  }
+
+  const totalChars = [...files.values()].reduce((sum, t) => sum + t.length, 0);
+  console.log(`synthetic changed set: ${files.size} files, ${totalChars} combined chars`);
+
+  const readFile = async (path: string): Promise<string | undefined> => files.get(path);
+
+  const t0 = performance.now();
+  const identified = await identifyCandidates(changedFilePaths, changedLinesByFile, readFile);
+  const t1 = performance.now();
+  console.log(`identifyCandidates: ${(t1 - t0).toFixed(1)} ms, requested=${identified.requested.length}`);
+
+  // Step (c) worst case: resolve every requested reference against the same
+  // file set (the changed set alone already sits at the resolution cap, so no
+  // additional import closure is needed to reach it).
+  const bookkeeping = {
+    resolvedSpecifierKeys: new Set<string>(),
+    refusedSpecifierKeys: new Set<string>(),
+    attemptedSpecifierKeys: new Set<string>(),
+  };
+  const t2 = performance.now();
+  const resolved = resolveSymbols(
+    identified.changedSourceTexts,
+    identified.requested as InternalRequestedReference[],
+    bookkeeping,
+  );
+  const t3 = performance.now();
+  console.log(`resolveSymbols: ${(t3 - t2).toFixed(1)} ms, resolved=${resolved.length}`);
+
+  console.log(`TOTAL synchronous compiler time: ${(t1 - t0 + (t3 - t2)).toFixed(1)} ms`);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+```
+
+This script is a one-off manual measurement, not a committed CLI tool or
+test — it is not added to the repository tree, only reproduced here.
+
 ## Version and reproducibility
 
 Re-run this demonstration against a later version with:

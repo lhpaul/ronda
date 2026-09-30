@@ -43,7 +43,13 @@ const ELIGIBLE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs
  * seam, in-process design (D2) — out of scope for this iteration. The
  * values below are set low enough to keep this a narrow, disclosed residual
  * risk rather than a first-order concern for this repository's own
- * TypeScript source, which this feature dogfoods against first.
+ * TypeScript source, which this feature dogfoods against first. A synthetic
+ * at-cap worst-case measurement (well under one second of synchronous
+ * compiler time; see
+ * `docs/testing/ronda/repository-context-read-only-evidence-106.md`) and the
+ * worker-thread-isolation follow-up (owner-accepted residual risk, filed as
+ * https://github.com/lhpaul/ronda/issues/131, to land before this feature is
+ * enabled on a long-lived webhook ingress) are both recorded there.
  */
 const MAX_RESOLUTION_FILE_COUNT = 100;
 const MAX_RESOLUTION_TOTAL_CHARS = 1_000_000;
