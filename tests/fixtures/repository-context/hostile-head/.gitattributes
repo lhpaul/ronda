@@ -1,0 +1,8 @@
+# Hostile fixture content (AC4). Names a filter and a diff driver that, if
+# git ever ran them locally, would run arbitrary commands (`clean`/`smudge`/
+# `command` are read from `.git/config` or a `.gitattributes`-adjacent config,
+# not from this file alone, but naming them here is the attack surface AC4
+# demonstrates against: Ronda never performs a local git checkout or a git
+# attribute-driven filter/driver invocation of any kind, so nothing here is
+# ever consulted).
+nested-project/*.bin filter=hostile-filter diff=hostile-differ

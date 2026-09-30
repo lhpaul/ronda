@@ -13,6 +13,9 @@ import { readRepositoryFileAtRef } from "../github/repo-content-reader.js";
 import {
   DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
   DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+  DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+  DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
+  DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
 } from "../config/load-config.js";
 import { publishReview } from "../github/review-publisher.js";
 import { publishCheckRun } from "../github/check-run-publisher.js";
@@ -87,6 +90,12 @@ export async function main(): Promise<number> {
       durabilityModeDefault: false,
       sweepMode: "off",
       sweepModeRaw: undefined,
+      repositoryContextMode: "off",
+      repositoryContextModeRaw: undefined,
+      maxRepositoryContextCandidates: DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+      maxRepositoryContextChars: DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
+      repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
+      repositoryContextBudgetFallbacks: [],
       loadError: `Failed to load Ronda config file at ${path}`,
     };
   }

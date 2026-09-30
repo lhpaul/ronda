@@ -4,6 +4,9 @@ import { runReviewPass } from "../../src/core/run-review-pass.js";
 import {
   DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
   DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+  DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+  DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
+  DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
 } from "../../src/config/load-config.js";
 import { createOpenAiCompatibleClient } from "../../src/inference/openai-compatible-client.js";
 import { startMockModelServer } from "../support/mock-model-server.js";
@@ -36,7 +39,7 @@ test("integration: a ready pull request with one finding produces exact review a
 
     const github: GithubOperations = {
       async readPullRequest() {
-        return { number: 4, title: "Fix bug", body: "See changes", draft: false, headSha, headBranch: "feature/test" };
+        return { number: 4, title: "Fix bug", body: "See changes", draft: false, headSha, headBranch: "feature/test", headRepoFullName: "lhpaul/ronda" };
       },
       async readChangedFiles() {
         return [
@@ -84,6 +87,12 @@ test("integration: a ready pull request with one finding produces exact review a
           durabilityModeDefault: false,
           sweepMode: "off",
           sweepModeRaw: undefined,
+          repositoryContextMode: "off",
+          repositoryContextModeRaw: undefined,
+          maxRepositoryContextCandidates: DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+          maxRepositoryContextChars: DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
+          repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
+          repositoryContextBudgetFallbacks: [],
         },
         // A fixed clock makes durationMs deterministic (always 0) so the
         // rendered summary/check-run text is reproducible for exact assertions.
@@ -178,7 +187,7 @@ test("integration: multiple findings in the same changed file remain distinct in
     const publishedCheckRuns: PublishCheckRunInput[] = [];
     const github: GithubOperations = {
       async readPullRequest() {
-        return { number: 5, title: "Add median", body: "See changes", draft: false, headSha, headBranch: "feature/test" };
+        return { number: 5, title: "Add median", body: "See changes", draft: false, headSha, headBranch: "feature/test", headRepoFullName: "lhpaul/ronda" };
       },
       async readChangedFiles() {
         return [
@@ -225,6 +234,12 @@ test("integration: multiple findings in the same changed file remain distinct in
           durabilityModeDefault: false,
           sweepMode: "off",
           sweepModeRaw: undefined,
+          repositoryContextMode: "off",
+          repositoryContextModeRaw: undefined,
+          maxRepositoryContextCandidates: DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+          maxRepositoryContextChars: DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
+          repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
+          repositoryContextBudgetFallbacks: [],
         },
         clock: { now: () => 0, isoNow: () => "2026-01-01T00:00:00.000Z" },
         logger: { event: () => undefined },
@@ -259,7 +274,7 @@ test("integration: webhook file changes attach fetched authoritative docs to the
     let capturedUserPrompt = "";
     const github: GithubOperations = {
       async readPullRequest() {
-        return { number: 6, title: "Webhook tweak", body: "", draft: false, headSha, headBranch: "feature/test" };
+        return { number: 6, title: "Webhook tweak", body: "", draft: false, headSha, headBranch: "feature/test", headRepoFullName: "lhpaul/ronda" };
       },
       async readChangedFiles() {
         return [
@@ -308,6 +323,12 @@ test("integration: webhook file changes attach fetched authoritative docs to the
           durabilityModeDefault: false,
           sweepMode: "off",
           sweepModeRaw: undefined,
+          repositoryContextMode: "off",
+          repositoryContextModeRaw: undefined,
+          maxRepositoryContextCandidates: DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+          maxRepositoryContextChars: DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
+          repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
+          repositoryContextBudgetFallbacks: [],
         },
         clock: { now: () => 0, isoNow: () => "2026-01-01T00:00:00.000Z" },
         logger: { event: () => undefined },

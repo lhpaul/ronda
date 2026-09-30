@@ -136,6 +136,14 @@ npm run review
 # GitHub lookups refresh Ronda resolvability (AC48 / #53).
 npm run quality:report
 
+# Run a non-publishing repository-context control pass (#106, AC22): reviews
+# a real pull request under an explicit --repository-context on|off arm and
+# records findings + the repository-context record only to a committed
+# evidence file — never a review, check run, or comment to GitHub. Requires
+# GITHUB_TOKEN and a model credential; --pr and --repository-context are
+# required (no default arm).
+npm run quality:control-pass -- --pr <number> --repository-context on|off
+
 # Build
 # No build step — TypeScript runs directly via tsx; there is no committed
 # build artifact (dist/ is gitignored).

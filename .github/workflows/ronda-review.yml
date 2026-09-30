@@ -42,6 +42,37 @@ on:
         type: string
         required: false
         default: ""
+      repository_context:
+        description: >-
+          Enable read-only repository context on or off for this run
+          (`on` / `off`). Leave empty to leave it off. Same-repository heads
+          only — a fork-originated head never reads repository context
+          whatever this is set to (AC10).
+        type: string
+        required: false
+        default: ""
+      max_repository_context_candidates:
+        description: >-
+          Maximum candidates (excerpts) a pass may resolve for repository
+          context. Leave empty for the built-in default.
+        type: string
+        required: false
+        default: ""
+      max_repository_context_chars:
+        description: >-
+          Maximum combined characters of repository-context excerpts. Leave
+          empty for the built-in default.
+        type: string
+        required: false
+        default: ""
+      repository_context_time_budget_ms:
+        description: >-
+          Time budget, in milliseconds, for the repository-context phase
+          inside the pass budget in effect. Leave empty for the built-in
+          default.
+        type: string
+        required: false
+        default: ""
       ronda_ref:
         description: Ref of lhpaul/ronda to check out and run.
         type: string
@@ -151,4 +182,8 @@ jobs:
           RONDA_DURABILITY_MODE: ${{ inputs.durability_mode }}
           RONDA_DURABILITY_MODE_DEFAULT: ${{ inputs.durability_mode_default }}
           RONDA_SWEEP_MODE: ${{ inputs.sweep_mode }}
+          RONDA_REPOSITORY_CONTEXT: ${{ inputs.repository_context }}
+          RONDA_MAX_REPOSITORY_CONTEXT_CANDIDATES: ${{ inputs.max_repository_context_candidates }}
+          RONDA_MAX_REPOSITORY_CONTEXT_CHARS: ${{ inputs.max_repository_context_chars }}
+          RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS: ${{ inputs.repository_context_time_budget_ms }}
         run: npm run review

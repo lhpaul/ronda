@@ -20,6 +20,9 @@ import type { RondaConfig } from "../../../src/config/config.types.js";
 import {
   DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
   DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+  DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+  DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
+  DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
 } from "../../../src/config/load-config.js";
 import type { DeadlineClock, DeadlineTimerHandle } from "../../../src/core/pass-deadline.js";
 
@@ -57,6 +60,7 @@ function createPullRequest(overrides: Partial<PullRequestMetadata> = {}): PullRe
     draft: false,
     headSha: HEAD_SHA,
     headBranch: "feature/test",
+    headRepoFullName: "lhpaul/ronda",
     ...overrides,
   };
 }
@@ -260,6 +264,12 @@ function createConfig(overrides: Partial<RondaConfig> = {}): RondaConfig {
     durabilityModeDefault: false,
     sweepMode: "off",
     sweepModeRaw: undefined,
+    repositoryContextMode: "off",
+    repositoryContextModeRaw: undefined,
+    maxRepositoryContextCandidates: DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+    maxRepositoryContextChars: DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
+    repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
+    repositoryContextBudgetFallbacks: [],
     ...overrides,
   };
 }

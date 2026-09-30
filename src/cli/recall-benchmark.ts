@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync, renameSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, renameSync, rmSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import {
   CHAT_COMPLETION_TEMPERATURE,
   createOpenAiCompatibleClient,
@@ -15,9 +16,23 @@ import {
   type SweepListResult,
 } from "../review/sweep-categories.js";
 import { loadConfig } from "../config/load-config.js";
+import {
+  applyRepositoryContextBudgets,
+  buildRepositoryContextCandidates,
+  compareRepositoryContextCandidates,
+} from "../review/repository-context.js";
+import {
+  buildSourceFileSet,
+  identifyCandidates,
+  isRepositoryContextEligiblePath,
+  resolveSymbols,
+  type RepositoryContextReadFile,
+} from "../review/symbol-resolver.js";
+import { buildCommentableLinesByFile } from "../github/diff-lines.js";
 import type {
   ChangedFile,
   Finding,
+  RepositoryContextCandidate,
   SweepCategory,
   SweepCategoryList,
   SweepPassRecord,
@@ -25,6 +40,7 @@ import type {
 import type { Severity } from "../domain/severity.js";
 import type {
   DurabilityModeSetting,
+  RepositoryContextModeSetting,
   RondaConfig,
   SweepModeSetting,
 } from "../config/config.types.js";
@@ -314,6 +330,8 @@ export interface RunRecallBenchmarkInput {
   signal?: AbortSignal;
   /** The swept categories, when the run has a list; omitted leaves the prompt unchanged. */
   sweepCategories?: SweepCategory[];
+  /** The `--repository-context` arm's resolved candidates (#106); omitted or empty leaves the prompt unchanged. */
+  repositoryContext?: RepositoryContextCandidate[];
 }
 
 export interface RunPrecisionFixtureInput {
@@ -353,10 +371,21 @@ export interface CliOptions {
   outputFilePath?: string;
   /** Recorded verbatim; absent leaves the version unattested (the fail-closed case). */
   versionAttestation?: string;
+  /**
+   * The `--repository-context` arm (#106). Absent means off — the prompt is
+   * unchanged, exactly as it was before this feature. `on` resolves
+   * repository context from `repositoryContextFixtureDir` through the same
+   * `identifyCandidates` / `buildSourceFileSet` / `resolveSymbols` core the
+   * real review pass uses, over the benchmark's own changed files.
+   */
+  repositoryContextMode?: RepositoryContextModeSetting;
+  /** Overrides the default repository-context source-tree directory. */
+  repositoryContextFixtureDir?: string;
 }
 
 const DEFAULT_MANIFEST_PATH = "tests/fixtures/recall-benchmark/manifest.json";
 const DEFAULT_PATCHES_PATH = "tests/fixtures/recall-benchmark/patches.json";
+const DEFAULT_REPOSITORY_CONTEXT_FIXTURE_DIR = "tests/fixtures/recall-benchmark/repository-context";
 
 /**
  * The recall fixture's composed prompt. One builder so the prompt fingerprint,
@@ -368,6 +397,7 @@ function buildRecallPrompt(
   changedFiles: ChangedFile[],
   maxPatchChars: number,
   sweepCategories?: SweepCategory[],
+  repositoryContext?: RepositoryContextCandidate[],
 ): ReturnType<typeof buildReviewPrompt> {
   return buildReviewPrompt({
     title: `Recall benchmark: ${manifest.benchmarkId}`,
@@ -375,7 +405,127 @@ function buildRecallPrompt(
     changedFiles,
     maxPatchChars,
     ...(sweepCategories ? { sweepCategories } : {}),
+    ...(repositoryContext && repositoryContext.length > 0 ? { repositoryContext } : {}),
   });
+}
+
+/**
+ * Recursively reads every TypeScript/JavaScript-family file under `dir` into
+ * a map keyed by its path relative to `dir` (posix-separated), mirroring the
+ * changed files' own path namespace (e.g. `src/benchmark/...`) so relative
+ * module-specifier resolution works unchanged. Returns an empty map when
+ * `dir` does not exist — the benchmark's `--repository-context` arm is then
+ * a documented no-op rather than an error (#106, AC13's admissibility
+ * statement covers exactly this case for the three target seeds today).
+ */
+function loadRepositoryContextFixtureFiles(dir: string): Map<string, string> {
+  const files = new Map<string, string>();
+  if (!existsSync(dir)) {
+    return files;
+  }
+  const walk = (current: string): void => {
+    for (const entry of readdirSync(current)) {
+      const full = join(current, entry);
+      const stat = statSync(full);
+      if (stat.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!isRepositoryContextEligiblePath(full)) {
+        continue;
+      }
+      const key = relative(dir, full).split(sep).join("/");
+      files.set(key, readFileSync(full, "utf8"));
+    }
+  };
+  walk(dir);
+  return files;
+}
+
+/**
+ * Reconstructs a changed file's full text from an **added-file** unified-diff
+ * patch (every recall-benchmark seed patch is a whole new file). Strips the
+ * hunk header and the leading `+` from every content line. Returns
+ * `undefined` for any other patch shape (a modified file, a deletion) —
+ * the benchmark's `--repository-context` arm supports added-file changed
+ * content only, which is the fixture's own shape today.
+ */
+export function extractAddedFileText(patch: string | undefined): string | undefined {
+  if (!patch) {
+    return undefined;
+  }
+  const lines = patch.split(/\r?\n/);
+  // A trailing newline in the patch string produces one trailing empty
+  // element from `split` — an artifact of the string, not a diff line.
+  if (lines.length > 0 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+  const content: string[] = [];
+  for (const line of lines) {
+    if (line.startsWith("@@")) {
+      continue;
+    }
+    if (line.startsWith("+")) {
+      content.push(line.slice(1));
+      continue;
+    }
+    if (line.startsWith("\\")) {
+      continue; // "\ No newline at end of file"
+    }
+    // A context or deletion line means this is not a clean whole-file-added
+    // patch; the caller falls back to no repository context for this file.
+    return undefined;
+  }
+  return content.join("\n");
+}
+
+/**
+ * Computes repository context for the benchmark's changed files (#106),
+ * through the same core the real review pass uses. Returns an empty array
+ * when the fixture directory is absent, when no changed file's content could
+ * be reconstructed, or when nothing was requested — never throws.
+ */
+export async function computeBenchmarkRepositoryContext(
+  changedFiles: ChangedFile[],
+  fixtureDir: string = DEFAULT_REPOSITORY_CONTEXT_FIXTURE_DIR,
+): Promise<RepositoryContextCandidate[]> {
+  const changedTextByPath = new Map<string, string>();
+  for (const file of changedFiles) {
+    const text = extractAddedFileText(file.patch);
+    if (text !== undefined) {
+      changedTextByPath.set(file.path, text);
+    }
+  }
+  if (changedTextByPath.size === 0) {
+    return [];
+  }
+
+  const repoFiles = loadRepositoryContextFixtureFiles(fixtureDir);
+  const readFile: RepositoryContextReadFile = async (path) =>
+    changedTextByPath.get(path) ?? repoFiles.get(path);
+  const changedLinesByFile = buildCommentableLinesByFile(
+    [...changedTextByPath.entries()].map(([path, text]) => {
+      const lines = text.split("\n");
+      return {
+        path,
+        status: "added",
+        additions: lines.length,
+        deletions: 0,
+        patch: [`@@ -0,0 +1,${lines.length} @@`, ...lines.map((line) => `+${line}`)].join("\n"),
+      };
+    }),
+  );
+
+  const identified = await identifyCandidates([...changedTextByPath.keys()], changedLinesByFile, readFile);
+  if (identified.requested.length === 0) {
+    return [];
+  }
+  const closure = await buildSourceFileSet(identified.changedSourceTexts, readFile, 60_000);
+  const resolutions = resolveSymbols(closure.fileSet, identified.requested, closure);
+  const built = buildRepositoryContextCandidates(identified.requested, resolutions);
+  const ordered = [...built.candidates].sort(compareRepositoryContextCandidates);
+  const budgeted = applyRepositoryContextBudgets(ordered, { maxCandidates: 12, maxChars: 24_000 });
+  return budgeted.selected;
 }
 
 /**
@@ -389,6 +539,7 @@ async function runRecallPass(input: RunRecallBenchmarkInput): Promise<RecallBenc
     input.changedFiles,
     input.maxPatchChars,
     input.sweepCategories,
+    input.repositoryContext,
   );
   const completion = await input.model.complete(prompt, input.signal ?? new AbortController().signal);
   const parsed = parseModelResponse(completion.content, input.changedFiles);
@@ -688,6 +839,12 @@ function parseArgs(argv: string[]): CliOptions {
     } else if (arg === "--version-attestation" && next) {
       options.versionAttestation = next;
       index += 1;
+    } else if (arg === "--repository-context" && next) {
+      options.repositoryContextMode = parseRepositoryContextModeArg(next);
+      index += 1;
+    } else if (arg === "--repository-context-fixture-dir" && next) {
+      options.repositoryContextFixtureDir = next;
+      index += 1;
     } else {
       throw new Error(`Unknown or incomplete argument: ${arg}`);
     }
@@ -718,6 +875,14 @@ function parseSweepModeArg(value: string): SweepModeSetting {
     return value;
   }
   throw new Error(`--sweep-mode must be "on" or "off", received: ${value}`);
+}
+
+/** The benchmark's `--repository-context` switch (#106) — same two-value shape as `--sweep-mode`. */
+function parseRepositoryContextModeArg(value: string): RepositoryContextModeSetting {
+  if (value === "on" || value === "off") {
+    return value;
+  }
+  throw new Error(`--repository-context must be "on" or "off", received: ${value}`);
 }
 
 /**
@@ -947,6 +1112,8 @@ interface CampaignRunContext {
   sweepMode: SweepModeSetting;
   maxPatchChars: number;
   promptFingerprint: string;
+  /** Resolved once, when `--repository-context on` (#106); every run in the campaign reuses it. */
+  repositoryContext?: RepositoryContextCandidate[];
 }
 
 /** Counts model calls, so a run's cost is this run's, not the campaign's. */
@@ -1088,6 +1255,7 @@ async function runOneCampaignRun(
       timestamp: new Date().toISOString(),
       signal: controller.signal,
       ...(sweepCategories !== undefined ? { sweepCategories } : {}),
+      ...(context.repositoryContext !== undefined ? { repositoryContext: context.repositoryContext } : {}),
     });
     controller.signal.throwIfAborted();
 
@@ -1329,6 +1497,13 @@ export async function runBenchmarkCampaign(
   const config = deps.loadConfig();
   const sweepMode = options.sweepMode ?? "off";
   const maxPatchChars = options.maxPatchChars ?? config.maxPatchChars;
+  const repositoryContext =
+    options.repositoryContextMode === "on"
+      ? await computeBenchmarkRepositoryContext(
+          changedFiles,
+          options.repositoryContextFixtureDir ?? DEFAULT_REPOSITORY_CONTEXT_FIXTURE_DIR,
+        )
+      : undefined;
   const context: CampaignRunContext = {
     options,
     manifest,
@@ -1338,6 +1513,7 @@ export async function runBenchmarkCampaign(
     sweepMode,
     maxPatchChars,
     promptFingerprint: buildPromptFingerprint(manifest, changedFiles, maxPatchChars),
+    ...(repositoryContext !== undefined ? { repositoryContext } : {}),
   };
 
   let list: SweepCategoryList | undefined;

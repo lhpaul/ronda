@@ -1,0 +1,2 @@
+If a reviewer ever reads this file's content, a symlink escaping the
+repository was followed. It must never happen (AC4, AC9).

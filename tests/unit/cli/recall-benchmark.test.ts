@@ -23,6 +23,11 @@ import {
   type ReviewComparisonRecord,
 } from "../../../src/cli/recall-benchmark.js";
 import { loadSweepList } from "../../../src/review/sweep-categories.js";
+import {
+  DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+  DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
+  DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
+} from "../../../src/config/load-config.js";
 import type { RondaConfig } from "../../../src/config/config.types.js";
 import type { ChangedFile } from "../../../src/domain/review-pass.types.js";
 import { ModelClientError, type ModelClient, type ModelRequest } from "../../../src/inference/model-client.js";
@@ -421,6 +426,12 @@ function testConfig(overrides: Partial<RondaConfig> = {}): RondaConfig {
     durabilityModeDefault: false,
     sweepMode: "off",
     sweepModeRaw: undefined,
+    repositoryContextMode: "off",
+    repositoryContextModeRaw: undefined,
+    maxRepositoryContextCandidates: DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+    maxRepositoryContextChars: DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
+    repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
+    repositoryContextBudgetFallbacks: [],
     ...overrides,
   };
 }
