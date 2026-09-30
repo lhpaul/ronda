@@ -16,12 +16,36 @@ implementation PR.
 | --- | --- |
 | Tier | `fixture_only` |
 | Counted pull requests | 0 |
-| Configuration the count accrues under | Not applicable — repository context is not yet enabled for this repository (AC19's ordering gate: the switch is set on only after the AC4, AC5, and AC23 evidence is committed, and only after this document's fixture-comparison and real-PR sections are populated by the follow-up evidence work) |
-| Date recorded | 2026-09-29 |
+| Configuration the count accrues under | `RONDA_REPOSITORY_CONTEXT=on` on this repository's dogfood pass (reusable-workflow ingress only), recorded budget defaults, since 2026-09-30T14:24:02Z (see **Switch history**) |
+| Date recorded | 2026-09-30 |
 
-No real-pull-request review with repository context enabled exists yet, so
-`fixture_only` is the only tier this ledger can honestly claim (Statuses /
-Enum Values → Evidence tier, spec).
+No real-pull-request review with repository context enabled was recorded when
+the switch went on, so `fixture_only` is the tier this ledger claims until the
+first such review is recorded (Statuses / Enum Values → Evidence tier, spec).
+
+## Switch history
+
+AC19 requires this repository's switch to go on only after the AC4, AC5 and
+AC23 evidence is committed, verifiable from the order of the evidence commits
+and the setting's change.
+
+| Time (UTC) | Change | By | Ordering evidence |
+| --- | --- | --- | --- |
+| 2026-09-30T14:24:02Z | `RONDA_REPOSITORY_CONTEXT` repository variable created with value `on` | Repository owner | The AC4/AC5 record (`repository-context-read-only-evidence-106.md`) and the AC23 record (`repository-context-resolution-precision-106.md`, precision 6 / 6 = 100%) reached `develop` with PR [#130](https://github.com/lhpaul/ronda/pull/130), merged 2026-09-30T14:16:57Z — before the switch. Timestamp read from the Actions variables API (`created_at`). |
+
+The webhook ingress stays off until
+[#131](https://github.com/lhpaul/ronda/issues/131) moves the synchronous
+compiler work into a terminable worker thread. Record every later change to
+the switch here, with its time, so the ledger's counted pull requests stay
+attributable to one configuration.
+
+**Gate wording, corrected.** An earlier version of this document also gated
+the switch on this document's fixture-comparison and real-PR sections being
+populated. That is not the spec's gate, and it could never be met: the real-PR
+sections only fill from reviews run with the switch on. The spec's
+demonstrations-before-the-switch business rule and AC19 require the AC4, AC5
+and AC23 evidence only, and the plan's own step 14 records that the cost arms
+need no particular switch position.
 
 ## AC13: fixture admissibility (recorded 2026-09-29, before any figure)
 
@@ -83,9 +107,11 @@ request, per the owner's explicit scope for the implementation PR:
 - Populating the evidence-tier ledger past `fixture_only` as real-pull-request
   reviews with repository context enabled accumulate.
 - Setting this repository's `RONDA_REPOSITORY_CONTEXT` variable to `on` (plan
-  step 15) — a repository-settings change reserved for the human owner, and
-  gated on this document's fixture and real-PR sections being populated
-  first (AC19's demonstrations-before-the-switch business rule).
+  step 15) — a repository-settings change reserved for the human owner.
+  **Done 2026-09-30T14:24:02Z**; see **Switch history**.
+
+The remaining campaign work is tracked as
+[#132](https://github.com/lhpaul/ronda/issues/132).
 
 This mirrors how `#105`'s own recall/precision/cost campaign landed as
 follow-up pull requests `#119`, `#120`, and `#123` after that item's
