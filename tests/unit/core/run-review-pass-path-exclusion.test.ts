@@ -244,6 +244,41 @@ test("path exclusion: findings returned by the model are discarded when every ch
   assert.doesNotMatch(published.summaryBody, /Inverted session-expiry check/);
 });
 
+test("path exclusion: a model finding targeting an excluded path is discarded even when other files remain included", async () => {
+  const github = createFakeGithub([EXCLUDED_EVIDENCE_FILE, REAL_DEFECT_FILE]);
+  const { model } = createFakeModel(
+    JSON.stringify({
+      findings: [
+        {
+          path: EXCLUDED_EVIDENCE_FILE.path,
+          line: null,
+          severity: "blocking",
+          title: "Hardcoded credential in evidence record",
+          body: "The recorded evidence contains a credential.",
+        },
+        ...JSON.parse(findingOnRealDefectFile).findings,
+      ],
+    }),
+  );
+
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 7, trigger: "automatic" },
+    {
+      github: github.ops,
+      model,
+      config: createConfig({ excludePathGlobs: ["docs/testing/ronda/**/*.json"] }),
+      clock: { now: () => Date.now(), isoNow: () => new Date().toISOString() },
+      logger: createLogger(),
+    },
+  );
+
+  assert.equal(result.outcome, "succeeded");
+  const published = github.publishedReviews[0];
+  assert.doesNotMatch(published.summaryBody, /Hardcoded credential in evidence record/);
+  assert.equal(published.inlineComments.length, 1);
+  assert.equal(published.inlineComments[0].path, REAL_DEFECT_FILE.path);
+});
+
 test("path exclusion: default lockfile exclusion applies even with no repository-configured globs", async () => {
   const lockfile: ChangedFile = {
     path: "package-lock.json",

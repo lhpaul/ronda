@@ -564,10 +564,21 @@ export async function runReviewPass(
       repositoryContextReleased = true;
     }
     const rawParsed = parseModelResponse(completion.content, changedFiles);
-    // With no reviewable file left after path exclusion, the model saw no
-    // changed content, so anything it returned (hallucination or injection
-    // via the PR text) is discarded rather than published as a finding.
-    const parsed = changedFiles.length === 0 ? { ...rawParsed, findings: [] } : rawParsed;
+    // The model never saw excluded content, so a finding that targets an
+    // excluded path (hallucination, or injection via the PR text) is discarded
+    // rather than published. With no reviewable file left at all, nothing it
+    // returned is trustworthy and every finding is discarded.
+    const parsed = {
+      ...rawParsed,
+      findings:
+        changedFiles.length === 0
+          ? []
+          : rawParsed.findings.filter(
+              (finding) =>
+                !excludedPathsSet.has(finding.path) &&
+                !isPathExcluded(finding.path, deps.config.excludePathGlobs),
+            ),
+    };
     if (sweepList) {
       // Set the moment this returns, independently of any GitHub call below.
       classification = classifyFindings(parsed.findings, sweepList);

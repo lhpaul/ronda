@@ -307,7 +307,13 @@ const changedFilesWithPatch: ChangedFile[] = [
     deletions: 0,
     patch: "@@ -1,2 +1,2 @@\n context\n+added",
   },
-  { path: "src/b.ts", status: "modified", additions: 1, deletions: 0 },
+  {
+    path: "src/b.ts",
+    status: "modified",
+    additions: 1,
+    deletions: 0,
+    patch: "@@ -1,1 +1,1 @@\n+changed",
+  },
 ];
 
 test("Scenario 1: a ready PR with findings publishes one review and one successful check run", async () => {
