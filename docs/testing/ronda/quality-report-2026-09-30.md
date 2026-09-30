@@ -99,7 +99,7 @@ are omitted below for length; they are reproducible from the same command.
 
 ### Ronda review quality report
 
-Generated: 2026-09-30T17:29:04.494Z
+Generated: 2026-09-30T20:02:15.163Z
 
 ## Scope
 - Comparisons: 6 record(s) from 6 file(s)
@@ -130,11 +130,11 @@ Generated: 2026-09-30T17:29:04.494Z
 - Top missed category: observability (21)
 - Top missed category: partial_success (12)
 - Top missed category: other (8)
+- Seed eval or prompt work for category other (8 confirmed misses)
 - Seed eval or prompt work for category correctness (83 confirmed misses)
 - Seed eval or prompt work for category observability (21 confirmed misses)
-- Seed eval or prompt work for category other (8 confirmed misses)
 - Seed eval or prompt work for category concurrency (5 confirmed misses)
-- Seed eval or prompt work for category configuration (23 confirmed misses)
+- Seed eval or prompt work for category partial_success (12 confirmed misses)
 
 ## Split by PR kind
 
