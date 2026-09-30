@@ -316,7 +316,16 @@ function resolveRepositoryContextBudget(
  */
 function parseGlobList(value: string | string[] | undefined | null): string[] | undefined {
   if (Array.isArray(value)) {
-    const globs = value.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+    const globs = value
+      .map((entry) => {
+        if (typeof entry !== "string") {
+          throw new ConfigLoadError(
+            `excludePathGlobs array contains non-string entry: ${JSON.stringify(entry)}`,
+          );
+        }
+        return entry.trim();
+      })
+      .filter((entry) => entry.length > 0);
     return globs.length > 0 ? globs : undefined;
   }
   const raw = nonBlank(value);

@@ -212,7 +212,7 @@ function renderExcludedFilesSection(excludedFiles: ExcludedFile[]): string[] {
   let renderedChars = 0;
   for (const file of excludedFiles.slice(0, MAX_EXCLUDED_FILES_LISTED)) {
     const entry = `- ${renderInlineCode(file.path)}`;
-    if (listedCount > 0 && renderedChars + entry.length > MAX_EXCLUDED_FILES_LISTED_CHARS) {
+    if (renderedChars + entry.length > MAX_EXCLUDED_FILES_LISTED_CHARS) {
       break;
     }
     lines.push(entry);
