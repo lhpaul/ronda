@@ -19984,6 +19984,19 @@ run_test "1879_prefix_status_still_failed" "failed $_1649_head" \
 _1879_guard_only_rollup='{"statusCheckRollup":[{"__typename":"StatusContext","context":"Reviewer-loop completion guard (#42)","state":"SUCCESS"}],"headRefOid":"'"$_1649_head"'"}'
 run_test "1879_guard_only_empty" "empty $_1649_head" \
   "$(_1649_baseline_helper_row "$_1879_guard_only_rollup")"
+# #151: the `PR policy` workflow's `policy` CheckRun fails with the guard and is
+# excluded the same way; a policy-named check from another workflow, or any
+# other failing check beside it, is still evaluated.
+_151_policy_fail_rollup='{"statusCheckRollup":[{"name":"ShellCheck","status":"COMPLETED","conclusion":"SUCCESS"},{"__typename":"CheckRun","name":"policy","workflowName":"PR policy","status":"COMPLETED","conclusion":"FAILURE"},{"__typename":"StatusContext","context":"Reviewer-loop completion guard (#42)","state":"FAILURE"}],"headRefOid":"'"$_1649_head"'"}'
+run_test "151_policy_failure_excluded_green" "green $_1649_head" \
+  "$(_1649_baseline_helper_row "$_151_policy_fail_rollup")"
+_151_policy_other_wf_rollup='{"statusCheckRollup":[{"name":"ShellCheck","status":"COMPLETED","conclusion":"SUCCESS"},{"__typename":"CheckRun","name":"policy","workflowName":"Other","status":"COMPLETED","conclusion":"FAILURE"}],"headRefOid":"'"$_1649_head"'"}'
+run_test "151_policy_other_workflow_still_failed" "failed $_1649_head" \
+  "$(_1649_baseline_helper_row "$_151_policy_other_wf_rollup")"
+_151_policy_planted_rollup='{"statusCheckRollup":[{"name":"ShellCheck","status":"COMPLETED","conclusion":"FAILURE"},{"__typename":"CheckRun","name":"policy","workflowName":"PR policy","status":"COMPLETED","conclusion":"FAILURE"}],"headRefOid":"'"$_1649_head"'"}'
+run_test "151_planted_real_failure_still_failed" "failed $_1649_head" \
+  "$(_1649_baseline_helper_row "$_151_policy_planted_rollup")"
+unset _151_policy_fail_rollup _151_policy_other_wf_rollup _151_policy_planted_rollup
 unset _1879_guard_fail_rollup _1879_guard_pending_rollup _1879_planted_rollup \
   _1879_lookalike_rollup _1879_guard_only_rollup \
   _1879_prefix_checkrun_rollup _1879_prefix_status_rollup
