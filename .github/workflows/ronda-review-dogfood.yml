@@ -10,9 +10,11 @@ name: Ronda review (dogfood)
 #   `ronda-review.yml` is exercised by its own PR. The Ronda code that actually
 #   reviews is still checked out from `ronda_ref` (the reusable workflow's
 #   default, `main`), never from the PR under review.
-# - `branches: [develop]` on `pull_request`, so only PRs targeting the
-#   integration branch are reviewed automatically. A `/ronda review` comment is
-#   an explicit request and is honoured on any pull request.
+# - `branches: [develop, develop-**]` on `pull_request`, so only PRs targeting
+#   the integration branch — or a `develop-<slug>` integration branch, which
+#   Protocol 05b requires every develop-gated workflow to cover — are reviewed
+#   automatically. A `/ronda review` comment is an explicit request and is
+#   honoured on any pull request.
 #
 # `issue_comment` workflows are loaded from the default branch, so the comment
 # path is only live once this file is on `develop`; the PR that changes it
@@ -27,6 +29,7 @@ on:
   pull_request:
     branches:
       - develop
+      - develop-**
     types: [opened, reopened, ready_for_review, synchronize]
   issue_comment:
     types: [created]

@@ -53,10 +53,13 @@ run_expect_status() {
   printf '%s\n' "$output"
 }
 
-HEAD_SHA="aaaa1110000000000000000000000000000000a"
-GREEN_CHECKS_PAGE='{"data":{"repository":{"pullRequest":{"statusCheckRollup":{"contexts":{"nodes":[{"__typename":"CheckRun","name":"ShellCheck","checkSuite":{"workflowRun":{"workflow":{"name":"CI"}}},"status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-01-01T00:00:00Z"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}}'
-FAILING_CHECKS_PAGE='{"data":{"repository":{"pullRequest":{"statusCheckRollup":{"contexts":{"nodes":[{"__typename":"CheckRun","name":"ShellCheck","checkSuite":{"workflowRun":{"workflow":{"name":"CI"}}},"status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-01-01T00:00:00Z"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}}'
-EMPTY_CHECKS_PAGE='{"data":{"repository":{"pullRequest":{"statusCheckRollup":{"contexts":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}}'
+# The internal-review-gate freshness guard (Check 3.8) resolves the gate and
+# head SHAs as real commits, so the fixture head is this checkout's HEAD.
+HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+# REST check-run pages, the shape latest_check_runs_for_sha reads.
+GREEN_CHECKS_PAGE='[{"total_count":1,"check_runs":[{"id":1,"name":"ShellCheck","status":"completed","conclusion":"success","started_at":"2026-01-01T00:00:00Z","check_suite":{"id":1}}]}]'
+FAILING_CHECKS_PAGE='[{"total_count":1,"check_runs":[{"id":1,"name":"ShellCheck","status":"completed","conclusion":"failure","started_at":"2026-01-01T00:00:00Z","check_suite":{"id":1}}]}]'
+EMPTY_CHECKS_PAGE='[{"total_count":0,"check_runs":[]}]'
 CLEAN_COMMENTS='{"comments":[{"body":"Automated Reviewer Loop Summary\nResult: clean","createdAt":"2026-01-01T00:00:00Z"}]}'
 
 make_gh() {
@@ -84,7 +87,7 @@ case "$*" in
     exit 0
     ;;
   *"pr view"*"headRefOid"*)
-    emit_jq "{\"headRefOid\":\"${MOCK_HEAD_SHA:-aaaa1110000000000000000000000000000000a}\"}"
+    emit_jq "{\"headRefOid\":\"${MOCK_HEAD_SHA:?MOCK_HEAD_SHA is not set}\"}"
     exit 0
     ;;
   *"pr view"*"isDraft"*)
@@ -93,7 +96,13 @@ case "$*" in
     ;;
   *"pr view"*"comments"*)
     # The live --jq filter returns the latest summary body string, not JSON.
-    if [ -n "$jq_filter" ]; then
+    if [[ "$jq_filter" == *"Step 7a Internal Review Gate Summary"* ]]; then
+      # Check 3.8 reads the latest Step 7a gate summary body.
+      printf '%s\n' "### Step 7a Internal Review Gate Summary
+
+**Verdict**: APPROVED
+**Gate-approved commit**: \`${MOCK_GATE_SHA:-$MOCK_HEAD_SHA}\`"
+    elif [ -n "$jq_filter" ]; then
       printf '%s\n' "Automated Reviewer Loop Summary
 Result: clean"
     else
@@ -114,7 +123,8 @@ Result: clean"
     exit 0
     ;;
   *"pr view"*"headRefName"*)
-    emit_jq "{\"number\":42,\"headRefName\":\"${MOCK_HEAD_BRANCH:-feature/test}\",\"baseRefName\":\"develop\",\"title\":\"test\"}"
+    # Also answers pr-ownership-guard.sh (head branch + head repository).
+    emit_jq "{\"number\":42,\"headRefName\":\"${MOCK_HEAD_BRANCH:-feature/test}\",\"baseRefName\":\"develop\",\"title\":\"test\",\"headRepositoryOwner\":{\"login\":\"owner\"},\"headRepository\":{\"name\":\"repo\"},\"isCrossRepository\":false}"
     exit 0
     ;;
   *"pr diff"*)
@@ -135,16 +145,23 @@ Result: clean"
       fi
       exit 0
     fi
-    payload="${MOCK_CHECKS_GRAPHQL:-}"
-    if [ -z "$payload" ]; then
-      echo "MOCK_CHECKS_GRAPHQL is not set" >&2
+    echo "unexpected graphql query" >&2
+    exit 1
+    ;;
+  *"/check-runs"*)
+    if [ -z "${MOCK_CHECK_RUN_PAGES:-}" ]; then
+      echo "MOCK_CHECK_RUN_PAGES is not set" >&2
       exit 1
     fi
-    if [ -n "$jq_filter" ]; then
-      emit_jq "$payload"
-    else
-      printf '%s\n' "$payload"
-    fi
+    printf '%s\n' "$MOCK_CHECK_RUN_PAGES"
+    exit 0
+    ;;
+  *"/actions/runs"*)
+    printf '%s\n' '[{"workflow_runs":[]}]'
+    exit 0
+    ;;
+  *"/status"*)
+    printf '%s\n' '[{"state":"success","statuses":[]}]'
     exit 0
     ;;
   *"pr edit"*) exit 0 ;;
@@ -180,33 +197,38 @@ echo ""
 echo "=== pr-label-readiness-checklist.sh ==="
 
 run_expect_status "success_path_exit_0" 0 \
-  env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_CHECKS_GRAPHQL="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
+  env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_CHECK_RUN_PAGES="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
   bash "$HELPER" 42 --branch feature/test --repo owner/repo --evidence-file "$SUCCESS_EVIDENCE" --no-label-mutation --repo-root "$REPO_ROOT" >/dev/null
 run_test "success_emits_readiness_head_sha" "READINESS_HEAD_SHA=$HEAD_SHA" "$(grep '^READINESS_HEAD_SHA=' <<<"$LAST_RUN_OUTPUT" || true)"
 
 run_expect_status "draft_pr_exit_1" 1 \
-  env MOCK_IS_DRAFT=true MOCK_CHECKS_GRAPHQL="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
+  env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_IS_DRAFT=true MOCK_CHECK_RUN_PAGES="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
   bash "$HELPER" 42 --branch feature/test --repo owner/repo --evidence-file "$SUCCESS_EVIDENCE" --no-label-mutation --repo-root "$REPO_ROOT" >/dev/null
 
 run_expect_status "ci_failing_exit_5" 5 \
-  env MOCK_CHECKS_GRAPHQL="$FAILING_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
+  env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_CHECK_RUN_PAGES="$FAILING_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
   bash "$HELPER" 42 --branch feature/test --repo owner/repo --evidence-file "$SUCCESS_EVIDENCE" --no-label-mutation --repo-root "$REPO_ROOT" >/dev/null
 
 run_expect_status "no_checks_exit_5" 5 \
-  env MOCK_CHECKS_GRAPHQL="$EMPTY_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
+  env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_CHECK_RUN_PAGES="$EMPTY_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
   bash "$HELPER" 42 --branch feature/test --repo owner/repo --evidence-file "$SUCCESS_EVIDENCE" --no-label-mutation --repo-root "$REPO_ROOT" >/dev/null
 
 run_expect_status "missing_regression_label_exit_2" 2 \
-  env MOCK_CHECKS_GRAPHQL="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="" \
+  env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_CHECK_RUN_PAGES="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="" \
   bash "$HELPER" 42 --branch feature/test --repo owner/repo --evidence-file "$SUCCESS_EVIDENCE" --no-label-mutation --repo-root "$REPO_ROOT" >/dev/null
 
 run_expect_status "unsettled_verdict_exit_12" 12 \
-  env MOCK_CHECKS_GRAPHQL="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
+  env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_CHECK_RUN_PAGES="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
   bash "$HELPER" 42 --branch feature/test --repo owner/repo --no-label-mutation --repo-root "$REPO_ROOT" >/dev/null
 
 run_expect_status "stale_post_clean_head_exit_12" 12 \
-  env MOCK_CHECKS_GRAPHQL="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
+  env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_CHECK_RUN_PAGES="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
   bash "$HELPER" 42 --branch feature/test --repo owner/repo --evidence-file "$STALE_EVIDENCE" --no-label-mutation --repo-root "$REPO_ROOT" >/dev/null
+
+# The PR number belongs to another branch: nothing may be changed (#1444).
+run_expect_status "pr_not_owned_exit_14" 14 \
+  env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_HEAD_BRANCH="feature/other" MOCK_CHECK_RUN_PAGES="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
+  bash "$HELPER" 42 --branch feature/test --repo owner/repo --evidence-file "$SUCCESS_EVIDENCE" --no-label-mutation --repo-root "$REPO_ROOT" >/dev/null
 
 run_fails_contains() {
   local name="$1"
