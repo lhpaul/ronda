@@ -30,11 +30,20 @@ export interface ExternalFindingCandidate {
   sourceId: string;
   externalReviewer: string;
   reviewedHeadSha: string;
+  /**
+   * Which GitHub field named the reviewed head for an inline comment:
+   * `original_commit_id` (the head the comment was written against) or the
+   * `commit_id` fallback used only when `original_commit_id` is absent.
+   * Absent for review-level findings, whose `commit_id` does not advance.
+   */
+  reviewedHeadSource?: ReviewedHeadSource;
   location: string;
   locationUnresolved: boolean;
   title: string | null;
   text: string;
 }
+
+export type ReviewedHeadSource = "original_commit_id" | "commit_id_fallback";
 
 export interface CodexPresence {
   supported: boolean;
@@ -565,6 +574,7 @@ function parseFindingFromComment(input: {
     }
   }
 
+  const reviewedHead = commentReviewedHead(input.comment);
   const firstLine = text.split(/\r?\n/).find((lineText) => lineText.trim())?.trim();
   // Pass the full first-line title candidate; the capture gate scans before
   // truncating to 120 characters for storage.
@@ -573,15 +583,33 @@ function parseFindingFromComment(input: {
   return {
     sourceId: `comment:${input.reviewOrCommentId}:${input.findingIndex}`,
     externalReviewer: input.reviewerLogin,
-    reviewedHeadSha:
-      input.comment.commit_id?.trim() ||
-      input.comment.original_commit_id?.trim() ||
-      "",
+    reviewedHeadSha: reviewedHead.sha,
+    ...(reviewedHead.source ? { reviewedHeadSource: reviewedHead.source } : {}),
     location,
     locationUnresolved,
     title,
     text,
   };
+}
+
+/**
+ * The head an inline review comment reviewed. `original_commit_id` is the
+ * commit the comment was written against; `commit_id` is where GitHub has
+ * since advanced it, so it is used only when `original_commit_id` is absent.
+ */
+function commentReviewedHead(comment: GhReviewComment): {
+  sha: string;
+  source?: ReviewedHeadSource;
+} {
+  const original = comment.original_commit_id?.trim();
+  if (original) {
+    return { sha: original, source: "original_commit_id" };
+  }
+  const current = comment.commit_id?.trim();
+  if (current) {
+    return { sha: current, source: "commit_id_fallback" };
+  }
+  return { sha: "" };
 }
 
 /**
@@ -634,9 +662,7 @@ export function readCodexGithubFindings(input: {
   const findings: ExternalFindingCandidate[] = [];
 
   for (const comment of codexComments) {
-    const head =
-      comment.commit_id?.trim() || comment.original_commit_id?.trim() || "";
-    if (!headsMatch(head, input.currentHeadSha)) {
+    if (!headsMatch(commentReviewedHead(comment).sha, input.currentHeadSha)) {
       continue;
     }
     const body = (comment.body ?? "").trim();
@@ -705,10 +731,7 @@ export function readCodexGithubFindings(input: {
     headsMatch(review.commit_id?.trim() ?? "", input.currentHeadSha),
   );
   const currentHeadComments = codexComments.filter((comment) =>
-    headsMatch(
-      comment.commit_id?.trim() || comment.original_commit_id?.trim() || "",
-      input.currentHeadSha,
-    ),
+    headsMatch(commentReviewedHead(comment).sha, input.currentHeadSha),
   );
 
   const hasNonSilentCurrentHeadOutput = [
