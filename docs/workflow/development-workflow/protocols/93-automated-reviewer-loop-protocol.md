@@ -306,8 +306,9 @@ Conditions are evaluated in order and stop at the first unmet one:
    **non-empty** and every member is `SUCCESS`, `SKIPPED`, or `NEUTRAL`. An
    empty set defers with `baseline_checks_unobserved` (vacuous-green is not
    green). Reviewer-owned check names from
-   `configured_reviewer_check_names_json` are excluded, and so is any status
-   whose name starts with `Reviewer-loop completion guard (#` (#1879). That
+   `configured_reviewer_check_names_json` are excluded, and so is the commit status
+   (`StatusContext`) whose context is exactly `Reviewer-loop completion guard (#<pr>)`
+   (#1879); a check that merely starts with those words is still evaluated. That
    guard reports this loop's own last summary and turns green only after a
    clean summary, which needs this gate to pass first, so counting it would
    deadlock the gate after any non-clean run.

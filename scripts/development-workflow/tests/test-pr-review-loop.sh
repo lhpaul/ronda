@@ -19972,12 +19972,21 @@ run_test "1879_planted_real_failure_still_failed" "failed $_1649_head" \
 _1879_lookalike_rollup='{"statusCheckRollup":[{"name":"ShellCheck","status":"COMPLETED","conclusion":"SUCCESS"},{"__typename":"StatusContext","context":"Reviewer-loop completion guard","state":"FAILURE"}],"headRefOid":"'"$_1649_head"'"}'
 run_test "1879_lookalike_status_still_failed" "failed $_1649_head" \
   "$(_1649_baseline_helper_row "$_1879_lookalike_rollup")"
+# A CheckRun, or a status with a suffix, that merely starts with the guard
+# name is still evaluated (it is not the loop's own guard).
+_1879_prefix_checkrun_rollup='{"statusCheckRollup":[{"name":"ShellCheck","status":"COMPLETED","conclusion":"SUCCESS"},{"__typename":"CheckRun","name":"Reviewer-loop completion guard (#42) security scan","status":"COMPLETED","conclusion":"FAILURE"}],"headRefOid":"'"$_1649_head"'"}'
+run_test "1879_prefix_checkrun_still_failed" "failed $_1649_head" \
+  "$(_1649_baseline_helper_row "$_1879_prefix_checkrun_rollup")"
+_1879_prefix_status_rollup='{"statusCheckRollup":[{"name":"ShellCheck","status":"COMPLETED","conclusion":"SUCCESS"},{"__typename":"StatusContext","context":"Reviewer-loop completion guard (#42) security scan","state":"FAILURE"}],"headRefOid":"'"$_1649_head"'"}'
+run_test "1879_prefix_status_still_failed" "failed $_1649_head" \
+  "$(_1649_baseline_helper_row "$_1879_prefix_status_rollup")"
 # Only the guard on the rollup -> nothing to vouch for the head -> empty.
 _1879_guard_only_rollup='{"statusCheckRollup":[{"__typename":"StatusContext","context":"Reviewer-loop completion guard (#42)","state":"SUCCESS"}],"headRefOid":"'"$_1649_head"'"}'
 run_test "1879_guard_only_empty" "empty $_1649_head" \
   "$(_1649_baseline_helper_row "$_1879_guard_only_rollup")"
 unset _1879_guard_fail_rollup _1879_guard_pending_rollup _1879_planted_rollup \
-  _1879_lookalike_rollup _1879_guard_only_rollup
+  _1879_lookalike_rollup _1879_guard_only_rollup \
+  _1879_prefix_checkrun_rollup _1879_prefix_status_rollup
 export MOCK_GH_EXIT=1
 run_test "1649_s10_real_unavailable" "unavailable" \
   "$(expensive_gate_baseline_checks_status 42 "$_1649_head" | awk '{print $1}')"

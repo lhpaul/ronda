@@ -1779,12 +1779,14 @@ expensive_gate_unresolved_threads_status() {
 # excluding reviewer-owned names and classifying.
 #
 # Also excludes the `Reviewer-loop completion guard (#<pr>)` commit status
-# (posted by .github/workflows/pr-policy.yml) by prefix (issue #1879). That
+# (posted by .github/workflows/pr-policy.yml; issue #1879): only a
+# StatusContext whose context is exactly that PR-scoped format, so a check
+# that merely starts with the same words is still evaluated. That
 # status reports THIS loop's own last summary result: it stays `failure` until
 # a clean summary is posted, and a clean summary needs this gate to pass
 # first. Counting it as a baseline check deadlocks the expensive reviewer
 # after any non-clean run, so it is not a baseline check here.
-EXPENSIVE_GATE_COMPLETION_GUARD_PREFIX='Reviewer-loop completion guard (#'
+EXPENSIVE_GATE_COMPLETION_GUARD_REGEX='^Reviewer-loop completion guard \(#[0-9]+\)$'
 expensive_gate_baseline_checks_status() {
   local pr_number_arg="$1"
   local payload=""
@@ -1819,13 +1821,16 @@ expensive_gate_baseline_checks_status() {
   if ! baseline_json="$(
     printf '%s\n' "$normalized_json" | jq \
       --argjson reviewer_names "$reviewer_names" \
-      --arg guard_prefix "$EXPENSIVE_GATE_COMPLETION_GUARD_PREFIX" '
+      --arg guard_regex "$EXPENSIVE_GATE_COMPLETION_GUARD_REGEX" '
       [
         .[]
         | select(
             (.name // .context // .workflowName // "unknown") as $check_name
             | ($reviewer_names | index($check_name) | not)
-              and ($check_name | startswith($guard_prefix) | not)
+              and (
+                ((.__typename // "") == "StatusContext"
+                  and ($check_name | test($guard_regex))) | not
+              )
           )
       ]
     ' 2>/dev/null
