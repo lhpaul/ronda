@@ -5,6 +5,12 @@ name: Ronda review (dogfood)
 # This is the adopter caller from docs/adoption/ronda-review-adoption.md, with
 # these deliberate differences:
 #
+# - `ronda_ref: develop` instead of the reusable workflow's default `main`
+#   (#135). `main` is still the v0.2.0 release, so the default reviews with a
+#   reviewer that lacks everything merged since. This is a deliberate choice
+#   over cutting v0.3.0 inside #135: dogfood evidence describes UNRELEASED code
+#   until a release lands (see docs/testing/ronda/dogfood-evidence-103.md).
+#   Drop the pin once `main` carries the current reviewer.
 # - `uses: ./...` instead of `lhpaul/ronda/...@main`. On `pull_request` the
 #   called workflow is the one at the PR's merge commit, so a change to
 #   `ronda-review.yml` is exercised by its own PR. The Ronda code that actually
@@ -142,6 +148,17 @@ jobs:
     # are committed (see docs/testing/ronda/repository-context-effect-evidence-106.md).
     with:
       repository_context: ${{ vars.RONDA_REPOSITORY_CONTEXT }}
+      # #135: review with the current (unreleased) reviewer, not v0.2.0.
+      ronda_ref: develop
+      # #135: the category-forced sweep is on for this repository's real
+      # passes so they accrue sweep-enabled reviews for
+      # docs/testing/ronda/sweep-real-pr-evidence.md. Repository context stays
+      # gated above (#132); do not mirror this on it.
+      sweep_mode: "on"
+      # #135: the dated snapshot the sweep campaign pinned, instead of the
+      # mutable `qwen-plus` alias, so real-PR and fixture evidence describe
+      # the same model.
+      model_name: qwen-plus-2025-12-01
       # #134: this repository's own recorded-evidence and benchmark fixture
       # paths — the sweep-campaign JSON committed under docs/testing/ronda/
       # and the recall benchmark's seeded fixtures. Product code never
