@@ -735,6 +735,13 @@ echo "    so these run against real framework-mode config — no config swap nee
 # framework-creation-type-exact-match: exact, case-sensitive comparison.
 # "Workflow" is refused; "workflow" (lowercase) is NOT newly rejected and
 # keeps today's behavior (falls through to the normal create path).
+# Consumer repositories (template.is_template: false) run this suite too after
+# a template sync, so framework mode is switched on in the config for this
+# block only instead of assuming the ambient value.
+_framework_config_backup="$TMP_ROOT/ai-dev-workflow.yaml.framework.bak"
+cp "$_config_file" "$_framework_config_backup"
+sed 's/^\([[:space:]]*is_template:\)[[:space:]]*false[[:space:]]*$/\1 true/' "$_framework_config_backup" > "$_config_file"
+
 run_create "ok" --title "Test" --body "body" --type "Workflow"
 run_test "framework_creation_type_exact_match_refuses_workflow" "1" "$(get_exit)"
 run_test "framework_creation_type_exact_match_no_issue_created" "0" "$(count_log_matches 'issue create')"
@@ -759,6 +766,7 @@ case "$_lowercase_workflow_stderr" in
   *) _lowercase_workflow_result="not-refused" ;;
 esac
 run_test "framework_creation_type_exact_match_lowercase_not_refused" "not-refused" "$_lowercase_workflow_result"
+cp "$_framework_config_backup" "$_config_file"
 
 echo ""
 echo "=== create (#1583): creation-refusal-no-bypass ==="

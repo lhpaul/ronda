@@ -176,6 +176,15 @@ source "$REPO_ROOT/scripts/development-workflow/workflow-lib.sh"
 
 reset_log() { : > "$CALL_LOG"; }
 
+# Consumer repositories (template.is_template: false) run this suite too after
+# a template sync. The gate cases below read the ambient config, so framework
+# mode is switched on for the duration of the suite (cleanup restores the real
+# file), and the template-only guidance-mirror check is skipped there.
+AMBIENT_IS_TEMPLATE="$(workflow_template_is_template "$REAL_CONFIG")"
+if [ "$AMBIENT_IS_TEMPLATE" != "true" ]; then
+  sed 's/^\([[:space:]]*is_template:\)[[:space:]]*false[[:space:]]*$/\1 true/' "$REAL_CONFIG_BACKUP" > "$REAL_CONFIG"
+fi
+
 # ===========================================================================
 # list_open_framework_items.sh
 # ===========================================================================
@@ -610,29 +619,35 @@ guidance_check_all_pass() {
 }
 
 cd "$REPO_ROOT"
-if guidance_check_all_pass; then
-  run_test "guidance_mirror_check_clean_tree_passes" "pass" "pass"
+if [ "$AMBIENT_IS_TEMPLATE" != "true" ]; then
+  # The closed mirror list is framework-mode guidance: a consumer's AGENTS.md
+  # legitimately keeps the `Workflow` classification sentence.
+  echo "SKIP: guidance mirror check (consumer repository)"
 else
-  run_test "guidance_mirror_check_clean_tree_passes" "pass" "fail"
-fi
+  if guidance_check_all_pass; then
+    run_test "guidance_mirror_check_clean_tree_passes" "pass" "pass"
+  else
+    run_test "guidance_mirror_check_clean_tree_passes" "pass" "fail"
+  fi
 
-# guidance-check-planted-violation: re-introduce one pre-change string and
-# assert the check now fails; revert and assert it passes again. A guard
-# that has never failed is not known to work.
-_agents_backup="$TMP_ROOT/AGENTS.md.bak"
-cp "$REPO_ROOT/AGENTS.md" "$_agents_backup"
-printf '\nUse `Workflow` for framework work (planted violation).\n' >> "$REPO_ROOT/AGENTS.md"
-if guidance_check_all_pass; then
-  run_test "guidance_check_planted_violation_detected" "fail" "pass"
-else
-  run_test "guidance_check_planted_violation_detected" "fail" "fail"
-fi
-cp "$_agents_backup" "$REPO_ROOT/AGENTS.md"
+  # guidance-check-planted-violation: re-introduce one pre-change string and
+  # assert the check now fails; revert and assert it passes again. A guard
+  # that has never failed is not known to work.
+  _agents_backup="$TMP_ROOT/AGENTS.md.bak"
+  cp "$REPO_ROOT/AGENTS.md" "$_agents_backup"
+  printf '\nUse `Workflow` for framework work (planted violation).\n' >> "$REPO_ROOT/AGENTS.md"
+  if guidance_check_all_pass; then
+    run_test "guidance_check_planted_violation_detected" "fail" "pass"
+  else
+    run_test "guidance_check_planted_violation_detected" "fail" "fail"
+  fi
+  cp "$_agents_backup" "$REPO_ROOT/AGENTS.md"
 
-if guidance_check_all_pass; then
-  run_test "guidance_check_planted_violation_reverted_passes" "pass" "pass"
-else
-  run_test "guidance_check_planted_violation_reverted_passes" "pass" "fail"
+  if guidance_check_all_pass; then
+    run_test "guidance_check_planted_violation_reverted_passes" "pass" "pass"
+  else
+    run_test "guidance_check_planted_violation_reverted_passes" "pass" "fail"
+  fi
 fi
 
 # ===========================================================================
