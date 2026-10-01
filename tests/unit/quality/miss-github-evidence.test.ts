@@ -700,3 +700,107 @@ test("buildResolvabilityChecker treats missing evidence as unresolvable", () => 
     false,
   );
 });
+
+function runGhWithComments(comments: unknown[]): (args: string[]) => string {
+  return (args) => {
+    const joined = args.join(" ");
+    if (joined.includes("/reviews")) {
+      return JSON.stringify([]);
+    }
+    if (joined.includes("/comments")) {
+      return JSON.stringify(comments);
+    }
+    throw new Error(`Unexpected: ${joined}`);
+  };
+}
+
+const CODEX = "chatgpt-codex-connector[bot]";
+
+test("#140 comment written on head A whose commit_id advanced to B records A and is not a current-head (B) finding", () => {
+  const runGh = runGhWithComments([
+    {
+      id: 700,
+      user: { login: CODEX },
+      body: "Stale finding on an earlier head",
+      path: "a.ts",
+      line: 1,
+      original_commit_id: HEAD_A,
+      commit_id: HEAD_B,
+    },
+  ]);
+
+  const onA = readCodexGithubFindings({
+    repository: "lhpaul/ronda",
+    pullNumber: 140,
+    currentHeadSha: HEAD_A,
+    namedReviewer: "codex",
+    runGh,
+  });
+  assert.equal(onA.findingsOnCurrentHead.length, 1);
+  assert.equal(onA.findingsOnCurrentHead[0]?.reviewedHeadSha, HEAD_A);
+  assert.equal(
+    onA.findingsOnCurrentHead[0]?.reviewedHeadSource,
+    "original_commit_id",
+  );
+
+  const onB = readCodexGithubFindings({
+    repository: "lhpaul/ronda",
+    pullNumber: 140,
+    currentHeadSha: HEAD_B,
+    namedReviewer: "codex",
+    runGh,
+  });
+  assert.equal(onB.findingsOnCurrentHead.length, 0);
+  // Codex is present on the PR, but its only output reviewed an earlier head,
+  // so there is no non-silent current-head output to be unparseable.
+  assert.equal(onB.presentOnPullRequest, true);
+  assert.equal(onB.unparseableOnCurrentHead, false);
+});
+
+test("#140 commit_id is used only when original_commit_id is absent, and the fallback is recorded", () => {
+  const result = readCodexGithubFindings({
+    repository: "lhpaul/ronda",
+    pullNumber: 140,
+    currentHeadSha: HEAD_B,
+    namedReviewer: "codex",
+    runGh: runGhWithComments([
+      {
+        id: 701,
+        user: { login: CODEX },
+        body: "Finding without an original commit",
+        path: "a.ts",
+        line: 1,
+        commit_id: HEAD_B,
+      },
+    ]),
+  });
+  assert.equal(result.findingsOnCurrentHead.length, 1);
+  assert.equal(result.findingsOnCurrentHead[0]?.reviewedHeadSha, HEAD_B);
+  assert.equal(
+    result.findingsOnCurrentHead[0]?.reviewedHeadSource,
+    "commit_id_fallback",
+  );
+});
+
+test("#140 presence/silence uses original_commit_id: an advanced non-silent comment is not current-head output", () => {
+  const result = readCodexGithubFindings({
+    repository: "lhpaul/ronda",
+    pullNumber: 140,
+    currentHeadSha: HEAD_B,
+    namedReviewer: "codex",
+    runGh: runGhWithComments([
+      {
+        id: 702,
+        user: { login: CODEX },
+        // Non-silent output that reviewed head A, not the current head B.
+        body: "Looks risky",
+        path: "a.ts",
+        line: 1,
+        original_commit_id: HEAD_A,
+        commit_id: HEAD_B,
+      },
+    ]),
+  });
+  assert.equal(result.findingsOnCurrentHead.length, 0);
+  assert.equal(result.unparseableOnCurrentHead, false);
+});
