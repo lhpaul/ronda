@@ -26,14 +26,13 @@ record, and no automation that would catch the record drifting from the spec.
 | Counted-pull-request total at the prior list version | none — `sweep-categories-v1` is the initial version, so no count preceded it |
 
 **Sweep enabled for real dogfood passes (#135).** `ronda-review-dogfood.yml`
-sets `sweep_mode: "on"`, with `ronda_ref: develop` and
-`model_name: qwen-plus-2025-12-01`. Passes on this repository's pull requests
+sets `sweep_mode: "on"` and `model_name: qwen-plus-2025-12-01`, reviewing with
+the released v0.3.0 (`ronda_ref` default `main`). Passes on this repository's pull requests
 run with the sweep from the merge of the #135 change (the merge time of that
 pull request is the flip time; passes whose check run predates it ran with the
 sweep off and v0.2.0, and are not counted). This enables accrual only: the
 counted total stays `0` until a sweep-enabled real-PR review is recorded here
-by hand under the rules in this document. Those passes review unreleased
-`develop` code.
+by hand under the rules in this document. 
 
 The tier is `fixture_only` because **no sweep-enabled real pull request review
 has been recorded**. That is the only thing that promotes the tier out of
