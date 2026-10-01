@@ -142,5 +142,12 @@ jobs:
     # are committed (see docs/testing/ronda/repository-context-effect-evidence-106.md).
     with:
       repository_context: ${{ vars.RONDA_REPOSITORY_CONTEXT }}
+      # #134: this repository's own recorded-evidence and benchmark fixture
+      # paths — the sweep-campaign JSON committed under docs/testing/ronda/
+      # and the recall benchmark's seeded fixtures. Product code never
+      # hardcodes this repository's own paths (see
+      # src/review/path-exclusion.ts); this dogfood caller is where they are
+      # configured, the same pattern `repository_context` above already uses.
+      exclude_path_globs: "docs/testing/ronda/**/*.json,tests/fixtures/recall-benchmark/**"
     secrets:
       model_api_key: ${{ secrets.RONDA_MODEL_API_KEY }}

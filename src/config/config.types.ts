@@ -72,6 +72,16 @@ export interface RondaConfig {
    */
   repositoryContextBudgetFallbacks: RepositoryContextBudgetName[];
   /**
+   * Repository-configured glob patterns excluded from review before prompt
+   * construction (#134) — everything repository-specific (generated files,
+   * recorded evidence, vendored fixtures). Resolved from the first non-blank
+   * source (environment, then the operator config file), never merged across
+   * sources, same discipline as every other setting in this file. Empty when
+   * no repository-specific globs are configured; the fixed defaults in
+   * `src/review/path-exclusion.ts` still apply regardless of this value.
+   */
+  excludePathGlobs: string[];
+  /**
    * Set only by the CLI entrypoint when the operator config file existed but
    * could not be read or parsed. Carries a message naming the file path —
    * never file contents. `runReviewPass` checks this before calling the

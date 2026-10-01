@@ -11,7 +11,8 @@ export type AuthoritativeDocSkipReason =
   | "over_doc_count"
   | "over_doc_chars"
   | "unreadable"
-  | "empty";
+  | "empty"
+  | "excluded_path";
 
 export interface AuthoritativeDocSkip {
   id: string;

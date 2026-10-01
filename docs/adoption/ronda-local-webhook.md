@@ -93,6 +93,12 @@ in memory, never a local checkout), so nothing accumulates in this long-lived
 process across passes and there is nothing for the startup reconciliation
 sweep above to clean up on this feature's behalf.
 
+Review path-exclusion's repository-configured globs (`excludePathGlobs`, #134)
+resolve the same way: environment first (`RONDA_EXCLUDE_PATH_GLOBS`), then the
+operator config file, since this ingress has no per-request workflow input
+either. See `docs/adoption/ronda-review-adoption.md` for the full vocabulary,
+the fixed defaults that always apply, and the published-summary contract.
+
 ## MacBook and Tunnel Dogfood
 
 Start the service locally:

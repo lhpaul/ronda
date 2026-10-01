@@ -16,7 +16,8 @@ import type {
   PullRequestMetadata,
   ReviewPassDeps,
 } from "../../../src/domain/review-pass.types.js";
-import type { ModelClient } from "../../../src/inference/model-client.js";
+import type { ModelClient, ModelCompletion } from "../../../src/inference/model-client.js";
+import type { ReviewPrompt } from "../../../src/inference/review-prompt.js";
 import type { RondaConfig } from "../../../src/config/config.types.js";
 import type { DeadlineClock, DeadlineTimerHandle } from "../../../src/core/pass-deadline.js";
 
@@ -151,6 +152,19 @@ function createFakeModel(): ModelClient {
   };
 }
 
+/** Same as {@link createFakeModel}, but also captures every prompt it is asked to complete. */
+function createRecordingFakeModel(): { model: ModelClient; requests: ReviewPrompt[] } {
+  const requests: ReviewPrompt[] = [];
+  const model: ModelClient = {
+    modelName: "fake-model",
+    async complete(request): Promise<ModelCompletion> {
+      requests.push(request);
+      return { content: JSON.stringify({ findings: [] }) };
+    },
+  };
+  return { model, requests };
+}
+
 function createLogger(): { logger: Logger; events: Array<{ name: string; fields: Record<string, unknown> }> } {
   const events: Array<{ name: string; fields: Record<string, unknown> }> = [];
   return { logger: { event: (name, fields) => events.push({ name, fields }) }, events };
@@ -173,6 +187,7 @@ function createConfig(overrides: Partial<RondaConfig> = {}): RondaConfig {
     maxRepositoryContextChars: 24_000,
     repositoryContextTimeBudgetMs: 120_000,
     repositoryContextBudgetFallbacks: [],
+    excludePathGlobs: [],
     ...overrides,
   };
 }
@@ -505,4 +520,62 @@ test("scenario 10: two consecutive passes on different content at the same path 
 
   assert.equal(first.repositoryContext?.record?.outcome, "used");
   assert.equal(second.repositoryContext?.record?.outcome, "used");
+});
+
+// --- #106/#134: excluded dependency content must never re-enter via the
+// resolver, even though `filterExcludedFiles` only ever sees `changedFiles`
+// ---------------------------------------------------------------------------
+
+const GENERATED_HELPER_MARKER = "sk-planted-generated-dependency-do-not-leak";
+const GENERATED_HELPER_TEXT = `// ${GENERATED_HELPER_MARKER}\nexport function helper(x: number): number {\n  return x + 1;\n}\n`;
+const CALLER_OF_GENERATED_TEXT = [
+  'import { helper } from "./helper.generated.js";',
+  "",
+  "export function run(): number {",
+  "  return helper(1);",
+  "}",
+].join("\n");
+
+test("excluded dependency: an included file importing a default-excluded generated file never resolves or reaches the prompt", async () => {
+  const github = createFakeGithub({
+    pullRequest: pullRequest(),
+    changedFiles: [changedFile("src/caller.ts", [4])],
+    repoFiles: new Map([
+      ["src/caller.ts", CALLER_OF_GENERATED_TEXT],
+      // The resolver's module-resolution contract substitutes `.generated.js`
+      // → `.generated.ts` the same way it does for plain `.js` → `.ts`; this
+      // is the exact file `**/*.generated.*` (a fixed default exclusion,
+      // #134) would keep out of the prompt if it had been a *changed* file
+      // instead of a same-PR dependency.
+      ["src/helper.generated.ts", GENERATED_HELPER_TEXT],
+    ]),
+  });
+  const { model, requests } = createRecordingFakeModel();
+
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    deps(
+      github.ops,
+      createConfig({
+        repositoryContextMode: "on",
+        maxRepositoryContextCandidates: 1_000,
+        maxRepositoryContextChars: 1_000_000,
+        repositoryContextTimeBudgetMs: 600_000,
+      }),
+      { model },
+    ),
+  );
+
+  assert.equal(result.outcome, "succeeded");
+  // The isolating half: without the resolver-read exclusion check (the bug
+  // this test guards against), this candidate would resolve and its record
+  // would report `used`/`candidatesResolved: 1`. With the check applied, the
+  // excluded dependency is refused before it is ever read, so it is dropped
+  // rather than resolved.
+  assert.notEqual(result.repositoryContext?.record?.candidatesResolved, 1);
+  assert.equal(result.repositoryContext?.record?.candidatesResolved, 0);
+
+  assert.equal(requests.length, 1);
+  assert.doesNotMatch(requests[0].userPrompt, new RegExp(GENERATED_HELPER_MARKER));
+  assert.doesNotMatch(requests[0].userPrompt, /helper\.generated\.ts/);
 });

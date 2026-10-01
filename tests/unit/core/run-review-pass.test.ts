@@ -270,6 +270,7 @@ function createConfig(overrides: Partial<RondaConfig> = {}): RondaConfig {
     maxRepositoryContextChars: DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
     repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
     repositoryContextBudgetFallbacks: [],
+    excludePathGlobs: [],
     ...overrides,
   };
 }
@@ -306,7 +307,13 @@ const changedFilesWithPatch: ChangedFile[] = [
     deletions: 0,
     patch: "@@ -1,2 +1,2 @@\n context\n+added",
   },
-  { path: "src/b.ts", status: "modified", additions: 1, deletions: 0 },
+  {
+    path: "src/b.ts",
+    status: "modified",
+    additions: 1,
+    deletions: 0,
+    patch: "@@ -1,1 +1,1 @@\n+changed",
+  },
 ];
 
 test("Scenario 1: a ready PR with findings publishes one review and one successful check run", async () => {

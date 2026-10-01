@@ -31,12 +31,20 @@ export const DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS = 120_000;
  */
 export class ConfigLoadError extends Error {
   readonly path: string;
+  /**
+   * Fixed, safe text for published surfaces. The underlying cause can carry
+   * local paths or operator-supplied values, so callers publish this instead
+   * of the cause. Defaults to the config-file message; a failure that comes
+   * from an environment variable supplies its own.
+   */
+  readonly publicMessage: string;
 
-  constructor(path: string, cause: unknown) {
+  constructor(path: string, cause: unknown, publicMessage?: string) {
     super(`Failed to load Ronda config file at ${path}`);
     this.name = "ConfigLoadError";
     this.path = path;
     this.cause = cause;
+    this.publicMessage = publicMessage ?? `Failed to load Ronda config file at ${path}`;
   }
 }
 
@@ -55,6 +63,7 @@ interface OperatorConfigFile {
   maxRepositoryContextCandidates?: number | string;
   maxRepositoryContextChars?: number | string;
   repositoryContextTimeBudgetMs?: number | string;
+  excludePathGlobs?: string | string[];
 }
 
 export interface LoadConfigOptions {
@@ -172,6 +181,55 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
     repositoryContextBudgetFallbacks,
   );
 
+  // Validate the config-file excludePathGlobs shape before parsing (#134): only
+  // a string or an array of strings is meaningful. Any other non-null value
+  // would otherwise be treated as absent and silently disable the requested
+  // exclusions, sending excluded content to the model.
+  // The environment wins outright over the file, so the file value is only
+  // validated when no usable environment override was selected.
+  const envExcludePathGlobs = parseGlobList(env.RONDA_EXCLUDE_PATH_GLOBS);
+  const rawExcludePathGlobs: unknown = fileConfig.excludePathGlobs;
+  if (envExcludePathGlobs === undefined && rawExcludePathGlobs !== undefined && rawExcludePathGlobs !== null) {
+    if (Array.isArray(rawExcludePathGlobs)) {
+      const invalidIndex = rawExcludePathGlobs.findIndex((entry) => typeof entry !== "string");
+      if (invalidIndex !== -1) {
+        const invalidEntry: unknown = rawExcludePathGlobs[invalidIndex];
+        throw new ConfigLoadError(
+          configPath,
+          new TypeError(
+            `excludePathGlobs array contains non-string entry: ${JSON.stringify(invalidEntry)}`,
+          ),
+        );
+      }
+    } else if (typeof rawExcludePathGlobs !== "string") {
+      throw new ConfigLoadError(
+        configPath,
+        new TypeError(
+          `excludePathGlobs must be a string or an array of strings, got ${JSON.stringify(rawExcludePathGlobs)}`,
+        ),
+      );
+    }
+  }
+
+  const excludePathGlobs = envExcludePathGlobs ?? parseGlobList(fileConfig.excludePathGlobs) ?? [];
+  // The matcher supports only `**`, `*` and `?`. Bracket and brace syntax would
+  // be treated as literal filename characters, so a pattern like
+  // `generated/**/*.[jt]s` would silently fail open and send matching files to
+  // the model; reject it instead.
+  const unsupportedGlob = excludePathGlobs.find((glob) => /[[\]{}]/.test(glob));
+  if (unsupportedGlob !== undefined) {
+    const fromEnvironment = envExcludePathGlobs !== undefined;
+    throw new ConfigLoadError(
+      configPath,
+      new TypeError(
+        `excludePathGlobs contains unsupported glob syntax (only **, * and ? are supported): ${JSON.stringify(unsupportedGlob)}`,
+      ),
+      fromEnvironment
+        ? "Invalid Ronda configuration: RONDA_EXCLUDE_PATH_GLOBS contains unsupported glob syntax (only **, * and ? are supported)"
+        : undefined,
+    );
+  }
+
   return {
     model: { apiKey, baseUrl, modelName },
     passTimeoutMs,
@@ -188,6 +246,7 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
     maxRepositoryContextChars,
     repositoryContextTimeBudgetMs,
     repositoryContextBudgetFallbacks,
+    excludePathGlobs,
   };
 }
 
@@ -296,6 +355,33 @@ function resolveRepositoryContextBudget(
   }
   fallbacks.push(name);
   return defaultValue;
+}
+
+/**
+ * Parses one glob-list source into an array of non-blank patterns (#134).
+ * Accepts a `RondaConfig`-file array directly, or a comma/newline-separated
+ * string from either the environment variable or the config file (the config
+ * file's own `excludePathGlobs` may be an array or a string). Returns
+ * `undefined` — not `[]` — when the source is entirely absent or blank, so
+ * the caller's `??` chain can still defer to the next-lower-precedence
+ * source; an operator-supplied empty list would be indistinguishable from "no
+ * value" here, which is the intended behavior since an empty list carries no
+ * information either way.
+ */
+function parseGlobList(value: string | string[] | undefined | null): string[] | undefined {
+  if (Array.isArray(value)) {
+    const globs = value.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+    return globs.length > 0 ? globs : undefined;
+  }
+  const raw = nonBlank(value);
+  if (raw === undefined) {
+    return undefined;
+  }
+  const globs = raw
+    .split(/[,\n]/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return globs.length > 0 ? globs : undefined;
 }
 
 function parseBooleanFlag(value: string | boolean | undefined | null): boolean | undefined {
