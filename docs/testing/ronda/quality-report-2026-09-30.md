@@ -1,7 +1,7 @@
 # Ronda Review Quality Report: 2026-09-30 (dogfood misses, v0.2.0 baseline)
 
 Deliverable of [#136](https://github.com/lhpaul/ronda/issues/136), under epic
-#52. Committed rollup of 172 external-review miss records captured from the
+#52. Committed rollup of 170 external-review miss records captured from the
 dogfood passes on PRs #107, #115, #117, #118 and #119, produced with
 `npm run quality:report`. Previous rollup:
 [`quality-report-2026-09-23.md`](quality-report-2026-09-23.md) (zero miss records).
@@ -37,7 +37,7 @@ dogfood passes on PRs #107, #115, #117, #118 and #119, produced with
 
 ## Method
 
-- **Sources.** Codex GitHub inline review comments (91) and `local-ai-reviewer`
+- **Sources.** Codex GitHub inline review comments (91 read, 89 recorded) and `local-ai-reviewer`
   findings (81 captured). No other external reviewer was read.
 - **Capture.** `quality:misses -- capture` first, then `capture-manual` for
   nearly everything, because the automatic path reads only current-head
@@ -45,7 +45,8 @@ dogfood passes on PRs #107, #115, #117, #118 and #119, produced with
   with "the Codex GitHub reviewer has no readable presence on this pull
   request". Manual records carry `--reviewed-head`, which the tool checks
   against the PR's real heads. Manual records store the unmodified comment
-  body. 170 records are manual and 2 are automatic.
+  body. All 170 recorded findings are manual captures; the two automatic records
+  were removed (see below).
 - **Reviewed-head attribution for Codex.** GitHub advances an inline
   comment's `commit_id` as the PR moves, while `original_commit_id` is the head
   Codex reviewed (the reviewer-loop summaries name the same heads). The capture
@@ -54,8 +55,10 @@ dogfood passes on PRs #107, #115, #117, #118 and #119, produced with
   (verdicts, follow-ups and rationales carried over unchanged). The other 2
   (#118, automatic records) could not be recaptured, because their original
   head is an intermediate commit that the tool refuses as never a PR tip. They
-  sit on the current head, which already contains their fix, so they are
-  re-adjudicated as `out_of_scope` and excluded from confirmed totals. The
+  sat on the current head, which already contains their fix, and no verdict
+  fits a record that cannot name its reviewed head (`out_of_scope` means
+  something else in the #53 spec). They are removed from the corpus and counted
+  with the head-unresolvable findings below. The
   tool's head preference is tracked in
   [#140](https://github.com/lhpaul/ronda/issues/140) and is not fixed here.
 - **`local-ai-reviewer` recovery.** The final reviewer-loop summaries
@@ -111,11 +114,11 @@ are omitted below for length; they are reproducible from the same command.
 
 ### Ronda review quality report
 
-Generated: 2026-09-30T20:32:29.272Z
+Generated: 2026-10-01T09:52:01.993Z
 
 ## Scope
 - Comparisons: 6 record(s) from 6 file(s)
-- Miss records: 172 record(s) from 172 file(s); 172 in scope after filters
+- Miss records: 170 record(s) from 170 file(s); 170 in scope after filters
 
 ## Primary outcomes
 - true_positive: 165
@@ -133,7 +136,7 @@ Generated: 2026-09-30T20:32:29.272Z
 
 ## Supplementary
 - duplicate: 1
-- out_of_scope: 4
+- out_of_scope: 2
 - unresolvable_evidence: 0
 
 ## Improvement
@@ -157,7 +160,7 @@ committed records (`docs/testing/ronda/misses/*.json`).
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | Spec | #115 | 76 | 0 | 48 | 36 | none |
 | Plan | #117 | 28 | 0 | 17 | 24 | none |
-| Code | #118 | 26 | 1 | 13 | 8 | 1 Codex and 1 local `false_positive`; 2 Codex `out_of_scope` |
+| Code | #118 | 26 | 1 | 13 | 8 | 1 Codex and 1 local `false_positive` |
 | Evidence | #119 | 13 | 55 (false positives, #134) | 7 | 4 | 2 local `out_of_scope` |
 | Code/workflow | #107 | 16 | 5 | 2 | 6 | 1 Codex `already_found` |
 
@@ -202,21 +205,23 @@ spec and plan findings. That is a limit of the list, not a finding.
 
 ## Follow-ups recorded
 
-136 `prompt_change` (#115, #117, #119), 26 `eval_record` (#107, #118), 10
+136 `prompt_change` (#115, #117, #119), 26 `eval_record` (#107, #118), 8
 `no_action`. These are intended follow-ups only; none was started here.
 
 ## Excluded and unresolved evidence
 
-| PR | Stale-head records (left out of verdicts) | `local-ai-reviewer` findings refused by the reviewed-head check |
-| --- | ---: | ---: |
-| #107 | 0 | 0 |
-| #115 | 0 | 24 |
-| #117 | 0 | 5 |
-| #118 | 0 | 0 |
-| #119 | 0 | 0 |
+| PR | Stale-head records (left out of verdicts) | `local-ai-reviewer` findings refused by the reviewed-head check | Codex findings with no resolvable head (removed) |
+| --- | ---: | ---: | ---: |
+| #107 | 0 | 0 | 0 |
+| #115 | 0 | 24 | 0 |
+| #117 | 0 | 5 | 0 |
+| #118 | 0 | 0 | 2 |
+| #119 | 0 | 0 | 0 |
 
-Two #118 Codex records are excluded from confirmed totals for the
-reviewed-head reason above. No captured record is stale: Ronda reviewed every head that a record cites.
+No captured record is stale: Ronda reviewed every head that a record cites.
+The 2 Codex findings on #118 were raised on an intermediate commit that was
+never a PR tip, so they are unrecorded, not judged. They are separate from the
+`local-ai-reviewer` refusals, which are 29 in total.
 The 29 refused findings sit on commits that exist on GitHub but were never PR
 tips (intermediate commits of multi-commit pushes). The capture tool accepts
 only force-push tips and the current head (#53 AC31), so they were not
