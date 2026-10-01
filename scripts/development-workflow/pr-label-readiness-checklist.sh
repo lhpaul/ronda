@@ -14,7 +14,7 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/development-workflow/pr-label-readiness-checklist.sh <pr-number> --branch <name> [options]
 
-Runs Protocol 91 Step 8a checks (Checks 0 through 4). Exit codes 0-12 match the
+Runs Protocol 91 Step 8a checks (Checks 0 through 4). Exit codes 0-14 match the
 Step 8a table in protocol 91. Infrastructure dependency scan, human-checkpoint
 sync, and Step 8a.1 remain orchestration steps outside this script.
 
@@ -79,6 +79,17 @@ load_evidence_file() {
     exit 64
   fi
   load_evidence_stream < "$file"
+}
+
+# Readiness labels go through apply-readiness-labels.sh (issue #1408): never
+# `gh pr edit --add-label ready-*` directly. The helper re-verifies the live
+# head before adding the label and removes a stale one on refusal.
+workflow_apply_readiness_label() {
+  if [ "$NO_LABEL_MUTATION" -eq 1 ]; then
+    echo "INFO: --no-label-mutation: skipping apply-readiness-labels.sh $*"
+    return 0
+  fi
+  "$SCRIPT_DIR/apply-readiness-labels.sh" "$@"
 }
 
 workflow_pr_edit() {
@@ -173,6 +184,14 @@ fi
 # --- Checklist body (extracted from Protocol 91 Step 8a) ---------------------
 TARGET_REPO=$(repo_slug)
 
+# PR ownership (issue #1444): every label and body change below addresses the
+# PR by number, so prove it is this item's PR before any of them.
+if ! "$SCRIPT_DIR/pr-ownership-guard.sh" --pr "$PR_NUMBER" \
+    --expected-branch "$BRANCH" --repo "$TARGET_REPO"; then
+  echo "ERROR: PR #$PR_NUMBER is not verified as the PR of $BRANCH in $TARGET_REPO; nothing was changed."
+  exit 14  # Exit code 14 = "PR ownership not verified"
+fi
+
 # Determine PR type (implementation vs. spec/plan)
 case "$BRANCH" in
   feature/*|fix/*|hotfix/*|refactor/*|backport/hotfix/*)
@@ -192,81 +211,48 @@ esac
 # failing or still pending. Run Step 8 (pr-ci-loop.sh) first if CI is not green.
 HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid')
 REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
-# Match Step 8's `pr-ci-loop.sh` key semantics while still reading every page.
-# statusCheckRollup carries both GitHub/App check-runs and plain commit statuses,
-# and exposes `workflowName` so duplicate historical entries can be normalized by
-# the same check key (`workflowName/name` for checks, `context` for statuses).
-GRAPHQL_OWNER="${REPO%%/*}"
-GRAPHQL_REPO="${REPO#*/}"
-CHECKS_JSON="[]"
-CHECKS_CURSOR=""
-CHECKS_QUERY='query($owner:String!,$repo:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){statusCheckRollup{contexts(first:100,after:$cursor){nodes{__typename ... on CheckRun{name checkSuite{workflowRun{workflow{name}}} status conclusion startedAt completedAt} ... on StatusContext{context state createdAt}} pageInfo{hasNextPage endCursor}}}}}}'
-while :; do
-  if [ -z "$CHECKS_CURSOR" ]; then
-    CHECKS_PAGE=$(gh api graphql \
-      -f owner="$GRAPHQL_OWNER" -f repo="$GRAPHQL_REPO" -F number="$PR_NUMBER" \
-      -F cursor=null \
-      -f query="$CHECKS_QUERY") || {
-        echo "ERROR: could not read status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
-        exit 5
-      }
-  else
-    CHECKS_PAGE=$(gh api graphql \
-      -f owner="$GRAPHQL_OWNER" -f repo="$GRAPHQL_REPO" -F number="$PR_NUMBER" \
-      -f cursor="$CHECKS_CURSOR" \
-      -f query="$CHECKS_QUERY") || {
-        echo "ERROR: could not read status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
-        exit 5
-      }
-  fi
-  if ! CHECKS_NODES=$(printf '%s' "$CHECKS_PAGE" | jq -c '.data.repository.pullRequest.statusCheckRollup.contexts.nodes // []'); then
-    echo "ERROR: could not parse status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
-    exit 5
-  fi
-  if ! CHECKS_JSON=$(jq -cn --argjson existing "$CHECKS_JSON" --argjson nodes "$CHECKS_NODES" '$existing + $nodes'); then
-    echo "ERROR: could not aggregate status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
-    exit 5
-  fi
-  CHECKS_HAS_NEXT=$(printf '%s' "$CHECKS_PAGE" | jq -r '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.hasNextPage // false') # workflow-shell-guard: allow SH003 - false is a valid pagination terminus, not jq failure
-  if [ "$CHECKS_HAS_NEXT" != "true" ]; then
-    break
-  fi
-  CHECKS_CURSOR=$(printf '%s' "$CHECKS_PAGE" | jq -r '.data.repository.pullRequest.statusCheckRollup.contexts.pageInfo.endCursor // ""') # workflow-shell-guard: allow SH003 - empty cursor is valid when hasNextPage is false
-  if [ -z "$CHECKS_CURSOR" ] || [ "$CHECKS_CURSOR" = "null" ]; then
-    echo "ERROR: status check rollup pagination did not provide an end cursor."
-    exit 5
-  fi
-done
-if ! NORMALIZED_CHECKS_JSON="$(
-  printf '%s\n' "$CHECKS_JSON" | jq '
-  .
-  | map(
-      . + {
-        __check_key: (
-          if (.context // "") != "" then
-            "status:" + .context
-          elif (.checkSuite.workflowRun.workflow.name // "") != "" and (.name // "") != "" then
-            "check:" + .checkSuite.workflowRun.workflow.name + "/" + .name
-          elif (.name // "") != "" then
-            "check:" + .name
-          else
-            "unknown"
-          end
-        ),
-        __check_ts: (.startedAt // .completedAt // .createdAt // "")
-      }
-    )
-  | sort_by(.__check_key, .__check_ts)
-  | group_by(.__check_key)
-  | map(last | del(.__check_key, .__check_ts))
-'
-)"; then
-  echo "ERROR: could not normalize status check rollup for $HEAD_SHA — refusing to label on an incomplete CI read."
+# Read every page. The REST default page size is 30 and this repository
+# routinely exceeds it: the test matrix is diff-driven and adds one job per
+# selected suite, so PR #1568 carried 75 check-runs. A single-page read of
+# that head sees 30 of them, and a failure among the other 45 is invisible to
+# the very gate that decides "CI is green".
+#
+# `--slurp` cannot be combined with `--jq`, so each call returns an array of
+# whole pages and the aggregation is done by an external jq.
+#
+# Superseded runs (issue #1559): check-runs' default `filter=latest` is latest
+# per CHECK SUITE, and another run of a workflow reports in a new suite —
+# PR #1547's head returns both `policy failure 05:26:31` and
+# `policy success 05:28:16`. latest_check_runs_for_sha (workflow-lib.sh,
+# sourced above) reads every page, tags each run with its workflow so
+# same-named jobs of different workflows stay separate, and keeps only the
+# latest run per workflow + job via the shared dedupe.
+#
+# Both reads fail closed. If either endpoint cannot be read, the gate does not
+# know the CI state, and "unknown" must never be labelled as green — the same
+# rule the CI_TOTAL check below applies to an empty check set.
+if ! CHECK_RUNS=$(latest_check_runs_for_sha "$REPO" "$HEAD_SHA"); then
+  echo "ERROR: could not read check-runs for $HEAD_SHA — refusing to label on an incomplete CI read."
   exit 5
 fi
-CI_FAILING=$(printf '%s' "$NORMALIZED_CHECKS_JSON" | jq '[.[] | select((.conclusion == "FAILURE") or (.conclusion == "CANCELLED") or (.conclusion == "TIMED_OUT") or (.conclusion == "ACTION_REQUIRED") or (.conclusion == "STARTUP_FAILURE") or (.state == "FAILURE") or (.state == "ERROR"))] | length')
-CI_PENDING=$(printf '%s' "$NORMALIZED_CHECKS_JSON" | jq '[.[] | select(((.status // "") != "" and (.status != "COMPLETED")) or (.state == "EXPECTED") or (.state == "PENDING") or (.state == "IN_PROGRESS") or (.state == "QUEUED"))] | length')
-CI_TOTAL=$(printf '%s' "$NORMALIZED_CHECKS_JSON" | jq '[.[]] | length')
+# check-runs is GitHub Actions/App checks only — it does not include plain
+# commit statuses (CodeRabbit, Devin Review, and this repo's own
+# "Reviewer-loop completion guard" all post as statuses, not check-runs). A
+# PR whose CI signal is entirely statuses would otherwise read CI_TOTAL=0
+# below and be refused even when green, and a failing status would not count
+# toward CI_FAILING at all. Fold the combined-status endpoint in too.
+if ! STATUS_PAGES=$(gh api "repos/$REPO/commits/$HEAD_SHA/status?per_page=100" --paginate --slurp); then
+  echo "ERROR: could not read commit statuses for $HEAD_SHA — refusing to label on an incomplete CI read."
+  exit 5
+fi
+# (The combined `/status` endpoint above already reports only the latest
+# status per context.)
+CI_FAILING=$(printf '%s' "$CHECK_RUNS" | jq '[.[] | select(.status == "completed" and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral")] | length')
+CI_PENDING=$(printf '%s' "$CHECK_RUNS" | jq '[.[] | select(.status != "completed")] | length')
+CI_TOTAL=$(printf '%s' "$CHECK_RUNS" | jq 'length')
+CI_FAILING=$((CI_FAILING + $(printf '%s' "$STATUS_PAGES" | jq '[.[].statuses[]? | select(.state == "failure" or .state == "error")] | length')))
+CI_PENDING=$((CI_PENDING + $(printf '%s' "$STATUS_PAGES" | jq '[.[].statuses[]? | select(.state == "pending")] | length')))
+CI_TOTAL=$((CI_TOTAL + $(printf '%s' "$STATUS_PAGES" | jq '[.[].statuses[]?] | length')))
 if [ "$CI_FAILING" -gt 0 ] || [ "$CI_PENDING" -gt 0 ]; then
   echo "ERROR: CI is not green — ${CI_FAILING} failing and ${CI_PENDING} pending check(s) on $HEAD_SHA."
   echo "Run Step 8 (pr-ci-loop.sh) and resolve all failures before applying ready-for-human-review."
@@ -423,7 +409,9 @@ if [ "$IS_IMPLEMENTATION_PR" = "true" ]; then
   if [ "$HAS_REGRESSION_LABEL" -eq 0 ]; then
     echo "WARNING: Implementation PR is missing 'ready-for-regression' label — Step 7b was not completed before Step 8."
     echo "Applying 'ready-for-regression' label now and logging as protocol deviation."
-    workflow_pr_edit "$PR_NUMBER" --add-label "ready-for-regression"
+    # Helper-gated (issue #1408): never `gh pr edit --add-label ready-*` directly.
+    workflow_apply_readiness_label \
+      --pr "$PR_NUMBER" --repo "$TARGET_REPO" --label ready-for-regression || exit 12
     echo "PROTOCOL_DEVIATION: ready-for-regression was missing on PR #${PR_NUMBER} at Step 8a — applied by agent. Step 7b must be run before Step 8 in future cycles."
     echo "Re-running Step 8 CI loop to wait for the e2e/regression workflow triggered by the label..."
     # EXIT this checklist script and re-run Step 8 before returning here.
@@ -617,7 +605,28 @@ if [ "$HAS_NEEDS_FIXES" -gt 0 ]; then
   workflow_pr_edit "$PR_NUMBER" --repo "$TARGET_REPO" --remove-label "needs-fixes"
 fi
 
-# Check 4: ready-for-human-review label NOT yet applied (we are about to apply it)
+# Check 3.8: internal review gate freshness. Stale Step 7a evidence must stop
+# the readiness signal BEFORE the label is applied, not be caught by the Step 8c
+# post-label audit after label consumers may already have fired.
+GATE_COMMENT=$(gh pr view "$PR_NUMBER" --repo "$TARGET_REPO" --json comments \
+  --jq '[.comments[] | select(.body | contains("### Step 7a Internal Review Gate Summary"))] | last | .body // ""')
+GATE_VERDICT=$(printf '%s\n' "$GATE_COMMENT" | sed -n 's/^\*\*Verdict\*\*: *//p' | head -1)
+GATE_SHA=$(printf '%s\n' "$GATE_COMMENT" | sed -n 's/^\*\*Gate-approved commit\*\*: *`\{0,1\}\([0-9a-f]\{7,64\}\).*/\1/p' | head -1)
+LIVE_HEAD_OID=$(gh pr view "$PR_NUMBER" --repo "$TARGET_REPO" --json headRefOid --jq '.headRefOid')
+if [ "$GATE_VERDICT" != "APPROVED" ] || [ -z "$GATE_SHA" ] || \
+   ! "$SCRIPT_DIR/internal-review-gate-freshness-guard.sh" \
+        --gate-sha "$GATE_SHA" --head-sha "$LIVE_HEAD_OID" --repo-root "$(git rev-parse --show-toplevel)"; then
+  echo "ERROR: Cannot proceed to Check 4 — internal review gate evidence is missing, not APPROVED, or stale for head $LIVE_HEAD_OID."
+  echo "Re-run Step 7a at the current HEAD, then re-run this checklist from the beginning."
+  # A readiness label already on the PR describes a head the gate never approved:
+  # pull it back and keep the PR out of readiness before exiting.
+  workflow_pr_edit "$PR_NUMBER" --repo "$TARGET_REPO" --remove-label "ready-for-human-review" || true  # workflow-shell-guard: allow SH001 - label may be absent
+  workflow_pr_edit "$PR_NUMBER" --repo "$TARGET_REPO" --add-label "needs-fixes"
+  exit 13  # Exit code 13 = "internal review gate evidence missing or stale at pre-Check-4 gate"
+fi
+
+# Check 4: apply (or revalidate) the ready-for-human-review label through the
+# helper — even when the label is already present, so a stale one is removed.
 HAS_HUMAN_REVIEW_LABEL=$(gh pr view "$PR_NUMBER" --repo "$TARGET_REPO" --json labels --jq '.labels[].name' | grep -c "^ready-for-human-review$" || true) # workflow-shell-guard: allow SH001 - grep exits 1 when label absent; count must be 0
 # Last look before the label (issue #1574): several API-backed gates ran since
 # Check 0.6, and a push during any of them leaves the settled verdict
@@ -631,11 +640,13 @@ if [ "${SETTLE_APPLIES:-1}" -eq 1 ] && ! settle_head_ok; then
   fi
   exit 12  # Exit code 12 = "reviewer-loop verdict not settled"
 fi
-if [ "$HAS_HUMAN_REVIEW_LABEL" -gt 0 ]; then
-  echo "INFO: PR already has 'ready-for-human-review' label. Skipping re-application."
-else
-  echo "Applying 'ready-for-human-review' label..."
-  workflow_pr_edit "$PR_NUMBER" --repo "$TARGET_REPO" --add-label "ready-for-human-review"
+# Run the helper for BOTH label-present and label-absent PRs (issue #1408):
+# a label that is already present is NOT proof it is still current. The helper
+# revalidates it against the live head SHA and removes it on refusal.
+echo "Applying/revalidating 'ready-for-human-review' label through the helper gate..."
+if ! workflow_apply_readiness_label \
+      --pr "$PR_NUMBER" --repo "$TARGET_REPO" --label ready-for-human-review; then
+  exit 12  # Exit code 12 = "reviewer-loop verdict not settled"
 fi
 
 echo "✅ Label readiness checklist passed. PR is ready for human review."
