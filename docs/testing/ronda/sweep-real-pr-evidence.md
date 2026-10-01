@@ -32,7 +32,7 @@ run with the sweep from the merge of the #135 change (the merge time of that
 pull request is the flip time; passes whose check run predates it ran with the
 sweep off and v0.2.0, and are not counted). This enables accrual only: the
 counted total stays `0` until a sweep-enabled real-PR review is recorded here
-by hand under the rules in this document. 
+by hand under the rules in this document.
 
 The tier is `fixture_only` because **no sweep-enabled real pull request review
 has been recorded**. That is the only thing that promotes the tier out of
