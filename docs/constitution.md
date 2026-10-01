@@ -35,6 +35,16 @@ and review contract live here.
   what stalls PRs for a day.
 - New commit → new pass. No endless thread on a stale SHA.
 - Timeout in minutes, not hours. Silence is a failure, not a hang.
+- **The reviewed repository is read, never installed, built or executed.**
+  Replaces the prior no-checkout invariant (repository owner decision, accepted
+  with changes, 2026-09-29, referencing #106): a review pass may read repository
+  content at the reviewed head to resolve symbols the changed lines depend on,
+  but never runs any of that content — no build, no dependency install, no
+  test, no script, no hook, no generated tooling — and never writes to the
+  reviewed repository beyond the one review and check run it already publishes.
+  See the amended decision in
+  [`3-software-architecture.md`](project/3-software-architecture.md) for the
+  full text and guarantees.
 
 ## Ingress: one public URL, movable machine
 

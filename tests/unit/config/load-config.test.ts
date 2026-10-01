@@ -32,6 +32,65 @@ test("no environment and no config file: apiKey is blank and defaults apply", ()
   assert.equal(config.maxAuthoritativeDocChars, DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS);
   assert.equal(config.durabilityMode, "default");
   assert.equal(config.durabilityModeDefault, false);
+  assert.equal(config.sweepMode, "off");
+  assert.equal(config.sweepModeRaw, undefined);
+});
+
+test("sweep enablement: recognized on value enables the sweep with no raw value", () => {
+  for (const value of ["on", "1", "TRUE", " On "]) {
+    const config = loadConfig({ env: { RONDA_SWEEP_MODE: value }, fileExists: () => false });
+    assert.equal(config.sweepMode, "on", `expected ${JSON.stringify(value)} to enable`);
+    assert.equal(config.sweepModeRaw, undefined);
+  }
+});
+
+test("sweep enablement: recognized off values and default disable with no raw value", () => {
+  for (const value of ["off", "0", "false", "default", "OFF"]) {
+    const config = loadConfig({ env: { RONDA_SWEEP_MODE: value }, fileExists: () => false });
+    assert.equal(config.sweepMode, "off", `expected ${JSON.stringify(value)} to disable`);
+    assert.equal(config.sweepModeRaw, undefined, `${value} is recognized, not carried`);
+  }
+});
+
+test("sweep enablement: whitespace-only value is blank — no record, not unrecognized", () => {
+  const config = loadConfig({ env: { RONDA_SWEEP_MODE: "   " }, fileExists: () => false });
+  assert.equal(config.sweepMode, "off");
+  assert.equal(config.sweepModeRaw, undefined);
+});
+
+test("sweep enablement: unrecognized value disables and carries the raw text", () => {
+  const config = loadConfig({ env: { RONDA_SWEEP_MODE: "banana" }, fileExists: () => false });
+  assert.equal(config.sweepMode, "off");
+  assert.equal(config.sweepModeRaw, "banana");
+});
+
+test("sweep enablement: an unrecognized higher-precedence value is not deferred to the file", () => {
+  const config = loadConfig({
+    env: { RONDA_SWEEP_MODE: "banana" },
+    fileExists: () => true,
+    readFile: () => JSON.stringify({ sweepMode: "on" }),
+  });
+  assert.equal(config.sweepMode, "off");
+  assert.equal(config.sweepModeRaw, "banana");
+});
+
+test("sweep enablement: a blank environment value defers to the config file", () => {
+  const config = loadConfig({
+    env: { RONDA_SWEEP_MODE: "  " },
+    fileExists: () => true,
+    readFile: () => JSON.stringify({ sweepMode: "on" }),
+  });
+  assert.equal(config.sweepMode, "on");
+  assert.equal(config.sweepModeRaw, undefined);
+});
+
+test("sweep enablement: the config file supplies the value when the environment is absent", () => {
+  const config = loadConfig({
+    env: {},
+    fileExists: () => true,
+    readFile: () => JSON.stringify({ sweepMode: "on" }),
+  });
+  assert.equal(config.sweepMode, "on");
 });
 
 test("missing config file is not an error", () => {

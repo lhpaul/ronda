@@ -208,6 +208,82 @@
         ["head", "changed", "publish"],
         ["superseded", "head", "review"]
       ]
+    },
+    {
+      "id": "api-evidence-state-reconstruction",
+      "category": "state reconstruction from API evidence",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/git-history.ts",
+      "description": "A branch-head conclusion is drawn from a list endpoint that does not establish it, so state is reconstructed from API evidence that does not support it.",
+      "matchTerms": ["head", "api", "evidence"],
+      "matchTermGroups": [
+        ["head", "api", "evidence"],
+        ["branch", "head", "inferred"],
+        ["head", "conclusion", "endpoint"],
+        ["list", "endpoint", "does", "not", "establish"]
+      ]
+    },
+    {
+      "id": "external-output-parsing-lossy",
+      "category": "external output parsing",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/output.ts",
+      "description": "Items are lost or merged when splitting and classifying another system's output.",
+      "matchTerms": ["output", "parsing", "lossy"],
+      "matchTermGroups": [
+        ["output", "parsing", "lossy"],
+        ["items", "lost", "output"],
+        ["split", "merge", "items"],
+        ["external", "output", "merged"]
+      ]
+    },
+    {
+      "id": "guard-fails-open",
+      "category": "guard fails open",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/guard.ts",
+      "description": "A check continues when its input cannot be loaded instead of rejecting.",
+      "matchTerms": ["guard", "fails", "open"],
+      "matchTermGroups": [
+        ["guard", "fails", "open"],
+        ["check", "continues", "load"],
+        ["input", "unavailable", "continue"]
+      ]
+    },
+    {
+      "id": "record-identity-drift",
+      "category": "record identity drift",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/records.ts",
+      "description": "A position-derived identifier drifts when records are reordered, and an alias spelling can collide.",
+      "matchTerms": ["record", "identity", "drift"],
+      "matchTermGroups": [
+        ["record", "identity", "drift"],
+        ["position", "derived", "identifier"],
+        ["alias", "spelling", "collide"]
+      ]
+    },
+    {
+      "id": "credential-pattern-gap-camel",
+      "category": "harder credential pattern",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/credentials.ts",
+      "description": "A camelCase credential name is not matched by the canonical credential-name form, so a guard recognizing only that form misses it.",
+      "matchTerms": ["credential", "name", "convention"],
+      "matchTermGroups": [
+        ["credential", "name", "convention"],
+        ["camel", "case"],
+        ["credential", "hardcoded"]
+      ],
+      "harderThan": {
+        "baselineId": "sensitive-value-exposure",
+        "canonicalName": "token",
+        "canonicalValue": "sk_live_seeded_secret_value",
+        "differsBy": [
+          "different-letter-case-convention",
+          "qualifier-or-prefix-added-to-name"
+        ]
+      }
     }
   ]
 }

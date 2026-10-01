@@ -76,6 +76,30 @@ test("readPullRequest maps title, body, draft, and head SHA from the API respons
   assert.equal(result.headSha, "b".repeat(40));
 });
 
+test("readPullRequest maps the head repository's full_name (#106, D6)", async () => {
+  const octokit = createFakeOctokit({
+    pulls: {
+      get: async () => ({
+        data: {
+          number: 4,
+          title: "Add a feature",
+          body: "Some description",
+          draft: false,
+          head: { sha: "b".repeat(40), repo: { full_name: "someone-else/ronda" } },
+        },
+      }),
+    },
+  });
+  const result = await readPullRequest(octokit, "lhpaul", "ronda", 4);
+  assert.equal(result.headRepoFullName, "someone-else/ronda");
+});
+
+test("readPullRequest resolves an absent head repository to an empty headRepoFullName (#106, D6)", async () => {
+  const octokit = createFakeOctokit();
+  const result = await readPullRequest(octokit, "lhpaul", "ronda", 4);
+  assert.equal(result.headRepoFullName, "");
+});
+
 test("readPullRequest defaults a null body to an empty string", async () => {
   const octokit = createFakeOctokit({
     pulls: {

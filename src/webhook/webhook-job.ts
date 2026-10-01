@@ -20,6 +20,9 @@ import { readRepositoryFileAtRef } from "../github/repo-content-reader.js";
 import {
   DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
   DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+  DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+  DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
+  DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
 } from "../config/load-config.js";
 import { createOpenAiCompatibleClient } from "../inference/openai-compatible-client.js";
 import type { ModelClient } from "../inference/model-client.js";
@@ -219,7 +222,10 @@ export async function runWebhookReviewJob(
   try {
     config = loadConfig();
   } catch (error) {
-    const path = error instanceof ConfigLoadError ? error.path : "unknown path";
+    const loadError =
+      error instanceof ConfigLoadError
+        ? error.publicMessage
+        : "Failed to load Ronda config file at unknown path";
     config = {
       model: { apiKey: "", baseUrl: "", modelName: "" },
       passTimeoutMs: 600_000,
@@ -228,7 +234,16 @@ export async function runWebhookReviewJob(
       maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
       durabilityMode: "default",
       durabilityModeDefault: false,
-      loadError: `Failed to load Ronda config file at ${path}`,
+      sweepMode: "off",
+      sweepModeRaw: undefined,
+      repositoryContextMode: "off",
+      repositoryContextModeRaw: undefined,
+      maxRepositoryContextCandidates: DEFAULT_MAX_REPOSITORY_CONTEXT_CANDIDATES,
+      maxRepositoryContextChars: DEFAULT_MAX_REPOSITORY_CONTEXT_CHARS,
+      repositoryContextTimeBudgetMs: DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
+      repositoryContextBudgetFallbacks: [],
+      excludePathGlobs: [],
+      loadError,
     };
   }
 

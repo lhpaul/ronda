@@ -56,6 +56,13 @@ smoke runbook as the second tier — see
 - **Smoke** (manual, against real GitHub): `docs/testing/ronda/ronda-v0-github-review.smoke-test.md`,
   covering the dogfood run against `lhpaul/ai-dev-framework-template` and
   cases impractical to stage in CI (missing credential, timeout, supersede).
+  **Scope change (#103, approved by the repository owner 2026-09-24):** dogfooding
+  is no longer limited to that one repository. `lhpaul/ronda` also runs its own
+  reusable workflow on its own pull requests through
+  `.github/workflows/ronda-review-dogfood.yml`, so real-PR miss evidence can
+  accumulate. The v0 spec, plan and `docs/constitution.md` are unchanged and still
+  describe the original single-repository v0 scope; evidence and decisions are in
+  `docs/testing/ronda/dogfood-evidence-103.md`.
 - **E2E/regression**: the repository's only committed suite is the `e2e/`
   Playwright placeholder, which exercises no product behavior and has no
   fixture data. Ronda has no browser surface, so that suite is not extended
@@ -119,23 +126,46 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   consumption contract states this explicitly so a waiting loop treats
   absence as "not finished yet".
 
-### Diffs are read over the REST API; the reviewed repository is never checked out
+### Repository content is read at the reviewed head; the reviewed repository's code is never executed
 
-- **Context**: v0 receives review requests through either the reusable workflow
-  or the local GitHub App webhook service; checking out the reviewed
-  repository's code would require broader permissions and a second git identity
-  to reason about.
-- **Decision**: `readChangedFiles` reads `GET .../pulls/{number}/files` (the
-  `patch` field) instead of cloning the pull request's branch. The reusable
-  workflow's only checkout is of `lhpaul/ronda` itself, and the webhook service
-  does not perform any checkout.
-- **Consequences**: Ronda never runs the reviewed repository's code, which
-  keeps the manual `/ronda review` comment trigger low-risk even on a fork
-  pull request's comment thread — there is no "pwn request" surface because
-  nothing untrusted is executed. The tradeoff is `src/github/diff-lines.ts`
-  must tolerate every unified-diff edge case GitHub's API can return (see
-  the implementation plan's parser-risk addendum) since there is no local
-  git history to fall back on.
+> **Amended by the repository owner, accepted with changes, 2026-09-29, referencing
+> #106.** This decision replaces "Diffs are read over the REST API; the reviewed
+> repository is never checked out," which bundled two separate commitments: a
+> **safety property** (Ronda never runs the reviewed repository's code) and a
+> **mechanism** (Ronda reads only the diff endpoint and performs no checkout).
+> The amendment keeps the safety property locked, exactly as written, and
+> relaxes the mechanism: it is written over **reads**, not over a mandated
+> checkout, and fork-originated heads are excluded from repository context in
+> this iteration. See `docs/specs/developments/20260929133804_106-read-only-symbol-context/1_106-read-only-symbol-context_specs.md`
+> for the full amendment record, the owner's decision history, and the
+> Decision-gate consistency matrix that governs how this text may change.
+
+- **Context**: A diff cannot show what a value is established by, where else a
+  changed function is called, or whether a guard is reachable. The recorded
+  real-pull-request finding corpus of 2026-09-23 shows that defect shape is the
+  largest single cluster, and the most expensive one to converge.
+- **Decision**: A review pass may **read** repository content at the reviewed
+  head, beyond the pull request's own changed lines, for the purpose of resolving
+  symbols named in those changed lines. This decision is written over the reads,
+  not over a mechanism: it mandates no checkout, and **which mechanism serves the
+  read — a shallow fetch, a repository contents read, or another — stays open** for
+  the implementation plan, bounded by the guarantees and budgets there. Ronda
+  **never executes** any content of the reviewed repository — no build, no
+  dependency install, no test, no script, no hook, no generated tooling — and
+  **never writes** to the reviewed repository or its pull request beyond the one
+  review and check run it already publishes. A **fork-originated head is excluded**
+  from repository context in this iteration: no configuration can enable it.
+- **Consequences**: The comment-trigger and fork paths stay low-risk for the
+  same reason as before — nothing untrusted is executed — and fork heads acquire no
+  new exposure at all this iteration, because they read nothing. On
+  same-repository heads the reviewer can reason about the definitions the changed
+  lines depend on.
+  Repository content becomes untrusted model input that must be budgeted and
+  reported, and every pass must be able to show that it read and never wrote.
+  `readChangedFiles` still reads `GET .../pulls/{number}/files` for the diff
+  itself, unchanged. `src/github/diff-lines.ts` still tolerates every
+  unified-diff edge case GitHub's API can return, since the diff itself is
+  never checked out.
 
 ### Authoritative documentation in review passes
 
@@ -154,6 +184,44 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   single model call when changed paths match sensitive surfaces or the operator
   forces the mode on. Activation metadata is recorded in the review summary;
   findings stay on the ordinary severity channel (no second model call).
+- **Category-forced review sweep** (`src/review/sweep-categories.ts`): off by
+  default (`RONDA_SWEEP_MODE` / `sweepMode`). When enabled it appends a section
+  to the pass's system prompt that asks the model to consider each category of
+  the recorded category list (`docs/testing/ronda/sweep-categories.json`)
+  against the changed content, within the same single model call: it adds no
+  extra pass or request, and the one-pass-per-SHA contract is unchanged.
+  Categories are review lenses, not labels, and a category with nothing to
+  report is a normal result. Per-category outcomes are derived after the call by
+  classifying each published finding's own wording against the list, so a
+  category with no matching finding is recorded as "produced no findings".
+  Outcomes are recorded on the pass record and the logs; activation and the list
+  version appear in the review summary. No finding text enters the records.
+- **Read-only repository context** (`src/review/repository-context.ts`,
+  `src/review/symbol-resolver.ts`): off by default for adopting repositories,
+  and this repository's own dogfooding is the recorded exception once the
+  owner sets it (`RONDA_REPOSITORY_CONTEXT` / `repositoryContext`, #106).
+  **It remains off here too, for now**: the repository variable is
+  deliberately not set by this feature's own implementation pull request
+  (see `docs/testing/ronda/repository-context-effect-evidence-106.md`) —
+  only the repository owner sets it, after the read-only demonstrations
+  (AC4, AC5) and the resolution-correctness evidence (AC23) are committed.
+  When enabled on a same-repository head,
+  `symbol-resolver.ts` reads the changed TypeScript/JavaScript-family files and
+  their module-specifier closure through the existing `readFileAtRef` seam
+  only — no repository-wide listing, no checkout, no working area — parses
+  them with the TypeScript compiler API, and binds each changed-line reference
+  to the declaration the checker resolves it to, following a re-export's alias
+  chain; an unbindable reference is dropped `ambiguous_resolution` rather than
+  guessed. `repository-context.ts` orders the resolved candidates by the
+  recorded priority keys, applies the operator's candidate-count and
+  character budgets (never displacing the diff), and resolves the pass's
+  outcome (`used` / `partial` / `unavailable` / `nothing_to_resolve`). The
+  selected excerpts ride the same single model call as one more labelled,
+  untrusted prompt section (`src/inference/review-prompt.ts`) — no extra pass
+  or request. A fork-originated head is excluded before the switch is even
+  consulted, fixed rather than configurable. The full record (counts, drops,
+  budget utilisation) is recorded on the logs and the check-run output; the
+  review summary states only the outcome, one line.
 
 ## Security
 

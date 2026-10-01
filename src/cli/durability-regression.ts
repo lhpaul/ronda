@@ -174,7 +174,7 @@ export async function runDurabilityRegression(options: {
         }
       }
       try {
-        raw = await options.model.complete(prompt, signal);
+        raw = (await options.model.complete(prompt, signal)).content;
       } finally {
         if (timeout !== undefined) {
           clearTimeout(timeout);

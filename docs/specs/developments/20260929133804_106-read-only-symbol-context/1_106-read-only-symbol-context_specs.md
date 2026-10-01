@@ -1,0 +1,1340 @@
+# Read-Only Repository Context With Symbol-Level Resolution - Spec
+
+**Depends on**: 105-category-forced-review-sweep, 53-capture-external-review-misses, 55-feed-architecture-docs-into-reviews
+
+---
+
+## Overview
+
+Ronda reviews a pull request from its diff plus a bounded set of authoritative
+documents. It never reads the surrounding source, so it cannot see what a called
+value is actually established by, where else a changed function is called, or
+whether a guard it is judging is reachable. The largest recorded cluster of real
+review findings is exactly that shape: in
+[`pr-98-external-finding-corpus-2026-09-23.md`](../../../testing/ronda/pr-98-external-finding-corpus-2026-09-23.md)
+the `pr-head-push-order` sub-theme is 14 of 79 finding instances and is one
+defect — code treating a GitHub API response as evidence of something it does not
+establish — raised across iterations 1 to 22, escalated three times, and closed
+only under an explicit human waiver. Two further clusters have the same shape:
+`external-output-parsing`, 8 finding instances, and `guard-fails-open`, 4 from
+the local reviewer plus 1 from the second reviewer.
+
+This feature gives a review pass **read-only repository context**: for the head
+being reviewed, Ronda may read source beyond the diff — the definitions the
+changed lines depend on — so the question "what does this value actually prove?"
+becomes answerable inside a single pass. Feeding more context is not automatically better, so the context is
+selected by recorded rules, bounded by operator budgets, and reported per pass.
+
+This feature **requires amending a locked architecture decision**, and this spec
+does not amend it. It carries the amendment's text and the repository owner's
+decision on it — **accepted with changes on 2026-09-29** — while the edit to the
+architecture document itself is the first step of the implementation stage. The
+owner's merge of this spec is the recorded agreement to the text below. Ronda's
+published contract is otherwise unchanged: comment-only, one review per head SHA,
+never pushing a fix.
+
+---
+
+## Post-Merge Amendment (recorded 2026-09-29, in the plan-stage pull request)
+
+This spec was merged in pull request #126. The repository owner then took three
+further decisions **after** that merge, which this amendment folds in. It is
+deliberately minimal: nothing below changes an acceptance criterion's substance
+except AC1's recording surface.
+
+1. **The replacement invariant also goes into `docs/constitution.md`.** The owner
+   decided (2026-09-23, reaffirmed 2026-09-29) that the constitution must carry the
+   invariant that replaces the old one — *the reviewed repository is read, never
+   installed, built or executed* — in addition to the amended entry in the Key
+   Architectural Decisions section of `docs/project/3-software-architecture.md`. The
+   merged text said the constitution was not amended by this item; that is now
+   superseded. Affected sites, all updated below: **Where the decision is recorded**,
+   AC1, Coverage Matrix row O5, and the **Amendment recording** row of the
+   decision-gate matrix. AC2's three substantive commitments are unchanged.
+2. **Test-file context is deferred.** A fourth context kind — the test file matching
+   a changed symbol — was considered and deferred, not adopted. The two candidate
+   kinds in **Context Selection Order** stand unchanged for this iteration. Recorded
+   in **Out of Scope (MVP)** and **Deferred Decisions** below.
+3. **Open Question 1 is closed as checked.** The strategy-document coverage check was
+   performed on 2026-09-29 (see **Recorded Decisions** row 7 and **Deferral Note D1**).
+   It produced decisions 1 and 2 above and no other missing objective.
+
+4. **Two mechanism-dependent surfaces are made conditional.** This spec deliberately
+   leaves the read mechanism open, so a surface that only exists for a mechanism
+   which materialises content cannot be stated unconditionally. The **Logs** entry in
+   **Operational Visibility** and the cleanup-failure business rule are therefore
+   conditioned on the chosen mechanism creating a working area. This is a plan-stage
+   reconciliation, not an owner decision: AC12 already reads "any working area a pass
+   **created**", and the working-area business rule already accepts satisfaction by
+   construction on the reusable-workflow ingress. The implementation plan chooses a
+   mechanism that creates no working area on either ingress, so both surfaces are
+   vacuous there and a log line claiming a cleanup that never happened would be a
+   false record.
+
+5. **Call sites are removed as a candidate kind; definitions only this iteration.**
+   Owner decision of 2026-09-29. The rationale: the two seeds the #105 category-forced
+   sweep did **not** solve — state reconstruction from API evidence, and lossy
+   external-output parsing — are both "what does the callee actually return?" questions,
+   which a **depended-on definition** answers; the sub-theme where callers would help,
+   `guard-fails-open`, already moved from none of 10 to 10 of 10 under the sweep, so
+   callers would be paying for the one theme already addressed. Dropping them also
+   removes the **only** need for a repository-wide reverse-reference scan, which keeps
+   **Out of Scope (MVP)**'s no-repository-wide-indexing line intact rather than
+   requiring it to be reinterpreted, and it removes the feature's largest per-pass cost.
+   Affected sites, all updated below: **Context Selection Order** (one candidate kind;
+   the former priority key 1, "kind", is moot and deleted), Use Case 1 step 3, AC3, AC6,
+   AC23, Coverage Matrix row O3, **Out of Scope (MVP)**, and **Deferred Decisions**.
+   Callers are a follow-up filed as #129.
+6. **AC20's reproducibility is over the candidate set and its selection order.** Owner
+   decision of 2026-09-29, resolving the tension with AC8. When the context time budget
+   is exhausted the pass **keeps the candidates it has already resolved** and drops the
+   rest with the reason `time budget`. Which candidates survive a cutoff may therefore
+   vary between passes; the pass record lists every candidate dropped for time, so the
+   result stays explainable. AC20 and the **Reproducibility** paragraph of **Context
+   Selection Order** carry the clarifying clause. The rejected alternative — discarding
+   every candidate on exhaustion to make the surviving set latency-independent — is
+   recorded in the implementation plan, together with why it fails AC8's "proceeds to
+   review execution with the context it already has".
+
+The resolution method, which AC23 requires to be a recorded plan decision rather
+than a spec decision, is recorded in the implementation plan, not here.
+
+---
+
+## Amendment To The Locked Architecture Decision (accepted with changes, 2026-09-29)
+
+The current locked decision is **"Diffs are read over the REST API; the reviewed
+repository is never checked out"** in
+[`3-software-architecture.md`](../../../project/3-software-architecture.md). It
+bundles two separate commitments:
+
+1. a **safety property** — Ronda never runs the reviewed repository's code, so
+   there is no "pwn request" surface even on a fork pull request's comment
+   thread; and
+2. a **mechanism** — Ronda reads only the diff endpoint and performs no
+   checkout of the reviewed repository.
+
+The amendment keeps (1) locked, exactly as written, and relaxes (2). The owner
+accepted it **with changes** on 2026-09-29, and the two changes are folded into the
+text below: it is written over **reads** rather than mandating a checkout, and fork
+heads are excluded from repository context in this iteration. The agreed replacement
+text for the decision:
+
+> ### Repository content is read at the reviewed head; the reviewed repository's code is never executed
+>
+> - **Context**: A diff cannot show what a value is established by, where else a
+>   changed function is called, or whether a guard is reachable. The recorded
+>   real-pull-request finding corpus of 2026-09-23 shows that defect shape is the
+>   largest single cluster, and the most expensive one to converge.
+> - **Decision**: A review pass may **read** repository content at the reviewed
+>   head, beyond the pull request's own changed lines, for the purpose of resolving
+>   symbols named in those changed lines. This decision is written over the reads,
+>   not over a mechanism: it mandates no checkout, and **which mechanism serves the
+>   read — a shallow fetch, a repository contents read, or another — stays open** for
+>   the implementation plan, bounded by the guarantees and budgets here. Ronda
+>   **never executes** any content of the reviewed repository — no build, no
+>   dependency install, no test, no script, no hook, no generated tooling — and
+>   **never writes** to the reviewed repository or its pull request beyond the one
+>   review and check run it already publishes. A **fork-originated head is excluded**
+>   from repository context in this iteration: no configuration can enable it.
+> - **Consequences**: The comment-trigger and fork paths stay low-risk for the
+>   same reason as before — nothing untrusted is executed — and fork heads acquire no
+>   new exposure at all this iteration, because they read nothing. On
+>   same-repository heads the reviewer can reason about the definitions the changed
+>   lines depend on.
+>   Repository content becomes untrusted model input that must be budgeted and
+>   reported, and every pass must be able to show that it read and never wrote.
+
+### Where the decision is recorded
+
+The decision is recorded in **two** documents, and each carries a different part of
+it (owner decision of 2026-09-29; see **Post-Merge Amendment**):
+
+- The **Key Architectural Decisions** section of
+  [`3-software-architecture.md`](../../../project/3-software-architecture.md) carries
+  the **full** amended decision — context, decision, and consequences — because that
+  is where the decision being amended lives. The same document already carries a
+  precedent for the form: the dated, owner-attributed scope-change note recorded
+  there for #103.
+- [`constitution.md`](../../../constitution.md) carries the **one-line replacement
+  invariant** — *the reviewed repository is read, never installed, built or executed*
+  — in its **Surface** section, alongside the comment-only and one-review-per-head-SHA
+  commitments already locked there. Without that replacement written where the
+  contract lives, relaxing the no-checkout mechanism would leave the old invariant
+  standing unreplaced.
+
+The existing decision is replaced by the agreed text above, attributed to the
+repository owner, dated 2026-09-29, recorded as **accepted with changes**, and
+referencing this item. Both edits are **the first step of this item's implementation
+stage**, completed before any capability work begins, and they are deliberately **not**
+made in this spec's pull request — which is why neither the architecture document nor the
+constitution appears in that PR's diff. The text recorded there, which must match the
+text above in its three substantive commitments, is what implementation follows (AC1,
+AC2). "Before any implementation work" in AC1 therefore means before any work other
+than that recording itself.
+
+---
+
+## Use Cases
+
+### Use Case 1: Ronda Reviews A Pull Request With Repository Context
+
+**Actor**: Ronda, acting for the operator who enabled repository context
+
+**Preconditions**:
+
+- The amendment above is recorded in the architecture document, as AC1 requires.
+- Repository context is enabled for the pass through operator configuration: off by
+  default for adopting repositories, and on for this repository's own dogfooding.
+- **The reviewed head belongs to the base repository, not a fork.** A
+  fork-originated head is Use Case 4 and reads no repository context.
+- Ronda has been asked to review a pull request head through any of its normal
+  triggers, and the pass reaches review execution (it reads the changed files and
+  runs the review).
+
+**Steps**:
+
+1. Ronda reads the pull request's changed lines as it does today.
+2. Ronda identifies the symbols the changed lines depend on.
+3. Ronda reads, at the reviewed head, the definitions of the depended-on symbols,
+   in the recorded selection order defined in **Context Selection Order**, until the
+   candidate count budget or the character budget is reached.
+4. Ronda runs its single model review for the head with the diff, the selected
+   authoritative documents, and the selected repository context, each labelled
+   so the model can tell changed lines from unchanged context.
+5. Ronda publishes one review for the head and its check run, as it does today.
+6. Ronda records the repository-context outcome for the pass, the number of
+   candidates requested and resolved, the budget utilisation, and the reason any
+   requested candidate was not resolved.
+
+**Postconditions**:
+
+- Exactly one review exists for that head, containing every finding from the
+  pass.
+- The pass wrote nothing to the reviewed repository other than that review and
+  its check run.
+- The repository-context outcome for the pass is Repository context used,
+  partial, unavailable, or nothing to resolve, per **Statuses / Enum Values**.
+
+**Information shown**:
+
+- The review summary — which is part of the published review body — states only
+  that repository context was active for the pass and the pass's outcome
+  (Repository context used, partial, unavailable, or nothing to resolve), in the
+  same one-line form existing review-mode activation already takes. A pass whose
+  changed lines name nothing to resolve — a documentation-only change, for example —
+  says so, rather than reporting context as unavailable, so the everyday case never
+  reads as a failure.
+- The counts, the identifiers of what was read, the drops and their reasons, and
+  the budget utilisation are **not** in the review. They are on the check-run
+  output and the logs, as the per-pass repository-context record.
+
+**Actions available**:
+
+- Turn repository context off for the next pass.
+- Tighten or loosen the candidate count and character budgets.
+
+**Considerations**:
+
+- A changed line whose candidates cannot be resolved is still reviewed; the pass
+  degrades to the context it has rather than failing.
+- A pass that ends before review execution — a draft pull request, or an
+  automatic run that finds the head's existing check run — reads no repository
+  context and records none.
+
+---
+
+### Use Case 2: Operator Bounds The Repository Context Budget
+
+**Actor**: Ronda operator
+
+**Preconditions**: Repository context is available in the running version.
+
+**Steps**:
+
+1. The operator sets the maximum number of **candidates** a pass may resolve — one
+   candidate being one excerpt, the definition of one depended-on symbol — and the maximum
+   combined character budget for repository-context excerpts.
+2. The operator triggers a review on a pull request whose changed lines name more
+   candidates than the budget allows.
+3. The operator reads the pass record to confirm the budgets were respected and
+   to see which requested candidates were dropped and why.
+
+**Postconditions**:
+
+- The selected repository context is within both budgets.
+- Over-budget context is dropped by the recorded selection order, with the drops
+  recorded, rather than truncated silently.
+
+**Information shown**:
+
+- The configured budgets, the candidates requested, the candidates resolved, the
+  candidates dropped, and the budget utilisation for the pass.
+
+**Actions available**:
+
+- Lower the budgets to protect pass duration and model cost.
+- Raise them for a high-risk change, within the operator's own cost policy.
+
+**Considerations**:
+
+- These budgets apply **in addition to** the existing diff budget and the
+  authoritative-document count and character budgets; every budget must hold.
+- More context is not automatically better. The recorded 2026-09-23 audit shows a
+  second reviewer on pull request #98 reaching
+  `total tokens over limit: 32000, pruning diff` and publishing nothing. A budget
+  that lets repository context crowd out the diff is a regression, not an
+  improvement, which is why AC7 requires the diff to survive every budget
+  decision.
+
+---
+
+### Use Case 3: Operator Confirms The Read-Only Property By Demonstration
+
+**Actor**: Ronda operator
+
+**Preconditions**: Repository context is available and enabled.
+
+**Steps**:
+
+1. The operator runs a pass over a pull request head that is deliberately hostile
+   in the ways a reviewed repository can be: it carries content that would run
+   something if any build, install, test, hook, or generated tooling were
+   invoked; content that attacks the *read* itself — a symbolic link pointing
+   outside the reviewed repository, a submodule reference to another repository, and
+   repository attribute configuration that names a filter or driver to run when
+   content is materialised; and content designed to be read as instructions rather
+   than as code.
+2. The operator reads the recorded demonstration evidence for that pass.
+
+**Postconditions**:
+
+- The evidence shows that nothing from the reviewed repository was executed, and
+  that the pass wrote nothing to the reviewed repository other than its one
+  review and check run.
+- The evidence shows that content read from the reviewed repository did not change
+  what Ronda did — the pass still published one review for the head, and the
+  instruction-shaped content produced no action outside that review.
+
+**Information shown**:
+
+- The recorded demonstration in `docs/testing/ronda/`, naming the hostile cases
+  attempted, what was observed, and the date and version it was observed on.
+
+**Actions available**:
+
+- Re-run the demonstration against a later version.
+
+**Considerations**:
+
+- The guarantee is **demonstrated, not asserted**: a statement in a document that
+  nothing is executed does not satisfy AC4. What satisfies it is a recorded,
+  repeatable observation of an attempt that would have executed or written
+  something and did not.
+- Absence of an observed write is weaker evidence than a structural property. The
+  demonstration therefore records both what was attempted and why the property
+  holds by construction, and labels which parts of the evidence are of which
+  kind.
+
+---
+
+### Use Case 4: A Fork-Originated Pull Request Is Reviewed
+
+**Actor**: Ronda, acting for the operator, on a pull request whose head is a fork
+
+**Preconditions**: A fork-originated head is under review.
+
+**Steps**:
+
+1. Ronda determines that the reviewed head belongs to a fork of the base
+   repository.
+2. On the reusable-workflow ingress's automatic trigger, the pass is skipped before
+   any repository content is read, exactly as it is skipped today. That ingress's
+   manual comment trigger is **not** skipped today — its existing guard covers only
+   the automatic trigger — so it takes the same path as step 3.
+3. On the webhook ingress and on the reusable-workflow ingress's manual comment
+   trigger — the webhook being the fork-friendly ingress recorded in
+   [`ronda-review-adoption.md`](../../../adoption/ronda-review-adoption.md) — the
+   pass reviews the head **with no repository context**: it resolves no candidate
+   and reads no source beyond the pull request's own changed lines, whatever the
+   global switch is set to, because the fork exclusion is fixed rather than
+   configurable (AC10). The changed lines are read as they are in every review; they
+   are the diff, not repository context.
+4. On every path that reached step 3, Ronda publishes one review for the head
+   exactly as it does today. The one path that publishes nothing is the
+   reusable-workflow ingress's automatic trigger, because step 2 ended that pass
+   before review execution; that is today's behaviour and this feature does not
+   change it.
+
+**Postconditions**:
+
+- No repository **context** is read for a fork-originated head on any ingress or
+  trigger — no candidate is resolved and no source beyond the changed lines is
+  fetched — and, as on every path, nothing of the reviewed repository is executed.
+- The fork head receives exactly the review it receives today. The feature is
+  invisible on this path.
+- No repository-context record is emitted for the pass, so nothing new appears on
+  any surface for a fork head.
+
+**Information shown**:
+
+- Nothing new. A fork head's pass looks exactly as it does today.
+
+**Actions available**:
+
+- None specific to fork heads: the exclusion is fixed this iteration, so there is
+  no fork setting for an operator to change.
+
+**Considerations**:
+
+- Fork behaviour was the sharpest question the amendment raised, and the repository
+  owner decided it on 2026-09-29: **same-repository heads only** this iteration. The
+  exclusion is deliberately fixed rather than a switch defaulting to off, so that no
+  configuration mistake can turn fork-head reads on.
+- Permitting fork-head repository context later is a separate item with its own
+  decision, not a default this one can be flipped into (see **Out of Scope (MVP)**).
+- The `/ronda review` comment trigger's fork-guard gap — the guard in
+  `.github/workflows/ronda-review.yml` gates `pull_request` only, so a fork pull
+  request can already reach review execution there today — is real but **pre-existing
+  and out of scope here**. This feature adds nothing to that path, because a fork head
+  reads no context. It is recorded as a follow-up in **Out of Scope (MVP)**.
+- The residual risk after "never executed" is not code execution but the model
+  being steered by content it read. AC9 requires that risk to be bounded by
+  treating repository content as data and by the pass's own output contract, not
+  by trusting the content.
+
+---
+
+### Use Case 5: Operator Measures Recall Against The Three Target Sub-Themes
+
+**Actor**: Ronda operator
+
+**Preconditions**:
+
+- The fixture seeds added by
+  [105-category-forced-review-sweep](../20260925143028_105-category-forced-review-sweep/1_105-category-forced-review-sweep_specs.md)
+  exist for state reconstruction from API evidence, lossy external-output
+  parsing, and a guard that fails open.
+- A model credential is configured.
+
+**Steps**:
+
+1. The operator runs the seeded benchmark with repository context off and with it
+   on, interleaved, under one immutable model version and a configuration
+   identical apart from the context switch, the same number of runs per arm.
+2. The operator reads per-run recall for both arms, overall and for each of the
+   three target seeds.
+3. The operator runs the paired precision fixtures under the same two arms and
+   records the regression result.
+4. The operator records the evidence, its arms, its model version, its run count,
+   and what it does and does not support.
+
+**Postconditions**:
+
+- Recorded evidence states per-run recall for both arms and for each target seed,
+  and states explicitly whether the fixture could test this feature at all.
+
+**Information shown**:
+
+- Per-run recall per arm, the mean of per-run recalls, the population standard
+  deviation of per-run recall, the per-seed found counts, the precision result,
+  and the recorded admissibility of the comparison.
+
+**Actions available**:
+
+- Declare the fixture comparison inadmissible and rely on the real-pull-request
+  cohort instead.
+
+**Considerations**:
+
+- **The fixture may be unable to test this feature, and the evidence must say so
+  rather than report a number that means nothing.** Repository context can only
+  help where the reviewed target actually has surrounding source for the symbols
+  the changed lines name. AC13 makes that a precondition of admissibility.
+- The recorded 2026-09-28 sweep evidence is the cautionary precedent: its two arms
+  were found **not admissible** as a paired comparison because model drift between
+  the arms could explain any difference. Interleaving the arms under one immutable
+  model version, required by AC15, exists to avoid repeating that.
+- That same evidence is also why this lever is worth measuring at all, and the
+  spec reports it honestly in both directions: the state-reconstruction seed was
+  found in none of the ten recorded sweep-off runs and 3 of 10 sweep-on runs, and
+  the lossy-parsing seed likewise none of 10 and 3 of 10 — the sweep did not solve
+  them — while the guard-fails-open seed went from none of 10 to 10 of 10, so that
+  third sub-theme may already be addressed by the sweep and its share of any
+  improvement here must not be claimed twice.
+
+---
+
+### Use Case 6: Operator Measures Cost And Pass Duration Against The Committed Baseline
+
+**Actor**: Ronda operator
+
+**Preconditions**: Repository context has run on real pull requests of this
+repository.
+
+**Steps**:
+
+1. The operator records, per pass, the pass's elapsed time, the billed minutes of
+   its jobs, the model calls it made, the candidates resolved, and the budget
+   utilisation.
+2. The operator compares those figures against
+   [`cost-convergence-baseline-2026-09-23.md`](../../../testing/ronda/cost-convergence-baseline-2026-09-23.md)
+   and against the measured dogfood pass recorded in
+   [`dogfood-evidence-103.md`](../../../testing/ronda/dogfood-evidence-103.md).
+3. The operator states whether the pass budget in effect was sufficient and
+   whether any pass hit its budget or the job backstop.
+
+**Postconditions**:
+
+- Recorded cost evidence names its two paired arms, names the committed baseline
+  and the dogfood pass as descriptive references rather than arms, and states
+  whether the budget held.
+
+**Information shown**:
+
+- Per-pass elapsed time and billed minutes for both arms, model calls per pass,
+  the count of passes that exhausted the context time budget, and the count that
+  hit the pass budget or the job backstop.
+
+**Actions available**:
+
+- Lower the context budgets.
+- Ask the repository owner to revisit the ten-minute pass budget. The owner decided
+  on 2026-09-29 to keep it, and to reconsider only if the measured cohort shows
+  passes degrading against it — so this evidence is what would reopen that decision
+  (see **Deferred Decisions**).
+
+**Considerations**:
+
+- The committed baseline is the comparison point and it is specific: 888.1
+  minutes of Actions wall time and an estimated 4,508 runner minutes across
+  1,020 workflow-run attempts in the six-day window of 2026-09-17 to
+  2026-09-23, during which `Ronda review` ran zero times.
+- The recorded dogfood measurement is one pass of 23 seconds of job time on an
+  82-line diff, billed as 2 minutes because a pass is two jobs and GitHub rounds
+  each job up. The recorded projection for the same window is about 136 billed
+  minutes, roughly 15% of that baseline. **One sample supports no per-line
+  estimate**, and AC14 therefore requires the comparison to be made on measured
+  passes rather than on a re-projection.
+- The pass budget in effect on the reusable-workflow ingress is
+  `pass_timeout_minutes`, default 10 minutes, with the job's own backstop set to
+  that value plus two. Whether that default should rise is the owner's cost
+  decision, not this spec's; what this spec fixes is that repository context must
+  **fit inside whatever budget is in effect** (AC8) rather than require a larger
+  one.
+
+---
+
+### Use Case 7: Operator Decides Whether The Real-Pull-Request Claim Is Admissible Yet
+
+**Actor**: Ronda operator (repository owner for the decision)
+
+**Preconditions**: Repository context has run on real pull requests of this
+repository.
+
+**Steps**:
+
+1. The operator reads the evidence-tier ledger recorded for this feature.
+2. The operator reads the count of terminally adjudicated pull requests carrying
+   a paired context-off and context-on comparison under the current
+   configuration.
+3. The operator decides which claims the evidence admits, and publishes only
+   those.
+
+**Postconditions**:
+
+- Every published claim about the effect on real pull requests is labelled with
+  its evidence tier, and no claim exceeds what its tier admits.
+
+**Information shown**:
+
+- The tier, the counted pull requests, the date the state was recorded, and the
+  caveats each claim carries.
+
+**Actions available**:
+
+- Hold a claim back until the cohort closes.
+
+**Considerations**:
+
+- **There is no historical "before" and there never will be.** Dogfooding was
+  wired by #103, which is closed, so passes accumulate from now; but no merged
+  pull request carries a Ronda review from before that, and the recorded
+  evidence-tier ledger for the sweep still stands at `fixture_only` with zero
+  counted pull requests. A time-ordered before-and-after would also confound
+  model drift with the change. The comparison this feature makes is therefore a
+  **paired context-off and context-on comparison on the same heads**, not a
+  before-and-after in time (AC15), with the second arm run as the non-publishing
+  control pass AC22 defines so the head keeps exactly one published review.
+- Ronda's evidence is drawn from Ronda's own repository, by the same project that
+  wrote the review configuration and the seeds. Every claim carries the
+  independence caveat and the own-repository label already recorded for the
+  sweep.
+
+---
+
+## Business Rules
+
+- Ronda stays comment-only: it never pushes to, merges, or otherwise mutates the
+  pull request under review or its repository, beyond the one review and check
+  run it already publishes.
+- One review per head SHA, containing every finding from the pass, holds
+  unchanged with repository context active. **Within a review pass**, repository
+  context never splits the pass into multiple published reviews and never adds a
+  model call: the context rides along in the single call the pass already makes.
+  The non-publishing control pass (AC22) is not an exception to this rule, because
+  it is not part of a review pass: it is a separate, operator-initiated run that
+  publishes nothing, and the pass it is compared against still makes one model call
+  and publishes one review.
+- Ronda never executes any content of the reviewed repository: no build, no
+  dependency install, no test, no script, no hook, no generated tooling, on any
+  ingress, for any head, fork or not.
+- Content read from the reviewed repository is untrusted data. It never becomes
+  an instruction to Ronda, never changes Ronda's output contract, and never
+  causes Ronda to read anything outside the reviewed head's own repository — a
+  symbolic link out of the repository is not followed, a submodule reference is not
+  fetched, and attribute configuration naming a filter or driver runs nothing.
+- Repository context is **off by default for every adopting repository** and is
+  enabled by operator configuration, resolved where Ronda's other operator switches
+  are resolved: the workflow input on the reusable-workflow ingress, and the one
+  deployment-scoped operator configuration value on the webhook ingress, which serves
+  every repository that process handles.
+- **This repository is the exception, by owner decision of 2026-09-29**: repository
+  context is **on** for Ronda's own dogfooding, so the evidence cohort starts
+  accumulating from the first version. The value is supplied so the owner can flip it
+  without editing a workflow or redeploying — on the reusable-workflow ingress the
+  caller passes a **repository variable** through to the workflow input rather than
+  hardcoding it, so turning the feature off here is a single change in repository
+  settings. Off-by-default for adopters and on-for-this-repository are the same
+  switch with different values, not two mechanisms.
+- **The demonstrations come before the switch.** This repository's value is set on
+  only after the read-only demonstrations (AC4, AC5) and the resolution-correctness
+  evidence (AC23) are committed. Until then it stays off here too, so no real pull
+  request is reviewed with repository context on an undemonstrated guarantee.
+- Repository context is **same-repository heads only** this iteration. A
+  fork-originated head that reaches review execution — on the webhook ingress, or on
+  the reusable-workflow ingress's manual comment trigger, whose existing fork guard
+  covers only the automatic trigger — is reviewed exactly as it is today and reads no
+  repository context. This exclusion is **not** a switch: there is no
+  operator-configuration value for it, nothing to resolve, and no value of any kind
+  that can enable fork-head reads (AC10). It never affects same-repository heads.
+- The feature has **four operator-configuration values**, and no others: the
+  repository-context **switch**, and three **budgets** — the maximum candidate count, the
+  maximum combined character budget, and the context time budget. The switch is the
+  only one of the four that takes an on/off value; the three budgets take numbers.
+  The fork exclusion is not among them, because it is not configurable at all (AC10).
+- All four resolve from the same **two sources, in this precedence order**, which are
+  the sources Ronda's existing operator switches already use: first the environment
+  value for the run — which is what the reusable workflow's own input supplies on that
+  ingress — then the operator configuration file value, which is the deployment-scoped
+  value on the webhook ingress.
+- The switch's **recognised values** are the ones Ronda's existing switches accept,
+  compared case-insensitively with surrounding whitespace ignored: `on`, `1`, and
+  `true` turn it on; `off`, `0`, `false`, and `default` turn it off.
+- The fork exclusion (AC10) is not a configuration value, so the resolution rule
+  above and AC21 do not apply to it: there is nothing to resolve from either source,
+  and no value at either source changes it. The global switch being on enables
+  repository context for same-repository heads only; it never reaches a fork head.
+- The switch resolves **fail-closed**. An absent, empty, or whitespace-only value
+  **is not a value**: the next source in
+  precedence order is consulted, and where neither source supplies a value the
+  switch is off and nothing is recorded — a **validly** disabled switch, meaning an
+  absent switch or a recognised off value, must be indistinguishable from a version
+  without the feature (AC19). An unrecognised value is not a valid disablement but a
+  configuration error, and it is the single exception to that indistinguishability:
+  it is recorded, because silently reading an operator's typo as "off" would hide a
+  misconfiguration from the person who made it. The first source
+  that supplies a non-empty value is the effective one, whether or not its value is
+  recognised. A non-empty unrecognised value therefore resolves to **off** and is
+  **not** replaced by a recognised value in the lower-precedence source; that a
+  value was unrecognised is recorded on the surfaces the pass record uses, without
+  the raw value — but only on a pass that reaches review execution for a
+  same-repository head. A fork-originated head (AC10) or a pass that ends before
+  review execution emits no repository-context record of any kind, so the
+  unrecognised value is not recorded there; the next same-repository pass that
+  reaches review execution records it. A recognised off value resolves to off and records nothing, exactly
+  as an absent value does.
+- The three budgets resolve over the same two sources in the same precedence order,
+  and they fail **towards the recorded default, never towards unbounded**. An absent,
+  empty, or whitespace-only value defers to the next source; where neither source
+  supplies one, the recorded default applies. A value that is present but not a
+  positive number is a configuration error: the recorded default applies and the pass
+  records that a budget value was unusable, without the raw value. No resolution path
+  produces an unlimited budget, because a budget that silently became unlimited is the
+  failure AC7 exists to prevent.
+- Repository context is read at the reviewed head, and only at the reviewed head,
+  so the context and the diff describe the same state of the code.
+- A pass never exceeds its configured candidate count budget or character budget,
+  and those budgets hold in addition to the existing diff budget and the
+  authoritative-document budgets.
+- The diff is never dropped, truncated, or displaced to make room for repository
+  context. When budgets conflict, repository context is what gives way.
+- Repository-context selection for the same head and the same configuration is
+  reproducible, so an operator can answer "why did Ronda not see that?".
+- A resolved candidate is the declaration that the reviewed language's own compiler
+  or type checker binds the reference to. A reference that cannot be bound to exactly
+  one declaration is dropped as an ambiguous resolution, never guessed (AC23).
+- A repository-context read that fails, is unavailable, or is refused never fails
+  the pass and never suppresses the review the pass would otherwise publish. The
+  pass degrades to the context it has and records the outcome.
+- Repository context is bounded by its own time budget inside the pass budget in
+  effect. When that time budget is exhausted the pass proceeds with the context it
+  already has; it never extends the pass deadline and never raises the job
+  backstop.
+- A pass that ends before review execution reads no repository context and records
+  no repository-context outcome, so such a pass is indistinguishable from the same
+  outcome with the feature off.
+- Any working area a pass creates to read repository content is removed when that
+  pass settles — on success, on failure, on supersede, on watchdog abort, and on
+  the local server's startup reconciliation — and is never shared with or reused
+  by another pass. On the reusable-workflow ingress the working area lives on an
+  ephemeral runner discarded with the job, so nothing can accumulate across passes
+  and no pass can reach another's area; the rule holds there by construction. The
+  requirement that AC12 verifies is therefore the webhook ingress's, where the
+  process is long-lived and the same working area could otherwise outlive its
+  pass.
+- The webhook ingress keeps its existing one-active-review-job rule and its
+  bounded queue. Repository context adds no concurrency to it.
+- Where the chosen read mechanism creates a working area, a cleanup failure is
+  recorded and never publishes a second review for the head. A mechanism that creates
+  no working area cannot fail a cleanup, and records none (see **Post-Merge
+  Amendment** item 4).
+- No **excerpt of repository content**, credential value, credential name, or
+  operator-specific path is written to the logs, the pass record, or any committed
+  evidence document. The pass record and the logs carry only **identifiers** of
+  what was read — symbol name, file path within the reviewed repository, and line
+  number — which say what was looked at without reproducing it, together with
+  counts, budget figures, and drop reasons. That identifier set is the explicit and
+  only exception to this rule; an excerpt body never appears on either surface.
+  Quoting the reviewed code inside a published finding, as reviews already do, is
+  not affected by this rule either, because a finding is not a log or a pass
+  record.
+- The other arm of a real-pull-request comparison is a **non-publishing control
+  pass**: it reviews the same head under the opposite context setting and publishes
+  **nothing** to GitHub — no review, no check run, no comment — so the
+  one-review-per-head-SHA contract is untouched and the existing duplicate-skip
+  behaviour never sees a second pass to skip. Its result lives only in the
+  operator's evidence record, exactly as a benchmark run's does. A control pass is
+  always operator-initiated; no trigger starts one automatically.
+- Every recorded effect claim states its evidence tier, carries the independence
+  caveat and the own-repository label, and is drawn from a paired comparison under
+  one immutable model version with equal run counts per arm.
+- The read-only property is established by demonstration on a hostile case, not
+  by assertion in a document.
+- No implementation work on this feature begins before the amendment above is
+  recorded as accepted or rejected in the Key Architectural Decisions section of
+  `docs/project/3-software-architecture.md` **and**, on acceptance, the replacement
+  invariant is recorded in the **Surface** section of `docs/constitution.md` (AC1).
+
+---
+
+## Context Selection Order
+
+The recorded selection order is a product contract, not an implementation
+choice: AC6 drops context by it and AC20 makes selection reproducible, so
+leaving it unstated would force implementers to invent the contract and would
+make "why did Ronda not see that?" unanswerable.
+
+**Candidates.** **Exactly one kind** of repository content is ever a candidate, and
+it does not reach further than a single step from the changed lines:
+
+1. **Depended-on definitions** — the definition of each symbol a changed line
+   calls, reads, or otherwise depends on directly.
+
+Call sites — the places that call or read a symbol the change defines or modifies —
+were a second candidate kind until the repository owner **removed them on
+2026-09-29** (see **Post-Merge Amendment** item 5). They are now out of scope for this
+iteration and are a recorded follow-up.
+
+**One candidate is one excerpt, and it is the unit every budget counts.** A
+depended-on symbol's definition is one candidate, so the recorded counts of
+candidates requested, resolved and dropped are counts of excerpts. With one kind
+whose unit is one definition, excerpts and distinct resolved symbols coincide.
+
+Nothing transitive is a candidate. The definition of a symbol that only a
+*candidate* names is out of scope for this iteration (see **Out of Scope (MVP)**), so
+the candidate set is bounded by the changed lines alone.
+
+**Resolution correctness.** A candidate is only useful if it is the *right* excerpt.
+A depended-on definition must be the declaration the reviewed language's own
+compiler or type checker would bind that reference to — not another declaration
+that merely shares the name, such as a same-named method on a different type, a
+shadowed local, or an unrelated export. Where a reference cannot be bound to
+exactly one declaration, the candidate is **dropped with the reason "ambiguous
+resolution"**, never guessed. A reproducibly wrong excerpt is worse than none: it
+hands the model confident, false evidence, which is the very defect shape this
+feature exists to catch. How references are bound — a compiler or type-checker
+resolver, a language server, or textual search — is the implementation plan's
+choice, but it is a **recorded plan decision with a measured precision figure**
+(AC23), not an implementation detail, because it decides the feature's value.
+
+**Priority.** Candidates are ordered by these keys, each applied only to break a
+tie in the one before it, so the order is total and the same every time:
+
+1. **Changed-line position**: the position of the earliest changed line that
+   depends on the definition. Earlier first, where position is ordered by changed
+   file path ascending, then by line number ascending.
+2. **Candidate location**: the candidate's own file path ascending, then its line
+   number ascending.
+3. **Symbol name** ascending, as the final tie-break, so two candidates that are
+   identical under every key above still have one defined order.
+
+A **kind** key came first until 2026-09-29, when the owner's removal of call sites
+left one kind and made it moot; it is deleted rather than kept as a no-op key, so the
+keys are numbered as they are applied (**Post-Merge Amendment** item 5).
+
+**Dropping.** Candidates are taken in that order until the candidate count budget or
+the character budget would be exceeded. Everything not taken is dropped whole —
+never truncated mid-excerpt — and each drop is recorded with its reason: candidate
+count budget, character budget, time budget, read did not succeed, or ambiguous
+resolution. A single
+candidate that alone exceeds the character budget is dropped and recorded, not
+truncated.
+
+**Reproducibility.** The **candidate set and its order** depend only on the reviewed
+head, the changed lines, and the configuration. They never depend on read latency, the
+order in which reads complete, or anything else that can vary between passes (AC20).
+**Which candidates survive a time-budget cutoff may vary between passes**, because how
+much resolves inside a fixed budget depends on read latency; the pass record lists
+every candidate dropped for time, so the result stays explainable even when the
+surviving set differs (owner decision of 2026-09-29; **Post-Merge Amendment** item 6).
+
+---
+
+## Statuses / Enum Values
+
+### Repository-context pass outcome
+
+Four outcomes are recorded on a pass's surfaces, and three name the cases where
+**no record is emitted at all**. The distinction matters because AC19 requires a
+pass with the feature disabled to be indistinguishable from the same pass in a
+version without the feature, which a recorded "off" value would defeat, and AC10
+requires the same invisibility for a fork-originated head.
+
+| Code value | Display label | Recorded? | Description |
+| --- | --- | --- | --- |
+| `used` | Repository context used | Yes | At least one candidate was requested and every requested candidate was resolved within budget. |
+| `partial` | Repository context partial | Yes | Some requested candidates were resolved and others were dropped, because a budget was reached, the time budget was exhausted, or an individual read did not succeed. |
+| `unavailable` | Repository context unavailable | Yes | Repository context was enabled and at least one candidate was requested, but none was resolved for the pass — because every read failed, every candidate was dropped by a budget, or the context time budget ran out first. |
+| `nothing_to_resolve` | Repository context: nothing to resolve | Yes | Repository context was enabled but the changed lines produced no candidate — a documentation-only or configuration-only change, for example. Nothing was requested, so nothing failed; this is the everyday case for such a change and must never read as a failure. |
+| `off` | Repository context off | No | Repository context was not enabled for the pass. No candidates were requested, and no repository-context record, activation statement, or budget figure appears on any surface (AC19). |
+| `fork_excluded` | Repository context excluded (fork head) | No | The reviewed head is fork-originated, so repository context is excluded whatever the switch says (AC10). The pass reviews the head exactly as it does today; no repository-context record, activation statement, or budget figure appears on any surface, so the feature is invisible on this path. |
+| `not_applicable` | Repository context not applicable | No | The pass ended before review execution — a draft pull request, or an automatic run that found the head's existing check run — so no context was requested and no outcome is owed. No record appears on any surface. |
+
+**Valid transitions**: the outcome is decided once per pass and never changes
+afterwards, and the tests below are applied **in this order**, so the earlier ones
+win. A pass that does not reach review execution is `not_applicable`. A pass whose
+reviewed head is fork-originated is `fork_excluded`, **whatever the switch is set
+to** — this test precedes the switch, which is what makes the exclusion fixed rather
+than configurable (AC10). A pass on a same-repository head that reaches review
+execution with the feature disabled is `off`. A pass on a same-repository head that
+reaches review execution with it enabled and whose changed lines produce no
+candidate is `nothing_to_resolve`. Otherwise — at least one candidate requested — it
+is `used`, `partial`, or `unavailable` according to how many requested candidates
+were resolved: all of them, some of them, none of them. Because the zero-candidate
+case has its own value, "all of zero" never has to be read as either `used` or
+`unavailable`.
+
+### Evidence tier
+
+This feature reuses the evidence-tier vocabulary recorded for
+105-category-forced-review-sweep rather than defining a second one, so one
+ledger convention covers both levers.
+
+| Code value | Display label | Description |
+| --- | --- | --- |
+| `fixture_only` | Fixture evidence only | No real-pull-request review with repository context enabled is recorded. Fixture claims only. |
+| `real_pr_provisional` | Real-PR evidence (provisional) | At least one such review is recorded, but the cohort is not closed and terminally adjudicated. Descriptive, indicative claims only. |
+| `real_pr_measured` | Real-PR evidence (measured) | A closed cohort of **ten** terminally adjudicated pull requests exists under the current configuration. Comparative claims permitted, subject to each claim's own required evidence. |
+
+**Valid transitions**:
+
+- `fixture_only` → `real_pr_provisional` when the first real-pull-request review
+  with repository context enabled is recorded, even before its findings are
+  adjudicated.
+- `real_pr_provisional` → `real_pr_measured` when the cohort reaches **ten**
+  terminally adjudicated pull requests under the current configuration.
+- `real_pr_measured` → `real_pr_provisional` whenever the counted total falls
+  below ten, including after a configuration change, until it is restored.
+- Every other combination leaves the tier unchanged.
+
+The minimum is **ten**, decided by the repository owner on 2026-09-29 by reusing the
+figure settled for 105-category-forced-review-sweep, so both levers' ledgers count on
+the same basis and neither can be promoted on a smaller cohort than the other. What
+counts as terminally adjudicated is that item's recorded definition, reused here
+unchanged.
+
+### Decision-gate consistency matrix
+
+This feature adds seven decisions whose outcome depends on more than one input.
+Each row below is the normative summary for its gate; the prose sites named under
+**Mirror surfaces** state the same rule and must not contradict this table.
+
+| Gate | Inputs | Allowed outcomes | Required next action | Mirror surfaces | Example |
+| --- | --- | --- | --- | --- | --- |
+| Amendment recording (AC1, AC2) | The owner's decision, which is **accepted with changes, 2026-09-29**; whether the full text has been written into the Key Architectural Decisions section of `docs/project/3-software-architecture.md`; whether the one-line replacement invariant has been written into the **Surface** section of `docs/constitution.md`; whether the recorded text matches the three substantive commitments of the text in this spec | Not yet recorded; recorded in one document only; recorded in both and matching; recorded but weakening one of the three commitments | Not yet recorded, or recorded in one document only: complete both recordings as the first implementation step, before any capability work — AC1 is satisfied only by both. Recorded in both and matching: implementation proceeds against it. Recorded but weakening reads-only-with-mechanism-open, never-executed, or the fork exclusion: stop — that is a new owner decision, not an implementation choice, and nothing may be built against it until the new decision is recorded (AC2) | Amendment section, including **Where the decision is recorded**; **Post-Merge Amendment**; AC1; AC2; the closing business rule; Recorded Decisions | A recorded text that permits reading a fork head's content, or that names one mechanism as mandatory, weakens a commitment the owner accepted and stops the item for a fresh decision rather than being absorbed as an implementation detail. An architecture entry recorded without the constitution's replacement invariant is the "recorded in one document only" outcome: the item continues the first step rather than starting capability work. |
+| Configuration resolution (AC19, AC21) | The repository-context switch value, read from the highest-precedence source that supplies a non-empty value, and separately each of the three budget values (candidate count, character budget, context time budget) over the same sources. The fork exclusion is not a configuration value and is not resolved here (AC10) | Off — absent, empty, or whitespace-only at both sources (nothing recorded); Off — a recognised off value (nothing recorded); Off — a non-empty unrecognised value (record that a value was unrecognised, without the raw value); On — a recognised on value | Every off outcome runs the ordinary review with no repository context and no record, except that the unrecognised case additionally records that a value was unrecognised; on: proceed to candidate selection for a same-repository head, and read nothing for a fork-originated head (AC10). A budget that is absent or unusable falls back to its recorded default, records the fallback, and never becomes unlimited | Business rules on the four configuration values, on switch and budget resolution, on the fork exclusion, and on this repository's dogfooding value; AC19; AC21; AC10; the fork-behaviour row below | An empty value at a higher-precedence source defers to the next source rather than forcing off. A non-empty unrecognised value at a higher-precedence source is the effective value and is not replaced by a recognised value below it. The global switch set on, at this repository's own on-value, still leaves a fork-originated head with no repository context. A character budget set to `many` is unusable, so the recorded default applies and the fallback is recorded — it does not become unlimited. |
+| Repository-context outcome resolution (AC3, AC10, AC11, AC19) | Whether the pass reached review execution; whether the reviewed head is fork-originated; whether the feature was enabled; how many requested candidates were resolved. The tests apply in that order, so an earlier one wins | Not applicable — did not reach review execution (no record); Repository context excluded (fork head) — the head is fork-originated, whatever the switch says (no record); Off — same-repository head, reached review execution, validly disabled (no record); Nothing to resolve — enabled, but the changed lines produced no candidate; Used — at least one candidate requested and all resolved; Partial — some resolved; Unavailable — at least one requested and none resolved | The **per-pass record** for the four recorded outcomes is always written to the logs, and additionally to the check-run output where the pass's own check-run write produced a check run whose outcome is a review. That record — the counts, the identifiers of what was read, the drops and their reasons, and the budget utilisation — is never written to the review body. The review body carries exactly one thing about repository context: the summary's activation statement naming the outcome value, and nothing more (AC3). The three unrecorded outcomes — Not applicable, Repository context excluded (fork head), and Off — write nothing anywhere, in the review body or out of it | Statuses / Enum Values → Repository-context pass outcome; AC3; AC10; AC11; AC19; Use Case 1 steps 1 and 6; Use Case 4 | A draft pull request is Not applicable and writes nothing, so it is indistinguishable from the same skip with the feature absent. A pass whose every read is denied is Unavailable and still publishes its review. A documentation-only pass whose changed lines produce no candidate is Nothing to resolve, not Unavailable, so it is told apart from a pass whose reads failed by its outcome rather than by a count. A fork head with the switch on is Repository context excluded (fork head), not Used and not Off, and writes no record at all. |
+| Budget conflict resolution (AC6, AC7) | The candidate count budget; the character budget; the existing diff budget; the authoritative-document budgets; how much context the selection rules requested | Within every budget — all requested context retained; over a context budget — lower-priority repository context dropped by the recorded selection order, with the drops recorded; the diff would have to give way — not permitted | Retain the diff in full, drop repository context, record every drop and its reason, and record the outcome as Partial — or Unavailable where every candidate was dropped and none resolved, which the budgets alone can cause | Business rules on budgets and on the diff never giving way; AC6; AC7; Use Case 2 | A change naming more candidates than the count budget allows drops the lowest-priority candidates and records Partial. A character budget too small for even the first candidate drops every candidate and records Unavailable, not Partial. A budget setting large enough that repository context would displace the diff is resolved by dropping context, never by truncating the diff — the recorded reviewer that reached a token limit and pruned the diff published nothing, which is the failure this row forbids. |
+| Context time budget exhaustion (AC8) | The context time budget; the pass budget in effect; whether the time budget was exhausted before selection finished | Not exhausted — proceed with the full selection; exhausted — proceed with the context already gathered | Proceed to review execution, publish the review, record Partial or Unavailable, and never extend the pass deadline or the job backstop | Business rule on the context time budget; AC8; Use Case 6 | A time budget forced low enough to be exhausted before any candidate resolves records Unavailable and still publishes one review for the head. |
+| Fork-head behaviour per ingress and trigger (AC10) | The ingress; the trigger (automatic or manual comment); whether the reviewed head belongs to a fork; the resolved global switch. The fork exclusion itself takes no input — it is fixed this iteration | Reusable-workflow ingress, automatic trigger, fork head — the pass is skipped before any repository content is read, unchanged from today; reusable-workflow ingress, manual comment trigger, fork head, or webhook ingress, fork head — the pass reviews the head exactly as today and reads no repository context, whatever the global switch says; non-fork head — the global switch alone decides | Publish a review exactly as today in every case where a review is published, read no repository context for any fork head, and emit no repository-context record for one | AC9; AC10; Use Case 4; the same-repository-only and never-executed business rules | A fork head on the webhook ingress still receives its ordinary review; only the repository context is withheld, the outcome is Repository context excluded (fork head), and no repository-context record is written. There is no configuration that changes this row's fork outcomes, which is what AC10 makes verifiable. |
+| Evidence-tier transition and claim admissibility (AC13, AC15, AC16, AC17, AC18) | Whether any real-pull-request review with repository context enabled is recorded; whether the count of terminally adjudicated pull requests under the current configuration has reached ten; whether the configuration changed; for a claim, whether it is paired — its second arm being the non-publishing control pass AC22 defines — interleaved, under one immutable model version, with equal run counts, and — for a recall claim — whether paired precision evidence with its regression result exists | `fixture_only`, `real_pr_provisional`, or `real_pr_measured` per the transitions above. For a claim: fixture claim permitted at any tier only where AC13's fixture-capability statement admits it; descriptive real-PR claim permitted at `real_pr_provisional` and above; comparative claim permitted at `real_pr_measured` and only with AC15's pairing and, for recall, AC16's precision evidence | Label every published claim with its tier, the independence caveat, and the own-repository label; omit a claim the tier or its own evidence does not admit rather than publishing it hedged; never attribute the guard-fails-open movement already observed under the sweep to repository context (AC18) | Statuses / Enum Values → Evidence tier; AC13; AC15; AC16; AC17; AC18; Use Case 5; Use Case 7 | A comparative recall claim on ten adjudicated pull requests but with the two arms run weeks apart under different model versions is not admissible: the tier permits comparative claims, AC15's interleaving under one immutable model version does not — the recorded sweep comparison failed on exactly this. A fixture whose target has no resolvable surrounding source yields no claim at all, not a zero effect. |
+
+---
+
+## Operational Visibility
+
+- **Review summary**: part of the published review body, and therefore deliberately
+  minimal. It states that repository context was active for the pass and the pass's
+  outcome, in the same one-line form existing review-mode activation takes, and
+  nothing else about repository context. The counts, identifiers, drops, and budget
+  utilisation belong to the per-pass record below, never to the review body.
+- **Per-pass repository-context record**: the outcome, the candidates requested, the
+  candidates resolved, the candidates dropped with the reason for each drop, the budget
+  utilisation. It exists only for a same-repository head, since a fork head is
+  excluded (AC10). It is always carried on
+  the logs, and additionally on the pass's check-run output where the pass's own
+  check-run write produced a check run whose outcome is a review (AC3) — the same
+  surface rule the existing per-pass records follow. It never appears in the review
+  body.
+- **Read-only demonstration record**: the committed evidence document under
+  `docs/testing/ronda/` naming the hostile cases attempted, what was observed, the
+  version and date, and which parts of the evidence are structural and which are
+  observational.
+- **Recall and cost evidence**: per-run recall per arm, per-seed found counts,
+  precision result, per-pass elapsed time and billed minutes per arm, model calls
+  per pass, run counts, immutable model version, reviewed target, fixture version,
+  timestamps, and the evidence-tier label.
+- **Control-pass results**: recorded only in the operator's evidence record. A
+  control pass writes nothing to GitHub, so it has no review, check-run, or comment
+  surface (AC22).
+- **Evidence-tier ledger**: the tier, the counted pull requests, the configuration
+  the count accrues under, and the date the state was recorded.
+- **Logs**: the outcome, the counts, the budget utilisation, and — **only where the
+  chosen read mechanism creates a working area** — cleanup completion. A mechanism
+  that creates none emits no cleanup line, because a line claiming a cleanup that
+  never happened would be a false record (see **Post-Merge Amendment** item 4). Logs
+  never record repository content, credential values, or operator-specific paths.
+- **Notifications**: none beyond the existing GitHub review and check-run
+  surfaces.
+
+---
+
+## Acceptance Criteria
+
+- [ ] AC1: The amendment text above is written into the **Key Architectural
+      Decisions** section of `docs/project/3-software-architecture.md`, replacing the
+      existing decision, recorded as accepted with changes, attributed to the
+      repository owner, dated 2026-09-29, and referencing this item — as the first
+      step of the implementation stage, before any capability work starts. The
+      recorded decision names which of the two commitments in the current locked
+      decision it changes and which it keeps. **In the same first step**, the one-line
+      replacement invariant — *the reviewed repository is read, never installed, built
+      or executed* — is written into the **Surface** section of
+      `docs/constitution.md`, so the contract document carries the invariant that
+      replaces the old one rather than leaving it standing unreplaced (owner decision
+      of 2026-09-29; see **Post-Merge Amendment**). AC1 is satisfied only when **both**
+      documents are recorded.
+- [ ] AC2: The decision text recorded under AC1 matches the amendment text above
+      word for word in its three substantive commitments: reads only with the
+      mechanism left open, the reviewed repository's code never executed, and
+      fork-originated heads excluded. A recorded text that weakens any of the three
+      is a **new owner decision**, not an implementation choice, and none of AC3 to
+      AC23 may be built against it until that decision is itself recorded.
+- [ ] AC3: With the amendment accepted and repository context enabled, a review
+      pass that reaches review execution requests the candidates the selection
+      rules produce for the changed lines — the definitions those lines depend on,
+      and nothing else this iteration — and resolves them at the reviewed head
+      as far as the budgets allow and the reads succeed — a pass whose selection
+      rules produce no candidate is `nothing_to_resolve`; of passes that request **at
+      least one** candidate, one that resolves every one of them is `used`, one that
+      resolves some **but not all** is `partial`, and one that resolves none is
+      `unavailable`, the last three governed by AC6, AC8, and AC11 — and its check-run
+      output — where that pass's own
+      check-run write produced a check run whose outcome is a review — and its logs
+      each state the pass's repository-context outcome, the candidates requested, the
+      candidates resolved, and the budget utilisation. Where no such check run exists,
+      the record is on the logs alone. The published review's summary states that
+      repository context was active and the pass's outcome, and nothing further: no
+      count, no identifier, no drop reason, and no budget figure appears anywhere in
+      the published review body.
+- [ ] AC4: A recorded demonstration exists in `docs/testing/ronda/` in which a
+      pass reviews a head whose content would execute something if any build,
+      install, test, hook, or generated tooling were invoked, and the evidence
+      shows nothing of the reviewed repository was executed and nothing was written
+      to it beyond the one review and its check run. The same demonstration covers
+      the attacks on the read itself, whatever mechanism the plan chooses: a
+      symbolic link pointing outside the reviewed repository is not followed and
+      nothing outside the repository is read through it; a submodule reference is not
+      fetched and no other repository is read through it; and repository attribute
+      configuration naming a filter or driver causes nothing to run. The evidence names the version
+      and date it was observed on and labels which parts are structural and which
+      observational. An assertion without such an observation does not satisfy this
+      criterion.
+- [ ] AC5: A recorded demonstration exists in which a pass reviews a head carrying
+      content designed to be read as instructions to the reviewer, and the evidence
+      shows the pass still published exactly one review for that head and took no
+      action outside it.
+- [ ] AC6: A pass never exceeds its configured maximum candidate count or maximum
+      combined character budget for repository context, where **one candidate is one
+      excerpt** — the definition of one depended-on symbol — as **Context Selection
+      Order** defines. With more candidates requested
+      than the budgets allow, the pass records which candidates were dropped and why,
+      and the retained context follows the recorded selection order. A pass that
+      retains some candidates records `partial`; a pass whose budgets are small
+      enough to drop every candidate records `unavailable`, and both still publish
+      their review.
+- [ ] AC7: With repository context enabled at any budget setting, the pull
+      request's own changed lines are present in the review input in full, to the
+      same extent as with the feature off. A budget decision never drops or
+      truncates the diff to make room for repository context.
+- [ ] AC8: Repository context is bounded by its own time budget inside the pass
+      budget in effect. A pass whose context time budget is exhausted proceeds to
+      review execution with the context it already has, records `partial` or
+      `unavailable`, publishes its review, and does not extend the pass deadline or
+      the job backstop. This is verifiable by forcing the time budget low enough to
+      be exhausted.
+- [ ] AC9: Repository content read by a pass never changes Ronda's output
+      contract: the pass publishes one review for the head, writes nothing else to
+      the reviewed repository, and reads content from no repository other than the
+      reviewed head's own — including through a symbolic link or a submodule
+      reference carried by that head (AC4) — and from nothing outside that
+      repository's own content.
+- [ ] AC10: **A fork-originated head never receives repository context in this
+      iteration.** The owner decided on 2026-09-29 that repository context is
+      same-repository heads only, so the fork exclusion is **fixed**: it is not an
+      operator switch, there is no configuration value of any kind that can enable
+      fork-head reads, and that is verifiable by setting every configuration surface
+      the feature has to its most permissive value and observing that a
+      fork-originated head still reads no repository **context**. The exclusion is
+      about repository context alone: a fork head's pass still reads the pull
+      request's own changed lines, exactly as it does today, because the diff is what
+      every review reads and is not repository context. The exclusion is
+      verifiable per ingress **and trigger**, because today's fork guard is per
+      trigger rather than per ingress: on the reusable-workflow ingress's
+      **automatic** trigger a fork head is skipped before any repository content is
+      read, unchanged from today; on that same ingress's **manual comment** trigger,
+      which runs for a fork pull request today and is scoped by comment access on the
+      base repository rather than by the head's fork origin, and on the webhook
+      ingress, the pass reviews the fork head exactly as it does today and reads no
+      repository context. A repository-context record therefore **only ever exists
+      for a same-repository head**. No separate fork marker is emitted, and none is
+      needed: the absence of a record on a fork pass is itself the invisibility AC19
+      requires, and a marker that was always absent would carry no information.
+- [ ] AC11: A repository-context read that fails, is refused, or returns nothing
+      never fails the pass and never suppresses the review the pass would otherwise
+      publish. The pass records `partial` or `unavailable` and publishes its
+      review. This is verifiable by denying the reads for a pass.
+- [ ] AC12: The webhook ingress runs no more concurrent review jobs with
+      repository context than without it, and any working area a pass created is
+      gone once that pass settles — on success, failure, supersede, watchdog abort,
+      and startup reconciliation. Verifiable by running repeated passes and
+      confirming nothing accumulates, and by aborting a pass mid-read and
+      confirming its working area is gone and no second review was published for
+      the head.
+- [ ] AC13: Recall evidence exists for the three target sub-themes —
+      state reconstruction from API evidence, lossy external-output parsing, and a
+      guard that fails open — reporting per-run recall for both arms overall and per
+      seed. The evidence states, before reporting any figure, whether the fixture
+      target actually provides resolvable surrounding source for the symbols in its
+      changed lines; where it does not, the fixture comparison is recorded as unable
+      to test this feature and supports no claim about it.
+- [ ] AC14: Cost evidence exists reporting per-pass elapsed time, billed minutes,
+      model calls per pass, and candidates resolved, for both arms, on measured passes
+      rather than a projection. It reports two distinct things and labels which is
+      which: the **comparative** figures, which are the context-off against
+      context-on difference and are subject to AC15; and the **descriptive
+      reference** figures, which are the committed 2026-09-23 cost and convergence
+      baseline and the measured dogfood pass, cited to size the absolute cost
+      against what this repository already spends. A descriptive reference is not
+      an arm and is never paired — it was recorded before this feature existed, so
+      pairing it is impossible — and no effect on recall, variance, or cost is read
+      from a difference against it. AC14 also states how many passes exhausted the
+      context time budget and how many hit the pass budget or the job backstop, and
+      whether the pass budget in effect was sufficient.
+- [ ] AC15: Every **comparative** claim drawn from AC13 or AC14 — that is, every
+      claim of an effect attributed to repository context — rests on a paired
+      context-off and context-on comparison on the same targets or heads,
+      interleaved, under one immutable model version, with a configuration
+      identical apart from the context switch and the same number of runs per arm.
+      A time-ordered before-and-after comparison, and a comparison against a
+      descriptive reference figure recorded before this feature existed, neither
+      satisfies this criterion, and the evidence says so. This criterion does not
+      apply to the descriptive reference figures themselves, which AC14 requires
+      and which carry no effect claim.
+- [ ] AC16: Paired precision evidence on the same configuration, with its
+      recorded regression result, accompanies every recall claim. A recall claim
+      without it is not published.
+- [ ] AC17: The evidence-tier ledger for this feature records the tier, the
+      counted pull requests, the configuration the count accrues under, and the
+      date. Every published claim about real pull requests carries its tier label,
+      the independence caveat, and the own-repository label, and no claim exceeds
+      what its tier admits.
+- [ ] AC18: The evidence records that the guard-fails-open sub-theme already moved
+      under the recorded category-forced sweep, and does not attribute that
+      movement to repository context. Any improvement claimed for that sub-theme is
+      stated as additional to the sweep or not claimed.
+- [ ] AC19: Repository context is **off by default for an adopting repository**,
+      and **on for this repository's own dogfooding**, both being the same switch at
+      different values, supplied so the owner can change this repository's value from
+      repository settings without editing a workflow or redeploying. This
+      repository's value is set on only after the AC4, AC5, and AC23 evidence is
+      committed, verifiable from the order of the evidence commits and the
+      repository setting's change. A version with
+      the feature present but **validly** disabled — the switch absent, or set to a recognised
+      off value — produces reviews, check runs, skips, supersedes, and failure paths
+      indistinguishable from the same version with the feature absent, and records
+      no repository-context outcome. The one exception is an unrecognised switch
+      value (AC21), which is a configuration error rather than a valid disablement:
+      it resolves the switch off and is recorded, so the operator can see the typo.
+      No other case is exempt from this criterion.
+- [ ] AC20: Repository-context selection is reproducible **over the candidate set
+      and the selection order**: the same head with the same configuration produces the
+      same candidate set in the same order, and the pass record is sufficient to
+      explain why a given candidate was or was not included. **Which candidates survive
+      a time-budget cutoff may vary between passes** — how much resolves inside a fixed
+      budget depends on read latency — and the pass record lists every candidate dropped
+      with the reason `time budget`, so the result stays explainable even when the
+      surviving set differs between two passes on the same head (owner decision of
+      2026-09-29; see **Post-Merge Amendment** item 6 and AC8).
+- [ ] AC21: The repository-context switch resolves fail-closed over the two recorded
+      sources in their recorded precedence order, and every case is verifiable by
+      setting the sources directly: an absent, empty, or whitespace-only value at the
+      higher-precedence source defers to the lower one; both sources absent, empty,
+      or whitespace-only leaves the switch off and records nothing; a recognised off
+      value leaves it off and records nothing; a non-empty unrecognised value at the
+      higher-precedence source leaves the switch off even when the lower-precedence
+      source holds a recognised on value, and — on a pass that reaches review execution
+      for a same-repository head, the only passes that emit a record (AC10) —
+      records that a value was unrecognised
+      without recording the raw value — the one case AC19's indistinguishability
+      does not cover, because an unrecognised value is a configuration error rather
+      than a valid disablement; only a recognised on value at the effective source
+      turns the switch on. Each of the three budgets resolves over the same sources
+      and order, and no setting of either source produces an unlimited budget: an
+      absent or unusable value falls back to the recorded default and the fallback is
+      recorded, verifiable by setting a budget to a non-numeric value and observing
+      the default in the pass record.
+- [ ] AC22: A real-pull-request comparison's second arm runs as a non-publishing
+      control pass on the same head: it produces a reviewable result recorded in the
+      operator's evidence record and publishes no review, no check run, and no
+      comment to GitHub. Verifiable on a head that already carries a published
+      review: after the control pass, that head still has exactly one published
+      review and one check run, both from the original pass, and the control's result
+      is present only in the evidence record. No trigger starts a control pass
+      automatically.
+- [ ] AC23: Resolution is correct, not merely reproducible. On a recorded fixture
+      whose references include same-named declarations on different types, a
+      shadowed name, and a re-export, every resolved candidate is the declaration
+      the reviewed language's own compiler or type checker binds the
+      reference to, and every reference that cannot be bound to exactly one
+      declaration is dropped with the reason "ambiguous resolution" rather than
+      resolved to a guess. The implementation plan records which resolution method
+      it uses and why, and the evidence records the method's measured resolution
+      precision on that fixture — resolved candidates that are correct over all
+      resolved candidates. A precision below 100% on that fixture is a defect to fix
+      before this feature is enabled for this repository, not a figure to report.
+
+---
+
+## Brief Objective List
+
+- O1: Answer how the read-only property is proven, and what happens on a fork
+  pull request.
+- O2: Answer the cost of a checkout plus symbol resolution per pass against the
+  recorded per-pull-request Actions figures, with the pass budget knob named.
+- O3: Answer which symbols get resolved and what the context budget is, given
+  that more context is not automatically better.
+- O4: Answer how the webhook path gains the same capability, with the concurrency
+  and cleanup that implies.
+- O5: Produce a recorded amendment to the locked architecture decision, or an
+  explicit decision not to proceed.
+- O6: Make read-only repository context available to a review pass, with the
+  read-only property demonstrated rather than asserted.
+- O7: Produce recall evidence against the `pr-head-push-order`,
+  `external-output-parsing`, and `guard-fails-open` sub-themes, which need fixture
+  seeds first.
+- O8: Produce cost and pass-duration evidence against the committed baseline.
+- O9: Do not start implementation until the amendment is agreed and recorded.
+- O10: Recognise that measurement requires dogfooded reviews to accumulate and
+  that there is no historical "before".
+- O11: Sequence after the category-forced sweep, and let its results inform
+  whether symbol context is the right next lever.
+
+---
+
+## Coverage Matrix
+
+| Brief objective | Acceptance criteria / disposition | Notes |
+| --- | --- | --- |
+| O1: Read-only proof and fork behaviour | AC4, AC5, AC9, AC10, plus the amendment text | The amendment keeps "never executes the reviewed repository's code" locked and relaxes only the no-checkout mechanism, written over reads with the mechanism left open (owner decision, accepted with changes, 2026-09-29); AC4 and AC5 require demonstration on a hostile head rather than assertion; AC10 fixes fork behaviour per ingress **and per trigger**, because today's fork guard is per trigger: the reusable-workflow ingress's automatic trigger skips fork heads, while its manual comment trigger runs for them, as the webhook ingress does. Fork-originated heads are excluded from repository context this iteration and the exclusion is fixed rather than configurable, so no configuration mistake can enable a fork read. |
+| O2: Cost against the recorded figures, and the pass budget | AC8, AC14 | AC8 makes repository context fit inside the pass budget in effect (`pass_timeout_minutes`, default 10, job backstop that plus two) rather than require a larger one; AC14 compares measured passes against the committed 2026-09-23 baseline and the measured dogfood pass, and reports budget exhaustion. Whether the default budget should rise is an open question for the owner. |
+| O3: Symbol selection and context budget | AC3, AC6, AC7, AC20, AC23 | Selection resolves the definitions the changed lines depend on — **one candidate kind** since the owner removed call sites on 2026-09-29 (**Post-Merge Amendment** item 5; callers are follow-up #129) — in the recorded order defined in **Context Selection Order**: candidates one step from the changed lines only, **one candidate being one excerpt** (the definition of one depended-on symbol), ordered by changed-line position, then candidate location, then symbol name, with whole-candidate drops and no mid-excerpt truncation; two budgets bound it, in addition to the existing diff and authoritative-document budgets; the diff is never displaced (AC7), which is the direct answer to the recorded 32,000-token pruning observation; selection is reproducible (AC20); and resolution is correct — a candidate is what the language's own compiler binds the reference to, an ambiguous reference is dropped rather than guessed, and the plan's resolution method is a recorded decision with measured precision (AC23). |
+| O4: Webhook path, concurrency and cleanup | AC12, plus the working-area and one-active-job business rules | No added concurrency, cleanup on every settlement path including watchdog abort and startup reconciliation, no working area shared between passes, and a cleanup failure never publishes a second review. |
+| O5: Recorded amendment or decision not to proceed | AC1, AC2, plus **Where the decision is recorded** | The amendment text is proposed here and decided by the owner, and the decision is recorded in **two** places: the full amended decision in the Key Architectural Decisions section of `docs/project/3-software-architecture.md` — the document that carries the decision being amended — and the one-line replacement invariant in the **Surface** section of `docs/constitution.md`, so the contract document does not keep an invariant this item replaces (owner decision of 2026-09-29; see **Post-Merge Amendment**). Rejection terminates the item with a dated rejection note as its only outcome. |
+| O6: Context available, read-only demonstrated | AC3, AC4, AC5, AC11, AC19, AC21 | The capability ships off by default for adopters and on for this repository's own dogfooding, resolves its switch and its three budgets fail-closed so that an absent or unusable value never enables the feature and never yields an unlimited budget (AC21), degrades rather than failing, and has its read-only property demonstrated rather than asserted. |
+| O7: Recall evidence on the three sub-themes | AC13, AC15, AC16, AC18 | Per-seed recall for both arms on the seeds added by the sweep item; the fixture's ability to test this feature at all is stated before any figure; precision evidence is mandatory for a recall claim; the guard-fails-open movement already observed under the sweep is not re-attributed here. |
+| O8: Cost and pass-duration evidence | AC14, AC15 | Measured rather than projected. Two kinds of figure, labelled apart: the comparative context-off against context-on arms, which AC15 requires to be paired, interleaved, under one immutable model version with equal run counts; and the committed 2026-09-23 baseline and the measured dogfood pass as descriptive references, which are not arms, cannot be paired because they predate the feature, and carry no effect claim. |
+| O9: No implementation before the amendment | AC1, AC2, plus the closing business rule | Stated as a gate on starting work, verifiable from the recorded decision's date. |
+| O10: Measurement needs accumulated reviews; no "before" exists | AC15, AC17, AC22, plus Use Case 7 | The comparison is paired context-off against context-on on the same heads, never a before-and-after in time; the tier ledger governs what may be claimed while the cohort accumulates. #103 is closed, so passes accrue from now, but no pre-dogfood Ronda review exists to compare against and the recorded sweep ledger still stands at fixture-only with zero counted pull requests. |
+| O11: Sequence after the sweep; let its results inform the lever | AC18, plus Use Case 5 | The recorded sweep evidence is cited in both directions: the state-reconstruction and lossy-parsing seeds were not solved by the sweep, which is the case for this lever; the guard-fails-open seed moved under the sweep, so AC18 forbids claiming that movement here. The sweep's own paired comparison was recorded as inadmissible for model drift, which is why AC15 requires interleaved arms under one immutable model version. |
+
+### Deferral Notes
+
+- **D1 — "Strategy context: `~/Git/Cerebro/LH/docs/agents/ronda-estrategia-revision.md`
+  §2.4 and §5."** Rationale: that document is outside this repository and is not
+  readable from it, so no requirement in this spec may depend on it. Everything
+  this spec relies on is drawn from committed evidence in this repository. Human
+  confirmation **received on 2026-09-29**, checked against §4.A1, §4.A2 and §5 of
+  that document. Two results, both folded in by the **Post-Merge Amendment**: §4.A1
+  also requires the replacement invariant to be written into `docs/constitution.md`,
+  which AC1 now requires; and §4.A2 lists a further context kind — the test file
+  matching a changed symbol — which is **deferred**, not adopted (see **Out of Scope
+  (MVP)** and **Deferred Decisions**). §2.2's argument that authorization-bypass and
+  data-loss/overwrite are visible only from the caller side is recorded against
+  follow-up #129, after the owner removed call sites from this iteration on 2026-09-29.
+  §4.A1 scopes its checkout note to the dedicated machine, that is, the webhook
+  ingress; this spec deliberately keeps the broader two-ingress scope AC10 and Use
+  Case 4 define. No other objective in that document is missing from the Brief
+  Objective List above. No open question remains.
+- **D2 — "A checkout plus symbol resolution per pass" as literally a checkout.**
+  Rationale: the issue names a read-only checkout, and the spec's guarantees are
+  stated over the *reads* rather than over the mechanism, so that a locally
+  materialised copy and repository content reads are both permitted and both
+  bounded by the same guarantees and budgets. Choosing between them is an
+  implementation decision for the plan. Human confirmation **received on 2026-09-29**:
+  the amendment is written over reads rather than mandating a checkout, and the
+  mechanism — a shallow fetch, a repository contents read, or another — stays open for
+  the plan. The narrower wording is what keeps the "never executed" property intact.
+
+---
+
+## Out of Scope (MVP)
+
+- Executing anything from the reviewed repository — building it, installing its
+  dependencies, running its tests, its hooks, or its generated tooling. This is
+  not a deferral; it stays prohibited.
+- Any write to the reviewed repository beyond the one review and check run Ronda
+  already publishes. Ronda still never pushes a fix.
+- Reading any repository other than the reviewed head's own, and reading a
+  fork-originated head's repository at all this iteration (AC10).
+- **Call-site (caller) context**: the places that call or read a symbol the change
+  defines or modifies. This was the second candidate kind until the repository owner
+  removed it on **2026-09-29** (**Post-Merge Amendment** item 5). Definitions answer
+  the two sub-themes the #105 sweep did not solve, callers would mainly serve the one
+  it already moved, and removing them keeps the no-repository-wide-indexing line below
+  intact — finding callers needs the reverse of the import graph, which no bounded
+  within-pass read of the changed lines alone can supply. Filed as follow-up #129 (see
+  **Deferred Decisions**).
+- Transitive context: the definition of a symbol that only a candidate names.
+  A candidate is never more than a single step away from the changed lines (see
+  **Context Selection Order**).
+- A further candidate kind: **the test file matching a changed symbol.** Considered on
+  2026-09-29 and **deferred** by owner decision, not rejected: this iteration ships the
+  single kind **Context Selection Order** defines, and a test file would compete for the
+  same budgets as the definitions that answer the dominant finding cluster. It is
+  revisited once the first cohort shows whether definitions alone help (see **Deferred
+  Decisions**).
+- Whole-repository or whole-package context, repository-wide indexing, and
+  cross-pull-request or cross-pass carried context. Each pass reads afresh, within
+  budget.
+- A second model pass, a multi-turn exchange, or any change to the
+  one-review-per-head-SHA contract.
+- Language coverage beyond what the reviewed repository's own primary language
+  needs for the three target sub-themes.
+- Per-adopter or per-repository custom selection rules; this iteration ships one
+  recorded selection order and operator budgets.
+- Changing which fork heads get reviewed at all. The reusable-workflow ingress's
+  automatic trigger still skips fork heads and its manual comment trigger still runs
+  for them; the webhook ingress remains the fork-friendly one. This feature decides
+  only whether those passes that do run for a fork head may read repository context.
+- An automatic control pass. The non-publishing control pass (AC22) is
+  operator-initiated only; no trigger starts one.
+- Changing either ingress's concurrency behaviour. AC12 preserves the webhook
+  ingress's existing one-active-review-job rule and bounded queue; the
+  reusable-workflow ingress's concurrency, including how a comment run and an
+  automatic run interact, is unchanged by this feature.
+- Raising the default pass budget or the job backstop. The owner decided on
+  2026-09-29 to **keep the ten-minute default**, relying on AC8's
+  degrade-rather-than-extend rule, and to revisit only if the measured cohort shows
+  passes degrading against it. The acceptable cost increase is therefore "whatever
+  fits inside that budget".
+- Permitting repository context for fork-originated heads. The exclusion is fixed
+  this iteration (AC10); lifting it is a separate item with its own owner decision.
+- Closing the `/ronda review` comment-trigger fork-guard gap in
+  `.github/workflows/ronda-review.yml`, whose condition gates `pull_request` only, so
+  a fork pull request can already reach review execution on that ingress today. This
+  is pre-existing behaviour that this feature neither uses nor worsens — a fork head
+  reads no repository context — and it is filed separately as #127, not as work
+  this item does. That trigger is already restricted to an `OWNER`, `MEMBER`, or
+  `COLLABORATOR` commenter, so the follow-up is to document it, not to close an
+  exposure.
+- Setting a recall target, a variance ceiling, or a cost ceiling for repository
+  context (see **Deferred Decisions**).
+- Making repository context the default for adopting repositories. It stays **off by
+  default for adopters**; this repository's own on-value is the recorded exception
+  (see **Deferred Decisions**).
+- Claiming that any measured effect generalises to repositories other than the
+  one that produced the evidence, or corroborating it in another repository.
+- Model tiering and the remaining epic #52 items that are not this one.
+- Rebalancing the benchmark fixture's existing seeds, which the sweep item
+  already recorded as deferred.
+
+---
+
+## Deferred Decisions
+
+These product decisions are deliberately not made here. None blocks building or
+measuring the feature, because it ships off by default for adopters and its recall and
+cost figures are reported evidence rather than pass/fail gates. The decisions the
+owner **did** make on 2026-09-29 are recorded in **Recorded Decisions**, not here.
+
+| Decision | Owner | Trigger | Until then |
+| --- | --- | --- | --- |
+| A recall target and a variance ceiling for repository context | Human (issue owner) | The first paired context-off and context-on runs are recorded | Recall and variance are reported evidence; no run passes or fails on them. |
+| A cost ceiling per pass with repository context, and any rise in the pass budget above its ten-minute default | Human (issue owner) | The measured cohort shows passes degrading against the ten-minute budget, or repository context is proposed as a default for adopting repositories | The ten-minute default stands (owner decision, 2026-09-29). Cost per pass is reported and compared against the committed baseline; no cost figure fails this feature, and AC8 makes a pass fit the budget rather than ask for more. |
+| Whether repository context becomes the default for adopting repositories | Human (issue owner) | A `real_pr_measured` tier with an admissible comparative claim exists | It stays off by default for adopters, and on for this repository's own dogfooding (owner decision, 2026-09-29). |
+| Whether repository context is ever permitted for a fork-originated head | Human (issue owner) | A separate item proposes it, with its own read-only evidence for untrusted heads | Fork heads are excluded, and the exclusion is fixed rather than a switch (AC10). |
+| The default values of the candidate count and character budgets | Human (issue owner), informed by the first measured passes | The first passes report budget utilisation | The implementation plan proposes starting values; they are operator-configurable from the first version. |
+| Whether **caller (call-site) context** is added back | Human (issue owner), informed by the first measured cohort | `docs/testing/ronda/repository-context-effect-evidence-106.md` reaches `real_pr_measured`, or its recall figures show the target sub-themes still missed with definitions alone | Definitions only (owner decision, 2026-09-29). Filed as follow-up **#129**, which must also answer the **Out of Scope (MVP)** no-repository-wide-indexing conflict, AC20's reproducibility bar, AC23's precision bar, and how callers and definitions compete for the budgets. The case for revisiting it is the strategy document's §2.2 argument that **authorization bypass** and **data-loss / overwrite** are visible only from the caller side — whether a guard is reachable, and who else writes the same record — which a definition cannot answer. |
+| Whether a further candidate kind — the test file matching a changed symbol — is added | Human (issue owner), informed by the first cohort | The first cohort shows whether definitions alone moved the target sub-themes | One kind only, per **Context Selection Order** (owner decision, 2026-09-29). A test file is not a candidate and consumes none of the budgets. |
+
+---
+
+## Recorded Decisions
+
+The repository owner answered the spec's open questions on **2026-09-29**. Each
+answer is folded into the criteria and rules above; this table is the index, not a
+second source of truth.
+
+| # | Question | Decision | Where it lands |
+| --- | --- | --- | --- |
+| 1 | Is the amendment accepted? | **Accepted with changes** — the changes being decisions 2 and 3 below. The merge of this spec's pull request remains the recorded agreement to the text. | Amendment section; AC1; AC2 |
+| 2 | Written over reads, or a mandated checkout? | **Over reads.** The decision mandates no checkout and leaves the mechanism — a shallow fetch, a repository contents read, or another — open for the implementation plan. "Never executes the reviewed repository's code" stays locked. | Amendment decision text; Deferral Note D2 |
+| 3 | May a pass read fork-head content? | **No — same-repository heads only this iteration**, and the exclusion is **fixed** rather than a switch defaulting to off, so no configuration mistake can enable it. The per-trigger fork model is kept because today's guard is per trigger. | AC10; the same-repository-only business rule; Use Case 4; the fork-behaviour gate row; Out of Scope |
+| 4 | Should the pass budget rise above ten minutes? | **No.** Keep the ten-minute default and rely on AC8's degrade-rather-than-extend rule; revisit only if the measured cohort shows passes degrading against it. Acceptable cost increase is whatever fits inside that budget. | AC8; AC14; Out of Scope; Deferred Decisions |
+| 5 | Minimum cohort for `real_pr_measured`? | **Ten** terminally adjudicated pull requests, reusing the figure settled for the sweep item so both ledgers count on the same basis. | Evidence tier enum and transitions; the claim-admissibility gate row |
+| 6 | Off by default here too? | **On for this repository's own dogfooding, off by default for adopters**, supplied so the owner can flip it from repository settings without editing a workflow or redeploying. It is switched on here only once the read-only demonstrations and resolution-correctness evidence are committed. | The demonstrations-before-the-switch business rule; the off-by-default and dogfooding business rules; AC19; Out of Scope; Deferred Decisions |
+| 7 | Does the strategy document hold an objective this spec misses? | **Checked on 2026-09-29** against §4.A1, §4.A2 and §5. Two results: the replacement invariant also goes into `docs/constitution.md`, and test-file context is deferred. No other objective is missing. | **Post-Merge Amendment**; AC1; Deferral Note D1; Out of Scope; Deferred Decisions |
+
+| 8 | Are call sites part of this iteration? | **No — definitions only**, decided 2026-09-29 after the spec merged. Definitions answer the two sub-themes the #105 sweep did not solve; the one callers would serve already moved under the sweep; and removing them keeps the no-repository-wide-indexing line intact and removes the largest per-pass cost. Filed as follow-up **#129**. | **Post-Merge Amendment** item 5; **Context Selection Order**; AC3; AC6; AC23; Coverage row O3; Out of Scope; Deferred Decisions |
+| 9 | What does AC20's reproducibility cover, given AC8? | **The candidate set and the selection order.** A time-budget cutoff keeps what already resolved and drops the rest with reason `time budget`; which candidates survive may vary between passes, and the record lists every time-budget drop so the result stays explainable. | **Post-Merge Amendment** item 6; AC20; AC8; **Context Selection Order** → Reproducibility |
+
+A **follow-up, filed as #127**, came out of decision 3: the `/ronda review`
+comment trigger's fork guard in `.github/workflows/ronda-review.yml` gates
+`pull_request` only, so a fork pull request can already reach review execution on that
+ingress. It is pre-existing, this feature neither uses nor worsens it, and it is
+explicitly not fixed here (see **Out of Scope (MVP)**).
+
+---
+
+## Open Questions
+
+**None remain.** The one question that stood at merge — whether the strategy document
+named in the issue holds an objective missing from the Brief Objective List — was
+**checked on 2026-09-29** against §4.A1, §4.A2 and §5 of
+`~/Git/Cerebro/LH/docs/agents/ronda-estrategia-revision.md` and closed. It produced
+two results, both recorded in the **Post-Merge Amendment**: the replacement invariant
+also goes into `docs/constitution.md` (AC1), and test-file context is deferred rather
+than adopted. Nothing else in that document is missing from the Brief Objective List.
+See Deferral Note D1 and **Recorded Decisions** row 7.

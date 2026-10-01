@@ -12,6 +12,7 @@ import {
   applyAuthoritativeDocBudgets,
   collectChangedPaths,
   selectAuthoritativeDocCandidates,
+  type AuthoritativeDocSkip,
 } from "./select-authoritative-docs.js";
 import {
   UnusableModelOutputError,
@@ -20,15 +21,29 @@ import {
 import { severityLabel } from "../domain/severity.js";
 import type { Severity } from "../domain/severity.js";
 import type {
+  ChangedFile,
   FailureReason,
   Finding,
   InlineComment,
   PublishCheckRunInput,
   PullRequestMetadata,
+  RepositoryContextCandidate,
+  RepositoryContextDegradedRecord,
+  RepositoryContextOutcome,
+  RepositoryContextPassRecord,
   ReviewPassDeps,
   ReviewPassInput,
   ReviewPassResult,
+  SweepCategoryList,
+  SweepDegradedRecord,
+  SweepPassRecord,
 } from "../domain/review-pass.types.js";
+import {
+  classifyFindings,
+  loadSweepList,
+  type SweepClassification,
+  type SweepListResult,
+} from "../review/sweep-categories.js";
 import { buildCheckRunOutput, buildReviewSummary, countBySeverity } from "./summary.js";
 import { createPassDeadline } from "./pass-deadline.js";
 import {
@@ -38,6 +53,21 @@ import {
   type DurabilityModeResolution,
 } from "../review/durability-mode.js";
 import { RepositoryFileUnusableError } from "../github/repo-content-reader.js";
+import {
+  applyRepositoryContextBudgets,
+  buildRepositoryContextCandidates,
+  compareRepositoryContextCandidates,
+  resolveRepositoryContextOutcome,
+} from "../review/repository-context.js";
+import {
+  buildSourceFileSet,
+  identifyCandidates,
+  resolveSymbols,
+  RepositoryContextUnusableContentError,
+  type InternalRequestedReference,
+  type RepositoryContextReadFile,
+} from "../review/symbol-resolver.js";
+import { filterExcludedFiles, isPathExcluded } from "../review/path-exclusion.js";
 
 function readLocalDurabilityModeDocument(
   cwd: string = process.cwd(),
@@ -129,6 +159,40 @@ export async function runReviewPass(
   // left pending, not about manufacturing a false outcome once the truth
   // (the published review) is already public.
   let reviewPublished = false;
+  // Populated once the sweep is enabled and its list loads, before
+  // `readChangedFiles`; read by the prompt, the classifier, and the record
+  // builders. Undefined when the sweep is off, unrecognized, or the list
+  // failed to load (AC18, AC19).
+  let sweepList: SweepCategoryList | undefined;
+  // The enablement/load decision, computed before the changed-files read but
+  // deliberately not emitted there (AC1): the sweep record belongs to a pass
+  // that reaches review execution, and AC1 draws that line at the review
+  // request the pass issued. A pass that dies between the read and the model
+  // call reached nothing and owes no record at all, degraded included.
+  let sweepDegraded: SweepDegradedRecord | undefined;
+  // Set the moment `classifyFindings` returns for the parsed response —
+  // independently of any GitHub call, so it stays set even if the pass then
+  // fails (AC1: a pass that issued its request and then failed has reached
+  // every category its request carried).
+  let classified = false;
+  let classification: SweepClassification | undefined;
+  // Set the instant before `deps.model.complete` is called. A pass that never
+  // got that far reached none of its categories and owes no sweep metadata at
+  // all — not even a degraded record — while a pass that did has reached
+  // every category its request carried (AC1).
+  let requestIssued = false;
+  // Guards the one-time release of the held degraded record, so the shared
+  // `catch` does not log it a second time after the success path logged it.
+  let sweepDegradedReleased = false;
+  // Read-only repository context (#106). Computed before the model call, but
+  // — like `sweepDegraded` — held and released only once the review request
+  // is issued (AC3, AC10, AC19), so a pass that dies before then stays
+  // indistinguishable from a pass without the feature. `record` and
+  // `degraded` are mutually exclusive.
+  let repositoryContextRecord: RepositoryContextPassRecord | undefined;
+  let repositoryContextDegraded: RepositoryContextDegradedRecord | undefined;
+  let repositoryContextCandidates: RepositoryContextCandidate[];
+  let repositoryContextReleased = false;
 
   try {
     pr = await deps.github.readPullRequest(
@@ -198,12 +262,76 @@ export async function runReviewPass(
       });
     }
 
-    const changedFiles = await deps.github.readChangedFiles(
+    // Sweep enablement resolution (#105, AC18). Resolved here — after the
+    // credential gate, before the changed-files read — but nothing is emitted
+    // from this point: AC1 ties the record to review execution, so both the
+    // unrecognized-enablement and invalid-list records are held in
+    // `sweepDegraded` and released only once the pass issues its review
+    // request. A pass that dies in between (an authoritative-document fetch,
+    // any other GitHub error) is indistinguishable from the same failure
+    // without the sweep and owes no sweep record at all.
+    if (deps.config.sweepMode === "on") {
+      // AC19: a list that cannot be loaded never fails the pass, whatever the
+      // loader does. The bundled loader returns a result rather than throwing,
+      // but the seam is injectable, so a throw is degraded to `unreadable` here
+      // instead of escaping to the shared failure path. The detail is fixed
+      // text: a thrown error's own message is not carried into the record.
+      let listResult: SweepListResult;
+      try {
+        listResult = await (deps.loadSweepList ?? loadSweepList)();
+      } catch {
+        listResult = {
+          ok: false,
+          reason: "unreadable",
+          detail: "the list loader threw before returning a result",
+        };
+      }
+      if (listResult.ok) {
+        sweepList = listResult.list;
+      } else {
+        // AC19: no list version is reported as used — the pass used none, and
+        // stating one it never loaded is the false claim this record avoids.
+        sweepDegraded = {
+          kind: "sweep-did-not-run",
+          reason: listResult.reason,
+          detail: listResult.detail,
+        };
+      }
+    } else if (deps.config.sweepModeRaw !== undefined) {
+      // AC18: a non-empty enablement value was unrecognized. The raw value is
+      // carried on `deps.config` for this fact alone and never reaches the
+      // record, the logs, or the review (see `config.types.ts`).
+      sweepDegraded = { kind: "sweep_enablement_unrecognized" };
+    }
+
+    const allChangedFiles = await deps.github.readChangedFiles(
       input.owner,
       input.repo,
       input.pullNumber,
       deadline.signal,
     );
+
+    // Review path-exclusion (#134), applied before every downstream use of
+    // the changed-file set — authoritative-doc selection, durability-mode
+    // path matching, repository context, the prompt, and the summary. An
+    // excluded file never reaches the model and is always named in the
+    // published summary (never silent), even when every changed file is
+    // excluded.
+    const { included: changedFiles, excluded: excludedFiles } = filterExcludedFiles(
+      allChangedFiles,
+      deps.config.excludePathGlobs,
+    );
+    if (excludedFiles.length > 0) {
+      deps.logger.event("path_exclusion", {
+        excludedCount: excludedFiles.length,
+        includedCount: changedFiles.length,
+      });
+    }
+
+    // Create a Set of all excluded paths for efficient membership checks across
+    // the review pass, including durability-mode document selection, authoritative-doc
+    // selection, and repository-context phase (#134/#137).
+    const excludedPathsSet = new Set(excludedFiles.map((f) => f.path));
 
     const changedPaths = collectChangedPaths(changedFiles);
     const preResolve = resolveDurabilityMode({
@@ -223,74 +351,99 @@ export async function runReviewPass(
     } else {
       let modeDocumentText: string | null = null;
       let modeDocumentUnreadable = false;
-      try {
-        const loaded = await deps.github.readFileAtRef(
-          input.owner,
-          input.repo,
-          DURABILITY_MODE_DOCUMENT_PATH,
-          pr.headSha,
-          deadline.signal,
-          { failOnUnusable: true, oversizedMaxBytes: REVIEW_DURABILITY_MODE_MAX_BYTES },
-        );
-        // Prefer the reviewed-head copy when present (self-review of mode-doc
-        // edits). When a consumer PR head has no copy — the common reusable-
-        // Action case — fall back to the deployed Ronda checkout document.
-        // Do not fall back when reviewing Ronda itself: a missing/broken head
-        // copy must surface as unavailable. Unusable head content (truncated,
-        // empty) is unavailable — never substituted with local guidance.
-        modeDocumentText =
-          loaded ??
-          (() => {
-            if (
-              !shouldFallBackToLocalDurabilityModeDocument(
-                input.owner,
-                input.repo,
-              )
-            ) {
-              return null;
-            }
-            const local = readLocalDurabilityModeDocument();
-            if (local.unreadable) {
-              modeDocumentUnreadable = true;
-              return null;
-            }
-            return local.text;
-          })();
-      } catch (error) {
-        if (error instanceof RepositoryFileUnusableError) {
-          // Empty files are present but incomplete (match shell supply). Files
-          // whose reported size exceeds the mode bound are oversized. Truncated
-          // or non-file content remains unreadable.
-          if (error.reason === "empty") {
-            modeDocumentText = "";
-          } else if (error.reason === "oversized") {
-            modeDocumentText = "x".repeat(REVIEW_DURABILITY_MODE_MAX_BYTES + 1);
-          } else {
+      // Exclusion boundary (#134/#137): the durability-mode document path
+      // itself can match `excludePathGlobs` (a repository could exclude
+      // `docs/**`, which covers the default mode-document location). Checked
+      // before the read, not after — an excluded path is never sent to
+      // GitHub, just like an excluded changed file or authoritative-doc
+      // candidate. Treated the same as a missing (404) document: unavailable
+      // from the head, with the usual local-document fallback still applying
+      // when this isn't a self-review of Ronda's own repository.
+      if (
+        isPathExcluded(DURABILITY_MODE_DOCUMENT_PATH, deps.config.excludePathGlobs) ||
+        excludedPathsSet.has(DURABILITY_MODE_DOCUMENT_PATH)
+      ) {
+        deps.logger.event("durability_mode_document_excluded", {
+          path: DURABILITY_MODE_DOCUMENT_PATH,
+        });
+        if (shouldFallBackToLocalDurabilityModeDocument(input.owner, input.repo)) {
+          const local = readLocalDurabilityModeDocument();
+          if (local.unreadable) {
             modeDocumentUnreadable = true;
-            deps.logger.event("durability_mode_document_unreadable", {
-              message: error.message,
-              reason: error.reason,
-            });
+          } else {
+            modeDocumentText = local.text;
           }
-        } else {
-          const message = String(error);
-          if (/404|Not Found|does not exist/i.test(message)) {
-            if (
-              shouldFallBackToLocalDurabilityModeDocument(input.owner, input.repo)
-            ) {
+        }
+      } else {
+        try {
+          const loaded = await deps.github.readFileAtRef(
+            input.owner,
+            input.repo,
+            DURABILITY_MODE_DOCUMENT_PATH,
+            pr.headSha,
+            deadline.signal,
+            { failOnUnusable: true, oversizedMaxBytes: REVIEW_DURABILITY_MODE_MAX_BYTES },
+          );
+          // Prefer the reviewed-head copy when present (self-review of mode-doc
+          // edits). When a consumer PR head has no copy — the common reusable-
+          // Action case — fall back to the deployed Ronda checkout document.
+          // Do not fall back when reviewing Ronda itself: a missing/broken head
+          // copy must surface as unavailable. Unusable head content (truncated,
+          // empty) is unavailable — never substituted with local guidance.
+          modeDocumentText =
+            loaded ??
+            (() => {
+              if (
+                !shouldFallBackToLocalDurabilityModeDocument(
+                  input.owner,
+                  input.repo,
+                )
+              ) {
+                return null;
+              }
               const local = readLocalDurabilityModeDocument();
               if (local.unreadable) {
                 modeDocumentUnreadable = true;
-                modeDocumentText = null;
-              } else {
-                modeDocumentText = local.text;
+                return null;
               }
+              return local.text;
+            })();
+        } catch (error) {
+          if (error instanceof RepositoryFileUnusableError) {
+            // Empty files are present but incomplete (match shell supply). Files
+            // whose reported size exceeds the mode bound are oversized. Truncated
+            // or non-file content remains unreadable.
+            if (error.reason === "empty") {
+              modeDocumentText = "";
+            } else if (error.reason === "oversized") {
+              modeDocumentText = "x".repeat(REVIEW_DURABILITY_MODE_MAX_BYTES + 1);
             } else {
-              modeDocumentText = null;
+              modeDocumentUnreadable = true;
+              deps.logger.event("durability_mode_document_unreadable", {
+                message: error.message,
+                reason: error.reason,
+              });
             }
           } else {
-            modeDocumentUnreadable = true;
-            deps.logger.event("durability_mode_document_unreadable", { message });
+            const message = String(error);
+            if (/404|Not Found|does not exist/i.test(message)) {
+              if (
+                shouldFallBackToLocalDurabilityModeDocument(input.owner, input.repo)
+              ) {
+                const local = readLocalDurabilityModeDocument();
+                if (local.unreadable) {
+                  modeDocumentUnreadable = true;
+                  modeDocumentText = null;
+                } else {
+                  modeDocumentText = local.text;
+                }
+              } else {
+                modeDocumentText = null;
+              }
+            } else {
+              modeDocumentUnreadable = true;
+              deps.logger.event("durability_mode_document_unreadable", { message });
+            }
           }
         }
       }
@@ -312,7 +465,22 @@ export async function runReviewPass(
 
     const phase1 = selectAuthoritativeDocCandidates(changedPaths);
     const candidatesWithText = [];
+    // Exclusion boundary (#134/#137): a catalog candidate whose path matches
+    // `excludePathGlobs` is never read from GitHub, same as a changed file
+    // filtered by `filterExcludedFiles` — otherwise an excluded document
+    // (e.g. a repository configuring `docs/**` as excluded) would still
+    // reach the model as authoritative-doc content. Skipped and named here,
+    // exactly like the other authoritative-doc skip reasons.
+    const excludedAuthoritativeDocSkips: AuthoritativeDocSkip[] = [];
     for (const candidate of phase1.candidates) {
+      if (isPathExcluded(candidate.path, deps.config.excludePathGlobs) || excludedPathsSet.has(candidate.path)) {
+        excludedAuthoritativeDocSkips.push({
+          id: candidate.id,
+          path: candidate.path,
+          reason: "excluded_path",
+        });
+        continue;
+      }
       const text = await deps.github.readFileAtRef(
         input.owner,
         input.repo,
@@ -332,7 +500,7 @@ export async function runReviewPass(
       maxAuthoritativeDocCount: deps.config.maxAuthoritativeDocCount,
       maxAuthoritativeDocChars: deps.config.maxAuthoritativeDocChars,
     });
-    const allSkipped = [...phase1.skipped, ...phase2.skipped];
+    const allSkipped = [...phase1.skipped, ...excludedAuthoritativeDocSkips, ...phase2.skipped];
     if (phase2.selected.length > 0 || allSkipped.length > 0) {
       deps.logger.event("authoritative_docs_selection", {
         selectedIds: phase2.selected.map((doc) => doc.id),
@@ -348,6 +516,19 @@ export async function runReviewPass(
       }
     }
 
+    const repositoryContextPhase = await runRepositoryContextPhase(
+      input,
+      pr,
+      changedFiles,
+      excludedPathsSet,
+      deps,
+      deadline.signal,
+      startMs,
+    );
+    repositoryContextRecord = repositoryContextPhase.repositoryContext?.record;
+    repositoryContextDegraded = repositoryContextPhase.repositoryContext?.degraded;
+    repositoryContextCandidates = repositoryContextPhase.candidatesForPrompt;
+
     const prompt = buildReviewPrompt({
       title: pr.title,
       body: pr.body,
@@ -357,10 +538,52 @@ export async function runReviewPass(
       maxAuthoritativeDocCount: deps.config.maxAuthoritativeDocCount,
       maxAuthoritativeDocChars: deps.config.maxAuthoritativeDocChars,
       durabilityMode,
+      ...(sweepList ? { sweepCategories: sweepList.categories } : {}),
+      ...(repositoryContextCandidates.length > 0 ? { repositoryContext: repositoryContextCandidates } : {}),
     });
 
-    const raw = await deps.model.complete(prompt, deadline.signal);
-    const parsed = parseModelResponse(raw, changedFiles);
+    // Set before the call, not after: a request that is issued and then
+    // fails still reached every category it carried (AC1), and the model
+    // call's own failure modes (timeout, unavailable) are exactly that case.
+    requestIssued = true;
+    const completion = await deps.model.complete(prompt, deadline.signal);
+    // The review request has now been issued, so the sweep record for this
+    // pass — classified or degraded — is owed from here on. Release the held
+    // degraded record as its own log event now, so a later failure in this
+    // pass does not report it as though the request had never gone out.
+    if (sweepDegraded) {
+      logSweepDegraded(deps, sweepDegraded);
+      sweepDegradedReleased = true;
+    }
+    // Same discipline for read-only repository context (#106): the record or
+    // degraded state was computed before the model call but is only logged
+    // — and therefore only "owed" — once the pass has issued its review
+    // request (AC3, AC10, AC19).
+    if (repositoryContextRecord || repositoryContextDegraded) {
+      logRepositoryContext(deps, repositoryContextRecord, repositoryContextDegraded);
+      repositoryContextReleased = true;
+    }
+    const rawParsed = parseModelResponse(completion.content, changedFiles);
+    // The model never saw excluded content, so a finding that targets an
+    // excluded path (hallucination, or injection via the PR text) is discarded
+    // rather than published. With no reviewable file left at all, nothing it
+    // returned is trustworthy and every finding is discarded.
+    const parsed = {
+      ...rawParsed,
+      findings:
+        changedFiles.length === 0
+          ? []
+          : rawParsed.findings.filter(
+              (finding) =>
+                !excludedPathsSet.has(finding.path) &&
+                !isPathExcluded(finding.path, deps.config.excludePathGlobs),
+            ),
+    };
+    if (sweepList) {
+      // Set the moment this returns, independently of any GitHub call below.
+      classification = classifyFindings(parsed.findings, sweepList);
+      classified = true;
+    }
 
     const commentableByFile = buildCommentableLinesByFile(changedFiles);
     const inlineComments: InlineComment[] = [];
@@ -392,7 +615,14 @@ export async function runReviewPass(
         headSha: pr.headSha,
         newHeadSha: latest.headSha,
       });
-      return skippedResult("superseded_head_sha", startMs, deps, pr.headSha);
+      // This pass issued its review request, so it owes its per-category
+      // record — but it publishes nothing, so the record is logs-only (AC1).
+      const sweep = sweepMetadata(classification, sweepList, sweepDegraded, deps, pr.headSha);
+      const repositoryContext =
+        repositoryContextRecord || repositoryContextDegraded
+          ? { record: repositoryContextRecord, degraded: repositoryContextDegraded }
+          : undefined;
+      return skippedResult("superseded_head_sha", startMs, deps, pr.headSha, sweep, repositoryContext);
     }
 
     const totals = fileTotals(changedFiles);
@@ -409,6 +639,15 @@ export async function runReviewPass(
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
       durabilityMode,
+      excludedFiles,
+      // AC3: the body states only that the sweep ran and which list version it
+      // used. A degraded pass states nothing — it classified nothing, and the
+      // record belongs to the surfaces AC1 assigns it (AC18, AC19).
+      ...(sweepList ? { sweep: { listVersion: sweepList.version } } : {}),
+      // AC3: the body states only the outcome, one line, and nothing further.
+      // A degraded (unrecognized switch value) pass resolved to off, so it
+      // states nothing here either — exactly like a validly disabled pass.
+      ...(repositoryContextRecord ? { repositoryContext: { outcome: repositoryContextRecord.outcome } } : {}),
     });
     const fallbackSummaryBody = buildReviewSummary({
       changedFileCount: changedFiles.length,
@@ -423,6 +662,9 @@ export async function runReviewPass(
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
       durabilityMode,
+      excludedFiles,
+      ...(sweepList ? { sweep: { listVersion: sweepList.version } } : {}),
+      ...(repositoryContextRecord ? { repositoryContext: { outcome: repositoryContextRecord.outcome } } : {}),
     });
 
     deadline.markPublishing();
@@ -445,11 +687,18 @@ export async function runReviewPass(
 
     const findingCounts = countBySeverity(parsed.findings);
     const durationMs = deps.clock.now() - startMs;
+    // The record and the degraded record are never both: a degraded pass
+    // classified nothing, so it has no per-category record to carry.
+    const sweep = sweepMetadata(classification, sweepList, sweepDegraded, deps, pr.headSha);
     const checkRunOutput = buildCheckRunOutput({
       outcome: "succeeded",
       findingCounts,
       modelName: deps.model.modelName,
       durationMs,
+      ...(sweep.record ? { sweep: sweep.record } : {}),
+      ...(sweep.degraded ? { sweepDegraded: sweep.degraded } : {}),
+      ...(repositoryContextRecord ? { repositoryContext: repositoryContextRecord } : {}),
+      ...(repositoryContextDegraded ? { repositoryContextDegraded } : {}),
     });
 
     const checkRunInput: PublishCheckRunInput = {
@@ -508,12 +757,35 @@ export async function runReviewPass(
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
       durationMs,
+      ...(sweep.record || sweep.degraded ? { sweep } : {}),
+      ...(repositoryContextRecord || repositoryContextDegraded
+        ? { repositoryContext: { record: repositoryContextRecord, degraded: repositoryContextDegraded } }
+        : {}),
     };
   } catch (error) {
     if (reviewPublished) {
       throw error;
     }
     const reason = mapErrorToFailureReason(error, deadline.expired());
+    // AC1: the sweep metadata this pass owes is decided here, by whether it
+    // issued its review request — not by how far it got past that. A pass
+    // that never issued one logs nothing sweep-related; the failure check run
+    // below is `finalizeFailure`'s and deliberately carries no sweep fields,
+    // so this record is logs-only.
+    if (requestIssued) {
+      if (classified && classification && sweepList) {
+        logSweepPassRecord(deps, classification, sweepList.version);
+      } else if (sweepList) {
+        // The request went out carrying the list, but the response never
+        // classified, so nothing about these categories was established.
+        logSweepPassRecord(deps, notDetermined(sweepList), sweepList.version);
+      } else if (sweepDegraded && !sweepDegradedReleased) {
+        logSweepDegraded(deps, sweepDegraded);
+      }
+      if (!repositoryContextReleased && (repositoryContextRecord || repositoryContextDegraded)) {
+        logRepositoryContext(deps, repositoryContextRecord, repositoryContextDegraded);
+      }
+    }
     // Best known head SHA: the one `readPullRequest` returned, if it got
     // that far, else the one carried by the triggering webhook event (only
     // ever present for `pull_request` events — `issue_comment` payloads
@@ -628,16 +900,355 @@ function fileTotals(files: Array<{ additions: number; deletions: number }>): {
   );
 }
 
+/**
+ * The sweep metadata a pass owes (AC1). Classified and degraded are mutually
+ * exclusive: a degraded pass never loaded a list, so it has no per-category
+ * record; a classified pass loads one, so it has no degraded record.
+ */
+function sweepMetadata(
+  classification: SweepClassification | undefined,
+  sweepList: SweepCategoryList | undefined,
+  degraded: SweepDegradedRecord | undefined,
+  deps: ReviewPassDeps,
+  headSha: string,
+): {
+  record?: SweepPassRecord;
+  degraded?: SweepDegradedRecord;
+} {
+  if (classification && sweepList) {
+    const record = passRecord(classification, sweepList.version);
+    logSweepPassRecord(deps, classification, sweepList.version, headSha);
+    return { record };
+  }
+  return degraded ? { degraded } : {};
+}
+
+/** The `not_determined` record for a pass whose request carried the list but never classified. */
+function notDetermined(list: SweepCategoryList): SweepClassification {
+  return {
+    categories: list.categories.map((category) => ({
+      identifier: category.identifier,
+      outcome: "not_determined" as const,
+    })),
+    findings: [],
+    uncategorizedFindingCount: 0,
+  };
+}
+
+function passRecord(classification: SweepClassification, listVersion: string): SweepPassRecord {
+  return {
+    listVersion,
+    categories: classification.categories,
+    findings: classification.findings,
+    uncategorizedFindingCount: classification.uncategorizedFindingCount,
+  };
+}
+
+/**
+ * Logs the per-category record through `sweep_pass_record`. Carries counts and
+ * category identifiers only — never a finding's title or body, which is
+ * model-generated text the parser's limited redaction may not cover (AC20).
+ */
+function logSweepPassRecord(
+  deps: ReviewPassDeps,
+  classification: SweepClassification,
+  listVersion: string,
+  headSha?: string,
+): void {
+  deps.logger.event("sweep_pass_record", {
+    listVersion,
+    ...(headSha !== undefined ? { headSha } : {}),
+    categories: classification.categories,
+    findings: classification.findings,
+    uncategorizedFindingCount: classification.uncategorizedFindingCount,
+  });
+}
+
+function logSweepDegraded(deps: ReviewPassDeps, degraded: SweepDegradedRecord): void {
+  if (degraded.kind === "sweep_enablement_unrecognized") {
+    // The unrecognized value itself is deliberately absent (AC18) — it is
+    // operator input, and only the fact of the unrecognized value is recorded.
+    deps.logger.event("sweep_enablement_unrecognized", { unrecognized: true });
+    return;
+  }
+  deps.logger.event("sweep-did-not-run", {
+    reason: degraded.reason,
+    detail: degraded.detail,
+  });
+}
+
+interface RepositoryContextPhaseResult {
+  repositoryContext?: {
+    record?: RepositoryContextPassRecord;
+    degraded?: RepositoryContextDegradedRecord;
+  };
+  candidatesForPrompt: RepositoryContextCandidate[];
+}
+
+const NO_REPOSITORY_CONTEXT: RepositoryContextPhaseResult = { candidatesForPrompt: [] };
+
+/** AC10, D6: same-repository heads only, compared case-insensitively. An absent, empty, or unreadable head repository is fork-originated. */
+function isSameRepositoryHead(headRepoFullName: string, owner: string, repo: string): boolean {
+  return headRepoFullName.toLowerCase() === `${owner}/${repo}`.toLowerCase();
+}
+
+/** Same pattern as `src/webhook/webhook-job.ts`'s private helper of the same name: the earlier of two deadlines aborts the combined signal. */
+function combineAbortSignals(first: AbortSignal, second: AbortSignal): AbortSignal {
+  return AbortSignal.any([first, second]);
+}
+
+/**
+ * Read-only repository context (#106). Applies the spec's outcome tests in
+ * their recorded order — pre-review-execution passes never reach this
+ * function at all, so it starts at the fork test — and never throws: any
+ * error is caught inside and degrades to `unavailable` with `read_failed`
+ * drops for every reference already requested, never reaching the shared
+ * failure path (AC11).
+ */
+async function runRepositoryContextPhase(
+  input: ReviewPassInput,
+  pr: PullRequestMetadata,
+  changedFiles: ChangedFile[],
+  excludedPathsSet: Set<string>,
+  deps: ReviewPassDeps,
+  deadlineSignal: AbortSignal,
+  passStartMs: number,
+): Promise<RepositoryContextPhaseResult> {
+  // AC10: the fork exclusion precedes the switch and is fixed, not configurable.
+  if (!isSameRepositoryHead(pr.headRepoFullName, input.owner, input.repo)) {
+    return NO_REPOSITORY_CONTEXT;
+  }
+
+  if (deps.config.repositoryContextMode !== "on") {
+    if (deps.config.repositoryContextModeRaw !== undefined) {
+      return {
+        repositoryContext: { degraded: { kind: "repository_context_switch_unrecognized" } },
+        candidatesForPrompt: [],
+      };
+    }
+    return NO_REPOSITORY_CONTEXT; // validly disabled — no record (AC19)
+  }
+
+  const maxCandidates = deps.config.maxRepositoryContextCandidates;
+  const maxChars = deps.config.maxRepositoryContextChars;
+
+  // Translates the GitHub contents seam's own unusable-content error into the
+  // resolver's error type at this one boundary, so `symbol-resolver.ts` stays
+  // free of a `src/github/` import while still distinguishing a real-but-
+  // refused path (a symlink, a submodule, a directory) from a plain miss.
+  //
+  // Also the exclusion boundary (#134/#106): `changedFiles` above has
+  // already been filtered by `filterExcludedFiles`, but the resolver reads
+  // dependency (import) targets that never went through that filter — an
+  // included file importing an excluded one (e.g. `./helper.generated.js`
+  // resolving to `src/helper.generated.ts`) would otherwise let the excluded
+  // file's content re-enter the prompt as repository context. Every read
+  // this seam issues, whether the initial changed-file read or a resolved
+  // dependency path, is checked here first; a match never reaches GitHub and
+  // is refused exactly like other real-but-unusable content.
+  const readFileWithSignal = (signal: AbortSignal): RepositoryContextReadFile => {
+    return async (path, options) => {
+      // Check both glob patterns and the full excluded-path set (#134/#137).
+      // The excluded-path set includes all reasons: globs, defaults, and
+      // no_patch files that were filtered before repository-context phase.
+      if (isPathExcluded(path, deps.config.excludePathGlobs) || excludedPathsSet.has(path)) {
+        throw new RepositoryContextUnusableContentError(path, "excluded_path");
+      }
+      try {
+        return await deps.github.readFileAtRef(input.owner, input.repo, path, pr.headSha, signal, options);
+      } catch (error) {
+        if (error instanceof RepositoryFileUnusableError) {
+          throw new RepositoryContextUnusableContentError(error.path, error.reason);
+        }
+        throw error;
+      }
+    };
+  };
+
+  let requested: InternalRequestedReference[] = [];
+  // Declared here so the `finally` below can safely dispose it whether or
+  // not identification (which runs first, and can itself throw) ever let
+  // control reach the point where this gets created.
+  let contextDeadline: ReturnType<typeof createPassDeadline> | undefined;
+  // Recorded fallback for the catch block below, which reaches it whenever
+  // identification itself throws — before the pass-remaining-time-adjusted
+  // figure a few lines down is ever computed.
+  let timeBudgetMs = deps.config.repositoryContextTimeBudgetMs;
+
+  try {
+    // Candidate identification (step a) is bounded by the pass deadline
+    // alone (D5) — never the tighter context budget. `timeBudgetMs` and
+    // `contextDeadline` are deliberately not computed or armed until
+    // identification has returned, so a slow changed-file read can never
+    // consume the context budget before resolution — the phase this budget
+    // is meant to bound — ever starts.
+    const identified = await identifyCandidates(
+      changedFiles.map((file) => file.path),
+      buildCommentableLinesByFile(changedFiles),
+      readFileWithSignal(deadlineSignal),
+    );
+    requested = identified.requested;
+
+    // Computed *after* identification, so it reflects the pass budget
+    // actually remaining once identification's own (potentially slow) reads
+    // are done, never a stale figure captured before them.
+    const remainingPassMs = Math.max(0, passStartMs + deps.config.passTimeoutMs - deps.clock.now());
+    timeBudgetMs = Math.min(deps.config.repositoryContextTimeBudgetMs, remainingPassMs);
+
+    if (identified.requested.length === 0) {
+      const outcome: RepositoryContextOutcome =
+        identified.unreadableChangedFilePaths.length > 0 ? "unavailable" : "nothing_to_resolve";
+      return {
+        repositoryContext: {
+          record: {
+            outcome,
+            candidatesRequested: 0,
+            candidatesResolved: 0,
+            drops: [],
+            unreadableChangedFilePaths: identified.unreadableChangedFilePaths,
+            contentRequestCount: identified.contentRequestCount,
+            charsUsed: 0,
+            maxCandidates,
+            maxChars,
+            timeBudgetMs,
+            timeUsedMs: 0,
+            budgetFallbacks: deps.config.repositoryContextBudgetFallbacks,
+          },
+        },
+        candidatesForPrompt: [],
+      };
+    }
+
+    // Candidate resolution (steps b/c) is bounded by the *lesser* of the
+    // context time budget and the pass deadline. A wall-clock check between
+    // awaits (inside `buildSourceFileSet`) cannot stop a single read call
+    // that itself stalls — only an abort signal threaded into that specific
+    // call can. Arming a dedicated deadline here, only once identification
+    // has already returned, and combining its signal with the pass deadline
+    // is what makes a stalled contents request abort at the tighter
+    // boundary instead of silently riding the pass's own (much larger)
+    // budget.
+    contextDeadline = createPassDeadline(timeBudgetMs, deps.deadlineClock);
+    const resolveReadFile = readFileWithSignal(combineAbortSignals(deadlineSignal, contextDeadline.signal));
+
+    const resolutionPhaseStartMs = deps.clock.now();
+    const closure = await buildSourceFileSet(identified.changedSourceTexts, resolveReadFile, timeBudgetMs);
+    const resolutions = resolveSymbols(closure.fileSet, identified.requested, closure);
+    const resolutionPhaseElapsedMs = deps.clock.now() - resolutionPhaseStartMs;
+
+    // `resolveSymbols` is synchronous and cannot itself be interrupted by any
+    // `AbortSignal` — JS is single-threaded, so `contextDeadline`'s timer
+    // cannot fire until synchronous execution yields back to the event
+    // loop. `isResolutionFileSetOversized`'s size caps are what bound how
+    // long that synchronous work can run; this check cannot make it
+    // shorter. What it does guarantee is that the *record* is never
+    // dishonestly optimistic about work that only finished after the
+    // pass's own configured budget: if the deadline had already fired by
+    // the time the (uninterruptible) compile returns, every candidate is
+    // downgraded to `time_budget` rather than reported as resolved.
+    const effectiveResolutions = contextDeadline.expired()
+      ? identified.requested.map((ref) => ({ id: ref.id, reason: "time_budget" as const }))
+      : resolutions;
+
+    const built = buildRepositoryContextCandidates(identified.requested, effectiveResolutions);
+    const ordered = [...built.candidates].sort(compareRepositoryContextCandidates);
+    const budgeted = applyRepositoryContextBudgets(ordered, { maxCandidates, maxChars });
+    const outcome = resolveRepositoryContextOutcome({
+      candidatesRequested: identified.requested.length,
+      candidatesResolved: budgeted.selected.length,
+    });
+    const charsUsed = budgeted.selected.reduce((sum, candidate) => sum + candidate.text.length, 0);
+
+    return {
+      repositoryContext: {
+        record: {
+          outcome,
+          candidatesRequested: identified.requested.length,
+          candidatesResolved: budgeted.selected.length,
+          drops: [...built.drops, ...budgeted.drops],
+          unreadableChangedFilePaths: identified.unreadableChangedFilePaths,
+          contentRequestCount: identified.contentRequestCount + closure.contentRequestCount,
+          charsUsed,
+          maxCandidates,
+          maxChars,
+          timeBudgetMs,
+          // The larger of the two measurements: buildSourceFileSet's own
+          // internal figure (fetch time alone) and this phase's total wall
+          // clock (fetch plus the synchronous compile) — never understating
+          // real elapsed time spent for this budget.
+          timeUsedMs: Math.max(closure.timeUsedMs, resolutionPhaseElapsedMs),
+          budgetFallbacks: deps.config.repositoryContextBudgetFallbacks,
+        },
+      },
+      candidatesForPrompt: budgeted.selected,
+    };
+  } catch (error) {
+    deps.logger.event("repository_context_phase_failed", { message: String(error) });
+    return {
+      repositoryContext: {
+        record: {
+          outcome: "unavailable",
+          candidatesRequested: requested.length,
+          candidatesResolved: 0,
+          drops: requested.map((ref) => ({
+            kind: ref.kind,
+            symbolName: ref.symbolName,
+            path: ref.changedPath,
+            line: ref.changedLine,
+            reason: "read_failed" as const,
+          })),
+          unreadableChangedFilePaths: [],
+          contentRequestCount: 0,
+          charsUsed: 0,
+          maxCandidates,
+          maxChars,
+          timeBudgetMs,
+          timeUsedMs: 0,
+          budgetFallbacks: deps.config.repositoryContextBudgetFallbacks,
+        },
+      },
+      candidatesForPrompt: [],
+    };
+  } finally {
+    contextDeadline?.dispose();
+  }
+}
+
+/**
+ * Logs the repository-context record or degraded state (Operational
+ * Visibility → Logs). Carries counts, identifiers, and budget figures only
+ * — never an excerpt body. Mutually exclusive, like the sweep's equivalent.
+ */
+function logRepositoryContext(
+  deps: ReviewPassDeps,
+  record: RepositoryContextPassRecord | undefined,
+  degraded: RepositoryContextDegradedRecord | undefined,
+): void {
+  if (record) {
+    deps.logger.event("repository_context_pass_record", { ...record });
+    return;
+  }
+  if (degraded) {
+    // The unrecognized value itself is deliberately absent (AC21) — only the
+    // fact of the unrecognized value is recorded.
+    deps.logger.event("repository_context_switch_unrecognized", { unrecognized: true });
+  }
+}
+
 function skippedResult(
   skipReason: ReviewPassResult["skipReason"],
   startMs: number,
   deps: ReviewPassDeps,
   reviewedHeadSha?: string,
+  sweep?: ReviewPassResult["sweep"],
+  repositoryContext?: ReviewPassResult["repositoryContext"],
 ): ReviewPassResult {
   return {
     outcome: "skipped",
     skipReason,
     ...(reviewedHeadSha !== undefined ? { reviewedHeadSha } : {}),
+    ...(sweep ? { sweep } : {}),
+    ...(repositoryContext ? { repositoryContext } : {}),
     terminalCheckRunPublished: false,
     findings: [],
     malformedCount: 0,

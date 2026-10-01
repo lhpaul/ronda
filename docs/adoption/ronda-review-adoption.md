@@ -17,25 +17,135 @@ on:
     types: [opened, reopened, ready_for_review, synchronize]
   issue_comment:
     types: [created]
-concurrency:
-  group: ronda-review-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
 jobs:
   ronda:
+    # Do NOT add `name: Ronda review` (or rename this job id to it). See
+    # "The caller job must not be named `Ronda review`".
     permissions:
       contents: read
       pull-requests: write
       checks: write
-    # Cheap caller-side pre-filter. Not load-bearing for correctness — Ronda
-    # re-checks the draft state and the exact comment text itself, so this
-    # only saves CI minutes on requests Ronda would immediately skip anyway.
+    # Cheap caller-side pre-filter. Not load-bearing for correctness: Ronda
+    # re-checks the draft state, the exact comment text and the author
+    # association itself, so this only saves CI minutes and keeps the secret
+    # away from runs that cannot be a review request. Keep it no stricter than
+    # Ronda: an expression cannot find the first unquoted line, so use
+    # `contains`, not `startsWith`.
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request.draft != true) ||
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null)
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, '/ronda review') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    # Job-level, not workflow-level. See "Why the concurrency group is job-level".
+    concurrency:
+      group: >-
+        ${{ github.event_name == 'pull_request'
+        && format('ronda-review-{0}', github.event.pull_request.number)
+        || format('ronda-review-{0}', github.event.issue.number) }}
+      # Only a push, which introduces a new head SHA, may cancel an in-flight pass.
+      cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
     uses: lhpaul/ronda/.github/workflows/ronda-review.yml@main
     secrets:
       model_api_key: ${{ secrets.RONDA_MODEL_API_KEY }}
 ```
+
+### Why the concurrency group is job-level
+
+Put `concurrency` on the job, not on the workflow. GitHub evaluates a
+workflow-level `concurrency` group for the whole run **before** any job `if:`,
+so every pull-request comment enters the group. That makes two hazards, and
+neither is fixed by the `cancel-in-progress` setting:
+
+- With `cancel-in-progress: true`, an unrelated comment cancels an in-flight
+  pass, then the job `if:` skips the comment run: no check run is published for
+  that head SHA.
+- With `cancel-in-progress: false`, the comment run queues instead and replaces
+  any run already pending in the group — "any existing `pending` job or workflow
+  in the same concurrency group will be canceled and the new queued job or
+  workflow will take its place" — so it can displace a queued `reopened` or
+  `ready_for_review` pass, and then skip. That pass is lost too.
+
+A job-level `concurrency` group is acquired only **after** the job's `if:`
+passes, so a comment the `if:` rejects never enters a group at all and cannot
+cancel or displace anything.
+
+One group per pull request:
+
+- **`pull_request` passes** share the PR's group, and only a `synchronize` push,
+  which brings a new head SHA, cancels.
+- **A comment the job runs** — on a PR, containing the command, from an
+  `OWNER`, `MEMBER` or `COLLABORATOR` — joins the same group and never
+  cancels. It waits behind an in-flight pass, so a manual and an automatic pass
+  never run together on one head SHA: two passes that run together can both
+  find no check run and publish one each, and section 4 promises one per head
+  SHA.
+
+The `cancel-in-progress` expression is deliberately narrow: only a push may
+cancel. `reopened` and `ready_for_review` keep the same head SHA, and a run
+cancelled after the review is published but before the terminal check run is
+created would let its replacement publish a second review for that SHA — the
+Actions path has no review-level dedup, only the check-run lookup. Those events
+queue behind the running pass instead and then skip on its check run.
+
+#### The pre-filter is wider than Ronda's parser, deliberately
+
+The job `if:` above tests `contains(comment.body, '/ronda review')` — the whole
+body, not the first meaningful line. It therefore admits a comment that only
+mentions the phrase, such as `/ronda review later`, which Ronda itself rejects
+(`matchesReviewCommand`, in `src/cli/resolve-trigger.ts`) and runs no pass for.
+Such a comment joins the PR's group and — since a newly queued run replaces an
+existing `pending` one — can displace a queued run of **either** arm before it
+exits and Ronda rejects the comment. If the displaced run was a `synchronize`
+pass queued for a new head SHA, that head has no published review until a later
+comment or push; if it was a manual re-request, the request is lost and one more
+comment restores it. An in-flight pass is never affected: the comment arm does
+not cancel in progress.
+
+No `if:` expression closes it, and the wider predicate is the safer side of it:
+
+- **No expression can match Ronda's rule.** GitHub expressions have no regex and
+  cannot select the first non-quoted line, so no predicate accepts exactly the
+  forms Ronda accepts. An exact test (`body == '/ronda review'`) or a prefix
+  test (`startsWith`) drops accepted forms: a command after leading whitespace is
+  valid to Ronda and would then join no group, so a manual and an automatic pass
+  could run at once and publish two check runs for one head SHA.
+- **The `queue` property does not help.** `queue: max` stops a queued run from
+  replacing a pending one, which is exactly the displacement above, but it cannot
+  be combined with `cancel-in-progress: true` — the combination is a workflow
+  validation error — and the pinned actionlint in this repository's
+  `.github/workflows/actionlint.yml` rejects `queue` as an unexpected key.
+- **A preflight job could close it, and this snippet deliberately does not add
+  one.** Nothing stops a caller declaring a second, secretless job that runs
+  Ronda's real parser and gates the job above on its output: the phrase-only
+  comment then fails that gate and joins no group, so the displacement cannot
+  happen at all. It is left out because this snippet is copy-paste for adopters
+  with their own review loop. Such a job carries a reimplementation of
+  `matchesReviewCommand`, and its semantics have to track that function in
+  `src/cli/resolve-trigger.ts` for the life of the caller — a copy that drifts
+  fails silently, and it fails in the direction that produces two check runs for
+  one head SHA. Weighed against a residual that costs one more comment or push,
+  the drift is not worth it here. A caller that wants the hole shut should call
+  the parser rather than reimplement it.
+
+A displaced run costs one more comment or push — recoverable, and the displaced
+form is the one Ronda would have rejected anyway. Two check runs for one head SHA
+break the contract in section 4 and no later pass repairs them. Keep the
+pre-filter no stricter than Ronda.
+
+### The caller job must not be named `Ronda review`
+
+`Ronda review` is the constant name of the check run Ronda publishes (see
+section 4). An automatic pass looks up existing check runs on the head SHA **by
+name only** and skips itself as `already_reviewed_automatically` when it finds
+one. A caller job named `Ronda review` produces a check run with that exact
+name, including the `skipped` one GitHub records when the job `if:` is false (a
+draft pull request), so the pass finds its own caller and skips itself while the
+run stays green and nothing is posted. Observed live on `lhpaul/ronda` run
+36037017660.
+
+Leave the job unnamed under an id such as `ronda`, as above, or give it any
+other name. The workflow's own `name:` is unaffected: it is not a check run.
 
 The `permissions:` block on the caller job above is **required, not
 optional**. A called reusable workflow can only **narrow** the caller's
@@ -96,6 +206,12 @@ installation token instead.
 | `pass_timeout_minutes` | `10` | In-process pass budget; the job's own `timeout-minutes` is this value plus two |
 | `durability_mode` | _(empty)_ | Force durability mode `on` or `off` for the run; leave empty for automatic path rules |
 | `durability_mode_default` | _(empty)_ | Set to `on` to activate durability mode for every implementation-stage review |
+| `sweep_mode` | _(empty)_ | Force the category-forced review sweep `on` or `off` for the run; leave empty to leave the sweep off |
+| `repository_context` | _(empty)_ | Enable read-only repository context `on` or `off` for the run; leave empty to leave it off. Same-repository heads only — a fork-originated head never reads it whatever this is set to |
+| `max_repository_context_candidates` | _(empty → `12`)_ | Maximum candidates (excerpts) a pass may resolve for repository context |
+| `max_repository_context_chars` | _(empty → `24000`)_ | Maximum combined characters of repository-context excerpts |
+| `repository_context_time_budget_ms` | _(empty → `120000`)_ | Time budget, in milliseconds, for the repository-context phase inside the pass budget in effect |
+| `exclude_path_globs` | _(empty)_ | Repository-configured glob patterns (comma- or newline-separated) excluded from review before prompt construction — generated files, recorded evidence, vendored fixtures, etc. Fixed defaults (lockfiles, common generated/minified output) always apply regardless |
 | `ronda_ref` | `main` | Ref of `lhpaul/ronda` to check out and run |
 
 ## 2. Add the required secret
@@ -182,7 +298,10 @@ file is never committed — see `.gitignore`. Environment variables
 (`RONDA_MODEL_API_KEY`, `RONDA_MODEL_BASE_URL`, `RONDA_MODEL_NAME`,
 `RONDA_PASS_TIMEOUT_MS`, `RONDA_MAX_PATCH_CHARS`,
 `RONDA_MAX_AUTHORITATIVE_DOC_COUNT`, `RONDA_MAX_AUTHORITATIVE_DOC_CHARS`,
-`RONDA_DURABILITY_MODE`, `RONDA_DURABILITY_MODE_DEFAULT`) take
+`RONDA_DURABILITY_MODE`, `RONDA_DURABILITY_MODE_DEFAULT`,
+`RONDA_SWEEP_MODE`, `RONDA_REPOSITORY_CONTEXT`,
+`RONDA_MAX_REPOSITORY_CONTEXT_CANDIDATES`, `RONDA_MAX_REPOSITORY_CONTEXT_CHARS`,
+`RONDA_REPOSITORY_CONTEXT_TIME_BUDGET_MS`, `RONDA_EXCLUDE_PATH_GLOBS`) take
 precedence over the config file, which takes precedence over Ronda's built-in
 defaults.
 
@@ -193,6 +312,68 @@ the mode for every implementation-stage review even when automatic path rules
 do not match. When unset, activation follows changed-path rules for webhook,
 publisher, queue/retry, and related surfaces. Mode state (`active` /
 `inactive` / `unavailable`) appears in the published review summary.
+
+`RONDA_SWEEP_MODE=on|off` forces the category-forced review sweep for a run
+(or set `sweepMode` in the config file). When unset, the sweep is off. The
+recognized enablement vocabulary is `on` / `1` / `true` and `off` / `0` /
+`false` / `default`, matched case-insensitively and ignoring surrounding
+whitespace; a blank value resolves to off. A **non-blank unrecognized** value
+also resolves to off, but degrades: enablement is resolved from the first
+non-blank source only (environment variable, then config file), so an
+unrecognized value never falls through to a lower-precedence source that would
+happen to parse. The pass records the fact that an unrecognized value was
+supplied — never the value itself, which is operator input — and records no
+category outcome. A sweep-enabled pass whose category list cannot be read also
+degrades: it records that the sweep did not run, with the reason, and reports
+no category outcome and no list version. Both degraded forms appear on the
+review check run's summary and in the logs; neither appears in the review
+body. Sweep activation and the list version appear in the published review
+summary when the sweep actually ran.
+
+`RONDA_REPOSITORY_CONTEXT=on|off` enables read-only repository context for a
+run (or set `repositoryContext` in the config file): a review pass may read,
+at the reviewed head, the definitions the changed lines depend on, bounded by
+operator budgets (`maxRepositoryContextCandidates`, default `12`;
+`maxRepositoryContextChars`, default `24000`; `repositoryContextTimeBudgetMs`,
+default `120000`). It is **off by default for every adopting repository**;
+this repository's own dogfooding is the recorded exception once the owner
+sets the repository variable (see `docs/project/3-software-architecture.md`'s
+Key Architectural Decisions) — **it remains off here too until then**. Same
+recognized-value vocabulary and fail-closed resolution as
+`RONDA_SWEEP_MODE` above. **A fork-originated head never reads repository
+context, whatever this is set to** — the exclusion is fixed this iteration,
+not a switch, and it applies on every ingress and trigger (the reusable
+workflow's automatic trigger, its manual `/ronda review` comment trigger, and
+the local webhook path). The repository-context outcome — `used`, `partial`,
+`unavailable`, or `nothing_to_resolve` — appears as one line in the published
+review summary; the full record (candidates requested/resolved, every drop
+and its reason, budget utilisation, content-request count) appears only on
+the check-run output and the logs, never in the review body. A validly
+disabled switch, a fork-originated head, and a pass that never reaches review
+execution (a draft pull request, or an automatic run that finds an existing
+check run) all record nothing at all on any surface — indistinguishable from
+a version without the feature.
+
+`RONDA_EXCLUDE_PATH_GLOBS` (or `excludePathGlobs` in the config file, or the
+reusable workflow's `exclude_path_globs` input) lists repository-configured
+glob patterns excluded from review before prompt construction, comma- or
+newline-separated, using only `**` (crosses `/`), `*` and `?` — bracket and
+brace syntax such as `*.[jt]s` or `{a,b}` is rejected at startup rather than
+silently ignored (issue #134): committed benchmark/evidence records,
+generated clients, vendored code, or any other repository-specific path a
+review pass should never treat as code under change. No path list for any
+adopting repository is hardcoded in this repository's product code — each
+adopter sets its own list through its calling workflow or operator config,
+the same pattern `repository_context` above uses. Two checks apply first and
+are never configurable: lockfiles across the common package managers and
+common generated/minified output conventions (`src/review/path-exclusion.ts`
+names the fixed default list), and any file GitHub returns with no textual
+`patch` (binary content, or a diff GitHub declines to return). Every excluded
+file is named in the published review summary under "Excluded from review"
+— a count plus a bounded list — so an exclusion is never silent. A pull
+request whose every changed file is excluded still publishes a review, and
+its summary states that explicitly instead of showing the "No findings."
+text a genuinely clean review would show.
 
 When a pull request touches governed surfaces (webhook ingress, review
 publication, inference, operator config, or workflow review contract paths),
@@ -233,3 +414,8 @@ retrospectives. `quality:summary` remains a legacy comparison-only rollup.
   fresh; there is no deduplication against an earlier review's findings.
 - **One dogfood repository.** v0 adopts `lhpaul/ai-dev-framework-template`
   only; installing Ronda across many repositories is out of scope.
+- **Repository context is same-repository heads only.** A fork-originated
+  head never reads repository context in this iteration, on any ingress or
+  trigger, whatever the operator's switch is set to (#106, AC10). Lifting
+  this is a separate future item with its own read-only evidence for
+  untrusted heads.

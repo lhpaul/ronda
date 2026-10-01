@@ -6,6 +6,15 @@ export interface ModelConfig {
 
 export type DurabilityModeSetting = "on" | "off" | "default";
 
+/** Resolved enablement for the category-forced review sweep (#105). */
+export type SweepModeSetting = "on" | "off";
+
+/** Resolved enablement for read-only repository context (#106). */
+export type RepositoryContextModeSetting = "on" | "off";
+
+/** The three budgets that can fall back to their recorded default (#106, AC21). */
+export type RepositoryContextBudgetName = "candidates" | "chars" | "time";
+
 export interface RondaConfig {
   model: ModelConfig;
   passTimeoutMs: number;
@@ -22,6 +31,56 @@ export interface RondaConfig {
   durabilityMode: DurabilityModeSetting;
   /** When true, activate durability mode on every implementation review without automatic match. */
   durabilityModeDefault: boolean;
+  /**
+   * Operator enablement for the category-forced review sweep (#105). Resolved
+   * from the first non-blank source; a non-empty value that is neither a
+   * recognized on/off word nor `default` resolves to `off` and is carried in
+   * {@link sweepModeRaw} rather than deferred to a lower-precedence source.
+   */
+  sweepMode: SweepModeSetting;
+  /**
+   * The unrecognized non-blank enablement value, when the resolved source was
+   * not recognized. Carried for the degraded record's *fact* only — never
+   * logged, published, or echoed into a review body.
+   */
+  sweepModeRaw: string | undefined;
+  /**
+   * Operator enablement for read-only repository context (#106). Resolved
+   * from the first non-blank source with the same vocabulary and
+   * first-non-blank-source discipline as {@link sweepMode}; a non-empty value
+   * that is neither a recognized on/off word nor `default` resolves to `off`
+   * and is carried in {@link repositoryContextModeRaw} rather than deferred to
+   * a lower-precedence source (AC21).
+   */
+  repositoryContextMode: RepositoryContextModeSetting;
+  /**
+   * The unrecognized non-blank enablement value, when the resolved source was
+   * not recognized. Carried for the degraded record's *fact* only — never
+   * logged, published, or echoed into a review body (AC21).
+   */
+  repositoryContextModeRaw: string | undefined;
+  /** Maximum candidates (excerpts) a pass may resolve for repository context (D3, AC6). */
+  maxRepositoryContextCandidates: number;
+  /** Maximum combined characters of repository-context excerpts (D3, AC6, AC7). */
+  maxRepositoryContextChars: number;
+  /** Time budget, in milliseconds, for the repository-context phase inside the pass budget (D3, AC8). */
+  repositoryContextTimeBudgetMs: number;
+  /**
+   * Which of the three repository-context budgets fell back to their recorded
+   * default because the resolved value was absent or not a positive number
+   * (AC21). Empty when every configured budget resolved directly.
+   */
+  repositoryContextBudgetFallbacks: RepositoryContextBudgetName[];
+  /**
+   * Repository-configured glob patterns excluded from review before prompt
+   * construction (#134) — everything repository-specific (generated files,
+   * recorded evidence, vendored fixtures). Resolved from the first non-blank
+   * source (environment, then the operator config file), never merged across
+   * sources, same discipline as every other setting in this file. Empty when
+   * no repository-specific globs are configured; the fixed defaults in
+   * `src/review/path-exclusion.ts` still apply regardless of this value.
+   */
+  excludePathGlobs: string[];
   /**
    * Set only by the CLI entrypoint when the operator config file existed but
    * could not be read or parsed. Carries a message naming the file path —

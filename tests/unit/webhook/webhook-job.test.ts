@@ -110,14 +110,14 @@ test("combines webhook job timeout signal into model calls", async () => {
       modelName: "test-model",
       complete: async (_request, signal) => {
         observedSignal = signal;
-        return "ok";
+        return { content: "ok" };
       },
     },
     outer.signal,
   );
 
   assert.equal(
-    await model.complete({ systemPrompt: "system", userPrompt: "user" }, pass.signal),
+    (await model.complete({ systemPrompt: "system", userPrompt: "user" }, pass.signal)).content,
     "ok",
   );
   assert.equal(observedSignal?.aborted, false);

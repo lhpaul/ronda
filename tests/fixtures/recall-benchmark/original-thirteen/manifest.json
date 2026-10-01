@@ -1,0 +1,213 @@
+{
+  "benchmarkId": "issue-15-recall-benchmark",
+  "qualityCategories": [
+    "security",
+    "authorization",
+    "data-loss",
+    "async/race",
+    "configuration",
+    "stale-SHA",
+    "sorting",
+    "text-normalization",
+    "multi-finding"
+  ],
+  "precisionFixtures": [
+    {
+      "id": "harmless-session-refactor",
+      "description": "A small changed-file fixture that should not require a Ronda finding.",
+      "expected": "clean",
+      "changedFiles": [
+        {
+          "path": "src/benchmark/session.ts",
+          "status": "added",
+          "additions": 4,
+          "deletions": 0,
+          "patch": "@@ -0,0 +1,5 @@\n+export function normalizeSessionName(name: string): string {\n+  return name.trim().replace(/\\s+/g, \" \");\n+}\n+"
+        }
+      ],
+      "forbiddenValues": ["sk_live_seeded_secret_value"]
+    }
+  ],
+  "seededDefects": [
+    {
+      "id": "expired-session-inversion",
+      "category": "expired-session inversion",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/session.ts",
+      "description": "Expired sessions are accepted while active sessions are rejected.",
+      "matchTerms": ["expired", "session", "inversion"],
+      "matchTermGroups": [
+        ["expired", "session", "inversion"],
+        ["session", "expiration", "logic"],
+        ["active", "sessions", "expired"]
+      ]
+    },
+    {
+      "id": "sensitive-value-exposure",
+      "category": "sensitive-value exposure",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/auth.ts",
+      "description": "A token is logged directly instead of being redacted.",
+      "matchTerms": ["token", "log", "sensitive"],
+      "matchTermGroups": [
+        ["token", "log", "sensitive"],
+        ["secret", "token", "exposed"],
+        ["sensitive", "token"]
+      ],
+      "forbiddenValue": "sk_live_seeded_secret_value"
+    },
+    {
+      "id": "cache-capacity-off-by-one",
+      "category": "cache-capacity off-by-one",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/cache.ts",
+      "description": "The cache evicts only after it grows beyond one item over the configured maximum.",
+      "matchTerms": ["cache", "capacity", "off-by-one"],
+      "matchTermGroups": [
+        ["cache", "capacity", "off-by-one"],
+        ["cache", "eviction", "incorrect"],
+        ["cache", "extra", "entry"],
+        ["cache", "eviction", "logic", "error"],
+        ["cache", "eviction", "bug"],
+        ["cache", "overflows", "entry"]
+      ]
+    },
+    {
+      "id": "sql-interpolation",
+      "category": "SQL interpolation",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/users.ts",
+      "description": "User input is interpolated into a SQL query string.",
+      "matchTerms": ["sql", "interpolation"],
+      "matchTermGroups": [
+        ["sql", "interpolation"],
+        ["sql", "injection"],
+        ["query", "injectable"]
+      ]
+    },
+    {
+      "id": "invalid-range-parsing",
+      "category": "invalid range parsing",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/range.ts",
+      "description": "Invalid numeric ranges are accepted instead of rejected.",
+      "matchTerms": ["invalid", "range"],
+      "matchTermGroups": [
+        ["invalid", "range"],
+        ["range", "accept"],
+        ["range", "fallback"],
+        ["range", "bounds"],
+        ["parsing", "input", "validation"],
+        ["range", "error", "handling"],
+        ["range", "parsing", "validation"]
+      ]
+    },
+    {
+      "id": "lexicographic-numeric-sort",
+      "category": "lexicographic numeric sort",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/median.ts",
+      "description": "Numeric values are sorted lexicographically.",
+      "matchTerms": ["lexicographic", "numeric", "sort"],
+      "matchTermGroups": [
+        ["lexicographic", "numeric", "sort"],
+        ["sort", "comparator"],
+        ["sort", "numeric"]
+      ]
+    },
+    {
+      "id": "lower-element-median",
+      "category": "lower-element median",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/median.ts",
+      "description": "Even-length median returns the lower element instead of averaging the middle pair.",
+      "matchTerms": ["median", "lower"],
+      "matchTermGroups": [
+        ["median", "lower"],
+        ["median", "even-length"],
+        ["median", "middle", "pair"]
+      ]
+    },
+    {
+      "id": "empty-word-title-casing",
+      "category": "empty-word title casing",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/title.ts",
+      "description": "Title casing can throw when input contains empty words.",
+      "matchTerms": ["empty", "word", "title"],
+      "matchTermGroups": [
+        ["empty", "word", "title"],
+        ["empty", "input", "throw"],
+        ["word[0]", "undefined"],
+        ["empty", "strings"]
+      ]
+    },
+    {
+      "id": "authorization-bypass",
+      "category": "authorization bypass",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/authorization.ts",
+      "description": "A user can access an admin action without the required role.",
+      "matchTerms": ["authorization", "admin", "bypass"],
+      "matchTermGroups": [
+        ["authorization", "admin", "bypass"],
+        ["admin", "role", "missing"],
+        ["permission", "check"]
+      ]
+    },
+    {
+      "id": "data-loss-overwrite",
+      "category": "data-loss overwrite",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/storage.ts",
+      "description": "A partial profile update overwrites existing stored data.",
+      "matchTerms": ["data", "loss", "overwrite"],
+      "matchTermGroups": [
+        ["data", "loss", "overwrite"],
+        ["partial", "update", "overwrite"],
+        ["existing", "profile", "lost"]
+      ]
+    },
+    {
+      "id": "async-race-duplicate-processing",
+      "category": "async race duplicate processing",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/jobs.ts",
+      "description": "Concurrent job handlers can process the same job twice.",
+      "matchTerms": ["race", "duplicate", "job"],
+      "matchTermGroups": [
+        ["race", "duplicate", "job"],
+        ["concurrent", "process", "same"],
+        ["race", "job", "deduplication"],
+        ["in-flight", "tracking"]
+      ]
+    },
+    {
+      "id": "configuration-debug-default",
+      "category": "configuration debug default",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/config.ts",
+      "description": "Production debug logging is enabled by default when the environment variable is absent.",
+      "matchTerms": ["debug", "default", "production"],
+      "matchTermGroups": [
+        ["debug", "default", "production"],
+        ["logging", "enabled", "default"],
+        ["configuration", "unsafe", "default"]
+      ]
+    },
+    {
+      "id": "stale-sha-review-publication",
+      "category": "stale-SHA review publication",
+      "expectedSeverity": "blocking",
+      "path": "src/benchmark/stale-sha.ts",
+      "description": "A review can be published after the pull request head changed.",
+      "matchTerms": ["stale", "sha", "review"],
+      "matchTermGroups": [
+        ["stale", "sha", "review"],
+        ["stale", "sha", "publish"],
+        ["head", "changed", "publish"],
+        ["superseded", "head", "review"]
+      ]
+    }
+  ]
+}

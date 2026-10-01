@@ -24,6 +24,13 @@ It does not implement product features and does not merge.
 - **Description**: One pass over one head SHA of one PR.
 - **Key attributes**: repo, PR number, head SHA, status, started_at, finished_at.
 - **Relationships**: produces one GitHub review for that SHA.
+- **Read-only repository context outcome** (#106): a same-repository-head
+  pass that reaches review execution with the feature enabled records one of
+  `used` (every requested candidate resolved), `partial` (some resolved),
+  `unavailable` (none resolved), or `nothing_to_resolve` (the changed lines
+  named nothing to resolve). A fork-originated head, a validly disabled
+  switch, and a pass that never reaches review execution each record nothing
+  on any surface — indistinguishable from a version without the feature.
 
 ### Finding
 

@@ -81,8 +81,10 @@ fi
 run_test "protocol_has_no_inline_ci_dedupe_block" "no" "$_inline_ci_dedupe_in_protocol"
 
 # --- 3. Extracted script normalizes stale duplicate check-runs ---------------
-if grep -q 'NORMALIZED_CHECKS_JSON=' "$CHECKLIST" &&
-   grep -q 'group_by(.__check_key)' "$CHECKLIST"; then
+# The dedupe lives in workflow-lib.sh (latest_check_runs_for_sha); the script
+# must use it rather than carry its own copy.
+if grep -q 'latest_check_runs_for_sha "$REPO" "$HEAD_SHA"' "$CHECKLIST" &&
+   ! grep -q '__check_key' "$CHECKLIST"; then
   _dedupes_check_runs="yes"
 else
   _dedupes_check_runs="no"
@@ -91,7 +93,7 @@ run_test "step_8a_dedupes_check_runs_by_key" "yes" "$_dedupes_check_runs"
 
 # Runnable gates derive owner/repo from TARGET_REPO in the extracted script.
 _uses_derived_owner="$(grep -c -- '-f owner="\$GRAPHQL_OWNER" -f repo="\$GRAPHQL_REPO"' "$CHECKLIST" || true)"
-run_test "checklist_script_passes_derived_owner_repo" "3" "$_uses_derived_owner"
+run_test "checklist_script_passes_derived_owner_repo" "1" "$_uses_derived_owner"
 _derives_repo="$(grep -c 'GRAPHQL_REPO="${TARGET_REPO#\*/}"' "$CHECKLIST" || true)"
 run_test "checklist_script_derives_repo_from_target_repo" "1" "$_derives_repo"
 
@@ -105,6 +107,60 @@ run_test "target_repo_resolved_in_checklist_script" "yes" "$_target_repo_defined
 # --- 4. The extracted checklist parses as bash --------------------------------
 _syntax_error="$(bash -n "$CHECKLIST" 2>&1 || true)"
 run_test "step_8a_checklist_parses_as_bash" "" "$_syntax_error"
+
+# --- 4. Planted-violation proof (REVIEW.md) ---------------------------------
+# An extra closing brace in a GraphQL query must fail check 1; the real protocol
+# (checked above as graphql_queries_brace_balanced) is the pass direction.
+_PLANT_TMP="$(mktemp -d)"
+_PLANT_PROTOCOL="$_PLANT_TMP/protocol-91-planted.md"
+cp "$PROTOCOL" "$_PLANT_PROTOCOL"
+python3 - "$_PLANT_PROTOCOL" <<'PY'
+import re
+import sys
+
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+pattern = re.compile(r"(gh api graphql -f query='(?P<query>[^']*)')")
+match = pattern.search(text)
+if not match:
+    raise SystemExit("planted-protocol: no graphql query found")
+broken = match.group("query") + "}"
+text = text[: match.start("query")] + broken + text[match.end("query") :]
+open(path, "w", encoding="utf-8").write(text)
+PY
+
+_planted_balance="$(python3 - "$_PLANT_PROTOCOL" <<'PY'
+import re
+import sys
+
+text = open(sys.argv[1], encoding="utf-8").read()
+pattern = re.compile(r"gh api graphql -f query='(?P<query>[^']*)'")
+bad = []
+count = 0
+for match in pattern.finditer(text):
+    count += 1
+    query = match.group("query")
+    depth = 0
+    lowest = 0
+    for char in query:
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            lowest = min(lowest, depth)
+    if depth != 0 or lowest < 0:
+        bad.append("unbalanced")
+if count == 0:
+    print("no-graphql-queries-found")
+elif bad:
+    print("unbalanced")
+else:
+    print("balanced")
+PY
+)"
+run_test "planted_graphql_extra_brace_fails" "unbalanced" "$_planted_balance"
+rm -rf "$_PLANT_TMP"
+unset _PLANT_TMP _PLANT_PROTOCOL _planted_balance
 
 echo ""
 echo "${PASS_COUNT} passed, ${FAIL_COUNT} failed"

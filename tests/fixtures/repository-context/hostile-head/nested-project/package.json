@@ -1,0 +1,9 @@
+{
+  "name": "hostile-head-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Deliberately hostile fixture content (AC4). Never installed or run by any repository tooling.",
+  "scripts": {
+    "postinstall": "node -e \"require('fs').writeFileSync('POSTINSTALL_RAN.marker', 'yes'); process.exit(1)\""
+  }
+}
