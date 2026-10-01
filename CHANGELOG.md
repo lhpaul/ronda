@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-01
+
+### Added
+
+- **Category-forced review sweep** (#105): a review pass can sweep a recorded,
+  evidence-justified category list (`sweep-categories-v1`). Off by default;
+  enable with `RONDA_SWEEP_MODE` / the `sweep_mode` workflow input. Per-category
+  records appear on the check-run output and logs, the summary states the
+  activation and list version, and a bad enablement value never fails a pass.
+  The benchmark gains four real-theme seeds and a harder credential-pattern
+  case. Sweep-off/on recall, variance, precision and cost evidence, recorded on
+  the pinned snapshot `qwen-plus-2025-12-01`, ships with it.
+- **Read-only repository context with symbol-level resolution** (#106): a pass
+  may read the definitions its changed lines depend on at the reviewed head,
+  within operator budgets. Off by default; never used for a fork-originated head.
+- **Ronda reviews this repository's own pull requests** (#103, #109):
+  `ronda-review-dogfood.yml` runs on every non-draft PR targeting `develop`, and
+  a collaborator's `/ronda review` comment starts a pass on the current head.
+  Requires the `RONDA_MODEL_API_KEY` secret. Concurrency is per job and per PR,
+  so a manual pass waits behind an automatic one instead of publishing a second
+  check run. The adoption doc's caller snippet gets the same fix and warns not
+  to name the caller job `Ronda review`.
+- **Quality and cost baseline** (#101): reproducible baseline over merged PRs
+  #93-#100 (`quality:report` rollup, per-PR Actions cost and convergence, ranked
+  defect categories).
+- **External-review miss evidence** (#136): 170 captured miss records from PRs
+  #107, #115, #117, #118 and #119 with a quality report split by PR kind. It is
+  the v0.2.0 baseline (no sweep, no repository context) from Ronda's own
+  repository, with owner-accepted batch verdicts rather than per-record
+  adjudication; 29 findings refused by the reviewed-head check are counted.
+
+### Fixed
+
+- **PR-Agent fails loudly without a model credential** (#104): the workflow now
+  fails at a `Require model credential` step when `DEEPSEEK_API_KEY` is empty
+  instead of reporting `success` with nothing published.
+- **Generated and recorded-evidence files excluded from review** (#134): a
+  path-exclusion step runs before prompt construction: fixed defaults
+  (lockfiles, generated/minified output, patchless/binary files) plus
+  configured globs (`RONDA_EXCLUDE_PATH_GLOBS` / `excludePathGlobs` /
+  `exclude_path_globs`). Excluded files are named in the summary, and an
+  all-excluded PR still publishes a summary saying so. The repository-context
+  resolver refuses excluded same-PR dependencies too.
+
 ## [0.2.0] - 2026-09-23
 
 ### Added
@@ -66,6 +110,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deciding current-head readiness, while preserving the reviewer-loop guard that
   blocks readiness until review evidence exists.
 
-[Unreleased]: https://github.com/lhpaul/ronda/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/lhpaul/ronda/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/lhpaul/ronda/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/lhpaul/ronda/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/lhpaul/ronda/releases/tag/v0.1.0
