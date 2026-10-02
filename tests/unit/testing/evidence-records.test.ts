@@ -78,8 +78,8 @@ test("the real-PR record states the current evidence tier: fixture_only, or real
   if (tier.includes("`real_pr_provisional`")) {
     states(
       REAL_PR,
-      "the first sweep-enabled real-PR review is recorded",
-      "a provisional tier must name the promotion trigger",
+      "**Tier promotion.**",
+      "a provisional tier must carry its recorded promotion-trigger paragraph",
     );
   }
 });
