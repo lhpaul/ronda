@@ -8,8 +8,8 @@ name: Ronda review (dogfood)
 # - `uses: ./...` instead of `lhpaul/ronda/...@main`. On `pull_request` the
 #   called workflow is the one at the PR's merge commit, so a change to
 #   `ronda-review.yml` is exercised by its own PR. The Ronda code that actually
-#   reviews is still checked out from `ronda_ref` (the reusable workflow's
-#   default, `main`), never from the PR under review.
+#   reviews is still checked out from `ronda_ref` (pinned below to a
+#   release tag), never from the PR under review.
 # - `branches: [develop, develop-**]` on `pull_request`, so only PRs targeting
 #   the integration branch — or a `develop-<slug>` integration branch, which
 #   Protocol 05b requires every develop-gated workflow to cover — are reviewed
@@ -145,6 +145,11 @@ jobs:
     # are committed (see docs/testing/ronda/repository-context-effect-evidence-106.md).
     with:
       repository_context: ${{ vars.RONDA_REPOSITORY_CONTEXT }}
+      # #135: pinned to the release tag, not the mutable default `main`, so
+      # every pass's evidence names one reviewer (v0.3.0 = 09e6aab). Bump it
+      # deliberately on each release and record the change in the evidence
+      # ledgers; do not leave it floating.
+      ronda_ref: v0.3.0
       # #135: the category-forced sweep is on for this repository's real
       # passes so they accrue sweep-enabled reviews for
       # docs/testing/ronda/sweep-real-pr-evidence.md. Repository context is

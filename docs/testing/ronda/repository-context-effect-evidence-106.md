@@ -14,14 +14,22 @@ implementation PR.
 
 | Field | Value |
 | --- | --- |
-| Tier | `fixture_only` |
+| Tier | `real_pr_provisional` |
 | Counted pull requests | 0 |
 | Configuration the count accrues under | `RONDA_REPOSITORY_CONTEXT=on` on this repository's dogfood pass (reusable-workflow ingress only), recorded budget defaults — **effective only from the first release containing #106 on `main`**, not from the variable's creation (see **Switch history**) |
-| Date recorded | 2026-09-30 |
+| Date recorded | 2026-10-02 (promoted from `fixture_only`, recorded 2026-09-30) |
 
-No real-pull-request review with repository context enabled was recorded when
-the switch went on, so `fixture_only` is the tier this ledger claims until the
-first such review is recorded (Statuses / Enum Values → Evidence tier, spec).
+The spec's first valid transition (`fixture_only` → `real_pr_provisional`)
+fires when the first real-PR review with repository context enabled is recorded,
+even before adjudication. That review is the dogfood pass on PR #145 head
+`6ee6a58` (check run 110818602318), run on release v0.3.0 (`09e6aab`) with the
+switch `on`: its summary carries a repository-context line (`Repository context
+unavailable`, 0 of 6 candidates resolved, all `ambiguous_resolution`). The
+revert pass (run 110818884680) reports `nothing to resolve`. **The counted total
+stays `0`**: neither pass is adjudicated, and the first is a deliberate plant, so
+it is the promotion trigger and not a counted pull request. The context was
+active alongside the sweep, so no context-only effect can be read from these
+passes.
 
 ## Switch history
 
