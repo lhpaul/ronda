@@ -44,8 +44,14 @@ pr_actions = ["opened", "reopened", "ready_for_review", "synchronize"]
 # and documentation files are still reviewed. PR-Agent translates each glob with
 # fnmatch, so "*" also matches across "/".
 glob = [
-  "docs/testing/ronda/*.json",
   "tests/fixtures/recall-benchmark/*.json",
+]
+# docs/testing/ronda/*.json is a regex, not a glob, so it can carve out
+# sweep-categories.json: that file is the committed runtime category list that
+# loadSweepList() sends into every sweep-enabled review, so edits to it must stay
+# reviewable. Matched with re.match against the repository-relative path.
+regex = [
+  '^docs/testing/ronda/(?!sweep-categories\.json$).*\.json$',
 ]
 
 [pr_reviewer]
