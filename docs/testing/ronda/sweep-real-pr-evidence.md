@@ -176,8 +176,8 @@ compared head exists in this record.
 | `real_pr_provisional` | Real-PR evidence (provisional) | At least one sweep-enabled real pull request review has been recorded, but fewer than ten counted pull requests have accumulated under the current category list version. Findings are indicative only, support no effect claim, and are labeled as such. |
 | `real_pr_measured` | Real-PR evidence (measured) | At least ten counted pull requests have accumulated. Descriptive real-pull-request claims are permitted, with the independence caveat and the own-repository label. Comparative effect claims additionally require a matched sweep-off control on the same pull request heads. |
 
-**Current tier: `fixture_only`.** The row above is the tier this record stands
-at; the other two are the tiers it can reach, on the rules below.
+**Current tier: `real_pr_provisional`** (counted total `0`). The
+`real_pr_provisional` row above is the tier this record stands at; the other two are the tiers it can reach, on the rules below.
 
 ## Transition rules
 
@@ -219,7 +219,7 @@ row below when it happens.
 
 | List version | Counted pull requests | Tier while current | Notes |
 | --- | --- | --- | --- |
-| `sweep-categories-v1` | `0` | `fixture_only` | current version; recorded 2026-09-28 |
+| `sweep-categories-v1` | `0` | `real_pr_provisional` | current version; promoted 2026-10-02, originally `fixture_only` (recorded 2026-09-28) |
 
 ### The ten-count rule
 
@@ -249,10 +249,10 @@ outcome is not adjudicated, and ten such pull requests do not reach the label.
 
 ## Claim admissibility at the current tier
 
-| Claim | Admissible at `fixture_only`? |
+| Claim | Admissible at `real_pr_provisional` with a counted total of `0`? |
 | --- | --- |
 | Seeded recall, variance, precision, cost (fixture evidence) | Yes — recorded in [`sweep-effect-evidence.md`](sweep-effect-evidence.md) |
-| Real-pull-request descriptive claim | No — the tier admits no real-PR claim of any kind |
+| Real-pull-request descriptive claim | No — the tier admits no real-PR claim of any kind (a counted total of zero; real-PR findings are indicative only) |
 | Real-pull-request comparative effect claim | No — requires `real_pr_measured`, a matched sweep-off control on the same pull request heads, a closed terminally adjudicated cohort, equal run counts, named metrics, and a non-zero confirmed-defect denominator |
 
 A claim that lacks anything it requires is **omitted**, not recorded as

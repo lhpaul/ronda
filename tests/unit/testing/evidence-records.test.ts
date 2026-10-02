@@ -89,6 +89,24 @@ test("the real-PR record states the current evidence tier: fixture_only, or real
   }
 });
 
+test("the real-PR record declares one consistent current tier in every current-state spot", () => {
+  const tierField = field(REAL_PR, "Evidence tier", "the current-state table");
+  const tier = /`(fixture_only|real_pr_provisional|real_pr_measured)`/.exec(tierField)?.[1];
+  assert.ok(tier, `the current-state tier must be one of the three codes; found: ${tierField}`);
+  states(REAL_PR, `**Current tier: \`${tier}\`**`, "the tier-vocabulary section's current-tier line must match the current-state table");
+  const listRow = REAL_PR.split("\n").find((l) => l.startsWith("| `sweep-categories-v1` | `0` |"));
+  assert.ok(listRow, "the list-version row must exist");
+  assert.ok(
+    listRow.split("|")[3]?.includes(`\`${tier}\``),
+    `the list-version row's tier must match the current-state table (${tier}); found: ${listRow}`,
+  );
+  states(
+    REAL_PR,
+    `| Claim | Admissible at \`${tier}\``,
+    "the claim-admissibility table must be headed with the current tier",
+  );
+});
+
 test("the real-PR record states a counted-pull-request total and it is zero", () => {
   const count = field(
     REAL_PR,
