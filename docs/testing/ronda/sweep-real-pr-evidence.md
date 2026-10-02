@@ -19,29 +19,52 @@ record, and no automation that would catch the record drifting from the spec.
 
 | Field | Value |
 | --- | --- |
-| Evidence tier | `fixture_only` — Fixture evidence only |
+| Evidence tier | `real_pr_provisional` — Real-PR evidence (provisional) |
 | Counted pull requests under the current list version | `0` |
 | Current category list version the count accrues under | `sweep-categories-v1` |
-| Date this state was recorded | 2026-09-28 |
+| Date this state was recorded | 2026-10-02 (promoted from `fixture_only`, recorded 2026-09-28) |
 | Counted-pull-request total at the prior list version | none — `sweep-categories-v1` is the initial version, so no count preceded it |
 
-The tier is `fixture_only` because **no sweep-enabled real pull request review
-has been recorded**. That is the only thing that promotes the tier out of
-`fixture_only`, and it has not happened: this repository's own pull requests
-were reviewed with the sweep available, but none of those reviews is recorded
-here as a counted sweep-enabled real-PR review, so the count is zero and the
-tier stands at the bottom.
+**Sweep enabled for real dogfood passes (#135).** `ronda-review-dogfood.yml`
+sets `sweep_mode: "on"`, `model_name: qwen-plus-2025-12-01` and
+`ronda_ref: v0.3.0` (commit `09e6aab`), so every pass names one reviewer
+implementation. **Evidence is split by reviewer**:
 
-At this tier the only admissible evidence is fixture evidence — the seeded
-benchmark and the precision fixtures. It may support claims about seeded recall,
-variance, precision, and cost. **It may not support any claim about effect on
-real pull requests.**
+| Reviewer ref | Sweep | Passes |
+| --- | --- | --- |
+| `main` = v0.2.0 (`6de5192`) | off (feature absent) | #107–#130 and earlier; not counted |
+| `develop` (pinned by commit `9c5ca23`, unreleased code) | on | PR #145 runs before `66398b3`; **not counted** — unreleased, mutable reviewer |
+| `v0.3.0` (`09e6aab`) | on | from `66398b3` onward, including the planted-violation pair on #145 (runs 110818602318 and 110818884680) |
+
+**Tier promotion.** The spec's first valid transition fires when the first
+sweep-enabled real-PR review is recorded, even before adjudication. The promotion
+condition is the spec's alone: a real-PR review whose pass actually ran the
+sweep. The first such review recorded is the `v0.3.0` pass on #145 head `6ee6a58`
+(the sweep list is stated in its summary and `guard-fails-open` produced a
+finding), so the tier is `real_pr_provisional`. That pass is a real review run by
+the real dogfood workflow, even though its input was a deliberate defect; it
+satisfies the promotion condition but is **not a counted pull request**. **The
+counted total stays `0`**: counting needs an adjudicated compared-finding record,
+which neither pass has, and a verification plant is not an ordinary review. Both runs also had repository context active, so
+nothing here supports a sweep-only effect claim; the independence and
+own-repository caveats below still apply.
+
+The tier was `fixture_only` until the first sweep-enabled real-PR review was
+recorded above; before then this repository's own pull requests were reviewed
+with the sweep available but not enabled, so none counted.
+
+At this tier, with the counted total at zero, the only admissible evidence is
+still fixture evidence — the seeded benchmark and the precision fixtures. It may
+support claims about seeded recall, variance, precision, and cost. **It may not
+support any claim about effect on real pull requests**; real-PR findings are
+indicative only until a counted, adjudicated cohort exists.
 
 ### No real-pull-request effect claim is made
 
 **This record makes no real-pull-request effect claim, and none may be read out
-of it.** The counted total is zero, so no real-PR observation of any kind has
-been recorded — not a descriptive one, not a comparative one. The figures in
+of it.** The counted total is zero: the promotion trigger above is a verification pair,
+not a counted, adjudicated observation, so no descriptive or comparative
+real-PR claim is available. The figures in
 [`sweep-effect-evidence.md`](sweep-effect-evidence.md) are fixture figures and
 are labeled as fixture figures there; they are not evidence about real pull
 requests, and citing them as such here would state an effect the evidence has
@@ -153,8 +176,8 @@ compared head exists in this record.
 | `real_pr_provisional` | Real-PR evidence (provisional) | At least one sweep-enabled real pull request review has been recorded, but fewer than ten counted pull requests have accumulated under the current category list version. Findings are indicative only, support no effect claim, and are labeled as such. |
 | `real_pr_measured` | Real-PR evidence (measured) | At least ten counted pull requests have accumulated. Descriptive real-pull-request claims are permitted, with the independence caveat and the own-repository label. Comparative effect claims additionally require a matched sweep-off control on the same pull request heads. |
 
-**Current tier: `fixture_only`.** The row above is the tier this record stands
-at; the other two are the tiers it can reach, on the rules below.
+**Current tier: `real_pr_provisional`** (counted total `0`). The
+`real_pr_provisional` row above is the tier this record stands at; the other two are the tiers it can reach, on the rules below.
 
 ## Transition rules
 
@@ -196,7 +219,7 @@ row below when it happens.
 
 | List version | Counted pull requests | Tier while current | Notes |
 | --- | --- | --- | --- |
-| `sweep-categories-v1` | `0` | `fixture_only` | current version; recorded 2026-09-28 |
+| `sweep-categories-v1` | `0` | `real_pr_provisional` | current version; promoted 2026-10-02, originally `fixture_only` (recorded 2026-09-28) |
 
 ### The ten-count rule
 
@@ -226,10 +249,10 @@ outcome is not adjudicated, and ten such pull requests do not reach the label.
 
 ## Claim admissibility at the current tier
 
-| Claim | Admissible at `fixture_only`? |
+| Claim | Admissible at `real_pr_provisional` with a counted total of `0`? |
 | --- | --- |
 | Seeded recall, variance, precision, cost (fixture evidence) | Yes — recorded in [`sweep-effect-evidence.md`](sweep-effect-evidence.md) |
-| Real-pull-request descriptive claim | No — the tier admits no real-PR claim of any kind |
+| Real-pull-request descriptive claim | No — the tier admits no real-PR claim of any kind (a counted total of zero; real-PR findings are indicative only) |
 | Real-pull-request comparative effect claim | No — requires `real_pr_measured`, a matched sweep-off control on the same pull request heads, a closed terminally adjudicated cohort, equal run counts, named metrics, and a non-zero confirmed-defect denominator |
 
 A claim that lacks anything it requires is **omitted**, not recorded as

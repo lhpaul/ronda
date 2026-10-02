@@ -14,14 +14,22 @@ implementation PR.
 
 | Field | Value |
 | --- | --- |
-| Tier | `fixture_only` |
+| Tier | `real_pr_provisional` |
 | Counted pull requests | 0 |
 | Configuration the count accrues under | `RONDA_REPOSITORY_CONTEXT=on` on this repository's dogfood pass (reusable-workflow ingress only), recorded budget defaults — **effective only from the first release containing #106 on `main`**, not from the variable's creation (see **Switch history**) |
-| Date recorded | 2026-09-30 |
+| Date recorded | 2026-10-02 (promoted from `fixture_only`, recorded 2026-09-30) |
 
-No real-pull-request review with repository context enabled was recorded when
-the switch went on, so `fixture_only` is the tier this ledger claims until the
-first such review is recorded (Statuses / Enum Values → Evidence tier, spec).
+The spec's first valid transition (`fixture_only` → `real_pr_provisional`)
+fires when the first real-PR review with repository context enabled is recorded,
+even before adjudication. That review is the dogfood pass on PR #145 head
+`6ee6a58` (check run 110818602318), run on release v0.3.0 (`09e6aab`) with the
+switch `on`: its summary carries a repository-context line (`Repository context
+unavailable`, 0 of 6 candidates resolved, all `ambiguous_resolution`). The
+revert pass (run 110818884680) reports `nothing to resolve`. **The counted total
+stays `0`**: neither pass is adjudicated, and the first is a deliberate plant, so
+it is the promotion trigger and not a counted pull request. The context was
+active alongside the sweep, so no context-only effect can be read from these
+passes.
 
 ## Switch history
 
@@ -32,6 +40,7 @@ and the setting's change.
 | Time (UTC) | Change | By | Ordering evidence |
 | --- | --- | --- | --- |
 | 2026-09-30T14:24:02Z | `RONDA_REPOSITORY_CONTEXT` repository variable created with value `on` | Repository owner | The AC4/AC5 record (`repository-context-read-only-evidence-106.md`) and the AC23 record (`repository-context-resolution-precision-106.md`, precision 6 / 6 = 100%) reached `develop` with PR [#130](https://github.com/lhpaul/ronda/pull/130), merged 2026-09-30T14:16:57Z — before the switch. Timestamp read from the Actions variables API (`created_at`). |
+| 2026-10-01T18:11:44Z | Release **v0.3.0**, which contains #106, reached `main` (PR [#147](https://github.com/lhpaul/ronda/pull/147), merge commit `09e6aab`). Repository context is therefore **active** for dogfood passes from here, with the switch already `on` | Release of #135 (no change to the variable) | The variable was not flipped by this release; the owner's 2026-09-30 setting took effect when `ronda_ref` (default `main`) began resolving to a release containing #106. #135 also turns the sweep on, so passes from this point run **both** features — counted pull requests under this ledger start here and carry the sweep too. Record the first pass whose summary shows a repository-context line as the confirming observation. |
 
 **The variable being `on` is not the feature being active.** The dogfood
 pass (`.github/workflows/ronda-review-dogfood.yml`) runs Ronda's code checked

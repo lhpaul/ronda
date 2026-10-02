@@ -65,15 +65,49 @@ const EFFECT = readEvidence("sweep-effect-evidence.md");
 
 // --- AC15: the tier, the count, and the adjudication vocabulary ------------
 
-test("the real-PR record states the current evidence tier and it is fixture_only", () => {
+test("the real-PR record states the current evidence tier: fixture_only, or real_pr_provisional with a zero count after the first sweep-enabled review", () => {
   const tier = field(REAL_PR, "Evidence tier", "the current-state table");
   assert.ok(
-    tier.includes("`fixture_only`"),
-    `the tier must be \`fixture_only\` at ship time; found: ${tier}`,
+    !tier.includes("`real_pr_measured`"),
+    `the tier must not claim the measured tier without ten counted pull requests; found: ${tier}`,
   );
   assert.ok(
-    !tier.includes("`real_pr_provisional`") && !tier.includes("`real_pr_measured`"),
-    `the tier must not claim a real-PR tier at ship time; found: ${tier}`,
+    tier.includes("`fixture_only`") || tier.includes("`real_pr_provisional`"),
+    `the tier must be \`fixture_only\` or \`real_pr_provisional\`; found: ${tier}`,
+  );
+  assert.ok(
+    !(tier.includes("`fixture_only`") && REAL_PR.includes("**Tier promotion.**")),
+    `the ledger records a promotion (a **Tier promotion.** paragraph) so the tier cannot revert to \`fixture_only\`; found: ${tier}`,
+  );
+  if (tier.includes("`real_pr_provisional`")) {
+    const marker = "**Tier promotion.**";
+    states(REAL_PR, marker, "a provisional tier must carry its recorded promotion-trigger paragraph");
+    const at = REAL_PR.indexOf(marker);
+    const paragraph = REAL_PR.slice(at, REAL_PR.indexOf("\n\n", at));
+    for (const needle of [
+      "real-PR review whose pass actually ran the sweep",
+      "is **not a counted pull request**",
+    ]) {
+      states(paragraph, needle, "the promotion paragraph must state the spec's condition and that the trigger is not counted");
+    }
+  }
+});
+
+test("the real-PR record declares one consistent current tier in every current-state spot", () => {
+  const tierField = field(REAL_PR, "Evidence tier", "the current-state table");
+  const tier = /`(fixture_only|real_pr_provisional|real_pr_measured)`/.exec(tierField)?.[1];
+  assert.ok(tier, `the current-state tier must be one of the three codes; found: ${tierField}`);
+  states(REAL_PR, `**Current tier: \`${tier}\`**`, "the tier-vocabulary section's current-tier line must match the current-state table");
+  const listRow = REAL_PR.split("\n").find((l) => l.startsWith("| `sweep-categories-v1` | `0` |"));
+  assert.ok(listRow, "the list-version row must exist");
+  assert.ok(
+    listRow.split("|")[3]?.includes(`\`${tier}\``),
+    `the list-version row's tier must match the current-state table (${tier}); found: ${listRow}`,
+  );
+  states(
+    REAL_PR,
+    `| Claim | Admissible at \`${tier}\``,
+    "the claim-admissibility table must be headed with the current tier",
   );
 });
 
