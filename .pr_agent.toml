@@ -45,7 +45,7 @@ pr_actions = ["opened", "reopened", "ready_for_review", "synchronize"]
 # fnmatch, so "*" also matches across "/".
 glob = [
   "docs/testing/ronda/*.json",
-  "tests/fixtures/recall-benchmark/*",
+  "tests/fixtures/recall-benchmark/*.json",
 ]
 
 [pr_reviewer]
