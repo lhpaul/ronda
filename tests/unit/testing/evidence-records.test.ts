@@ -65,16 +65,23 @@ const EFFECT = readEvidence("sweep-effect-evidence.md");
 
 // --- AC15: the tier, the count, and the adjudication vocabulary ------------
 
-test("the real-PR record states the current evidence tier and it is fixture_only", () => {
+test("the real-PR record states the current evidence tier: fixture_only, or real_pr_provisional with a zero count after the first sweep-enabled review", () => {
   const tier = field(REAL_PR, "Evidence tier", "the current-state table");
   assert.ok(
-    tier.includes("`fixture_only`"),
-    `the tier must be \`fixture_only\` at ship time; found: ${tier}`,
+    !tier.includes("`real_pr_measured`"),
+    `the tier must not claim the measured tier without ten counted pull requests; found: ${tier}`,
   );
   assert.ok(
-    !tier.includes("`real_pr_provisional`") && !tier.includes("`real_pr_measured`"),
-    `the tier must not claim a real-PR tier at ship time; found: ${tier}`,
+    tier.includes("`fixture_only`") || tier.includes("`real_pr_provisional`"),
+    `the tier must be \`fixture_only\` or \`real_pr_provisional\`; found: ${tier}`,
   );
+  if (tier.includes("`real_pr_provisional`")) {
+    states(
+      REAL_PR,
+      "the first sweep-enabled real-PR review is recorded",
+      "a provisional tier must name the promotion trigger",
+    );
+  }
 });
 
 test("the real-PR record states a counted-pull-request total and it is zero", () => {
