@@ -147,8 +147,9 @@ jobs:
       repository_context: ${{ vars.RONDA_REPOSITORY_CONTEXT }}
       # #135: the category-forced sweep is on for this repository's real
       # passes so they accrue sweep-enabled reviews for
-      # docs/testing/ronda/sweep-real-pr-evidence.md. Repository context stays
-      # gated above (#132); do not mirror this on it.
+      # docs/testing/ronda/sweep-real-pr-evidence.md. Repository context is
+      # set above by the owner-controlled variable (#132), not here; it is
+      # effective on v0.3.0, so passes run both features.
       sweep_mode: "on"
       # #135: the dated snapshot the sweep campaign pinned, instead of the
       # mutable `qwen-plus` alias, so real-PR and fixture evidence describe

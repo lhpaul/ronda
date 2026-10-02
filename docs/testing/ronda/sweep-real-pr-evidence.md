@@ -27,10 +27,16 @@ record, and no automation that would catch the record drifting from the spec.
 
 **Sweep enabled for real dogfood passes (#135).** `ronda-review-dogfood.yml`
 sets `sweep_mode: "on"` and `model_name: qwen-plus-2025-12-01`, reviewing with
-the released v0.3.0 (`ronda_ref` default `main`). Passes on this repository's pull requests
-run with the sweep from the merge of the #135 change (the merge time of that
-pull request is the flip time; passes whose check run predates it ran with the
-sweep off and v0.2.0, and are not counted). This enables accrual only: the
+the released v0.3.0 (`ronda_ref` default `main`). Because `pull_request` runs use the workflow at the PR's merge commit, the
+first sweep-enabled pass is this change's own pre-merge run, not a post-merge
+one. The flip is therefore recorded at the **first check run whose summary
+states the sweep was active**, entered here by hand when observed; passes
+before it ran with the sweep off and v0.2.0, and are not counted. **From
+2026-10-01T18:11:44Z (v0.3.0 reaching `main`) repository context is also active
+on dogfood passes** — see
+[`repository-context-effect-evidence-106.md`](repository-context-effect-evidence-106.md) —
+so counted passes here carry both features, and no sweep-only effect may be
+read from them. This enables accrual only: the
 counted total stays `0` until a sweep-enabled real-PR review is recorded here
 by hand under the rules in this document.
 
