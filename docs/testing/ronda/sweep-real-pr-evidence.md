@@ -37,13 +37,15 @@ implementation. **Evidence is split by reviewer**:
 | `v0.3.0` (`09e6aab`) | on | from `66398b3` onward, including the planted-violation pair on #145 (runs 110818602318 and 110818884680) |
 
 **Tier promotion.** The spec's first valid transition fires when the first
-sweep-enabled real-PR review is recorded, even before adjudication. The two
-`v0.3.0` passes above are that review (the sweep list is stated in each
-summary and `guard-fails-open` produced a finding on the plant), so the tier is
-`real_pr_provisional`. **The counted total stays `0`**: neither pass has an
-adjudicated compared-finding record, and the planted pair is a verification
-proof on a deliberate defect, not an ordinary review — it is cited as the
-promotion trigger, not counted. Both runs also had repository context active, so
+sweep-enabled real-PR review is recorded, even before adjudication. The promotion
+condition is the spec's alone: a real-PR review whose pass actually ran the
+sweep. The first such review recorded is the `v0.3.0` pass on #145 head `6ee6a58`
+(the sweep list is stated in its summary and `guard-fails-open` produced a
+finding), so the tier is `real_pr_provisional`. That pass is a real review run by
+the real dogfood workflow, even though its input was a deliberate defect; it
+satisfies the promotion condition but is **not a counted pull request**. **The
+counted total stays `0`**: counting needs an adjudicated compared-finding record,
+which neither pass has, and a verification plant is not an ordinary review. Both runs also had repository context active, so
 nothing here supports a sweep-only effect claim; the independence and
 own-repository caveats below still apply.
 

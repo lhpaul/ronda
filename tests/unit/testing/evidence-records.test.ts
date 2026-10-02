@@ -76,11 +76,16 @@ test("the real-PR record states the current evidence tier: fixture_only, or real
     `the tier must be \`fixture_only\` or \`real_pr_provisional\`; found: ${tier}`,
   );
   if (tier.includes("`real_pr_provisional`")) {
-    states(
-      REAL_PR,
-      "**Tier promotion.**",
-      "a provisional tier must carry its recorded promotion-trigger paragraph",
-    );
+    const marker = "**Tier promotion.**";
+    states(REAL_PR, marker, "a provisional tier must carry its recorded promotion-trigger paragraph");
+    const at = REAL_PR.indexOf(marker);
+    const paragraph = REAL_PR.slice(at, REAL_PR.indexOf("\n\n", at));
+    for (const needle of [
+      "real-PR review whose pass actually ran the sweep",
+      "is **not a counted pull request**",
+    ]) {
+      states(paragraph, needle, "the promotion paragraph must state the spec's condition and that the trigger is not counted");
+    }
   }
 });
 
