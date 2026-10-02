@@ -37,6 +37,17 @@ auto_improve = "false"  # Skip inline code suggestion comments (reduces noise).
 # GHA workflow fires on it, causing push-triggered runs to be silently skipped.
 pr_actions = ["opened", "reopened", "ready_for_review", "synchronize"]
 
+[ignore]
+# Generated benchmark and campaign data (#122). These JSON records carry synthetic
+# seeded-defect identifiers (e.g. "sensitive-value-exposure") and no executable
+# logic, so the reviewer reported only false positives on them. Source, workflow
+# and documentation files are still reviewed. PR-Agent translates each glob with
+# fnmatch, so "*" also matches across "/".
+glob = [
+  "docs/testing/ronda/*.json",
+  "tests/fixtures/recall-benchmark/*",
+]
+
 [pr_reviewer]
 # Do not include inline code suggestions in the review summary (auto_improve is off).
 num_code_suggestions = 0
