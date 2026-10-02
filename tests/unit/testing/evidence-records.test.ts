@@ -75,6 +75,10 @@ test("the real-PR record states the current evidence tier: fixture_only, or real
     tier.includes("`fixture_only`") || tier.includes("`real_pr_provisional`"),
     `the tier must be \`fixture_only\` or \`real_pr_provisional\`; found: ${tier}`,
   );
+  assert.ok(
+    !(tier.includes("`fixture_only`") && REAL_PR.includes("**Tier promotion.**")),
+    `the ledger records a promotion (a **Tier promotion.** paragraph) so the tier cannot revert to \`fixture_only\`; found: ${tier}`,
+  );
   if (tier.includes("`real_pr_provisional`")) {
     const marker = "**Tier promotion.**";
     states(REAL_PR, marker, "a provisional tier must carry its recorded promotion-trigger paragraph");
