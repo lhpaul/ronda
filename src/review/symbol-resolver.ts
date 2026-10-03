@@ -692,6 +692,15 @@ function classifyProvenance(expression: ts.Node, ctx: TraceContext, depth: numbe
     ]);
   }
   if (ts.isPropertyAccessExpression(expression)) {
+    // A member the checker could not bind on a concretely typed receiver is
+    // not explained by a missing import; a repository augmentation of that
+    // type (`interface String { repo(): Repo }`) may supply it.
+    if (
+      symbolAt(expression.name, ctx.checker) === undefined &&
+      !isAnyTyped(expression.expression, ctx.checker)
+    ) {
+      return "unknown";
+    }
     const base = classifyProvenance(expression.expression, ctx, depth + 1);
     if (base !== "unknown") {
       return base;
