@@ -315,12 +315,12 @@ function considerIdentifier(
     if (seenDeferred.has(key)) {
       return;
     }
-    // #153: a member access is only worth a candidate when its base is
-    // traceable to a relative import. `x.includes(...)`, `re.exec(...)`, and
-    // members of a literal, a built-in-typed local, or an external import
-    // cannot name repository code, and requesting them spent the budget and
-    // turned a pass with nothing to resolve into `unavailable`.
-    if (!isTraceableToRelativeImport(node.parent.expression, checker, 0)) {
+    // #153: skip a member access only when its base is *proven* not to be
+    // repository code (`text.includes(...)`, `re.exec(...)`, members of a
+    // literal, a primitive-typed local, or an external import). Requesting
+    // them spent the budget and turned a pass with nothing to resolve into
+    // `unavailable`. A base the tracer does not model keeps its candidate.
+    if (classifyProvenance(node.parent.expression, checker, 0) === "external") {
       skipped.add(`deferred:${key}`);
       return;
     }
@@ -428,51 +428,79 @@ function aliasModuleSpecifier(symbol: ts.Symbol): string | undefined {
   return undefined;
 }
 
-/** Bound on how far {@link isTraceableToRelativeImport} follows initializers and type annotations. */
-const MAX_TRACE_DEPTH = 4;
+/** Bound on how far {@link classifyProvenance} follows initializers, annotations and callbacks. */
+const MAX_TRACE_DEPTH = 16;
 
 /**
- * Whether an expression's value can be traced, syntactically, to an import
- * from a relative specifier (#153): the root identifier of the access chain is
- * such an import, or a local/parameter/property whose initializer or type
- * annotation is. A literal, a local of built-in type, `this`, or an external
- * import is not. Unknowable cases (an import whose specifier cannot be read)
- * are kept, because dropping a real repository symbol is the worse error.
+ * Where a value's type comes from, judged syntactically (#153):
+ * - `repository`: traceable to an import from a relative specifier;
+ * - `external`: *proven* not to be repository code (a literal, a primitive
+ *   annotation, a `node:*`/package import, a lib global, or anything derived
+ *   only from those);
+ * - `unknown`: anything the tracer does not model.
+ *
+ * Only `external` is ever skipped. Unknown provenance keeps the candidate:
+ * silently removing a real repository symbol is the worse error, and it
+ * would report `nothing_to_resolve` for a pass that had something to resolve.
  */
-function isTraceableToRelativeImport(
-  expression: ts.Node,
-  checker: ts.TypeChecker,
-  depth: number,
-): boolean {
+type Provenance = "repository" | "external" | "unknown";
+
+function combineProvenance(parts: Provenance[]): Provenance {
+  if (parts.includes("repository")) {
+    return "repository";
+  }
+  return parts.length > 0 && parts.every((part) => part === "external") ? "external" : "unknown";
+}
+
+function classifyProvenance(expression: ts.Node, checker: ts.TypeChecker, depth: number): Provenance {
   if (depth > MAX_TRACE_DEPTH) {
-    return false;
+    return "unknown";
+  }
+  if (ts.isParenthesizedExpression(expression) || ts.isNonNullExpression(expression) || ts.isAwaitExpression(expression)) {
+    return classifyProvenance(expression.expression, checker, depth);
   }
   if (
-    ts.isParenthesizedExpression(expression) ||
-    ts.isNonNullExpression(expression) ||
     ts.isAsExpression(expression) ||
     ts.isTypeAssertionExpression(expression) ||
-    ts.isSatisfiesExpression(expression) ||
-    ts.isAwaitExpression(expression)
+    ts.isSatisfiesExpression(expression)
   ) {
-    return isTraceableToRelativeImport(expression.expression, checker, depth);
+    // The asserted type, when it says something, outranks the operand.
+    const asserted = classifyTypeProvenance(expression.type, checker, depth + 1);
+    return asserted !== "unknown" ? asserted : classifyProvenance(expression.expression, checker, depth + 1);
   }
-  if (ts.isCallExpression(expression) || ts.isNewExpression(expression)) {
-    return isTraceableToRelativeImport(expression.expression, checker, depth + 1);
+  if (
+    ts.isStringLiteralLike(expression) ||
+    ts.isNumericLiteral(expression) ||
+    ts.isBigIntLiteral(expression) ||
+    ts.isRegularExpressionLiteral(expression) ||
+    ts.isTemplateExpression(expression) ||
+    expression.kind === ts.SyntaxKind.TrueKeyword ||
+    expression.kind === ts.SyntaxKind.FalseKeyword ||
+    expression.kind === ts.SyntaxKind.NullKeyword
+  ) {
+    return "external";
   }
-  if (ts.isElementAccessExpression(expression)) {
-    return isTraceableToRelativeImport(expression.expression, checker, depth + 1);
-  }
-  if (ts.isPropertyAccessExpression(expression)) {
-    return (
-      isTraceableToRelativeImport(expression.expression, checker, depth + 1) ||
-      isDeclarationTraceable(symbolAt(expression.name, checker), checker, depth + 1)
+  if (ts.isArrayLiteralExpression(expression)) {
+    return combineProvenance(
+      expression.elements.length === 0
+        ? ["external"]
+        : expression.elements.map((element) => classifyProvenance(element, checker, depth + 1)),
     );
   }
-  if (ts.isIdentifier(expression)) {
-    return isDeclarationTraceable(symbolAt(expression, checker), checker, depth);
+  if (ts.isCallExpression(expression) || ts.isNewExpression(expression) || ts.isElementAccessExpression(expression)) {
+    return classifyProvenance(expression.expression, checker, depth + 1);
   }
-  return false;
+  if (ts.isPropertyAccessExpression(expression)) {
+    const base = classifyProvenance(expression.expression, checker, depth + 1);
+    if (base !== "unknown") {
+      return base;
+    }
+    return classifySymbolProvenance(symbolAt(expression.name, checker), checker, depth + 1);
+  }
+  if (ts.isIdentifier(expression)) {
+    return classifySymbolProvenance(symbolAt(expression, checker), checker, depth);
+  }
+  return "unknown";
 }
 
 function symbolAt(node: ts.Node, checker: ts.TypeChecker): ts.Symbol | undefined {
@@ -483,52 +511,119 @@ function symbolAt(node: ts.Node, checker: ts.TypeChecker): ts.Symbol | undefined
   }
 }
 
-function isDeclarationTraceable(
+function classifySymbolProvenance(
   symbol: ts.Symbol | undefined,
   checker: ts.TypeChecker,
   depth: number,
-): boolean {
+): Provenance {
   if (!symbol || depth > MAX_TRACE_DEPTH) {
-    return false;
+    return "unknown";
   }
   if ((symbol.flags & ts.SymbolFlags.Alias) !== 0) {
     const specifier = aliasModuleSpecifier(symbol);
-    return specifier === undefined || !isNonRelativeSpecifier(specifier);
-  }
-  for (const decl of symbol.declarations ?? []) {
-    if (
-      ts.isVariableDeclaration(decl) ||
-      ts.isParameter(decl) ||
-      ts.isPropertyDeclaration(decl) ||
-      ts.isPropertySignature(decl)
-    ) {
-      if (decl.type && isTypeTraceable(decl.type, checker, depth + 1)) {
-        return true;
-      }
-      const initializer = "initializer" in decl ? decl.initializer : undefined;
-      if (initializer && isTraceableToRelativeImport(initializer, checker, depth + 1)) {
-        return true;
-      }
+    if (specifier === undefined) {
+      return "unknown";
     }
+    return isNonRelativeSpecifier(specifier) ? "external" : "repository";
   }
-  return false;
+  const declarations = symbol.declarations ?? [];
+  if (declarations.length > 0 && declarations.every((decl) => isOwnLibPath(decl.getSourceFile().fileName))) {
+    return "external"; // a lib global: `JSON`, `Math`, `Promise`, ...
+  }
+  return combineProvenance(declarations.map((decl) => classifyDeclarationProvenance(decl, checker, depth + 1)));
 }
 
-function isTypeTraceable(type: ts.TypeNode, checker: ts.TypeChecker, depth: number): boolean {
+function classifyDeclarationProvenance(decl: ts.Declaration, checker: ts.TypeChecker, depth: number): Provenance {
+  if (ts.isVariableDeclaration(decl) || ts.isParameter(decl) || ts.isPropertyDeclaration(decl) || ts.isPropertySignature(decl)) {
+    if (!ts.isIdentifier(decl.name)) {
+      return "unknown"; // a destructuring pattern
+    }
+    if (decl.type) {
+      return classifyTypeProvenance(decl.type, checker, depth + 1);
+    }
+    const initializer = "initializer" in decl ? decl.initializer : undefined;
+    if (initializer) {
+      return classifyProvenance(initializer, checker, depth + 1);
+    }
+    if (ts.isParameter(decl)) {
+      return classifyCallbackParameter(decl, checker, depth + 1);
+    }
+  }
+  return "unknown";
+}
+
+/**
+ * An unannotated first parameter of a callback passed to `receiver.method(cb)`
+ * takes its provenance from the receiver (`xs.map((x) => ...)`, `xs.find(...)`).
+ * `reduce` is excluded, because its first parameter is the accumulator.
+ */
+function classifyCallbackParameter(param: ts.ParameterDeclaration, checker: ts.TypeChecker, depth: number): Provenance {
+  const fn = param.parent;
+  if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) {
+    return "unknown";
+  }
+  if (fn.parameters[0] !== param) {
+    return "unknown";
+  }
+  const call = fn.parent;
+  if (
+    !ts.isCallExpression(call) ||
+    !call.arguments.includes(fn) ||
+    !ts.isPropertyAccessExpression(call.expression) ||
+    /^reduce(Right)?$/.test(call.expression.name.text)
+  ) {
+    return "unknown";
+  }
+  return classifyProvenance(call.expression.expression, checker, depth + 1);
+}
+
+function classifyTypeProvenance(type: ts.TypeNode, checker: ts.TypeChecker, depth: number): Provenance {
+  if (depth > MAX_TRACE_DEPTH) {
+    return "unknown";
+  }
+  switch (type.kind) {
+    case ts.SyntaxKind.StringKeyword:
+    case ts.SyntaxKind.NumberKeyword:
+    case ts.SyntaxKind.BooleanKeyword:
+    case ts.SyntaxKind.BigIntKeyword:
+    case ts.SyntaxKind.SymbolKeyword:
+    case ts.SyntaxKind.LiteralType:
+      return "external";
+    default:
+      break;
+  }
+  if (ts.isArrayTypeNode(type)) {
+    return classifyTypeProvenance(type.elementType, checker, depth + 1);
+  }
+  if (ts.isParenthesizedTypeNode(type)) {
+    return classifyTypeProvenance(type.type, checker, depth);
+  }
+  if (ts.isUnionTypeNode(type) || ts.isIntersectionTypeNode(type)) {
+    return combineProvenance(type.types.map((member) => classifyTypeProvenance(member, checker, depth + 1)));
+  }
   if (ts.isTypeReferenceNode(type)) {
     let name: ts.EntityName = type.typeName;
     while (ts.isQualifiedName(name)) {
       name = name.left;
     }
-    return isDeclarationTraceable(symbolAt(name, checker), checker, depth);
+    const symbol = symbolAt(name, checker);
+    const declarations = symbol?.declarations ?? [];
+    let head: Provenance;
+    if (symbol && declarations.length > 0 && declarations.every(ts.isTypeAliasDeclaration)) {
+      // A local alias is only as external as what it aliases.
+      head = combineProvenance(declarations.map((decl) => classifyTypeProvenance(decl.type, checker, depth + 1)));
+    } else {
+      head = classifySymbolProvenance(symbol, checker, depth + 1);
+    }
+    // `Array<Repo>`, `Promise<Repo>`: the arguments can carry a repository type.
+    const args = (type.typeArguments ?? []).map((arg) => classifyTypeProvenance(arg, checker, depth + 1));
+    return head === "repository" || args.includes("repository")
+      ? "repository"
+      : head === "external" && args.every((arg) => arg === "external")
+        ? "external"
+        : "unknown";
   }
-  if (ts.isUnionTypeNode(type) || ts.isIntersectionTypeNode(type)) {
-    return type.types.some((member) => isTypeTraceable(member, checker, depth + 1));
-  }
-  if (ts.isParenthesizedTypeNode(type)) {
-    return isTypeTraceable(type.type, checker, depth);
-  }
-  return false;
+  return "unknown";
 }
 
 function isNameNodeOf(decl: ts.Declaration, node: ts.Node): boolean {

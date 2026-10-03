@@ -509,6 +509,62 @@ test("#153: a member access on a local initialised from a relative import is tra
   assert.ok(identified.requested.some((ref) => ref.symbolName === "read"));
 });
 
+const REPO_SOURCE = "export class Repo {\n  read(): string { return \"r\"; }\n}\n";
+
+async function requestedFor(body: string[]): Promise<string[]> {
+  const files = new Map([
+    ["src/repo.ts", REPO_SOURCE],
+    ["src/caller.ts", ['import { Repo } from "./repo.js";', "", ...body].join("\n")],
+  ]);
+  const lines = new Set(body.map((_, i) => i + 3));
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", lines]]),
+    readFileFrom(files),
+  );
+  return identified.requested.map((ref) => ref.symbolName);
+}
+
+test("#153: unknown or unmodelled provenance keeps the candidate (only proven non-repository is skipped)", async () => {
+  const cases: Record<string, string[]> = {
+    "element of an array-typed parameter": ["export function run(repos: Repo[]): string {", "  return repos[0].read();", "}"],
+    "a local type alias of the imported type": [
+      "type R = Repo;",
+      "export function run(r: R): string {",
+      "  return r.read();",
+      "}",
+    ],
+    "a destructured parameter": [
+      "export function run({ repo }: { repo: Repo }): string {",
+      "  return repo.read();",
+      "}",
+    ],
+    "an inferred callback parameter": [
+      "export function run(repos: Repo[]): string[] {",
+      "  return repos.map((r) => r.read());",
+      "}",
+    ],
+    "a generic wrapper of the imported type": [
+      "export async function run(p: Promise<Repo>): Promise<string> {",
+      "  return (await p).read();",
+      "}",
+    ],
+    "an unannotated parameter whose type is unknown": ["export function run(thing) {", "  return thing.read();", "}"],
+  };
+  for (const [name, body] of Object.entries(cases)) {
+    assert.ok((await requestedFor(body)).includes("read"), name);
+  }
+});
+
+test("#153: a callback over a primitive-typed array is proven non-repository and skipped", async () => {
+  const names = await requestedFor([
+    "export function run(words: string[]): boolean {",
+    '  return words.some((w) => w.startsWith("a"));',
+    "}",
+  ]);
+  assert.deepEqual(names, []);
+});
+
 test("#153: a member access on a member of an external import is skipped", async () => {
   const files = new Map([
     [
