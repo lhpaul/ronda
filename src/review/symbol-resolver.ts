@@ -231,7 +231,6 @@ export async function identifyCandidates(
     nodeMemo: new Map(),
     symbolMemo: new Map(),
     narrowingMemo: new Map(),
-    typePredicateMemo: new Map(),
   };
   const requested: InternalRequestedReference[] = [];
   let nextId = 0;
@@ -443,21 +442,17 @@ function aliasModuleSpecifier(symbol: ts.Symbol): string | undefined {
  * Whether control-flow narrowing could change a name's type at `node`, which
  * would void an `external` proof drawn from its declared type (`e: Event` is
  * external, but `if (e instanceof RepoEvent) e.read()` is not). Narrowing
- * needs a type to narrow *to*: an `instanceof` or `in` test in the enclosing
- * function, a type predicate (`x is T`) anywhere in the file, or a call to a
- * function imported from the repository (which may be a guard). Any of these
- * keeps the candidate.
+ * needs a type to narrow *to*: an `instanceof` or `in` test, a type predicate
+ * (`x is T`), or a call to a function imported from the repository (which may
+ * be a guard), anywhere in the changed file. Any of these keeps the candidate.
  */
 function narrowingMayApply(node: ts.Node, ctx: TraceContext): boolean {
-  // The outermost enclosing function, not the nearest: a closure inherits the
-  // narrowing of every scope around it (`if (e instanceof Repo) return () => e.read()`).
-  let container: ts.Node = node.getSourceFile();
-  for (let ancestor: ts.Node | undefined = node; ancestor; ancestor = ancestor.parent) {
-    if (ts.isFunctionLike(ancestor)) {
-      container = ancestor;
-    }
-  }
-  const cached = ctx.narrowingMemo.get(container);
+  // The whole file, not the enclosing function: a closure inherits narrowing
+  // from every scope around it, module scope included, and a per-scope
+  // analysis kept missing one more shape. `instanceof`/`in` tests and imported
+  // calls are rare enough in changed files that the coarser rule costs little.
+  const sourceFile = node.getSourceFile();
+  const cached = ctx.narrowingMemo.get(sourceFile);
   if (cached !== undefined) {
     return cached;
   }
@@ -470,6 +465,7 @@ function narrowingMayApply(node: ts.Node, ctx: TraceContext): boolean {
       (ts.isBinaryExpression(child) &&
         (child.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword ||
           child.operatorToken.kind === ts.SyntaxKind.InKeyword)) ||
+      ts.isTypePredicateNode(child) ||
       (ts.isCallExpression(child) && classifyCalleeRoot(child.expression, ctx) === "repository")
     ) {
       found = true;
@@ -477,30 +473,8 @@ function narrowingMayApply(node: ts.Node, ctx: TraceContext): boolean {
     }
     ts.forEachChild(child, scan);
   };
-  scan(container);
-  if (!found) {
-    const sourceFile = container.getSourceFile();
-    const fileHasPredicate = ctx.typePredicateMemo.get(sourceFile);
-    if (fileHasPredicate === undefined) {
-      let predicate = false;
-      const scanFile = (child: ts.Node): void => {
-        if (predicate) {
-          return;
-        }
-        if (ts.isTypePredicateNode(child)) {
-          predicate = true;
-          return;
-        }
-        ts.forEachChild(child, scanFile);
-      };
-      scanFile(sourceFile);
-      ctx.typePredicateMemo.set(sourceFile, predicate);
-      found = predicate;
-    } else {
-      found = fileHasPredicate;
-    }
-  }
-  ctx.narrowingMemo.set(container, found);
+  scan(sourceFile);
+  ctx.narrowingMemo.set(sourceFile, found);
   return found;
 }
 
@@ -535,7 +509,6 @@ interface TraceContext {
   nodeMemo: Map<ts.Node, Provenance>;
   symbolMemo: Map<ts.Symbol, Provenance>;
   narrowingMemo: Map<ts.Node, boolean>;
-  typePredicateMemo: Map<ts.SourceFile, boolean>;
 }
 
 /** Work units one member access may spend on tracing before its provenance is `unknown`. */
