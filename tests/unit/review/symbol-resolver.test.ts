@@ -620,6 +620,15 @@ test("#153: unknown or unmodelled provenance keeps the candidate (only proven no
       "  fn();",
       "}",
     ],
+    "a const alias of a narrowed name": [
+      "export function run(e: Error): string {",
+      "  if (e instanceof Repo) {",
+      "    const alias = e;",
+      "    return alias.read();",
+      "  }",
+      '  return "";',
+      "}",
+    ],
     "a local alias of an imported guard": [
       'import { isRepo } from "./repo.js";',
       "const guard = isRepo;",

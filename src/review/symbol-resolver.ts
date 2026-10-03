@@ -228,8 +228,8 @@ export async function identifyCandidates(
   const trace: TraceContext = {
     checker,
     remaining: TRACE_WORK_BUDGET,
-    nodeMemo: new Map(),
     symbolMemo: new Map(),
+    traced: new Set(),
     narrowingMemo: new Map(),
   };
   const requested: InternalRequestedReference[] = [];
@@ -333,10 +333,16 @@ function considerIdentifier(
     // loaded, so `"a".repoMethod()` is unresolved only because some repository
     // file may augment `String`.
     trace.remaining = TRACE_WORK_BUDGET;
+    trace.traced = new Set();
+    // The root name is traced even when it has no declaration to follow.
+    const rootSymbol = rootSymbolOf(node.parent.expression, checker);
+    if (rootSymbol) {
+      trace.traced.add(rootSymbol);
+    }
     if (
       classifyProvenance(node.parent.expression, trace, 0) === "external" &&
       isAnyTyped(node.parent.expression, checker) &&
-      !narrowingMayApply(node.parent.expression, trace)
+      ![...trace.traced].some((traced) => narrowingMayApply(traced, trace))
     ) {
       skipped.add(`deferred:${key}`);
       return;
@@ -462,6 +468,22 @@ function isAnyTyped(expression: ts.Expression, checker: ts.TypeChecker): boolean
   }
 }
 
+/** The symbol of the identifier an access chain (`a.b[c]!`) is rooted at, if it is rooted at one. */
+function rootSymbolOf(expression: ts.Expression, checker: ts.TypeChecker): ts.Symbol | undefined {
+  let root: ts.Expression = expression;
+  while (
+    ts.isPropertyAccessExpression(root) ||
+    ts.isElementAccessExpression(root) ||
+    ts.isNonNullExpression(root) ||
+    ts.isParenthesizedExpression(root) ||
+    ts.isAwaitExpression(root)
+  ) {
+    root = root.expression;
+  }
+  return ts.isIdentifier(root) ? symbolAt(root, checker) : undefined;
+}
+
+
 /**
  * Whether control-flow narrowing could change the type of the name an access
  * is rooted at, which would void an `external` proof drawn from its declared
@@ -473,24 +495,7 @@ function isAnyTyped(expression: ts.Expression, checker: ts.TypeChecker): boolean
  * the narrowing of every scope around it. Tests on other names, and the many
  * ordinary helper calls a file makes, do not count.
  */
-function narrowingMayApply(base: ts.Expression, ctx: TraceContext): boolean {
-  let root: ts.Expression = base;
-  while (
-    ts.isPropertyAccessExpression(root) ||
-    ts.isElementAccessExpression(root) ||
-    ts.isNonNullExpression(root) ||
-    ts.isParenthesizedExpression(root) ||
-    ts.isAwaitExpression(root)
-  ) {
-    root = root.expression;
-  }
-  if (!ts.isIdentifier(root)) {
-    return false;
-  }
-  const symbol = symbolAt(root, ctx.checker);
-  if (!symbol) {
-    return false;
-  }
+function narrowingMayApply(symbol: ts.Symbol, ctx: TraceContext): boolean {
   const cached = ctx.narrowingMemo.get(symbol);
   if (cached !== undefined) {
     return cached;
@@ -525,7 +530,12 @@ function narrowingMayApply(base: ts.Expression, ctx: TraceContext): boolean {
     }
     ts.forEachChild(child, scan);
   };
-  scan(root.getSourceFile());
+  for (const declaration of symbol.declarations ?? []) {
+    scan(declaration.getSourceFile());
+    if (found) {
+      break;
+    }
+  }
   ctx.narrowingMemo.set(symbol, found);
   return found;
 }
@@ -578,8 +588,10 @@ function isPotentialGuardCall(call: ts.CallExpression, ctx: TraceContext): boole
 interface TraceContext {
   checker: ts.TypeChecker;
   remaining: number;
-  nodeMemo: Map<ts.Node, Provenance>;
-  symbolMemo: Map<ts.Symbol, Provenance>;
+  /** Per-symbol result with every symbol its proof passed through, so a memo hit still reports them. */
+  symbolMemo: Map<ts.Symbol, { provenance: Provenance; traced: ts.Symbol[] }>;
+  /** Symbols the classification in progress has passed through (declarations it relied on). */
+  traced: Set<ts.Symbol>;
   narrowingMemo: Map<ts.Symbol, boolean>;
 }
 
@@ -622,18 +634,6 @@ function classifyProvenance(expression: ts.Node, ctx: TraceContext, depth: numbe
   if (depth > MAX_TRACE_DEPTH || !spendTraceWork(ctx)) {
     return "unknown";
   }
-  const memoized = ctx.nodeMemo.get(expression);
-  if (memoized !== undefined) {
-    return memoized;
-  }
-  const result = classifyProvenanceUncached(expression, ctx, depth);
-  if (ctx.remaining > 0) {
-    ctx.nodeMemo.set(expression, result);
-  }
-  return result;
-}
-
-function classifyProvenanceUncached(expression: ts.Node, ctx: TraceContext, depth: number): Provenance {
   if (ts.isParenthesizedExpression(expression) || ts.isNonNullExpression(expression) || ts.isAwaitExpression(expression)) {
     return classifyProvenance(expression.expression, ctx, depth);
   }
@@ -717,13 +717,19 @@ function classifySymbolProvenance(
     return "unknown";
   }
   const memoized = ctx.symbolMemo.get(symbol);
-  if (memoized !== undefined) {
-    return memoized;
+  if (memoized) {
+    memoized.traced.forEach((traced) => ctx.traced.add(traced));
+    return memoized.provenance;
   }
-  ctx.symbolMemo.set(symbol, "unknown"); // breaks a self-referential initializer cycle
+  ctx.symbolMemo.set(symbol, { provenance: "unknown", traced: [symbol] }); // breaks a self-referential initializer cycle
+  const outer = ctx.traced;
+  ctx.traced = new Set([symbol]);
   const result = classifySymbolProvenanceUncached(symbol, ctx, depth);
+  const mine = ctx.traced;
+  ctx.traced = outer;
+  mine.forEach((traced) => outer.add(traced));
   if (ctx.remaining > 0) {
-    ctx.symbolMemo.set(symbol, result);
+    ctx.symbolMemo.set(symbol, { provenance: result, traced: [...mine] });
   } else {
     ctx.symbolMemo.delete(symbol);
   }
