@@ -566,6 +566,11 @@ test("#153: unknown or unmodelled provenance keeps the candidate (only proven no
       "  return q.read();",
       "}",
     ],
+    "Array.from with an element callback": [
+      "export function run(repos: Repo[]): string[] {",
+      "  return Array.from(repos, (repo) => repo.read());",
+      "}",
+    ],
     "a generic constructor with the imported type as an argument": [
       "export function run(): string {",
       '  const repos = new Map<string, Repo>();',

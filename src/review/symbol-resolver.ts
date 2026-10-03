@@ -573,8 +573,23 @@ function classifyDeclarationProvenance(decl: ts.Declaration, checker: ts.TypeChe
 /**
  * An unannotated first parameter of a callback passed to `receiver.method(cb)`
  * takes its provenance from the receiver (`xs.map((x) => ...)`, `xs.find(...)`).
- * `reduce` is excluded, because its first parameter is the accumulator.
+ * Only the array methods whose callback receives the receiver's elements
+ * qualify: `Array.from(xs, cb)` takes its elements from the argument, and
+ * `reduce`'s first parameter is the accumulator, so those stay unknown.
  */
+const ELEMENT_CALLBACK_METHODS: ReadonlySet<string> = new Set([
+  "map",
+  "flatMap",
+  "filter",
+  "find",
+  "findLast",
+  "findIndex",
+  "findLastIndex",
+  "some",
+  "every",
+  "forEach",
+]);
+
 function classifyCallbackParameter(param: ts.ParameterDeclaration, checker: ts.TypeChecker, depth: number): Provenance {
   const fn = param.parent;
   if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) {
@@ -588,7 +603,7 @@ function classifyCallbackParameter(param: ts.ParameterDeclaration, checker: ts.T
     !ts.isCallExpression(call) ||
     !call.arguments.includes(fn) ||
     !ts.isPropertyAccessExpression(call.expression) ||
-    /^reduce(Right)?$/.test(call.expression.name.text)
+    !ELEMENT_CALLBACK_METHODS.has(call.expression.name.text)
   ) {
     return "unknown";
   }
