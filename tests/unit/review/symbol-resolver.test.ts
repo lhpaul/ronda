@@ -549,6 +549,23 @@ test("#153: unknown or unmodelled provenance keeps the candidate (only proven no
       "  return (await p).read();",
       "}",
     ],
+    "an awaited Promise.resolve of the imported value": [
+      "export async function run(repo: Repo): Promise<string> {",
+      "  const r = await Promise.resolve(repo);",
+      "  return r.read();",
+      "}",
+    ],
+    "Array.from over imported values": [
+      "export function run(repos: Repo[]): string {",
+      "  return Array.from(repos)[0].read();",
+      "}",
+    ],
+    "a callback that builds the imported type": [
+      "export function run(): string {",
+      "  const q = [1].map(() => new Repo())[0];",
+      "  return q.read();",
+      "}",
+    ],
     "an unannotated parameter whose type is unknown": ["export function run(thing) {", "  return thing.read();", "}"],
   };
   for (const [name, body] of Object.entries(cases)) {

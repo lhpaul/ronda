@@ -487,8 +487,24 @@ function classifyProvenance(expression: ts.Node, checker: ts.TypeChecker, depth:
         : expression.elements.map((element) => classifyProvenance(element, checker, depth + 1)),
     );
   }
-  if (ts.isCallExpression(expression) || ts.isNewExpression(expression) || ts.isElementAccessExpression(expression)) {
+  if (ts.isElementAccessExpression(expression)) {
     return classifyProvenance(expression.expression, checker, depth + 1);
+  }
+  if (ts.isCallExpression(expression) || ts.isNewExpression(expression)) {
+    // A call result is not simply its callee's provenance: an external
+    // function can return what it was given (`Promise.resolve(repo)`,
+    // `Array.from(repos)`) or what a callback builds (`xs.map(() => new Repo())`).
+    // It is external only when the callee and every argument are proven so.
+    const callee = classifyProvenance(expression.expression, checker, depth + 1);
+    if (callee !== "external") {
+      return callee;
+    }
+    return combineProvenance([
+      callee,
+      ...(expression.arguments ?? []).map((arg) =>
+        ts.isSpreadElement(arg) ? "unknown" : classifyProvenance(arg, checker, depth + 1),
+      ),
+    ]);
   }
   if (ts.isPropertyAccessExpression(expression)) {
     const base = classifyProvenance(expression.expression, checker, depth + 1);
