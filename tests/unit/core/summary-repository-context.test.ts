@@ -29,6 +29,7 @@ function record(overrides: Partial<RepositoryContextPassRecord> = {}): Repositor
     drops: [],
     unreadableChangedFilePaths: [],
     contentRequestCount: 3,
+    nonRepositoryReferencesSkipped: 2,
     charsUsed: 120,
     maxCandidates: 12,
     maxChars: 24_000,
@@ -77,6 +78,7 @@ test("scenario 13: the check-run output carries the full record, including conte
   assert.match(output.summary, /Repository context partial/);
   assert.match(output.summary, /Candidates requested: 2, resolved: 2/);
   assert.match(output.summary, /Content requests: 3/);
+  assert.match(output.summary, /Non-repository references skipped: 2/);
   assert.match(output.summary, /helper src\/other\.ts:4 — character_budget/);
 });
 

@@ -15,7 +15,10 @@ import {
   TS_LIB_DIR,
   type RepositoryContextReadFile,
 } from "../../../src/review/symbol-resolver.js";
-import { buildRepositoryContextCandidates } from "../../../src/review/repository-context.js";
+import {
+  buildRepositoryContextCandidates,
+  resolveRepositoryContextOutcome,
+} from "../../../src/review/repository-context.js";
 
 function readFileFrom(
   files: Map<string, string>,
@@ -393,7 +396,7 @@ test("E14: a directory specifier resolves via the index forms", () => {
 
 // --- E15: unresolvable specifier forms are dropped, never guessed ---------
 
-test("E15: a bare specifier is never probed and is dropped ambiguous_resolution", async () => {
+test("E15: a bare specifier is never probed and is never requested (#153: skipped, not dropped)", async () => {
   assert.equal(candidatePathsFor("src/caller.ts", "some-package"), undefined);
   const files = new Map([
     [
@@ -407,16 +410,449 @@ test("E15: a bare specifier is never probed and is dropped ambiguous_resolution"
     probed = true;
     return undefined;
   };
-  const { candidates, drops } = await resolveAgainst(
+  const { identified, candidates, drops } = await resolveAgainst(
     files,
     ["src/caller.ts"],
     new Map([["src/caller.ts", new Set([4])]]),
     readFile,
   );
   assert.equal(probed, false); // AC9: no node_modules / bare-specifier read is ever attempted
+  assert.equal(identified.requested.length, 0);
+  assert.equal(identified.nonRepositoryReferencesSkipped, 1);
   assert.equal(candidates.length, 0);
-  assert.equal(drops.length, 1);
-  assert.equal(drops[0].reason, "ambiguous_resolution");
+  assert.equal(drops.length, 0);
+});
+
+// --- #153: non-repository references are not requested ---------------------
+
+const BUILT_IN_ONLY = [
+  'import test from "node:test";',
+  'import assert from "node:assert/strict";',
+  'import { readFileSync } from "node:fs";',
+  "",
+  'test("x", () => {',
+  '  const text = readFileSync("a", "utf8");',
+  '  assert.ok(text.includes("x"));',
+  '  const parts = text.split(",");',
+  "  const first = parts.slice(0, 1).find((p) => p.startsWith(\"a\"));",
+  "  const m = /a/.exec(text);",
+  "  JSON.stringify({ first, m });",
+  "  void Promise.resolve(1);",
+  "});",
+].join("\n");
+
+test("#153: built-in members, node:* imports and globals request no candidate", async () => {
+  const files = new Map([["tests/a.test.ts", BUILT_IN_ONLY]]);
+  const lines = new Set(BUILT_IN_ONLY.split("\n").map((_, i) => i + 1));
+  const identified = await identifyCandidates(
+    ["tests/a.test.ts"],
+    new Map([["tests/a.test.ts", lines]]),
+    readFileFrom(files),
+  );
+  assert.deepEqual(
+    identified.requested.map((ref) => ref.symbolName),
+    [],
+  );
+  assert.ok(identified.nonRepositoryReferencesSkipped > 0);
+});
+
+test("#153: a relative import used alongside built-ins is still requested; the built-ins are not", async () => {
+  const files = new Map([
+    ["src/repo.ts", "export class Repo {\n  read(path: string): string { return path; }\n}\n"],
+    [
+      "src/caller.ts",
+      [
+        'import { readFileSync } from "node:fs";',
+        'import { Repo } from "./repo.js";',
+        "",
+        "export function run(repo: Repo): string {",
+        '  const text = readFileSync("a", "utf8").slice(1);',
+        '  return repo.read(text.split(",")[0]);',
+        "}",
+      ].join("\n"),
+    ],
+  ]);
+  const { identified, candidates, drops } = await resolveAgainst(
+    files,
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([5, 6])]]),
+  );
+  const names = identified.requested.map((ref) => ref.symbolName).sort();
+  assert.ok(names.includes("read"));
+  for (const builtIn of ["slice", "split", "readFileSync"]) {
+    assert.ok(!names.includes(builtIn), builtIn);
+  }
+  assert.equal(drops.length, 0);
+  assert.ok(candidates.some((c) => c.symbolName === "read" && c.path === "src/repo.ts"));
+});
+
+test("#153: a member access on a local initialised from a relative import is traced and requested", async () => {
+  const files = new Map([
+    ["src/repo.ts", "export function makeRepo() {\n  return { read(): string { return \"r\"; } };\n}\n"],
+    [
+      "src/caller.ts",
+      [
+        'import { makeRepo } from "./repo.js";',
+        "",
+        "export function run(): string {",
+        "  const repo = makeRepo();",
+        "  return repo.read();",
+        "}",
+      ].join("\n"),
+    ],
+  ]);
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([5])]]),
+    readFileFrom(files),
+  );
+  assert.ok(identified.requested.some((ref) => ref.symbolName === "read"));
+});
+
+const REPO_SOURCE = "export class Repo {\n  read(): string { return \"r\"; }\n}\n";
+
+async function requestedFor(body: string[]): Promise<string[]> {
+  const files = new Map([
+    ["src/repo.ts", REPO_SOURCE],
+    ["src/caller.ts", ['import { Repo } from "./repo.js";', "", ...body].join("\n")],
+  ]);
+  const lines = new Set(body.map((_, i) => i + 3));
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", lines]]),
+    readFileFrom(files),
+  );
+  return identified.requested.map((ref) => ref.symbolName);
+}
+
+test("#153: unknown or unmodelled provenance keeps the candidate (only proven non-repository is skipped)", async () => {
+  const cases: Record<string, string[]> = {
+    "element of an array-typed parameter": ["export function run(repos: Repo[]): string {", "  return repos[0].read();", "}"],
+    "a local type alias of the imported type": [
+      "type R = Repo;",
+      "export function run(r: R): string {",
+      "  return r.read();",
+      "}",
+    ],
+    "a destructured parameter": [
+      "export function run({ repo }: { repo: Repo }): string {",
+      "  return repo.read();",
+      "}",
+    ],
+    "an inferred callback parameter": [
+      "export function run(repos: Repo[]): string[] {",
+      "  return repos.map((r) => r.read());",
+      "}",
+    ],
+    "a generic wrapper of the imported type": [
+      "export async function run(p: Promise<Repo>): Promise<string> {",
+      "  return (await p).read();",
+      "}",
+    ],
+    "an awaited Promise.resolve of the imported value": [
+      "export async function run(repo: Repo): Promise<string> {",
+      "  const r = await Promise.resolve(repo);",
+      "  return r.read();",
+      "}",
+    ],
+    "Array.from over imported values": [
+      "export function run(repos: Repo[]): string {",
+      "  return Array.from(repos)[0].read();",
+      "}",
+    ],
+    "a callback that builds the imported type": [
+      "export function run(): string {",
+      "  const q = [1].map(() => new Repo())[0];",
+      "  return q.read();",
+      "}",
+    ],
+    "Array.from with an element callback": [
+      "export function run(repos: Repo[]): string[] {",
+      "  return Array.from(repos, (repo) => repo.read());",
+      "}",
+    ],
+    "a generic constructor with the imported type as an argument": [
+      "export function run(): string {",
+      '  const repos = new Map<string, Repo>();',
+      '  return repos.get("a").read();',
+      "}",
+    ],
+    "an assertion to a local interface extending the imported type": [
+      "interface LocalRepo extends Repo {}",
+      "export function run(): string {",
+      "  const repos = [] as LocalRepo[];",
+      "  return repos[0].read();",
+      "}",
+    ],
+    "a contextually typed parameter with a null default": [
+      "declare function visit(cb: (repo: Repo | null) => unknown): void;",
+      "export function run(): void {",
+      "  visit((repo = null) => {",
+      "    if (repo) repo.read();",
+      "  });",
+      "}",
+    ],
+    "a let reassigned to the imported type": [
+      "export function run(): string {",
+      "  let r = null;",
+      "  r = new Repo();",
+      "  return r.read();",
+      "}",
+    ],
+    "an instanceof narrowing of an external declared type": [
+      "export function run(e: Error): string {",
+      "  if (e instanceof Repo) return e.read();",
+      '  return "";',
+      "}",
+    ],
+    "a closure inside an instanceof narrowing": [
+      "export function run(e: Error): (() => string) | undefined {",
+      "  if (e instanceof Repo) {",
+      "    return () => e.read();",
+      "  }",
+      "  return undefined;",
+      "}",
+    ],
+    "a closure under a module-scope instanceof narrowing": [
+      "const e: Error = new Error();",
+      "if (e instanceof Repo) {",
+      "  const fn = () => e.read();",
+      "  fn();",
+      "}",
+    ],
+    "a const alias of a narrowed name": [
+      "export function run(e: Error): string {",
+      "  if (e instanceof Repo) {",
+      "    const alias = e;",
+      "    return alias.read();",
+      "  }",
+      '  return "";',
+      "}",
+    ],
+    "a guard result held in a boolean": [
+      'import { isRepo } from "./repo.js";',
+      "export function run(e: Error): string {",
+      "  const ok = isRepo(e);",
+      "  if (ok) return e.read();",
+      '  return "";',
+      "}",
+    ],
+    "a local alias of an imported guard": [
+      'import { isRepo } from "./repo.js";',
+      "const guard = isRepo;",
+      "export function run(e: Error): string {",
+      "  if (guard(e)) return e.read();",
+      '  return "";',
+      "}",
+    ],
+    "a local type-predicate guard": [
+      "declare function isRepo(x: Error): x is Repo;",
+      "export function run(e: Error): string {",
+      "  if (isRepo(e)) return e.read();",
+      '  return "";',
+      "}",
+    ],
+    "an operand with satisfies": [
+      "export function run(): string {",
+      "  const repo = new Repo() satisfies object;",
+      "  return repo.read();",
+      "}",
+    ],
+    "an unannotated parameter whose type is unknown": ["export function run(thing) {", "  return thing.read();", "}"],
+  };
+  for (const [name, body] of Object.entries(cases)) {
+    assert.ok((await requestedFor(body)).includes("read"), name);
+  }
+});
+
+test("#153: shared initializer chains are traced in bounded time", async () => {
+  const refs = (name: string) => Array.from({ length: 60 }, () => name).join(", ");
+  const body = [
+    "const a0 = [];",
+    `const a1 = [${refs("a0")}];`,
+    `const a2 = [${refs("a1")}];`,
+    `const a3 = [${refs("a2")}];`,
+    `const a4 = [${refs("a3")}];`,
+    "a4.missing();",
+  ];
+  const files = new Map([["src/caller.ts", body.join("\n")]]);
+  const started = Date.now();
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([6])]]),
+    readFileFrom(files),
+  );
+  assert.ok(Date.now() - started < 3_000, `took ${Date.now() - started}ms`);
+  // Exhausting the work budget yields unknown, which keeps the candidate.
+  assert.ok(identified.requested.every((ref) => ref.symbolName === "missing"));
+});
+
+test("#153: a JSDoc-typed declaration in a JavaScript file keeps its candidate", async () => {
+  const files = new Map([
+    ["src/repo.js", "export class Repo {\n  read() { return 'r'; }\n}\n"],
+    [
+      "src/caller.js",
+      [
+        'import { Repo } from "./repo.js";',
+        "",
+        "export function run() {",
+        "  /** @type {Repo} */",
+        "  const r = null;",
+        "  return r.read();",
+        "}",
+      ].join("\n"),
+    ],
+  ]);
+  const identified = await identifyCandidates(
+    ["src/caller.js"],
+    new Map([["src/caller.js", new Set([6])]]),
+    readFileFrom(files),
+  );
+  assert.ok(identified.requested.some((ref) => ref.symbolName === "read"));
+});
+
+test("#153: a member missing from a concretely typed base may be a repository augmentation and is kept", async () => {
+  const files = new Map([
+    ["src/extend.ts", 'declare global {\n  interface String {\n    repoMethod(): string;\n  }\n}\nexport {};\n'],
+    [
+      "src/caller.ts",
+      ['import "./extend.js";', "", "export function run(text: string): string {", "  return text.repoMethod();", "}"].join(
+        "\n",
+      ),
+    ],
+  ]);
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([4])]]),
+    readFileFrom(files),
+  );
+  assert.ok(identified.requested.some((ref) => ref.symbolName === "repoMethod"));
+});
+
+test("#153: a chained access through a repository-augmented member of a concrete receiver is kept", async () => {
+  const files = new Map([
+    [
+      "src/extend.ts",
+      'import { Repo } from "./repo.js";\ndeclare global {\n  interface String {\n    repo(): Repo;\n  }\n}\nexport {};\n',
+    ],
+    ["src/repo.ts", REPO_SOURCE],
+    [
+      "src/caller.ts",
+      ['import "./extend.js";', "", "export function run(text: string): string {", "  return text.repo().read();", "}"].join(
+        "\n",
+      ),
+    ],
+  ]);
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([4])]]),
+    readFileFrom(files),
+  );
+  assert.ok(identified.requested.some((ref) => ref.symbolName === "read"));
+});
+
+test("#153: a const alias of a repository-augmented member of a concrete receiver is kept", async () => {
+  const files = new Map([
+    [
+      "src/extend.ts",
+      'import { Repo } from "./repo.js";\ndeclare global {\n  interface String {\n    repo(): Repo;\n  }\n}\nexport {};\n',
+    ],
+    ["src/repo.ts", REPO_SOURCE],
+    [
+      "src/caller.ts",
+      [
+        'import "./extend.js";',
+        "",
+        "export function run(text: string): string {",
+        "  const r = text.repo();",
+        "  return r.read();",
+        "}",
+      ].join("\n"),
+    ],
+  ]);
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([5])]]),
+    readFileFrom(files),
+  );
+  assert.ok(identified.requested.some((ref) => ref.symbolName === "read"));
+});
+
+test("#153: a lib member that a side-effect-imported module may augment is kept", async () => {
+  const files = new Map([
+    [
+      "src/extend.ts",
+      'declare global {\n  interface String {\n    slice(from: number, to: number, extra: string): string;\n  }\n}\nexport {};\n',
+    ],
+    [
+      "src/caller.ts",
+      ['import "./extend.js";', "", "export function run(text: string): string {", "  return text.slice(0);", "}"].join("\n"),
+    ],
+  ]);
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([4])]]),
+    readFileFrom(files),
+  );
+  assert.ok(identified.requested.some((ref) => ref.symbolName === "slice"));
+});
+
+test("#153: narrowing analysis scales linearly with the number of traced names", async () => {
+  const count = 1_500;
+  const body = ['import { readFileSync } from "node:fs";'];
+  for (let i = 0; i < count; i += 1) {
+    body.push(`const x${i} = readFileSync("x");`, `x${i}.foo();`);
+  }
+  const files = new Map([["src/caller.ts", body.join("\n")]]);
+  const lines = new Set(body.map((_, i) => i + 1));
+  const started = Date.now();
+  const identified = await identifyCandidates(["src/caller.ts"], new Map([["src/caller.ts", lines]]), readFileFrom(files));
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed < 5_000, `took ${elapsed}ms`);
+  assert.equal(identified.requested.length, 0);
+});
+
+test("#153: a callback over a primitive-typed array is proven non-repository and skipped", async () => {
+  const names = await requestedFor([
+    "export function run(words: string[]): boolean {",
+    '  return words.some((w) => w.startsWith("a"));',
+    "}",
+  ]);
+  assert.deepEqual(names, []);
+});
+
+test("#153: a member access on a member of an external import is skipped", async () => {
+  const files = new Map([
+    [
+      "src/caller.ts",
+      ['import express from "express";', "", "export function run(): void {", "  express().listen(3000);", "}"].join(
+        "\n",
+      ),
+    ],
+  ]);
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([4])]]),
+    readFileFrom(files),
+  );
+  assert.deepEqual(identified.requested, []);
+  assert.ok(identified.nonRepositoryReferencesSkipped >= 1);
+});
+
+test("#153: a pass whose references are all non-repository reports nothing_to_resolve, not unavailable", async () => {
+  const files = new Map([["tests/a.test.ts", BUILT_IN_ONLY]]);
+  const { identified } = await resolveAgainst(
+    files,
+    ["tests/a.test.ts"],
+    new Map([["tests/a.test.ts", new Set(BUILT_IN_ONLY.split("\n").map((_, i) => i + 1))]]),
+  );
+  assert.equal(
+    resolveRepositoryContextOutcome({
+      candidatesRequested: identified.requested.length,
+      candidatesResolved: 0,
+    }),
+    "nothing_to_resolve",
+  );
 });
 
 // --- E16: one changed file reads fine, a sibling fails transiently --------

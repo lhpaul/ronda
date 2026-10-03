@@ -138,6 +138,14 @@ export interface IdentifyCandidatesResult {
   /** Changed files successfully read, keyed by path — reused by `buildSourceFileSet` (never re-read). */
   changedSourceTexts: Map<string, string>;
   contentRequestCount: number;
+  /**
+   * Distinct references the identification step declined to request because
+   * they cannot name repository code (built-in or global library members,
+   * `node:*` and package imports, member accesses not traceable to a relative
+   * import). A count only, so the filter stays visible without restoring the
+   * noise it removed (#153).
+   */
+  nonRepositoryReferencesSkipped: number;
 }
 
 /**
@@ -196,7 +204,13 @@ export async function identifyCandidates(
   }
 
   if (changedSourceTexts.size === 0) {
-    return { requested: [], unreadableChangedFilePaths, changedSourceTexts, contentRequestCount };
+    return {
+      requested: [],
+      unreadableChangedFilePaths,
+      changedSourceTexts,
+      contentRequestCount,
+      nonRepositoryReferencesSkipped: 0,
+    };
   }
 
   const host = createVirtualCompilerHost(changedSourceTexts);
@@ -210,6 +224,15 @@ export async function identifyCandidates(
   const seen = new Map<ts.Symbol, number>();
   const seenDeferred = new Map<string, number>();
   const symbolIds = new Map<ts.Symbol, number>();
+  const skipped = new Set<string | ts.Symbol>();
+  const trace: TraceContext = {
+    checker,
+    remaining: TRACE_WORK_BUDGET,
+    symbolMemo: new Map(),
+    traced: new Set(),
+    narrowingMemo: new Map(),
+    narrowingIndexes: new Map(),
+  };
   const requested: InternalRequestedReference[] = [];
   let nextId = 0;
 
@@ -232,6 +255,8 @@ export async function identifyCandidates(
           seen,
           seenDeferred,
           symbolIds,
+          skipped,
+          trace,
           requested,
           () => nextId++,
         );
@@ -241,7 +266,13 @@ export async function identifyCandidates(
     visit(sourceFile);
   }
 
-  return { requested, unreadableChangedFilePaths, changedSourceTexts, contentRequestCount };
+  return {
+    requested,
+    unreadableChangedFilePaths,
+    changedSourceTexts,
+    contentRequestCount,
+    nonRepositoryReferencesSkipped: skipped.size,
+  };
 }
 
 function considerIdentifier(
@@ -254,6 +285,8 @@ function considerIdentifier(
   seen: Map<ts.Symbol, number>,
   seenDeferred: Map<string, number>,
   symbolIds: Map<ts.Symbol, number>,
+  skipped: Set<string | ts.Symbol>,
+  trace: TraceContext,
   requested: InternalRequestedReference[],
   allocateId: () => number,
 ): void {
@@ -290,6 +323,29 @@ function considerIdentifier(
     // declaration identity, in `resolveSymbols`.
     const key = deferredDedupKey(node.parent.expression, node.text, checker, symbolIds);
     if (seenDeferred.has(key)) {
+      return;
+    }
+    // #153: skip a member access only when its base is *proven* not to be
+    // repository code (`text.includes(...)`, `re.exec(...)`, members of a
+    // literal, a primitive-typed local, or an external import). Requesting
+    // them spent the budget and turned a pass with nothing to resolve into
+    // `unavailable`. A base the tracer does not model keeps its candidate, and
+    // so does a member missing from a *concretely typed* base: the full lib is
+    // loaded, so `"a".repoMethod()` is unresolved only because some repository
+    // file may augment `String`.
+    trace.remaining = TRACE_WORK_BUDGET;
+    trace.traced = new Set();
+    // The root name is traced even when it has no declaration to follow.
+    const rootSymbol = rootSymbolOf(node.parent.expression, checker);
+    if (rootSymbol) {
+      trace.traced.add(rootSymbol);
+    }
+    if (
+      classifyProvenance(node.parent.expression, trace, 0) === "external" &&
+      isAnyChain(node.parent.expression, checker) &&
+      ![...trace.traced].some((traced) => narrowingMayApply(traced, trace))
+    ) {
+      skipped.add(`deferred:${key}`);
       return;
     }
     const id = allocateId();
@@ -329,6 +385,23 @@ function considerIdentifier(
   ) {
     return;
   }
+  // #153: globals and default-library members (`Promise`, `JSON`,
+  // `String.prototype.slice`) are declared only in TypeScript's own lib
+  // files, and an import whose first-hop specifier is not relative (`node:*`,
+  // a package name) points outside the repository. Neither can resolve to
+  // repository code, so neither is requested.
+  const declaredOnlyInLib =
+    declarations.length > 0 &&
+    declarations.every((decl) => isOwnLibPath(decl.getSourceFile().fileName));
+  const externalImport = isAlias && isNonRelativeSpecifier(aliasModuleSpecifier(symbol));
+  // A file that imports a repository module for its side effects
+  // (`import "./extend.js"`) is the usual shape of a global augmentation, which
+  // can add or overload lib members the changed-files-only program cannot see.
+  // Its lib references are kept for closure resolution to decide.
+  if ((declaredOnlyInLib && !hasSideEffectRepositoryImport(sourceFile)) || externalImport) {
+    skipped.add(symbol);
+    return;
+  }
   if (seen.has(symbol)) {
     return; // E6: one requested candidate per distinct referenced symbol.
   }
@@ -344,6 +417,522 @@ function considerIdentifier(
     anchorPos: node.getStart(sourceFile),
     specifierKey: firstHopSpecifierKey(symbol, filePath),
   });
+}
+
+/**
+ * True for a module specifier that cannot be a repository path: `node:*`,
+ * package names, `#imports`, `paths` aliases. The exact complement of what
+ * {@link candidatePathsFor} is willing to probe, so identification never
+ * requests a reference resolution would refuse to follow.
+ */
+function isNonRelativeSpecifier(specifier: string | undefined): boolean {
+  return specifier !== undefined && candidatePathsFor("", specifier) === undefined;
+}
+
+/** True when the file has a bare `import "./x"` of a repository path: the conventional way to load a global augmentation. */
+function hasSideEffectRepositoryImport(sourceFile: ts.SourceFile): boolean {
+  return sourceFile.statements.some(
+    (statement) =>
+      ts.isImportDeclaration(statement) &&
+      !statement.importClause &&
+      ts.isStringLiteralLike(statement.moduleSpecifier) &&
+      !isNonRelativeSpecifier(statement.moduleSpecifier.text),
+  );
+}
+
+/**
+ * The module specifier text of the import/re-export an alias symbol was
+ * declared by, when that can be read syntactically; `undefined` when it
+ * cannot (callers then keep the candidate rather than guess).
+ */
+function aliasModuleSpecifier(symbol: ts.Symbol): string | undefined {
+  let node: ts.Node | undefined = symbol.declarations?.[0];
+  while (node) {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
+      return node.moduleSpecifier.text;
+    }
+    if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      ts.isStringLiteralLike(node.moduleReference.expression)
+    ) {
+      return node.moduleReference.expression.text;
+    }
+    node = node.parent;
+  }
+  return undefined;
+}
+
+/**
+ * Whether an access chain is `any`-typed at every member step, not just at its
+ * end. `text.repo().read()` ends in an `any` (the unresolved `repo`), but that
+ * is a member missing from a concretely typed `string`, which a repository
+ * augmentation may supply; only members missing from an `any` base are
+ * explained by an unresolved import.
+ */
+function isAnyChain(expression: ts.Expression, checker: ts.TypeChecker): boolean {
+  if (!isAnyTyped(expression, checker)) {
+    return false;
+  }
+  return everyMemberBaseIsAny(expression, checker);
+}
+
+function everyMemberBaseIsAny(expression: ts.Expression, checker: ts.TypeChecker): boolean {
+  if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+    return isAnyTyped(expression.expression, checker) && everyMemberBaseIsAny(expression.expression, checker);
+  }
+  if (ts.isCallExpression(expression) || ts.isNewExpression(expression)) {
+    return everyMemberBaseIsAny(expression.expression, checker);
+  }
+  if (ts.isNonNullExpression(expression) || ts.isParenthesizedExpression(expression) || ts.isAwaitExpression(expression)) {
+    return everyMemberBaseIsAny(expression.expression, checker);
+  }
+  return true;
+}
+
+/**
+ * Whether the checker typed an expression as `any` (or could not type it). In
+ * the changed-files-only program that is what an unresolved import produces
+ * (`readFileSync` from `node:fs`, with no `@types`), and it is the only kind of
+ * base whose unresolved member is explained by the missing import rather than
+ * by a possible repository augmentation. Failing to read a type answers false,
+ * which keeps the candidate.
+ */
+function isAnyTyped(expression: ts.Expression, checker: ts.TypeChecker): boolean {
+  try {
+    const type = checker.getTypeAtLocation(expression);
+    return (type.flags & ts.TypeFlags.Any) !== 0;
+  } catch {
+    return false;
+  }
+}
+
+/** The symbol of the identifier an access chain (`a.b[c]!`) is rooted at, if it is rooted at one. */
+function rootSymbolOf(expression: ts.Expression, checker: ts.TypeChecker): ts.Symbol | undefined {
+  let root: ts.Expression = expression;
+  while (
+    ts.isPropertyAccessExpression(root) ||
+    ts.isElementAccessExpression(root) ||
+    ts.isNonNullExpression(root) ||
+    ts.isParenthesizedExpression(root) ||
+    ts.isAwaitExpression(root)
+  ) {
+    root = root.expression;
+  }
+  return ts.isIdentifier(root) ? symbolAt(root, checker) : undefined;
+}
+
+
+/**
+ * Whether control-flow narrowing could change the type of the name an access
+ * is rooted at, which would void an `external` proof drawn from its declared
+ * type (`e: Error` is external, but `if (e instanceof RepoError) e.read()` is
+ * not). Narrowing needs something that tests *that name*: an `instanceof` or
+ * `in` test on it, or a guard-position call that is passed it and whose callee
+ * is not proven external (a type guard or assertion function, however it was
+ * reached). Looked for anywhere in the changed file, because a closure inherits
+ * the narrowing of every scope around it. Tests on other names, and the many
+ * ordinary helper calls a file makes, do not count.
+ */
+function narrowingMayApply(symbol: ts.Symbol, ctx: TraceContext): boolean {
+  const cached = ctx.narrowingMemo.get(symbol);
+  if (cached !== undefined) {
+    return cached;
+  }
+  let found = false;
+  for (const declaration of symbol.declarations ?? []) {
+    const index = narrowingIndexFor(declaration.getSourceFile(), ctx);
+    if (index.narrowedNames.has(symbol)) {
+      found = true;
+    } else {
+      found = (index.callsByArgument.get(symbol) ?? []).some((call) => isPotentialGuardCall(call, ctx));
+    }
+    if (found) {
+      break;
+    }
+  }
+  ctx.narrowingMemo.set(symbol, found);
+  return found;
+}
+
+/** Symbols tested by `instanceof`/`in`, and the calls each symbol is passed to, for one source file. */
+interface NarrowingIndex {
+  narrowedNames: Set<ts.Symbol>;
+  callsByArgument: Map<ts.Symbol, ts.CallExpression[]>;
+}
+
+/** One pass over a file builds the whole index, so tracing many names costs O(file), not O(file × names). */
+function narrowingIndexFor(sourceFile: ts.SourceFile, ctx: TraceContext): NarrowingIndex {
+  const existing = ctx.narrowingIndexes.get(sourceFile);
+  if (existing) {
+    return existing;
+  }
+  const index: NarrowingIndex = { narrowedNames: new Set(), callsByArgument: new Map() };
+  const rootSymbol = (expression: ts.Node): ts.Symbol | undefined => {
+    let inner = expression;
+    while (
+      ts.isPropertyAccessExpression(inner) ||
+      ts.isElementAccessExpression(inner) ||
+      ts.isNonNullExpression(inner) ||
+      ts.isParenthesizedExpression(inner)
+    ) {
+      inner = inner.expression;
+    }
+    return ts.isIdentifier(inner) ? symbolAt(inner, ctx.checker) : undefined;
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isBinaryExpression(node)) {
+      const tested =
+        node.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword
+          ? rootSymbol(node.left)
+          : node.operatorToken.kind === ts.SyntaxKind.InKeyword
+            ? rootSymbol(node.right)
+            : undefined;
+      if (tested) {
+        index.narrowedNames.add(tested);
+      }
+    } else if (ts.isCallExpression(node)) {
+      for (const argument of node.arguments) {
+        const passed = rootSymbol(argument);
+        if (passed) {
+          const calls = index.callsByArgument.get(passed);
+          if (calls) {
+            calls.push(node);
+          } else {
+            index.callsByArgument.set(passed, [node]);
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  ctx.narrowingIndexes.set(sourceFile, index);
+  return index;
+}
+
+/**
+ * A call that may narrow its argument: its callee is not proven external, so
+ * it may be a type guard or assertion function, however it was reached
+ * (an import, a local helper, `const guard = isRepo`). The call can sit
+ * anywhere, a condition included or not (`const ok = isRepo(e); if (ok) ...`);
+ * what limits this to the accessed name is that the caller only asks about
+ * calls passed that name. Calls to external or lib functions cannot be
+ * repository guards.
+ */
+function isPotentialGuardCall(call: ts.CallExpression, ctx: TraceContext): boolean {
+  ctx.remaining = TRACE_WORK_BUDGET;
+  return classifyProvenance(call.expression, ctx, 0) !== "external";
+}
+
+/**
+ * Shared state for provenance tracing. `remaining` is a work budget reset per
+ * traced member access: the tracer runs synchronously inside identification,
+ * which nothing can interrupt, and shared initializer chains
+ * (`a1 = [a0, a0, ...]`, `a2 = [a1, a1, ...]`) expand exponentially without
+ * one. An exhausted budget yields `unknown`, which keeps the candidate. The
+ * memo maps make each shared node or symbol cost once per run.
+ */
+interface TraceContext {
+  checker: ts.TypeChecker;
+  remaining: number;
+  /** Per-symbol result with every symbol its proof passed through, so a memo hit still reports them. */
+  symbolMemo: Map<ts.Symbol, { provenance: Provenance; traced: ts.Symbol[] }>;
+  /** Symbols the classification in progress has passed through (declarations it relied on). */
+  traced: Set<ts.Symbol>;
+  narrowingMemo: Map<ts.Symbol, boolean>;
+  narrowingIndexes: Map<ts.SourceFile, NarrowingIndex>;
+}
+
+/** Work units one member access may spend on tracing before its provenance is `unknown`. */
+const TRACE_WORK_BUDGET = 400;
+
+function spendTraceWork(ctx: TraceContext): boolean {
+  if (ctx.remaining <= 0) {
+    return false;
+  }
+  ctx.remaining -= 1;
+  return true;
+}
+
+/** Bound on how far {@link classifyProvenance} follows initializers, annotations and callbacks. */
+const MAX_TRACE_DEPTH = 16;
+
+/**
+ * Where a value's type comes from, judged syntactically (#153):
+ * - `repository`: traceable to an import from a relative specifier;
+ * - `external`: *proven* not to be repository code (a literal, a primitive
+ *   annotation, a `node:*`/package import, a lib global, or anything derived
+ *   only from those);
+ * - `unknown`: anything the tracer does not model.
+ *
+ * Only `external` is ever skipped. Unknown provenance keeps the candidate:
+ * silently removing a real repository symbol is the worse error, and it
+ * would report `nothing_to_resolve` for a pass that had something to resolve.
+ */
+type Provenance = "repository" | "external" | "unknown";
+
+function combineProvenance(parts: Provenance[]): Provenance {
+  if (parts.includes("repository")) {
+    return "repository";
+  }
+  return parts.length > 0 && parts.every((part) => part === "external") ? "external" : "unknown";
+}
+
+function classifyProvenance(expression: ts.Node, ctx: TraceContext, depth: number): Provenance {
+  if (depth > MAX_TRACE_DEPTH || !spendTraceWork(ctx)) {
+    return "unknown";
+  }
+  if (ts.isParenthesizedExpression(expression) || ts.isNonNullExpression(expression) || ts.isAwaitExpression(expression)) {
+    return classifyProvenance(expression.expression, ctx, depth);
+  }
+  if (ts.isSatisfiesExpression(expression)) {
+    // `satisfies` only checks; the expression keeps the operand's own type.
+    return classifyProvenance(expression.expression, ctx, depth);
+  }
+  if (ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression)) {
+    // The asserted type replaces the operand's type outright. When the tracer
+    // does not model it (`as LocalRepo[]` with `interface LocalRepo extends
+    // Repo`), the result is unknown, never the operand's provenance.
+    return classifyTypeProvenance(expression.type, ctx, depth + 1);
+  }
+  if (
+    ts.isStringLiteralLike(expression) ||
+    ts.isNumericLiteral(expression) ||
+    ts.isBigIntLiteral(expression) ||
+    ts.isRegularExpressionLiteral(expression) ||
+    ts.isTemplateExpression(expression) ||
+    expression.kind === ts.SyntaxKind.TrueKeyword ||
+    expression.kind === ts.SyntaxKind.FalseKeyword ||
+    expression.kind === ts.SyntaxKind.NullKeyword
+  ) {
+    return "external";
+  }
+  if (ts.isArrayLiteralExpression(expression)) {
+    return combineProvenance(
+      expression.elements.length === 0
+        ? ["external"]
+        : expression.elements.map((element) => classifyProvenance(element, ctx, depth + 1)),
+    );
+  }
+  if (ts.isElementAccessExpression(expression)) {
+    return classifyProvenance(expression.expression, ctx, depth + 1);
+  }
+  if (ts.isCallExpression(expression) || ts.isNewExpression(expression)) {
+    // A call result is not simply its callee's provenance: an external
+    // function can return what it was given (`Promise.resolve(repo)`,
+    // `Array.from(repos)`) or what a callback builds (`xs.map(() => new Repo())`).
+    // It is external only when the callee and every argument are proven so.
+    const callee = classifyProvenance(expression.expression, ctx, depth + 1);
+    if (callee !== "external") {
+      return callee;
+    }
+    return combineProvenance([
+      callee,
+      ...(expression.arguments ?? []).map((arg) =>
+        ts.isSpreadElement(arg) ? "unknown" : classifyProvenance(arg, ctx, depth + 1),
+      ),
+      // `new Map<string, Repo>()`, `get<Repo>()`: explicit type arguments carry the type.
+      ...(expression.typeArguments ?? []).map((arg) => classifyTypeProvenance(arg, ctx, depth + 1)),
+    ]);
+  }
+  if (ts.isPropertyAccessExpression(expression)) {
+    // A member the checker could not bind on a concretely typed receiver is
+    // not explained by a missing import; a repository augmentation of that
+    // type (`interface String { repo(): Repo }`) may supply it.
+    if (
+      symbolAt(expression.name, ctx.checker) === undefined &&
+      !isAnyTyped(expression.expression, ctx.checker)
+    ) {
+      return "unknown";
+    }
+    const base = classifyProvenance(expression.expression, ctx, depth + 1);
+    if (base !== "unknown") {
+      return base;
+    }
+    return classifySymbolProvenance(symbolAt(expression.name, ctx.checker), ctx, depth + 1);
+  }
+  if (ts.isIdentifier(expression)) {
+    return classifySymbolProvenance(symbolAt(expression, ctx.checker), ctx, depth);
+  }
+  return "unknown";
+}
+
+function symbolAt(node: ts.Node, checker: ts.TypeChecker): ts.Symbol | undefined {
+  try {
+    return checker.getSymbolAtLocation(node);
+  } catch {
+    return undefined;
+  }
+}
+
+function classifySymbolProvenance(
+  symbol: ts.Symbol | undefined,
+  ctx: TraceContext,
+  depth: number,
+): Provenance {
+  if (!symbol || depth > MAX_TRACE_DEPTH || !spendTraceWork(ctx)) {
+    return "unknown";
+  }
+  const memoized = ctx.symbolMemo.get(symbol);
+  if (memoized) {
+    memoized.traced.forEach((traced) => ctx.traced.add(traced));
+    return memoized.provenance;
+  }
+  ctx.symbolMemo.set(symbol, { provenance: "unknown", traced: [symbol] }); // breaks a self-referential initializer cycle
+  const outer = ctx.traced;
+  ctx.traced = new Set([symbol]);
+  const result = classifySymbolProvenanceUncached(symbol, ctx, depth);
+  const mine = ctx.traced;
+  ctx.traced = outer;
+  mine.forEach((traced) => outer.add(traced));
+  if (ctx.remaining > 0) {
+    ctx.symbolMemo.set(symbol, { provenance: result, traced: [...mine] });
+  } else {
+    ctx.symbolMemo.delete(symbol);
+  }
+  return result;
+}
+
+function classifySymbolProvenanceUncached(symbol: ts.Symbol, ctx: TraceContext, depth: number): Provenance {
+  if ((symbol.flags & ts.SymbolFlags.Alias) !== 0) {
+    const specifier = aliasModuleSpecifier(symbol);
+    if (specifier === undefined) {
+      return "unknown";
+    }
+    return isNonRelativeSpecifier(specifier) ? "external" : "repository";
+  }
+  const declarations = symbol.declarations ?? [];
+  if (declarations.length > 0 && declarations.every((decl) => isOwnLibPath(decl.getSourceFile().fileName))) {
+    return "external"; // a lib global: `JSON`, `Math`, `Promise`, ...
+  }
+  return combineProvenance(declarations.map((decl) => classifyDeclarationProvenance(decl, ctx, depth + 1)));
+}
+
+function classifyDeclarationProvenance(decl: ts.Declaration, ctx: TraceContext, depth: number): Provenance {
+  if (ts.isVariableDeclaration(decl) || ts.isParameter(decl) || ts.isPropertyDeclaration(decl) || ts.isPropertySignature(decl)) {
+    if (!ts.isIdentifier(decl.name)) {
+      return "unknown"; // a destructuring pattern
+    }
+    // A JSDoc `@type` / `@param` (JavaScript files) types the declaration
+    // independently of its initializer, and the tracer does not read it.
+    if (ts.getJSDocType(decl) || (ts.isParameter(decl) && ts.getJSDocParameterTags(decl).length > 0)) {
+      return "unknown";
+    }
+    if (decl.type) {
+      return classifyTypeProvenance(decl.type, ctx, depth + 1);
+    }
+    if (ts.isParameter(decl)) {
+      // Never the default value: an unannotated parameter is usually typed by
+      // its context (`visit((repo = null) => ...)`), and the default says
+      // nothing about that type.
+      return classifyCallbackParameter(decl, ctx, depth + 1);
+    }
+    // Only a `const` initializer is evidence of what the name holds: a `let`,
+    // `var` or field can be reassigned to anything (`let r = null; r = new Repo()`).
+    if (
+      ts.isVariableDeclaration(decl) &&
+      decl.initializer &&
+      ts.isVariableDeclarationList(decl.parent) &&
+      (decl.parent.flags & ts.NodeFlags.Const) !== 0
+    ) {
+      return classifyProvenance(decl.initializer, ctx, depth + 1);
+    }
+  }
+  return "unknown";
+}
+
+/**
+ * An unannotated first parameter of a callback passed to `receiver.method(cb)`
+ * takes its provenance from the receiver (`xs.map((x) => ...)`, `xs.find(...)`).
+ * Only the array methods whose callback receives the receiver's elements
+ * qualify: `Array.from(xs, cb)` takes its elements from the argument, and
+ * `reduce`'s first parameter is the accumulator, so those stay unknown.
+ */
+const ELEMENT_CALLBACK_METHODS: ReadonlySet<string> = new Set([
+  "map",
+  "flatMap",
+  "filter",
+  "find",
+  "findLast",
+  "findIndex",
+  "findLastIndex",
+  "some",
+  "every",
+  "forEach",
+]);
+
+function classifyCallbackParameter(param: ts.ParameterDeclaration, ctx: TraceContext, depth: number): Provenance {
+  const fn = param.parent;
+  if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) {
+    return "unknown";
+  }
+  if (fn.parameters[0] !== param) {
+    return "unknown";
+  }
+  const call = fn.parent;
+  if (
+    !ts.isCallExpression(call) ||
+    !call.arguments.includes(fn) ||
+    !ts.isPropertyAccessExpression(call.expression) ||
+    !ELEMENT_CALLBACK_METHODS.has(call.expression.name.text)
+  ) {
+    return "unknown";
+  }
+  return classifyProvenance(call.expression.expression, ctx, depth + 1);
+}
+
+function classifyTypeProvenance(type: ts.TypeNode, ctx: TraceContext, depth: number): Provenance {
+  if (depth > MAX_TRACE_DEPTH || !spendTraceWork(ctx)) {
+    return "unknown";
+  }
+  switch (type.kind) {
+    case ts.SyntaxKind.StringKeyword:
+    case ts.SyntaxKind.NumberKeyword:
+    case ts.SyntaxKind.BooleanKeyword:
+    case ts.SyntaxKind.BigIntKeyword:
+    case ts.SyntaxKind.SymbolKeyword:
+    case ts.SyntaxKind.LiteralType:
+      return "external";
+    default:
+      break;
+  }
+  if (ts.isArrayTypeNode(type)) {
+    return classifyTypeProvenance(type.elementType, ctx, depth + 1);
+  }
+  if (ts.isParenthesizedTypeNode(type)) {
+    return classifyTypeProvenance(type.type, ctx, depth);
+  }
+  if (ts.isUnionTypeNode(type) || ts.isIntersectionTypeNode(type)) {
+    return combineProvenance(type.types.map((member) => classifyTypeProvenance(member, ctx, depth + 1)));
+  }
+  if (ts.isTypeReferenceNode(type)) {
+    let name: ts.EntityName = type.typeName;
+    while (ts.isQualifiedName(name)) {
+      name = name.left;
+    }
+    const symbol = symbolAt(name, ctx.checker);
+    const declarations = symbol?.declarations ?? [];
+    let head: Provenance;
+    if (symbol && declarations.length > 0 && declarations.every(ts.isTypeAliasDeclaration)) {
+      // A local alias is only as external as what it aliases.
+      head = combineProvenance(declarations.map((decl) => classifyTypeProvenance(decl.type, ctx, depth + 1)));
+    } else {
+      head = classifySymbolProvenance(symbol, ctx, depth + 1);
+    }
+    // `Array<Repo>`, `Promise<Repo>`: the arguments can carry a repository type.
+    const args = (type.typeArguments ?? []).map((arg) => classifyTypeProvenance(arg, ctx, depth + 1));
+    return head === "repository" || args.includes("repository")
+      ? "repository"
+      : head === "external" && args.every((arg) => arg === "external")
+        ? "external"
+        : "unknown";
+  }
+  return "unknown";
 }
 
 function isNameNodeOf(decl: ts.Declaration, node: ts.Node): boolean {
