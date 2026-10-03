@@ -622,12 +622,15 @@ function classifyDeclarationProvenance(decl: ts.Declaration, ctx: TraceContext, 
     if (decl.type) {
       return classifyTypeProvenance(decl.type, ctx, depth + 1);
     }
+    if (ts.isParameter(decl)) {
+      // Never the default value: an unannotated parameter is usually typed by
+      // its context (`visit((repo = null) => ...)`), and the default says
+      // nothing about that type.
+      return classifyCallbackParameter(decl, ctx, depth + 1);
+    }
     const initializer = "initializer" in decl ? decl.initializer : undefined;
     if (initializer) {
       return classifyProvenance(initializer, ctx, depth + 1);
-    }
-    if (ts.isParameter(decl)) {
-      return classifyCallbackParameter(decl, ctx, depth + 1);
     }
   }
   return "unknown";

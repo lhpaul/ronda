@@ -584,6 +584,14 @@ test("#153: unknown or unmodelled provenance keeps the candidate (only proven no
       "  return repos[0].read();",
       "}",
     ],
+    "a contextually typed parameter with a null default": [
+      "declare function visit(cb: (repo: Repo | null) => unknown): void;",
+      "export function run(): void {",
+      "  visit((repo = null) => {",
+      "    if (repo) repo.read();",
+      "  });",
+      "}",
+    ],
     "an operand with satisfies": [
       "export function run(): string {",
       "  const repo = new Repo() satisfies object;",
