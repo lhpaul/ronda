@@ -336,7 +336,7 @@ function considerIdentifier(
     if (
       classifyProvenance(node.parent.expression, trace, 0) === "external" &&
       isAnyTyped(node.parent.expression, checker) &&
-      !narrowingMayApply(node, trace)
+      !narrowingMayApply(node.parent.expression, trace)
     ) {
       skipped.add(`deferred:${key}`);
       return;
@@ -463,23 +463,50 @@ function isAnyTyped(expression: ts.Expression, checker: ts.TypeChecker): boolean
 }
 
 /**
- * Whether control-flow narrowing could change a name's type at `node`, which
- * would void an `external` proof drawn from its declared type (`e: Event` is
- * external, but `if (e instanceof RepoEvent) e.read()` is not). Narrowing
- * needs a type to narrow *to*: an `instanceof` or `in` test, a type predicate
- * (`x is T`), or a call to a function imported from the repository (which may
- * be a guard), anywhere in the changed file. Any of these keeps the candidate.
+ * Whether control-flow narrowing could change the type of the name an access
+ * is rooted at, which would void an `external` proof drawn from its declared
+ * type (`e: Error` is external, but `if (e instanceof RepoError) e.read()` is
+ * not). Narrowing needs something that tests *that name*: an `instanceof` or
+ * `in` test on it, or a guard-position call that is passed it and whose callee
+ * is not proven external (a type guard or assertion function, however it was
+ * reached). Looked for anywhere in the changed file, because a closure inherits
+ * the narrowing of every scope around it. Tests on other names, and the many
+ * ordinary helper calls a file makes, do not count.
  */
-function narrowingMayApply(node: ts.Node, ctx: TraceContext): boolean {
-  // The whole file, not the enclosing function: a closure inherits narrowing
-  // from every scope around it, module scope included, and a per-scope
-  // analysis kept missing one more shape. `instanceof`/`in` tests and imported
-  // calls are rare enough in changed files that the coarser rule costs little.
-  const sourceFile = node.getSourceFile();
-  const cached = ctx.narrowingMemo.get(sourceFile);
+function narrowingMayApply(base: ts.Expression, ctx: TraceContext): boolean {
+  let root: ts.Expression = base;
+  while (
+    ts.isPropertyAccessExpression(root) ||
+    ts.isElementAccessExpression(root) ||
+    ts.isNonNullExpression(root) ||
+    ts.isParenthesizedExpression(root) ||
+    ts.isAwaitExpression(root)
+  ) {
+    root = root.expression;
+  }
+  if (!ts.isIdentifier(root)) {
+    return false;
+  }
+  const symbol = symbolAt(root, ctx.checker);
+  if (!symbol) {
+    return false;
+  }
+  const cached = ctx.narrowingMemo.get(symbol);
   if (cached !== undefined) {
     return cached;
   }
+  const isTheName = (expression: ts.Node): boolean => {
+    let inner = expression;
+    while (
+      ts.isPropertyAccessExpression(inner) ||
+      ts.isElementAccessExpression(inner) ||
+      ts.isNonNullExpression(inner) ||
+      ts.isParenthesizedExpression(inner)
+    ) {
+      inner = inner.expression;
+    }
+    return ts.isIdentifier(inner) && symbolAt(inner, ctx.checker) === symbol;
+  };
   let found = false;
   const scan = (child: ts.Node): void => {
     if (found) {
@@ -487,36 +514,57 @@ function narrowingMayApply(node: ts.Node, ctx: TraceContext): boolean {
     }
     if (
       (ts.isBinaryExpression(child) &&
-        (child.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword ||
-          child.operatorToken.kind === ts.SyntaxKind.InKeyword)) ||
-      ts.isTypePredicateNode(child) ||
-      (ts.isCallExpression(child) && classifyCalleeRoot(child.expression, ctx) === "repository")
+        ((child.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword && isTheName(child.left)) ||
+          (child.operatorToken.kind === ts.SyntaxKind.InKeyword && isTheName(child.right)))) ||
+      (ts.isCallExpression(child) &&
+        child.arguments.some((arg) => isTheName(arg)) &&
+        isPotentialGuardCall(child, ctx))
     ) {
       found = true;
       return;
     }
     ts.forEachChild(child, scan);
   };
-  scan(sourceFile);
-  ctx.narrowingMemo.set(sourceFile, found);
+  scan(root.getSourceFile());
+  ctx.narrowingMemo.set(symbol, found);
   return found;
 }
 
-/** `repository` when the callee's root identifier is an import from a relative specifier (or one that cannot be read). */
-function classifyCalleeRoot(callee: ts.Expression, ctx: TraceContext): Provenance {
-  let root: ts.Expression = callee;
-  while (ts.isPropertyAccessExpression(root) || ts.isElementAccessExpression(root) || ts.isCallExpression(root)) {
-    root = root.expression;
+/**
+ * A call that may narrow: it sits where a type guard or assertion function
+ * acts (a condition, or a statement of its own) and its callee is not proven
+ * external. Calls to external or lib functions cannot be repository guards;
+ * a callee reached through a local alias (`const guard = isRepo`), a local
+ * helper, or an imported function can.
+ */
+function isPotentialGuardCall(call: ts.CallExpression, ctx: TraceContext): boolean {
+  let child: ts.Node = call;
+  let parent: ts.Node = call.parent;
+  while (
+    ts.isParenthesizedExpression(parent) ||
+    ts.isNonNullExpression(parent) ||
+    ts.isAwaitExpression(parent) ||
+    (ts.isPrefixUnaryExpression(parent) && parent.operator === ts.SyntaxKind.ExclamationToken) ||
+    (ts.isBinaryExpression(parent) &&
+      (parent.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
+        parent.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+        parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken))
+  ) {
+    child = parent;
+    parent = parent.parent;
   }
-  if (!ts.isIdentifier(root)) {
-    return "unknown";
+  const inGuardPosition =
+    ts.isExpressionStatement(parent) ||
+    (ts.isIfStatement(parent) && parent.expression === child) ||
+    (ts.isWhileStatement(parent) && parent.expression === child) ||
+    (ts.isDoStatement(parent) && parent.expression === child) ||
+    (ts.isForStatement(parent) && parent.condition === child) ||
+    (ts.isConditionalExpression(parent) && parent.condition === child);
+  if (!inGuardPosition) {
+    return false;
   }
-  const symbol = symbolAt(root, ctx.checker);
-  if (!symbol || (symbol.flags & ts.SymbolFlags.Alias) === 0) {
-    return "unknown";
-  }
-  const specifier = aliasModuleSpecifier(symbol);
-  return specifier === undefined || !isNonRelativeSpecifier(specifier) ? "repository" : "external";
+  ctx.remaining = TRACE_WORK_BUDGET;
+  return classifyProvenance(call.expression, ctx, 0) !== "external";
 }
 
 /**
@@ -532,7 +580,7 @@ interface TraceContext {
   remaining: number;
   nodeMemo: Map<ts.Node, Provenance>;
   symbolMemo: Map<ts.Symbol, Provenance>;
-  narrowingMemo: Map<ts.Node, boolean>;
+  narrowingMemo: Map<ts.Symbol, boolean>;
 }
 
 /** Work units one member access may spend on tracing before its provenance is `unknown`. */
