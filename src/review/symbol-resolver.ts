@@ -449,9 +449,13 @@ function aliasModuleSpecifier(symbol: ts.Symbol): string | undefined {
  * keeps the candidate.
  */
 function narrowingMayApply(node: ts.Node, ctx: TraceContext): boolean {
-  let container: ts.Node = node;
-  while (container.parent && !ts.isFunctionLike(container) && !ts.isSourceFile(container)) {
-    container = container.parent;
+  // The outermost enclosing function, not the nearest: a closure inherits the
+  // narrowing of every scope around it (`if (e instanceof Repo) return () => e.read()`).
+  let container: ts.Node = node.getSourceFile();
+  for (let ancestor: ts.Node | undefined = node; ancestor; ancestor = ancestor.parent) {
+    if (ts.isFunctionLike(ancestor)) {
+      container = ancestor;
+    }
   }
   const cached = ctx.narrowingMemo.get(container);
   if (cached !== undefined) {

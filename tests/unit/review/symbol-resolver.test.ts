@@ -605,6 +605,14 @@ test("#153: unknown or unmodelled provenance keeps the candidate (only proven no
       '  return "";',
       "}",
     ],
+    "a closure inside an instanceof narrowing": [
+      "export function run(e: Error): (() => string) | undefined {",
+      "  if (e instanceof Repo) {",
+      "    return () => e.read();",
+      "  }",
+      "  return undefined;",
+      "}",
+    ],
     "a local type-predicate guard": [
       "declare function isRepo(x: Error): x is Repo;",
       "export function run(e: Error): string {",
