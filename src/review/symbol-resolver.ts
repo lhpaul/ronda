@@ -138,6 +138,14 @@ export interface IdentifyCandidatesResult {
   /** Changed files successfully read, keyed by path — reused by `buildSourceFileSet` (never re-read). */
   changedSourceTexts: Map<string, string>;
   contentRequestCount: number;
+  /**
+   * Distinct references the identification step declined to request because
+   * they cannot name repository code (built-in or global library members,
+   * `node:*` and package imports, member accesses not traceable to a relative
+   * import). A count only, so the filter stays visible without restoring the
+   * noise it removed (#153).
+   */
+  nonRepositoryReferencesSkipped: number;
 }
 
 /**
@@ -196,7 +204,13 @@ export async function identifyCandidates(
   }
 
   if (changedSourceTexts.size === 0) {
-    return { requested: [], unreadableChangedFilePaths, changedSourceTexts, contentRequestCount };
+    return {
+      requested: [],
+      unreadableChangedFilePaths,
+      changedSourceTexts,
+      contentRequestCount,
+      nonRepositoryReferencesSkipped: 0,
+    };
   }
 
   const host = createVirtualCompilerHost(changedSourceTexts);
@@ -210,6 +224,7 @@ export async function identifyCandidates(
   const seen = new Map<ts.Symbol, number>();
   const seenDeferred = new Map<string, number>();
   const symbolIds = new Map<ts.Symbol, number>();
+  const skipped = new Set<string | ts.Symbol>();
   const requested: InternalRequestedReference[] = [];
   let nextId = 0;
 
@@ -232,6 +247,7 @@ export async function identifyCandidates(
           seen,
           seenDeferred,
           symbolIds,
+          skipped,
           requested,
           () => nextId++,
         );
@@ -241,7 +257,13 @@ export async function identifyCandidates(
     visit(sourceFile);
   }
 
-  return { requested, unreadableChangedFilePaths, changedSourceTexts, contentRequestCount };
+  return {
+    requested,
+    unreadableChangedFilePaths,
+    changedSourceTexts,
+    contentRequestCount,
+    nonRepositoryReferencesSkipped: skipped.size,
+  };
 }
 
 function considerIdentifier(
@@ -254,6 +276,7 @@ function considerIdentifier(
   seen: Map<ts.Symbol, number>,
   seenDeferred: Map<string, number>,
   symbolIds: Map<ts.Symbol, number>,
+  skipped: Set<string | ts.Symbol>,
   requested: InternalRequestedReference[],
   allocateId: () => number,
 ): void {
@@ -290,6 +313,15 @@ function considerIdentifier(
     // declaration identity, in `resolveSymbols`.
     const key = deferredDedupKey(node.parent.expression, node.text, checker, symbolIds);
     if (seenDeferred.has(key)) {
+      return;
+    }
+    // #153: a member access is only worth a candidate when its base is
+    // traceable to a relative import. `x.includes(...)`, `re.exec(...)`, and
+    // members of a literal, a built-in-typed local, or an external import
+    // cannot name repository code, and requesting them spent the budget and
+    // turned a pass with nothing to resolve into `unavailable`.
+    if (!isTraceableToRelativeImport(node.parent.expression, checker, 0)) {
+      skipped.add(`deferred:${key}`);
       return;
     }
     const id = allocateId();
@@ -329,6 +361,19 @@ function considerIdentifier(
   ) {
     return;
   }
+  // #153: globals and default-library members (`Promise`, `JSON`,
+  // `String.prototype.slice`) are declared only in TypeScript's own lib
+  // files, and an import whose first-hop specifier is not relative (`node:*`,
+  // a package name) points outside the repository. Neither can resolve to
+  // repository code, so neither is requested.
+  const declaredOnlyInLib =
+    declarations.length > 0 &&
+    declarations.every((decl) => isOwnLibPath(decl.getSourceFile().fileName));
+  const externalImport = isAlias && isNonRelativeSpecifier(aliasModuleSpecifier(symbol));
+  if (declaredOnlyInLib || externalImport) {
+    skipped.add(symbol);
+    return;
+  }
   if (seen.has(symbol)) {
     return; // E6: one requested candidate per distinct referenced symbol.
   }
@@ -344,6 +389,146 @@ function considerIdentifier(
     anchorPos: node.getStart(sourceFile),
     specifierKey: firstHopSpecifierKey(symbol, filePath),
   });
+}
+
+/**
+ * True for a module specifier that cannot be a repository path: `node:*`,
+ * package names, `#imports`, `paths` aliases. The exact complement of what
+ * {@link candidatePathsFor} is willing to probe, so identification never
+ * requests a reference resolution would refuse to follow.
+ */
+function isNonRelativeSpecifier(specifier: string | undefined): boolean {
+  return specifier !== undefined && candidatePathsFor("", specifier) === undefined;
+}
+
+/**
+ * The module specifier text of the import/re-export an alias symbol was
+ * declared by, when that can be read syntactically; `undefined` when it
+ * cannot (callers then keep the candidate rather than guess).
+ */
+function aliasModuleSpecifier(symbol: ts.Symbol): string | undefined {
+  let node: ts.Node | undefined = symbol.declarations?.[0];
+  while (node) {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
+      return node.moduleSpecifier.text;
+    }
+    if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      ts.isStringLiteralLike(node.moduleReference.expression)
+    ) {
+      return node.moduleReference.expression.text;
+    }
+    node = node.parent;
+  }
+  return undefined;
+}
+
+/** Bound on how far {@link isTraceableToRelativeImport} follows initializers and type annotations. */
+const MAX_TRACE_DEPTH = 4;
+
+/**
+ * Whether an expression's value can be traced, syntactically, to an import
+ * from a relative specifier (#153): the root identifier of the access chain is
+ * such an import, or a local/parameter/property whose initializer or type
+ * annotation is. A literal, a local of built-in type, `this`, or an external
+ * import is not. Unknowable cases (an import whose specifier cannot be read)
+ * are kept, because dropping a real repository symbol is the worse error.
+ */
+function isTraceableToRelativeImport(
+  expression: ts.Node,
+  checker: ts.TypeChecker,
+  depth: number,
+): boolean {
+  if (depth > MAX_TRACE_DEPTH) {
+    return false;
+  }
+  if (
+    ts.isParenthesizedExpression(expression) ||
+    ts.isNonNullExpression(expression) ||
+    ts.isAsExpression(expression) ||
+    ts.isTypeAssertionExpression(expression) ||
+    ts.isSatisfiesExpression(expression) ||
+    ts.isAwaitExpression(expression)
+  ) {
+    return isTraceableToRelativeImport(expression.expression, checker, depth);
+  }
+  if (ts.isCallExpression(expression) || ts.isNewExpression(expression)) {
+    return isTraceableToRelativeImport(expression.expression, checker, depth + 1);
+  }
+  if (ts.isElementAccessExpression(expression)) {
+    return isTraceableToRelativeImport(expression.expression, checker, depth + 1);
+  }
+  if (ts.isPropertyAccessExpression(expression)) {
+    return (
+      isTraceableToRelativeImport(expression.expression, checker, depth + 1) ||
+      isDeclarationTraceable(symbolAt(expression.name, checker), checker, depth + 1)
+    );
+  }
+  if (ts.isIdentifier(expression)) {
+    return isDeclarationTraceable(symbolAt(expression, checker), checker, depth);
+  }
+  return false;
+}
+
+function symbolAt(node: ts.Node, checker: ts.TypeChecker): ts.Symbol | undefined {
+  try {
+    return checker.getSymbolAtLocation(node);
+  } catch {
+    return undefined;
+  }
+}
+
+function isDeclarationTraceable(
+  symbol: ts.Symbol | undefined,
+  checker: ts.TypeChecker,
+  depth: number,
+): boolean {
+  if (!symbol || depth > MAX_TRACE_DEPTH) {
+    return false;
+  }
+  if ((symbol.flags & ts.SymbolFlags.Alias) !== 0) {
+    const specifier = aliasModuleSpecifier(symbol);
+    return specifier === undefined || !isNonRelativeSpecifier(specifier);
+  }
+  for (const decl of symbol.declarations ?? []) {
+    if (
+      ts.isVariableDeclaration(decl) ||
+      ts.isParameter(decl) ||
+      ts.isPropertyDeclaration(decl) ||
+      ts.isPropertySignature(decl)
+    ) {
+      if (decl.type && isTypeTraceable(decl.type, checker, depth + 1)) {
+        return true;
+      }
+      const initializer = "initializer" in decl ? decl.initializer : undefined;
+      if (initializer && isTraceableToRelativeImport(initializer, checker, depth + 1)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function isTypeTraceable(type: ts.TypeNode, checker: ts.TypeChecker, depth: number): boolean {
+  if (ts.isTypeReferenceNode(type)) {
+    let name: ts.EntityName = type.typeName;
+    while (ts.isQualifiedName(name)) {
+      name = name.left;
+    }
+    return isDeclarationTraceable(symbolAt(name, checker), checker, depth);
+  }
+  if (ts.isUnionTypeNode(type) || ts.isIntersectionTypeNode(type)) {
+    return type.types.some((member) => isTypeTraceable(member, checker, depth + 1));
+  }
+  if (ts.isParenthesizedTypeNode(type)) {
+    return isTypeTraceable(type.type, checker, depth);
+  }
+  return false;
 }
 
 function isNameNodeOf(decl: ts.Declaration, node: ts.Node): boolean {

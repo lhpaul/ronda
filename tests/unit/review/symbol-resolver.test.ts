@@ -15,7 +15,10 @@ import {
   TS_LIB_DIR,
   type RepositoryContextReadFile,
 } from "../../../src/review/symbol-resolver.js";
-import { buildRepositoryContextCandidates } from "../../../src/review/repository-context.js";
+import {
+  buildRepositoryContextCandidates,
+  resolveRepositoryContextOutcome,
+} from "../../../src/review/repository-context.js";
 
 function readFileFrom(
   files: Map<string, string>,
@@ -393,7 +396,7 @@ test("E14: a directory specifier resolves via the index forms", () => {
 
 // --- E15: unresolvable specifier forms are dropped, never guessed ---------
 
-test("E15: a bare specifier is never probed and is dropped ambiguous_resolution", async () => {
+test("E15: a bare specifier is never probed and is never requested (#153: skipped, not dropped)", async () => {
   assert.equal(candidatePathsFor("src/caller.ts", "some-package"), undefined);
   const files = new Map([
     [
@@ -407,16 +410,137 @@ test("E15: a bare specifier is never probed and is dropped ambiguous_resolution"
     probed = true;
     return undefined;
   };
-  const { candidates, drops } = await resolveAgainst(
+  const { identified, candidates, drops } = await resolveAgainst(
     files,
     ["src/caller.ts"],
     new Map([["src/caller.ts", new Set([4])]]),
     readFile,
   );
   assert.equal(probed, false); // AC9: no node_modules / bare-specifier read is ever attempted
+  assert.equal(identified.requested.length, 0);
+  assert.equal(identified.nonRepositoryReferencesSkipped, 1);
   assert.equal(candidates.length, 0);
-  assert.equal(drops.length, 1);
-  assert.equal(drops[0].reason, "ambiguous_resolution");
+  assert.equal(drops.length, 0);
+});
+
+// --- #153: non-repository references are not requested ---------------------
+
+const BUILT_IN_ONLY = [
+  'import test from "node:test";',
+  'import assert from "node:assert/strict";',
+  'import { readFileSync } from "node:fs";',
+  "",
+  'test("x", () => {',
+  '  const text = readFileSync("a", "utf8");',
+  '  assert.ok(text.includes("x"));',
+  '  const parts = text.split(",");',
+  "  const first = parts.slice(0, 1).find((p) => p.startsWith(\"a\"));",
+  "  const m = /a/.exec(text);",
+  "  JSON.stringify({ first, m });",
+  "  void Promise.resolve(1);",
+  "});",
+].join("\n");
+
+test("#153: built-in members, node:* imports and globals request no candidate", async () => {
+  const files = new Map([["tests/a.test.ts", BUILT_IN_ONLY]]);
+  const lines = new Set(BUILT_IN_ONLY.split("\n").map((_, i) => i + 1));
+  const identified = await identifyCandidates(
+    ["tests/a.test.ts"],
+    new Map([["tests/a.test.ts", lines]]),
+    readFileFrom(files),
+  );
+  assert.deepEqual(
+    identified.requested.map((ref) => ref.symbolName),
+    [],
+  );
+  assert.ok(identified.nonRepositoryReferencesSkipped > 0);
+});
+
+test("#153: a relative import used alongside built-ins is still requested; the built-ins are not", async () => {
+  const files = new Map([
+    ["src/repo.ts", "export class Repo {\n  read(path: string): string { return path; }\n}\n"],
+    [
+      "src/caller.ts",
+      [
+        'import { readFileSync } from "node:fs";',
+        'import { Repo } from "./repo.js";',
+        "",
+        "export function run(repo: Repo): string {",
+        '  const text = readFileSync("a", "utf8").slice(1);',
+        '  return repo.read(text.split(",")[0]);',
+        "}",
+      ].join("\n"),
+    ],
+  ]);
+  const { identified, candidates, drops } = await resolveAgainst(
+    files,
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([5, 6])]]),
+  );
+  const names = identified.requested.map((ref) => ref.symbolName).sort();
+  assert.ok(names.includes("read"));
+  for (const builtIn of ["slice", "split", "readFileSync"]) {
+    assert.ok(!names.includes(builtIn), builtIn);
+  }
+  assert.equal(drops.length, 0);
+  assert.ok(candidates.some((c) => c.symbolName === "read" && c.path === "src/repo.ts"));
+});
+
+test("#153: a member access on a local initialised from a relative import is traced and requested", async () => {
+  const files = new Map([
+    ["src/repo.ts", "export function makeRepo() {\n  return { read(): string { return \"r\"; } };\n}\n"],
+    [
+      "src/caller.ts",
+      [
+        'import { makeRepo } from "./repo.js";',
+        "",
+        "export function run(): string {",
+        "  const repo = makeRepo();",
+        "  return repo.read();",
+        "}",
+      ].join("\n"),
+    ],
+  ]);
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([5])]]),
+    readFileFrom(files),
+  );
+  assert.ok(identified.requested.some((ref) => ref.symbolName === "read"));
+});
+
+test("#153: a member access on a member of an external import is skipped", async () => {
+  const files = new Map([
+    [
+      "src/caller.ts",
+      ['import express from "express";', "", "export function run(): void {", "  express().listen(3000);", "}"].join(
+        "\n",
+      ),
+    ],
+  ]);
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([4])]]),
+    readFileFrom(files),
+  );
+  assert.deepEqual(identified.requested, []);
+  assert.ok(identified.nonRepositoryReferencesSkipped >= 1);
+});
+
+test("#153: a pass whose references are all non-repository reports nothing_to_resolve, not unavailable", async () => {
+  const files = new Map([["tests/a.test.ts", BUILT_IN_ONLY]]);
+  const { identified } = await resolveAgainst(
+    files,
+    ["tests/a.test.ts"],
+    new Map([["tests/a.test.ts", new Set(BUILT_IN_ONLY.split("\n").map((_, i) => i + 1))]]),
+  );
+  assert.equal(
+    resolveRepositoryContextOutcome({
+      candidatesRequested: identified.requested.length,
+      candidatesResolved: 0,
+    }),
+    "nothing_to_resolve",
+  );
 });
 
 // --- E16: one changed file reads fine, a sibling fails transiently --------

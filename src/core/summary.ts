@@ -368,6 +368,7 @@ function renderRepositoryContextCheckRunLines(input: CheckRunOutputInput): strin
       `Candidates requested: ${record.candidatesRequested}, resolved: ${record.candidatesResolved}`,
       `Budget: ${record.maxCandidates} candidates / ${record.maxChars} chars / ${record.timeBudgetMs}ms — used ${record.charsUsed} chars, ${record.timeUsedMs}ms`,
       `Content requests: ${record.contentRequestCount}`,
+      `Non-repository references skipped: ${record.nonRepositoryReferencesSkipped}`,
     ];
     for (const drop of record.drops) {
       lines.push(`- drop: ${drop.kind} ${drop.symbolName} ${drop.path}:${drop.line} — ${drop.reason}`);
