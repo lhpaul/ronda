@@ -328,9 +328,16 @@ function considerIdentifier(
     // repository code (`text.includes(...)`, `re.exec(...)`, members of a
     // literal, a primitive-typed local, or an external import). Requesting
     // them spent the budget and turned a pass with nothing to resolve into
-    // `unavailable`. A base the tracer does not model keeps its candidate.
+    // `unavailable`. A base the tracer does not model keeps its candidate, and
+    // so does a member missing from a *concretely typed* base: the full lib is
+    // loaded, so `"a".repoMethod()` is unresolved only because some repository
+    // file may augment `String`.
     trace.remaining = TRACE_WORK_BUDGET;
-    if (classifyProvenance(node.parent.expression, trace, 0) === "external" && !narrowingMayApply(node, trace)) {
+    if (
+      classifyProvenance(node.parent.expression, trace, 0) === "external" &&
+      isAnyTyped(node.parent.expression, checker) &&
+      !narrowingMayApply(node, trace)
+    ) {
       skipped.add(`deferred:${key}`);
       return;
     }
@@ -436,6 +443,23 @@ function aliasModuleSpecifier(symbol: ts.Symbol): string | undefined {
     node = node.parent;
   }
   return undefined;
+}
+
+/**
+ * Whether the checker typed an expression as `any` (or could not type it). In
+ * the changed-files-only program that is what an unresolved import produces
+ * (`readFileSync` from `node:fs`, with no `@types`), and it is the only kind of
+ * base whose unresolved member is explained by the missing import rather than
+ * by a possible repository augmentation. Failing to read a type answers false,
+ * which keeps the candidate.
+ */
+function isAnyTyped(expression: ts.Expression, checker: ts.TypeChecker): boolean {
+  try {
+    const type = checker.getTypeAtLocation(expression);
+    return (type.flags & ts.TypeFlags.Any) !== 0;
+  } catch {
+    return false;
+  }
 }
 
 /**
