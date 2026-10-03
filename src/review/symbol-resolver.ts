@@ -459,11 +459,11 @@ function classifyProvenance(expression: ts.Node, checker: ts.TypeChecker, depth:
   if (ts.isParenthesizedExpression(expression) || ts.isNonNullExpression(expression) || ts.isAwaitExpression(expression)) {
     return classifyProvenance(expression.expression, checker, depth);
   }
-  if (
-    ts.isAsExpression(expression) ||
-    ts.isTypeAssertionExpression(expression) ||
-    ts.isSatisfiesExpression(expression)
-  ) {
+  if (ts.isSatisfiesExpression(expression)) {
+    // `satisfies` only checks; the expression keeps the operand's own type.
+    return classifyProvenance(expression.expression, checker, depth);
+  }
+  if (ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression)) {
     // The asserted type, when it says something, outranks the operand.
     const asserted = classifyTypeProvenance(expression.type, checker, depth + 1);
     return asserted !== "unknown" ? asserted : classifyProvenance(expression.expression, checker, depth + 1);
@@ -504,6 +504,8 @@ function classifyProvenance(expression: ts.Node, checker: ts.TypeChecker, depth:
       ...(expression.arguments ?? []).map((arg) =>
         ts.isSpreadElement(arg) ? "unknown" : classifyProvenance(arg, checker, depth + 1),
       ),
+      // `new Map<string, Repo>()`, `get<Repo>()`: explicit type arguments carry the type.
+      ...(expression.typeArguments ?? []).map((arg) => classifyTypeProvenance(arg, checker, depth + 1)),
     ]);
   }
   if (ts.isPropertyAccessExpression(expression)) {

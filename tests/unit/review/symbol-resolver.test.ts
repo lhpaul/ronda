@@ -566,6 +566,18 @@ test("#153: unknown or unmodelled provenance keeps the candidate (only proven no
       "  return q.read();",
       "}",
     ],
+    "a generic constructor with the imported type as an argument": [
+      "export function run(): string {",
+      '  const repos = new Map<string, Repo>();',
+      '  return repos.get("a").read();',
+      "}",
+    ],
+    "an operand with satisfies": [
+      "export function run(): string {",
+      "  const repo = new Repo() satisfies object;",
+      "  return repo.read();",
+      "}",
+    ],
     "an unannotated parameter whose type is unknown": ["export function run(thing) {", "  return thing.read();", "}"],
   };
   for (const [name, body] of Object.entries(cases)) {
