@@ -778,6 +778,40 @@ test("#153: a const alias of a repository-augmented member of a concrete receive
   assert.ok(identified.requested.some((ref) => ref.symbolName === "read"));
 });
 
+test("#153: a lib member that a side-effect-imported module may augment is kept", async () => {
+  const files = new Map([
+    [
+      "src/extend.ts",
+      'declare global {\n  interface String {\n    slice(from: number, to: number, extra: string): string;\n  }\n}\nexport {};\n',
+    ],
+    [
+      "src/caller.ts",
+      ['import "./extend.js";', "", "export function run(text: string): string {", "  return text.slice(0);", "}"].join("\n"),
+    ],
+  ]);
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([4])]]),
+    readFileFrom(files),
+  );
+  assert.ok(identified.requested.some((ref) => ref.symbolName === "slice"));
+});
+
+test("#153: narrowing analysis scales linearly with the number of traced names", async () => {
+  const count = 1_500;
+  const body = ['import { readFileSync } from "node:fs";'];
+  for (let i = 0; i < count; i += 1) {
+    body.push(`const x${i} = readFileSync("x");`, `x${i}.foo();`);
+  }
+  const files = new Map([["src/caller.ts", body.join("\n")]]);
+  const lines = new Set(body.map((_, i) => i + 1));
+  const started = Date.now();
+  const identified = await identifyCandidates(["src/caller.ts"], new Map([["src/caller.ts", lines]]), readFileFrom(files));
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed < 5_000, `took ${elapsed}ms`);
+  assert.equal(identified.requested.length, 0);
+});
+
 test("#153: a callback over a primitive-typed array is proven non-repository and skipped", async () => {
   const names = await requestedFor([
     "export function run(words: string[]): boolean {",

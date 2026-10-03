@@ -231,6 +231,7 @@ export async function identifyCandidates(
     symbolMemo: new Map(),
     traced: new Set(),
     narrowingMemo: new Map(),
+    narrowingIndexes: new Map(),
   };
   const requested: InternalRequestedReference[] = [];
   let nextId = 0;
@@ -393,7 +394,11 @@ function considerIdentifier(
     declarations.length > 0 &&
     declarations.every((decl) => isOwnLibPath(decl.getSourceFile().fileName));
   const externalImport = isAlias && isNonRelativeSpecifier(aliasModuleSpecifier(symbol));
-  if (declaredOnlyInLib || externalImport) {
+  // A file that imports a repository module for its side effects
+  // (`import "./extend.js"`) is the usual shape of a global augmentation, which
+  // can add or overload lib members the changed-files-only program cannot see.
+  // Its lib references are kept for closure resolution to decide.
+  if ((declaredOnlyInLib && !hasSideEffectRepositoryImport(sourceFile)) || externalImport) {
     skipped.add(symbol);
     return;
   }
@@ -422,6 +427,17 @@ function considerIdentifier(
  */
 function isNonRelativeSpecifier(specifier: string | undefined): boolean {
   return specifier !== undefined && candidatePathsFor("", specifier) === undefined;
+}
+
+/** True when the file has a bare `import "./x"` of a repository path: the conventional way to load a global augmentation. */
+function hasSideEffectRepositoryImport(sourceFile: ts.SourceFile): boolean {
+  return sourceFile.statements.some(
+    (statement) =>
+      ts.isImportDeclaration(statement) &&
+      !statement.importClause &&
+      ts.isStringLiteralLike(statement.moduleSpecifier) &&
+      !isNonRelativeSpecifier(statement.moduleSpecifier.text),
+  );
 }
 
 /**
@@ -527,7 +543,36 @@ function narrowingMayApply(symbol: ts.Symbol, ctx: TraceContext): boolean {
   if (cached !== undefined) {
     return cached;
   }
-  const isTheName = (expression: ts.Node): boolean => {
+  let found = false;
+  for (const declaration of symbol.declarations ?? []) {
+    const index = narrowingIndexFor(declaration.getSourceFile(), ctx);
+    if (index.narrowedNames.has(symbol)) {
+      found = true;
+    } else {
+      found = (index.callsByArgument.get(symbol) ?? []).some((call) => isPotentialGuardCall(call, ctx));
+    }
+    if (found) {
+      break;
+    }
+  }
+  ctx.narrowingMemo.set(symbol, found);
+  return found;
+}
+
+/** Symbols tested by `instanceof`/`in`, and the calls each symbol is passed to, for one source file. */
+interface NarrowingIndex {
+  narrowedNames: Set<ts.Symbol>;
+  callsByArgument: Map<ts.Symbol, ts.CallExpression[]>;
+}
+
+/** One pass over a file builds the whole index, so tracing many names costs O(file), not O(file × names). */
+function narrowingIndexFor(sourceFile: ts.SourceFile, ctx: TraceContext): NarrowingIndex {
+  const existing = ctx.narrowingIndexes.get(sourceFile);
+  if (existing) {
+    return existing;
+  }
+  const index: NarrowingIndex = { narrowedNames: new Set(), callsByArgument: new Map() };
+  const rootSymbol = (expression: ts.Node): ts.Symbol | undefined => {
     let inner = expression;
     while (
       ts.isPropertyAccessExpression(inner) ||
@@ -537,34 +582,37 @@ function narrowingMayApply(symbol: ts.Symbol, ctx: TraceContext): boolean {
     ) {
       inner = inner.expression;
     }
-    return ts.isIdentifier(inner) && symbolAt(inner, ctx.checker) === symbol;
+    return ts.isIdentifier(inner) ? symbolAt(inner, ctx.checker) : undefined;
   };
-  let found = false;
-  const scan = (child: ts.Node): void => {
-    if (found) {
-      return;
+  const visit = (node: ts.Node): void => {
+    if (ts.isBinaryExpression(node)) {
+      const tested =
+        node.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword
+          ? rootSymbol(node.left)
+          : node.operatorToken.kind === ts.SyntaxKind.InKeyword
+            ? rootSymbol(node.right)
+            : undefined;
+      if (tested) {
+        index.narrowedNames.add(tested);
+      }
+    } else if (ts.isCallExpression(node)) {
+      for (const argument of node.arguments) {
+        const passed = rootSymbol(argument);
+        if (passed) {
+          const calls = index.callsByArgument.get(passed);
+          if (calls) {
+            calls.push(node);
+          } else {
+            index.callsByArgument.set(passed, [node]);
+          }
+        }
+      }
     }
-    if (
-      (ts.isBinaryExpression(child) &&
-        ((child.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword && isTheName(child.left)) ||
-          (child.operatorToken.kind === ts.SyntaxKind.InKeyword && isTheName(child.right)))) ||
-      (ts.isCallExpression(child) &&
-        child.arguments.some((arg) => isTheName(arg)) &&
-        isPotentialGuardCall(child, ctx))
-    ) {
-      found = true;
-      return;
-    }
-    ts.forEachChild(child, scan);
+    ts.forEachChild(node, visit);
   };
-  for (const declaration of symbol.declarations ?? []) {
-    scan(declaration.getSourceFile());
-    if (found) {
-      break;
-    }
-  }
-  ctx.narrowingMemo.set(symbol, found);
-  return found;
+  visit(sourceFile);
+  ctx.narrowingIndexes.set(sourceFile, index);
+  return index;
 }
 
 /**
@@ -597,6 +645,7 @@ interface TraceContext {
   /** Symbols the classification in progress has passed through (declarations it relied on). */
   traced: Set<ts.Symbol>;
   narrowingMemo: Map<ts.Symbol, boolean>;
+  narrowingIndexes: Map<ts.SourceFile, NarrowingIndex>;
 }
 
 /** Work units one member access may spend on tracing before its provenance is `unknown`. */
