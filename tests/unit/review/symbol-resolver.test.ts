@@ -590,6 +590,28 @@ test("#153: unknown or unmodelled provenance keeps the candidate (only proven no
   }
 });
 
+test("#153: shared initializer chains are traced in bounded time", async () => {
+  const refs = (name: string) => Array.from({ length: 60 }, () => name).join(", ");
+  const body = [
+    "const a0 = [];",
+    `const a1 = [${refs("a0")}];`,
+    `const a2 = [${refs("a1")}];`,
+    `const a3 = [${refs("a2")}];`,
+    `const a4 = [${refs("a3")}];`,
+    "a4.missing();",
+  ];
+  const files = new Map([["src/caller.ts", body.join("\n")]]);
+  const started = Date.now();
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([6])]]),
+    readFileFrom(files),
+  );
+  assert.ok(Date.now() - started < 3_000, `took ${Date.now() - started}ms`);
+  // Exhausting the work budget yields unknown, which keeps the candidate.
+  assert.ok(identified.requested.every((ref) => ref.symbolName === "missing"));
+});
+
 test("#153: a callback over a primitive-typed array is proven non-repository and skipped", async () => {
   const names = await requestedFor([
     "export function run(words: string[]): boolean {",

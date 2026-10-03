@@ -225,6 +225,12 @@ export async function identifyCandidates(
   const seenDeferred = new Map<string, number>();
   const symbolIds = new Map<ts.Symbol, number>();
   const skipped = new Set<string | ts.Symbol>();
+  const trace: TraceContext = {
+    checker,
+    remaining: TRACE_WORK_BUDGET,
+    nodeMemo: new Map(),
+    symbolMemo: new Map(),
+  };
   const requested: InternalRequestedReference[] = [];
   let nextId = 0;
 
@@ -248,6 +254,7 @@ export async function identifyCandidates(
           seenDeferred,
           symbolIds,
           skipped,
+          trace,
           requested,
           () => nextId++,
         );
@@ -277,6 +284,7 @@ function considerIdentifier(
   seenDeferred: Map<string, number>,
   symbolIds: Map<ts.Symbol, number>,
   skipped: Set<string | ts.Symbol>,
+  trace: TraceContext,
   requested: InternalRequestedReference[],
   allocateId: () => number,
 ): void {
@@ -320,7 +328,8 @@ function considerIdentifier(
     // literal, a primitive-typed local, or an external import). Requesting
     // them spent the budget and turned a pass with nothing to resolve into
     // `unavailable`. A base the tracer does not model keeps its candidate.
-    if (classifyProvenance(node.parent.expression, checker, 0) === "external") {
+    trace.remaining = TRACE_WORK_BUDGET;
+    if (classifyProvenance(node.parent.expression, trace, 0) === "external") {
       skipped.add(`deferred:${key}`);
       return;
     }
@@ -428,6 +437,32 @@ function aliasModuleSpecifier(symbol: ts.Symbol): string | undefined {
   return undefined;
 }
 
+/**
+ * Shared state for provenance tracing. `remaining` is a work budget reset per
+ * traced member access: the tracer runs synchronously inside identification,
+ * which nothing can interrupt, and shared initializer chains
+ * (`a1 = [a0, a0, ...]`, `a2 = [a1, a1, ...]`) expand exponentially without
+ * one. An exhausted budget yields `unknown`, which keeps the candidate. The
+ * memo maps make each shared node or symbol cost once per run.
+ */
+interface TraceContext {
+  checker: ts.TypeChecker;
+  remaining: number;
+  nodeMemo: Map<ts.Node, Provenance>;
+  symbolMemo: Map<ts.Symbol, Provenance>;
+}
+
+/** Work units one member access may spend on tracing before its provenance is `unknown`. */
+const TRACE_WORK_BUDGET = 400;
+
+function spendTraceWork(ctx: TraceContext): boolean {
+  if (ctx.remaining <= 0) {
+    return false;
+  }
+  ctx.remaining -= 1;
+  return true;
+}
+
 /** Bound on how far {@link classifyProvenance} follows initializers, annotations and callbacks. */
 const MAX_TRACE_DEPTH = 16;
 
@@ -452,21 +487,33 @@ function combineProvenance(parts: Provenance[]): Provenance {
   return parts.length > 0 && parts.every((part) => part === "external") ? "external" : "unknown";
 }
 
-function classifyProvenance(expression: ts.Node, checker: ts.TypeChecker, depth: number): Provenance {
-  if (depth > MAX_TRACE_DEPTH) {
+function classifyProvenance(expression: ts.Node, ctx: TraceContext, depth: number): Provenance {
+  if (depth > MAX_TRACE_DEPTH || !spendTraceWork(ctx)) {
     return "unknown";
   }
+  const memoized = ctx.nodeMemo.get(expression);
+  if (memoized !== undefined) {
+    return memoized;
+  }
+  const result = classifyProvenanceUncached(expression, ctx, depth);
+  if (ctx.remaining > 0) {
+    ctx.nodeMemo.set(expression, result);
+  }
+  return result;
+}
+
+function classifyProvenanceUncached(expression: ts.Node, ctx: TraceContext, depth: number): Provenance {
   if (ts.isParenthesizedExpression(expression) || ts.isNonNullExpression(expression) || ts.isAwaitExpression(expression)) {
-    return classifyProvenance(expression.expression, checker, depth);
+    return classifyProvenance(expression.expression, ctx, depth);
   }
   if (ts.isSatisfiesExpression(expression)) {
     // `satisfies` only checks; the expression keeps the operand's own type.
-    return classifyProvenance(expression.expression, checker, depth);
+    return classifyProvenance(expression.expression, ctx, depth);
   }
   if (ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression)) {
     // The asserted type, when it says something, outranks the operand.
-    const asserted = classifyTypeProvenance(expression.type, checker, depth + 1);
-    return asserted !== "unknown" ? asserted : classifyProvenance(expression.expression, checker, depth + 1);
+    const asserted = classifyTypeProvenance(expression.type, ctx, depth + 1);
+    return asserted !== "unknown" ? asserted : classifyProvenance(expression.expression, ctx, depth + 1);
   }
   if (
     ts.isStringLiteralLike(expression) ||
@@ -484,39 +531,39 @@ function classifyProvenance(expression: ts.Node, checker: ts.TypeChecker, depth:
     return combineProvenance(
       expression.elements.length === 0
         ? ["external"]
-        : expression.elements.map((element) => classifyProvenance(element, checker, depth + 1)),
+        : expression.elements.map((element) => classifyProvenance(element, ctx, depth + 1)),
     );
   }
   if (ts.isElementAccessExpression(expression)) {
-    return classifyProvenance(expression.expression, checker, depth + 1);
+    return classifyProvenance(expression.expression, ctx, depth + 1);
   }
   if (ts.isCallExpression(expression) || ts.isNewExpression(expression)) {
     // A call result is not simply its callee's provenance: an external
     // function can return what it was given (`Promise.resolve(repo)`,
     // `Array.from(repos)`) or what a callback builds (`xs.map(() => new Repo())`).
     // It is external only when the callee and every argument are proven so.
-    const callee = classifyProvenance(expression.expression, checker, depth + 1);
+    const callee = classifyProvenance(expression.expression, ctx, depth + 1);
     if (callee !== "external") {
       return callee;
     }
     return combineProvenance([
       callee,
       ...(expression.arguments ?? []).map((arg) =>
-        ts.isSpreadElement(arg) ? "unknown" : classifyProvenance(arg, checker, depth + 1),
+        ts.isSpreadElement(arg) ? "unknown" : classifyProvenance(arg, ctx, depth + 1),
       ),
       // `new Map<string, Repo>()`, `get<Repo>()`: explicit type arguments carry the type.
-      ...(expression.typeArguments ?? []).map((arg) => classifyTypeProvenance(arg, checker, depth + 1)),
+      ...(expression.typeArguments ?? []).map((arg) => classifyTypeProvenance(arg, ctx, depth + 1)),
     ]);
   }
   if (ts.isPropertyAccessExpression(expression)) {
-    const base = classifyProvenance(expression.expression, checker, depth + 1);
+    const base = classifyProvenance(expression.expression, ctx, depth + 1);
     if (base !== "unknown") {
       return base;
     }
-    return classifySymbolProvenance(symbolAt(expression.name, checker), checker, depth + 1);
+    return classifySymbolProvenance(symbolAt(expression.name, ctx.checker), ctx, depth + 1);
   }
   if (ts.isIdentifier(expression)) {
-    return classifySymbolProvenance(symbolAt(expression, checker), checker, depth);
+    return classifySymbolProvenance(symbolAt(expression, ctx.checker), ctx, depth);
   }
   return "unknown";
 }
@@ -531,12 +578,27 @@ function symbolAt(node: ts.Node, checker: ts.TypeChecker): ts.Symbol | undefined
 
 function classifySymbolProvenance(
   symbol: ts.Symbol | undefined,
-  checker: ts.TypeChecker,
+  ctx: TraceContext,
   depth: number,
 ): Provenance {
-  if (!symbol || depth > MAX_TRACE_DEPTH) {
+  if (!symbol || depth > MAX_TRACE_DEPTH || !spendTraceWork(ctx)) {
     return "unknown";
   }
+  const memoized = ctx.symbolMemo.get(symbol);
+  if (memoized !== undefined) {
+    return memoized;
+  }
+  ctx.symbolMemo.set(symbol, "unknown"); // breaks a self-referential initializer cycle
+  const result = classifySymbolProvenanceUncached(symbol, ctx, depth);
+  if (ctx.remaining > 0) {
+    ctx.symbolMemo.set(symbol, result);
+  } else {
+    ctx.symbolMemo.delete(symbol);
+  }
+  return result;
+}
+
+function classifySymbolProvenanceUncached(symbol: ts.Symbol, ctx: TraceContext, depth: number): Provenance {
   if ((symbol.flags & ts.SymbolFlags.Alias) !== 0) {
     const specifier = aliasModuleSpecifier(symbol);
     if (specifier === undefined) {
@@ -548,23 +610,23 @@ function classifySymbolProvenance(
   if (declarations.length > 0 && declarations.every((decl) => isOwnLibPath(decl.getSourceFile().fileName))) {
     return "external"; // a lib global: `JSON`, `Math`, `Promise`, ...
   }
-  return combineProvenance(declarations.map((decl) => classifyDeclarationProvenance(decl, checker, depth + 1)));
+  return combineProvenance(declarations.map((decl) => classifyDeclarationProvenance(decl, ctx, depth + 1)));
 }
 
-function classifyDeclarationProvenance(decl: ts.Declaration, checker: ts.TypeChecker, depth: number): Provenance {
+function classifyDeclarationProvenance(decl: ts.Declaration, ctx: TraceContext, depth: number): Provenance {
   if (ts.isVariableDeclaration(decl) || ts.isParameter(decl) || ts.isPropertyDeclaration(decl) || ts.isPropertySignature(decl)) {
     if (!ts.isIdentifier(decl.name)) {
       return "unknown"; // a destructuring pattern
     }
     if (decl.type) {
-      return classifyTypeProvenance(decl.type, checker, depth + 1);
+      return classifyTypeProvenance(decl.type, ctx, depth + 1);
     }
     const initializer = "initializer" in decl ? decl.initializer : undefined;
     if (initializer) {
-      return classifyProvenance(initializer, checker, depth + 1);
+      return classifyProvenance(initializer, ctx, depth + 1);
     }
     if (ts.isParameter(decl)) {
-      return classifyCallbackParameter(decl, checker, depth + 1);
+      return classifyCallbackParameter(decl, ctx, depth + 1);
     }
   }
   return "unknown";
@@ -590,7 +652,7 @@ const ELEMENT_CALLBACK_METHODS: ReadonlySet<string> = new Set([
   "forEach",
 ]);
 
-function classifyCallbackParameter(param: ts.ParameterDeclaration, checker: ts.TypeChecker, depth: number): Provenance {
+function classifyCallbackParameter(param: ts.ParameterDeclaration, ctx: TraceContext, depth: number): Provenance {
   const fn = param.parent;
   if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) {
     return "unknown";
@@ -607,11 +669,11 @@ function classifyCallbackParameter(param: ts.ParameterDeclaration, checker: ts.T
   ) {
     return "unknown";
   }
-  return classifyProvenance(call.expression.expression, checker, depth + 1);
+  return classifyProvenance(call.expression.expression, ctx, depth + 1);
 }
 
-function classifyTypeProvenance(type: ts.TypeNode, checker: ts.TypeChecker, depth: number): Provenance {
-  if (depth > MAX_TRACE_DEPTH) {
+function classifyTypeProvenance(type: ts.TypeNode, ctx: TraceContext, depth: number): Provenance {
+  if (depth > MAX_TRACE_DEPTH || !spendTraceWork(ctx)) {
     return "unknown";
   }
   switch (type.kind) {
@@ -626,30 +688,30 @@ function classifyTypeProvenance(type: ts.TypeNode, checker: ts.TypeChecker, dept
       break;
   }
   if (ts.isArrayTypeNode(type)) {
-    return classifyTypeProvenance(type.elementType, checker, depth + 1);
+    return classifyTypeProvenance(type.elementType, ctx, depth + 1);
   }
   if (ts.isParenthesizedTypeNode(type)) {
-    return classifyTypeProvenance(type.type, checker, depth);
+    return classifyTypeProvenance(type.type, ctx, depth);
   }
   if (ts.isUnionTypeNode(type) || ts.isIntersectionTypeNode(type)) {
-    return combineProvenance(type.types.map((member) => classifyTypeProvenance(member, checker, depth + 1)));
+    return combineProvenance(type.types.map((member) => classifyTypeProvenance(member, ctx, depth + 1)));
   }
   if (ts.isTypeReferenceNode(type)) {
     let name: ts.EntityName = type.typeName;
     while (ts.isQualifiedName(name)) {
       name = name.left;
     }
-    const symbol = symbolAt(name, checker);
+    const symbol = symbolAt(name, ctx.checker);
     const declarations = symbol?.declarations ?? [];
     let head: Provenance;
     if (symbol && declarations.length > 0 && declarations.every(ts.isTypeAliasDeclaration)) {
       // A local alias is only as external as what it aliases.
-      head = combineProvenance(declarations.map((decl) => classifyTypeProvenance(decl.type, checker, depth + 1)));
+      head = combineProvenance(declarations.map((decl) => classifyTypeProvenance(decl.type, ctx, depth + 1)));
     } else {
-      head = classifySymbolProvenance(symbol, checker, depth + 1);
+      head = classifySymbolProvenance(symbol, ctx, depth + 1);
     }
     // `Array<Repo>`, `Promise<Repo>`: the arguments can carry a repository type.
-    const args = (type.typeArguments ?? []).map((arg) => classifyTypeProvenance(arg, checker, depth + 1));
+    const args = (type.typeArguments ?? []).map((arg) => classifyTypeProvenance(arg, ctx, depth + 1));
     return head === "repository" || args.includes("repository")
       ? "repository"
       : head === "external" && args.every((arg) => arg === "external")
