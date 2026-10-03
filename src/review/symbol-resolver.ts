@@ -541,38 +541,15 @@ function narrowingMayApply(symbol: ts.Symbol, ctx: TraceContext): boolean {
 }
 
 /**
- * A call that may narrow: it sits where a type guard or assertion function
- * acts (a condition, or a statement of its own) and its callee is not proven
- * external. Calls to external or lib functions cannot be repository guards;
- * a callee reached through a local alias (`const guard = isRepo`), a local
- * helper, or an imported function can.
+ * A call that may narrow its argument: its callee is not proven external, so
+ * it may be a type guard or assertion function, however it was reached
+ * (an import, a local helper, `const guard = isRepo`). The call can sit
+ * anywhere, a condition included or not (`const ok = isRepo(e); if (ok) ...`);
+ * what limits this to the accessed name is that the caller only asks about
+ * calls passed that name. Calls to external or lib functions cannot be
+ * repository guards.
  */
 function isPotentialGuardCall(call: ts.CallExpression, ctx: TraceContext): boolean {
-  let child: ts.Node = call;
-  let parent: ts.Node = call.parent;
-  while (
-    ts.isParenthesizedExpression(parent) ||
-    ts.isNonNullExpression(parent) ||
-    ts.isAwaitExpression(parent) ||
-    (ts.isPrefixUnaryExpression(parent) && parent.operator === ts.SyntaxKind.ExclamationToken) ||
-    (ts.isBinaryExpression(parent) &&
-      (parent.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
-        parent.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
-        parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken))
-  ) {
-    child = parent;
-    parent = parent.parent;
-  }
-  const inGuardPosition =
-    ts.isExpressionStatement(parent) ||
-    (ts.isIfStatement(parent) && parent.expression === child) ||
-    (ts.isWhileStatement(parent) && parent.expression === child) ||
-    (ts.isDoStatement(parent) && parent.expression === child) ||
-    (ts.isForStatement(parent) && parent.condition === child) ||
-    (ts.isConditionalExpression(parent) && parent.condition === child);
-  if (!inGuardPosition) {
-    return false;
-  }
   ctx.remaining = TRACE_WORK_BUDGET;
   return classifyProvenance(call.expression, ctx, 0) !== "external";
 }

@@ -629,6 +629,14 @@ test("#153: unknown or unmodelled provenance keeps the candidate (only proven no
       '  return "";',
       "}",
     ],
+    "a guard result held in a boolean": [
+      'import { isRepo } from "./repo.js";',
+      "export function run(e: Error): string {",
+      "  const ok = isRepo(e);",
+      "  if (ok) return e.read();",
+      '  return "";',
+      "}",
+    ],
     "a local alias of an imported guard": [
       'import { isRepo } from "./repo.js";',
       "const guard = isRepo;",
