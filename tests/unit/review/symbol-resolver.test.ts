@@ -577,6 +577,13 @@ test("#153: unknown or unmodelled provenance keeps the candidate (only proven no
       '  return repos.get("a").read();',
       "}",
     ],
+    "an assertion to a local interface extending the imported type": [
+      "interface LocalRepo extends Repo {}",
+      "export function run(): string {",
+      "  const repos = [] as LocalRepo[];",
+      "  return repos[0].read();",
+      "}",
+    ],
     "an operand with satisfies": [
       "export function run(): string {",
       "  const repo = new Repo() satisfies object;",

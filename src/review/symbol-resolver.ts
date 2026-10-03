@@ -511,9 +511,10 @@ function classifyProvenanceUncached(expression: ts.Node, ctx: TraceContext, dept
     return classifyProvenance(expression.expression, ctx, depth);
   }
   if (ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression)) {
-    // The asserted type, when it says something, outranks the operand.
-    const asserted = classifyTypeProvenance(expression.type, ctx, depth + 1);
-    return asserted !== "unknown" ? asserted : classifyProvenance(expression.expression, ctx, depth + 1);
+    // The asserted type replaces the operand's type outright. When the tracer
+    // does not model it (`as LocalRepo[]` with `interface LocalRepo extends
+    // Repo`), the result is unknown, never the operand's provenance.
+    return classifyTypeProvenance(expression.type, ctx, depth + 1);
   }
   if (
     ts.isStringLiteralLike(expression) ||
