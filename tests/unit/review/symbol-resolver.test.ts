@@ -729,6 +729,28 @@ test("#153: a member missing from a concretely typed base may be a repository au
   assert.ok(identified.requested.some((ref) => ref.symbolName === "repoMethod"));
 });
 
+test("#153: a chained access through a repository-augmented member of a concrete receiver is kept", async () => {
+  const files = new Map([
+    [
+      "src/extend.ts",
+      'import { Repo } from "./repo.js";\ndeclare global {\n  interface String {\n    repo(): Repo;\n  }\n}\nexport {};\n',
+    ],
+    ["src/repo.ts", REPO_SOURCE],
+    [
+      "src/caller.ts",
+      ['import "./extend.js";', "", "export function run(text: string): string {", "  return text.repo().read();", "}"].join(
+        "\n",
+      ),
+    ],
+  ]);
+  const identified = await identifyCandidates(
+    ["src/caller.ts"],
+    new Map([["src/caller.ts", new Set([4])]]),
+    readFileFrom(files),
+  );
+  assert.ok(identified.requested.some((ref) => ref.symbolName === "read"));
+});
+
 test("#153: a callback over a primitive-typed array is proven non-repository and skipped", async () => {
   const names = await requestedFor([
     "export function run(words: string[]): boolean {",

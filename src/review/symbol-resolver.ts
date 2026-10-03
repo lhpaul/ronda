@@ -341,7 +341,7 @@ function considerIdentifier(
     }
     if (
       classifyProvenance(node.parent.expression, trace, 0) === "external" &&
-      isAnyTyped(node.parent.expression, checker) &&
+      isAnyChain(node.parent.expression, checker) &&
       ![...trace.traced].some((traced) => narrowingMayApply(traced, trace))
     ) {
       skipped.add(`deferred:${key}`);
@@ -449,6 +449,33 @@ function aliasModuleSpecifier(symbol: ts.Symbol): string | undefined {
     node = node.parent;
   }
   return undefined;
+}
+
+/**
+ * Whether an access chain is `any`-typed at every member step, not just at its
+ * end. `text.repo().read()` ends in an `any` (the unresolved `repo`), but that
+ * is a member missing from a concretely typed `string`, which a repository
+ * augmentation may supply; only members missing from an `any` base are
+ * explained by an unresolved import.
+ */
+function isAnyChain(expression: ts.Expression, checker: ts.TypeChecker): boolean {
+  if (!isAnyTyped(expression, checker)) {
+    return false;
+  }
+  return everyMemberBaseIsAny(expression, checker);
+}
+
+function everyMemberBaseIsAny(expression: ts.Expression, checker: ts.TypeChecker): boolean {
+  if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+    return isAnyTyped(expression.expression, checker) && everyMemberBaseIsAny(expression.expression, checker);
+  }
+  if (ts.isCallExpression(expression) || ts.isNewExpression(expression)) {
+    return everyMemberBaseIsAny(expression.expression, checker);
+  }
+  if (ts.isNonNullExpression(expression) || ts.isParenthesizedExpression(expression) || ts.isAwaitExpression(expression)) {
+    return everyMemberBaseIsAny(expression.expression, checker);
+  }
+  return true;
 }
 
 /**
