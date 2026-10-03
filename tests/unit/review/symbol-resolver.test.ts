@@ -592,6 +592,13 @@ test("#153: unknown or unmodelled provenance keeps the candidate (only proven no
       "  });",
       "}",
     ],
+    "a let reassigned to the imported type": [
+      "export function run(): string {",
+      "  let r = null;",
+      "  r = new Repo();",
+      "  return r.read();",
+      "}",
+    ],
     "an operand with satisfies": [
       "export function run(): string {",
       "  const repo = new Repo() satisfies object;",
@@ -625,6 +632,30 @@ test("#153: shared initializer chains are traced in bounded time", async () => {
   assert.ok(Date.now() - started < 3_000, `took ${Date.now() - started}ms`);
   // Exhausting the work budget yields unknown, which keeps the candidate.
   assert.ok(identified.requested.every((ref) => ref.symbolName === "missing"));
+});
+
+test("#153: a JSDoc-typed declaration in a JavaScript file keeps its candidate", async () => {
+  const files = new Map([
+    ["src/repo.js", "export class Repo {\n  read() { return 'r'; }\n}\n"],
+    [
+      "src/caller.js",
+      [
+        'import { Repo } from "./repo.js";',
+        "",
+        "export function run() {",
+        "  /** @type {Repo} */",
+        "  const r = null;",
+        "  return r.read();",
+        "}",
+      ].join("\n"),
+    ],
+  ]);
+  const identified = await identifyCandidates(
+    ["src/caller.js"],
+    new Map([["src/caller.js", new Set([6])]]),
+    readFileFrom(files),
+  );
+  assert.ok(identified.requested.some((ref) => ref.symbolName === "read"));
 });
 
 test("#153: a callback over a primitive-typed array is proven non-repository and skipped", async () => {

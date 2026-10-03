@@ -619,6 +619,11 @@ function classifyDeclarationProvenance(decl: ts.Declaration, ctx: TraceContext, 
     if (!ts.isIdentifier(decl.name)) {
       return "unknown"; // a destructuring pattern
     }
+    // A JSDoc `@type` / `@param` (JavaScript files) types the declaration
+    // independently of its initializer, and the tracer does not read it.
+    if (ts.getJSDocType(decl) || (ts.isParameter(decl) && ts.getJSDocParameterTags(decl).length > 0)) {
+      return "unknown";
+    }
     if (decl.type) {
       return classifyTypeProvenance(decl.type, ctx, depth + 1);
     }
@@ -628,9 +633,15 @@ function classifyDeclarationProvenance(decl: ts.Declaration, ctx: TraceContext, 
       // nothing about that type.
       return classifyCallbackParameter(decl, ctx, depth + 1);
     }
-    const initializer = "initializer" in decl ? decl.initializer : undefined;
-    if (initializer) {
-      return classifyProvenance(initializer, ctx, depth + 1);
+    // Only a `const` initializer is evidence of what the name holds: a `let`,
+    // `var` or field can be reassigned to anything (`let r = null; r = new Repo()`).
+    if (
+      ts.isVariableDeclaration(decl) &&
+      decl.initializer &&
+      ts.isVariableDeclarationList(decl.parent) &&
+      (decl.parent.flags & ts.NodeFlags.Const) !== 0
+    ) {
+      return classifyProvenance(decl.initializer, ctx, depth + 1);
     }
   }
   return "unknown";
