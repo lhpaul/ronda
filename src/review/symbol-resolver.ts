@@ -230,6 +230,8 @@ export async function identifyCandidates(
     remaining: TRACE_WORK_BUDGET,
     nodeMemo: new Map(),
     symbolMemo: new Map(),
+    narrowingMemo: new Map(),
+    typePredicateMemo: new Map(),
   };
   const requested: InternalRequestedReference[] = [];
   let nextId = 0;
@@ -329,7 +331,7 @@ function considerIdentifier(
     // them spent the budget and turned a pass with nothing to resolve into
     // `unavailable`. A base the tracer does not model keeps its candidate.
     trace.remaining = TRACE_WORK_BUDGET;
-    if (classifyProvenance(node.parent.expression, trace, 0) === "external") {
+    if (classifyProvenance(node.parent.expression, trace, 0) === "external" && !narrowingMayApply(node, trace)) {
       skipped.add(`deferred:${key}`);
       return;
     }
@@ -438,6 +440,84 @@ function aliasModuleSpecifier(symbol: ts.Symbol): string | undefined {
 }
 
 /**
+ * Whether control-flow narrowing could change a name's type at `node`, which
+ * would void an `external` proof drawn from its declared type (`e: Event` is
+ * external, but `if (e instanceof RepoEvent) e.read()` is not). Narrowing
+ * needs a type to narrow *to*: an `instanceof` or `in` test in the enclosing
+ * function, a type predicate (`x is T`) anywhere in the file, or a call to a
+ * function imported from the repository (which may be a guard). Any of these
+ * keeps the candidate.
+ */
+function narrowingMayApply(node: ts.Node, ctx: TraceContext): boolean {
+  let container: ts.Node = node;
+  while (container.parent && !ts.isFunctionLike(container) && !ts.isSourceFile(container)) {
+    container = container.parent;
+  }
+  const cached = ctx.narrowingMemo.get(container);
+  if (cached !== undefined) {
+    return cached;
+  }
+  let found = false;
+  const scan = (child: ts.Node): void => {
+    if (found) {
+      return;
+    }
+    if (
+      (ts.isBinaryExpression(child) &&
+        (child.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword ||
+          child.operatorToken.kind === ts.SyntaxKind.InKeyword)) ||
+      (ts.isCallExpression(child) && classifyCalleeRoot(child.expression, ctx) === "repository")
+    ) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(child, scan);
+  };
+  scan(container);
+  if (!found) {
+    const sourceFile = container.getSourceFile();
+    const fileHasPredicate = ctx.typePredicateMemo.get(sourceFile);
+    if (fileHasPredicate === undefined) {
+      let predicate = false;
+      const scanFile = (child: ts.Node): void => {
+        if (predicate) {
+          return;
+        }
+        if (ts.isTypePredicateNode(child)) {
+          predicate = true;
+          return;
+        }
+        ts.forEachChild(child, scanFile);
+      };
+      scanFile(sourceFile);
+      ctx.typePredicateMemo.set(sourceFile, predicate);
+      found = predicate;
+    } else {
+      found = fileHasPredicate;
+    }
+  }
+  ctx.narrowingMemo.set(container, found);
+  return found;
+}
+
+/** `repository` when the callee's root identifier is an import from a relative specifier (or one that cannot be read). */
+function classifyCalleeRoot(callee: ts.Expression, ctx: TraceContext): Provenance {
+  let root: ts.Expression = callee;
+  while (ts.isPropertyAccessExpression(root) || ts.isElementAccessExpression(root) || ts.isCallExpression(root)) {
+    root = root.expression;
+  }
+  if (!ts.isIdentifier(root)) {
+    return "unknown";
+  }
+  const symbol = symbolAt(root, ctx.checker);
+  if (!symbol || (symbol.flags & ts.SymbolFlags.Alias) === 0) {
+    return "unknown";
+  }
+  const specifier = aliasModuleSpecifier(symbol);
+  return specifier === undefined || !isNonRelativeSpecifier(specifier) ? "repository" : "external";
+}
+
+/**
  * Shared state for provenance tracing. `remaining` is a work budget reset per
  * traced member access: the tracer runs synchronously inside identification,
  * which nothing can interrupt, and shared initializer chains
@@ -450,6 +530,8 @@ interface TraceContext {
   remaining: number;
   nodeMemo: Map<ts.Node, Provenance>;
   symbolMemo: Map<ts.Symbol, Provenance>;
+  narrowingMemo: Map<ts.Node, boolean>;
+  typePredicateMemo: Map<ts.SourceFile, boolean>;
 }
 
 /** Work units one member access may spend on tracing before its provenance is `unknown`. */

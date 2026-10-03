@@ -599,6 +599,19 @@ test("#153: unknown or unmodelled provenance keeps the candidate (only proven no
       "  return r.read();",
       "}",
     ],
+    "an instanceof narrowing of an external declared type": [
+      "export function run(e: Error): string {",
+      "  if (e instanceof Repo) return e.read();",
+      '  return "";',
+      "}",
+    ],
+    "a local type-predicate guard": [
+      "declare function isRepo(x: Error): x is Repo;",
+      "export function run(e: Error): string {",
+      "  if (isRepo(e)) return e.read();",
+      '  return "";',
+      "}",
+    ],
     "an operand with satisfies": [
       "export function run(): string {",
       "  const repo = new Repo() satisfies object;",
