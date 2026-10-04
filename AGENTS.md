@@ -144,6 +144,14 @@ npm run quality:report
 # required (no default arm).
 npm run quality:control-pass -- --pr <number> --repository-context on|off
 
+# Replay committed spec/plan heads under one arm of the #143 experiment and
+# append the findings only to docs/testing/ronda/spec-plan-experiment-143.jsonl
+# — never a review, check run, or comment to GitHub. Arm A is the production
+# prompt, B the spec/plan prompt, C the same prompt on one pinned stronger
+# model (--model, an exact dated id; required for C). Requires GITHUB_TOKEN and
+# a model credential unless --dry-run. Heads come from the committed manifest.
+npm run quality:spec-plan-experiment -- --arm A|B|C [--runs 3] [--head <sha>] [--model <id>] [--patch-source synthesize|github] [--dry-run]
+
 # Build
 # No build step — TypeScript runs directly via tsx; there is no committed
 # build artifact (dist/ is gitignored).
