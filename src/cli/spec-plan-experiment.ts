@@ -2,6 +2,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { Octokit } from "@octokit/rest";
 import { ConfigLoadError, loadConfig } from "../config/load-config.js";
@@ -374,6 +375,8 @@ export interface RunExperimentDeps {
   armCModelFactory?: (modelName: string) => ModelClient;
   reviewMarkdown?: string;
   now?: () => number;
+  /** Test-only seam replacing the git check that the manifest is committed and unmodified. */
+  verifyManifestCommitted?: (relativePath: string) => void;
 }
 
 function toExperimentFinding(finding: {
@@ -412,13 +415,23 @@ export function attemptGroup(
   return `${headSha}|${arm}|${patchSource}|${modelRequested}`;
 }
 
+/**
+ * Arms B and C send one prompt (the model is the only thing that differs), and
+ * arm A's is the production prompt, so attempts are compared by family: B and C
+ * together, A alone. A change in the PR text or checklist between the B and the
+ * C invocation would otherwise let a prompt difference pass for a model effect.
+ */
+export function promptFamily(headSha: string, arm: ExperimentArm, patchSource: "synthesize" | "github"): string {
+  return `${headSha}|${arm === "A" ? "A" : "BC"}|${patchSource}`;
+}
+
 /** Outcomes that do not count as a completed attempt: a resume retries them. */
 const INCOMPLETE_OUTCOMES: ReadonlySet<string> = new Set(["model_error", "unusable_output", "model_unverified"]);
 
 export interface CompletedAttempts {
   /** Attempt keys already recorded with a usable result. */
   keys: Set<string>;
-  /** Prompt fingerprints of those completed attempts, per head/arm/patch source/model. */
+  /** Prompt fingerprints of those completed attempts, per head, prompt family (A, or B and C together) and patch source. */
   prompts: Map<string, Set<string>>;
 }
 
@@ -450,7 +463,7 @@ export function completedAttempts(outPath: string): CompletedAttempts {
     ) {
       result.keys.add(attemptKey(record.headSha, record.arm, record.run, record.patchSource, record.modelRequested));
       if (record.promptSha256) {
-        const group = attemptGroup(record.headSha, record.arm, record.patchSource, record.modelRequested);
+        const group = promptFamily(record.headSha, record.arm, record.patchSource);
         const shas = result.prompts.get(group) ?? new Set<string>();
         shas.add(record.promptSha256);
         result.prompts.set(group, shas);
@@ -458,6 +471,36 @@ export function completedAttempts(outPath: string): CompletedAttempts {
     }
   }
   return result;
+}
+
+/** Refuses a manifest that is untracked or differs from HEAD. */
+export function verifyManifestCommittedInGit(relativePath: string): void {
+  const git = (...args: string[]): string =>
+    execFileSync("git", args, { cwd: REPO_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  try {
+    git("ls-files", "--error-unmatch", "--", relativePath);
+  } catch {
+    throw new SpecPlanExperimentUsageError(`${relativePath} is not tracked by git; a real run needs the committed head manifest.`);
+  }
+  if (git("status", "--porcelain", "--", relativePath).trim() !== "") {
+    throw new SpecPlanExperimentUsageError(`${relativePath} has uncommitted changes; a real run needs the committed head manifest.`);
+  }
+}
+
+/** The production prompt modes this replay cannot reproduce, from a loaded config. */
+export function unsupportedProductionModes(config: {
+  sweepMode: string;
+  repositoryContextMode: string;
+  durabilityMode: string;
+  durabilityModeDefault: boolean;
+  excludePathGlobs: string[];
+}): string[] {
+  const modes: string[] = [];
+  if (config.sweepMode === "on") modes.push("category sweep");
+  if (config.repositoryContextMode === "on") modes.push("repository context");
+  if (config.durabilityMode === "on" || config.durabilityModeDefault) modes.push("durability mode");
+  if (config.excludePathGlobs.length > 0) modes.push("path exclusions");
+  return modes;
 }
 
 /** A whole-file addition patch for a document GitHub returned no patch for. */
@@ -518,6 +561,8 @@ export interface ExperimentConfig {
   maxPatchChars?: number;
   maxAuthoritativeDocCount?: number;
   maxAuthoritativeDocChars?: number;
+  /** Production prompt modes enabled in the loaded config that this replay does not reproduce. */
+  unsupportedModes?: string[];
 }
 
 /**
@@ -533,6 +578,17 @@ export async function runExperiment(
   const now = deps.now ?? (() => Date.now());
   const headsPath = resolveRepoPath(options.headsPath);
   const outPath = resolveRepoPath(options.outPath);
+
+  if (!options.dryRun) {
+    // The cohort was committed before any arm ran; a real run may only use that
+    // committed list, never a file edited after seeing results.
+    (deps.verifyManifestCommitted ?? verifyManifestCommittedInGit)(options.headsPath);
+    if (config.unsupportedModes && config.unsupportedModes.length > 0) {
+      throw new SpecPlanExperimentUsageError(
+        `Production prompt mode(s) enabled that this replay does not reproduce: ${config.unsupportedModes.join(", ")}. Arm A would not be the production prompt. Unset them for the run.`,
+      );
+    }
+  }
 
   let heads = parseHeadsManifest(readFileSync(headsPath, "utf8"));
   if (heads.length === 0) {
@@ -655,7 +711,7 @@ export async function runExperiment(
     // body are mutable and the checklist is read from the working tree, so a
     // change between invocations would otherwise mix incomparable attempts in
     // one arm.
-    const earlier = completed.prompts.get(attemptGroup(head.headSha, options.arm, options.patchSource, modelRequested));
+    const earlier = completed.prompts.get(promptFamily(head.headSha, options.arm, options.patchSource));
     if (!options.dryRun && promptSha256 && earlier && [...earlier].some((sha) => sha !== promptSha256)) {
       throw new SpecPlanExperimentUsageError(
         `#${head.pullNumber} ${head.headSha.slice(0, 8)} arm ${options.arm}: the prompt differs from the one earlier attempts in ${options.outPath} were sent (the PR text or REVIEW.md checklist changed). Use a new --out file rather than mixing attempts.`,
@@ -806,6 +862,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       maxPatchChars: loaded.maxPatchChars,
       maxAuthoritativeDocCount: loaded.maxAuthoritativeDocCount,
       maxAuthoritativeDocChars: loaded.maxAuthoritativeDocChars,
+      unsupportedModes: unsupportedProductionModes(loaded),
     };
   } catch (error) {
     // A dry run sends no model request, so it may proceed on the built-in

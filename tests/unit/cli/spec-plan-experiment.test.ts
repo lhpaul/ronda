@@ -4,6 +4,8 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Octokit } from "@octokit/rest";
 import {
+  unsupportedProductionModes,
+  verifyManifestCommittedInGit,
   APPROVED_SPEC_PATH,
   APPROVED_SPEC_REF,
   buildArmPrompt,
@@ -264,7 +266,7 @@ test("a dry run writes one record per head per run with no model request and no 
   const calls: FakeCalls = { writes: 0, contentRefs: [] };
   const { code, records } = await runExperiment(
     options({ dryRun: true, runs: 3 }),
-    { octokit: fakeOctokit(calls), getWriteAttempts: () => calls.writes, reviewMarkdown: REVIEW_MD },
+    { octokit: fakeOctokit(calls), getWriteAttempts: () => calls.writes, verifyManifestCommitted: () => undefined, reviewMarkdown: REVIEW_MD },
     config,
   );
   assert.equal(code, 0);
@@ -282,7 +284,7 @@ test("a model run records parsed findings, the reported model and the temperatur
   });
   const { records } = await runExperiment(
     options({ onlyHead: "a691d010", runs: 2 }),
-    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, modelOverride: model(reply), reviewMarkdown: REVIEW_MD },
+    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: model(reply), reviewMarkdown: REVIEW_MD },
     config,
   );
   assert.equal(records.length, 2);
@@ -306,7 +308,7 @@ test("arm C builds its model from the pinned id and records that id", async () =
     options({ arm: "C", modelName: "stronger-2026-05-01", onlyHead: "a691d010", runs: 1 }),
     {
       octokit: fakeOctokit(calls),
-      getWriteAttempts: () => 0,
+      getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined,
       armCModelFactory: (name) => {
         requested.push(name);
         return model('{"findings":[]}', [], name);
@@ -328,7 +330,7 @@ test("a file GitHub returned no patch for is sent as document text, or as produc
   const synthesizedPrompts: string[] = [];
   const synthesized = await runExperiment(
     options({ onlyHead: "90a694ea", runs: 1 }),
-    { octokit: noPatch, getWriteAttempts: () => 0, modelOverride: model('{"findings":[]}', synthesizedPrompts), reviewMarkdown: REVIEW_MD },
+    { octokit: noPatch, getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: model('{"findings":[]}', synthesizedPrompts), reviewMarkdown: REVIEW_MD },
     config,
   );
   assert.ok(synthesizedPrompts[0].includes("+# full document"));
@@ -338,7 +340,7 @@ test("a file GitHub returned no patch for is sent as document text, or as produc
   const productionPrompts: string[] = [];
   const production = await runExperiment(
     options({ onlyHead: "90a694ea", runs: 1, patchSource: "github" }),
-    { octokit: noPatch, getWriteAttempts: () => 0, modelOverride: model('{"findings":[]}', productionPrompts), reviewMarkdown: REVIEW_MD },
+    { octokit: noPatch, getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: model('{"findings":[]}', productionPrompts), reviewMarkdown: REVIEW_MD },
     config,
   );
   assert.ok(productionPrompts[0].includes("(no textual diff available for this file)"));
@@ -355,7 +357,7 @@ test("an oversized spec is recorded as changes_too_large, not skipped", async ()
     options({ onlyHead: "a691d010", runs: 1 }),
     {
       octokit: fakeOctokit(calls, { patchFor: () => huge }),
-      getWriteAttempts: () => 0,
+      getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined,
       modelOverride: model('{"findings":[]}'),
       reviewMarkdown: REVIEW_MD,
     },
@@ -370,7 +372,7 @@ test("unusable model output and a model error are recorded, not thrown", async (
   const calls: FakeCalls = { writes: 0, contentRefs: [] };
   const unusable = await runExperiment(
     options({ onlyHead: "a691d010", runs: 1 }),
-    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, modelOverride: model("not json at all"), reviewMarkdown: REVIEW_MD },
+    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: model("not json at all"), reviewMarkdown: REVIEW_MD },
     config,
   );
   assert.equal(unusable.records[0].outcome, "unusable_output");
@@ -383,7 +385,7 @@ test("unusable model output and a model error are recorded, not thrown", async (
   };
   const errored = await runExperiment(
     options({ onlyHead: "a691d010", runs: 1 }),
-    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, modelOverride: failing, reviewMarkdown: REVIEW_MD },
+    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: failing, reviewMarkdown: REVIEW_MD },
     config,
   );
   assert.equal(errored.records[0].outcome, "model_error");
@@ -398,7 +400,7 @@ test("a plan head under arm B reads the approved spec at its merge commit, once"
   const seen: string[] = [];
   await runExperiment(
     options({ arm: "B", onlyHead: "a244cabd", runs: 2 }),
-    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, modelOverride: model('{"findings":[]}', seen), reviewMarkdown: REVIEW_MD },
+    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: model('{"findings":[]}', seen), reviewMarkdown: REVIEW_MD },
     config,
   );
   assert.ok(seen.every((prompt) => prompt.includes("APPROVED SPEC TEXT")));
@@ -417,7 +419,7 @@ test("a manifest stage that disagrees with the branch fails loudly", async () =>
     () =>
       runExperiment(
         options({ dryRun: true, onlyHead: "a691d010" }),
-        { octokit, getWriteAttempts: () => 0, reviewMarkdown: REVIEW_MD },
+        { octokit, getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, reviewMarkdown: REVIEW_MD },
         config,
       ),
     SpecPlanExperimentUsageError,
@@ -430,7 +432,7 @@ test("a write attempt fails the run", async () => {
   const calls: FakeCalls = { writes: 1, contentRefs: [] };
   const { code } = await runExperiment(
     options({ dryRun: true, onlyHead: "a691d010", runs: 1 }),
-    { octokit: fakeOctokit(calls), getWriteAttempts: () => calls.writes, reviewMarkdown: REVIEW_MD },
+    { octokit: fakeOctokit(calls), getWriteAttempts: () => calls.writes, verifyManifestCommitted: () => undefined, reviewMarkdown: REVIEW_MD },
     config,
   );
   assert.equal(code, 1);
@@ -442,7 +444,7 @@ test("--head matching no committed head is refused", async () => {
     () =>
       runExperiment(
         options({ dryRun: true, onlyHead: "ffffffff" }),
-        { octokit: fakeOctokit({ writes: 0, contentRefs: [] }), getWriteAttempts: () => 0, reviewMarkdown: REVIEW_MD },
+        { octokit: fakeOctokit({ writes: 0, contentRefs: [] }), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, reviewMarkdown: REVIEW_MD },
         config,
       ),
     SpecPlanExperimentUsageError,
@@ -454,7 +456,7 @@ test("a rerun resumes: usable attempts are not repeated, failed ones are retried
   const calls: FakeCalls = { writes: 0, contentRefs: [] };
   const deps = (m: ModelClient) => ({
     octokit: fakeOctokit(calls),
-    getWriteAttempts: () => 0,
+    getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined,
     modelOverride: m,
     reviewMarkdown: REVIEW_MD,
   });
@@ -491,7 +493,7 @@ test("arm A uses the production patch budget it was given, not a hard-coded defa
   const run = (maxPatchChars: number) =>
     runExperiment(
       options({ onlyHead: "a691d010", runs: 1, dryRun: true }),
-      { octokit: fakeOctokit(calls, { patchFor: () => patch }), getWriteAttempts: () => 0, reviewMarkdown: REVIEW_MD },
+      { octokit: fakeOctokit(calls, { patchFor: () => patch }), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, reviewMarkdown: REVIEW_MD },
       { ...config, maxPatchChars },
     );
   assert.equal((await run(1_000)).records[0].outcome, "changes_too_large");
@@ -515,7 +517,7 @@ test("each attempt is persisted as it completes, so a later failure keeps earlie
     () =>
       runExperiment(
         options({ runs: 2 }),
-        { octokit, getWriteAttempts: () => 0, modelOverride: model('{"findings":[]}'), reviewMarkdown: REVIEW_MD },
+        { octokit, getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: model('{"findings":[]}'), reviewMarkdown: REVIEW_MD },
         config,
       ),
     /GitHub read failed/,
@@ -526,7 +528,7 @@ test("each attempt is persisted as it completes, so a later failure keeps earlie
   const seen: string[] = [];
   const resumed = await runExperiment(
     options({ runs: 2, onlyHead: "a691d010" }),
-    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, modelOverride: model('{"findings":[]}', seen), reviewMarkdown: REVIEW_MD },
+    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: model('{"findings":[]}', seen), reviewMarkdown: REVIEW_MD },
     config,
   );
   assert.equal(resumed.records.length, 0);
@@ -546,12 +548,12 @@ test("no record or output file ever carries the model credential", async () => {
   };
   await runExperiment(
     options({ onlyHead: "a691d010", runs: 1 }),
-    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, modelOverride: failing, reviewMarkdown: REVIEW_MD },
+    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: failing, reviewMarkdown: REVIEW_MD },
     { ...config, apiKey: secret },
   );
   await runExperiment(
     options({ onlyHead: "a691d010", runs: 1, dryRun: true }),
-    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, reviewMarkdown: REVIEW_MD },
+    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, reviewMarkdown: REVIEW_MD },
     { ...config, apiKey: secret },
   );
   assert.ok(!readFileSync(join(REPO_ROOT, OUT), "utf8").includes(secret));
@@ -566,7 +568,7 @@ test("arm C results from a model that is not the pinned one are inadmissible, an
       options({ arm: "C", modelName: "stronger-2026-05-01", onlyHead: "a691d010", runs: 1 }),
       {
         octokit: fakeOctokit(calls),
-        getWriteAttempts: () => 0,
+        getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined,
         armCModelFactory: () => model('{"findings":[]}', [], reported),
         reviewMarkdown: REVIEW_MD,
       },
@@ -590,7 +592,7 @@ test("a resume is refused when the prompt differs from the one earlier attempts 
   const calls: FakeCalls = { writes: 0, contentRefs: [] };
   const deps = (reviewMarkdown: string) => ({
     octokit: fakeOctokit(calls),
-    getWriteAttempts: () => 0,
+    getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined,
     modelOverride: model('{"findings":[]}'),
     reviewMarkdown,
   });
@@ -605,5 +607,60 @@ test("a resume is refused when the prompt differs from the one earlier attempts 
   // The unchanged prompt resumes normally.
   const resumed = await runExperiment(options({ arm: "B", onlyHead: "a691d010", runs: 2 }), deps(REVIEW_MD), config);
   assert.deepEqual(resumed.records.map((record) => record.run), [2]);
+  cleanup();
+});
+
+test("a real run refuses a manifest that is untracked; the check passes for a committed clean file", () => {
+  assert.throws(() => verifyManifestCommittedInGit("docs/testing/ronda/does-not-exist.md"), SpecPlanExperimentUsageError);
+  // REVIEW.md is tracked; a clean checkout passes. (Skipped when the working tree has local edits to it.)
+  try {
+    verifyManifestCommittedInGit("REVIEW.md");
+  } catch (error) {
+    assert.match(String(error), /uncommitted changes/);
+  }
+});
+
+test("production prompt modes the replay cannot reproduce are listed, and refuse a real run but not a dry run", async () => {
+  const base = { sweepMode: "off", repositoryContextMode: "off", durabilityMode: "default", durabilityModeDefault: false, excludePathGlobs: [] as string[] };
+  assert.deepEqual(unsupportedProductionModes(base), []);
+  assert.deepEqual(
+    unsupportedProductionModes({ ...base, sweepMode: "on", repositoryContextMode: "on", durabilityMode: "on", excludePathGlobs: ["docs/**"] }),
+    ["category sweep", "repository context", "durability mode", "path exclusions"],
+  );
+  assert.deepEqual(unsupportedProductionModes({ ...base, durabilityModeDefault: true }), ["durability mode"]);
+
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const deps = { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: model('{"findings":[]}'), reviewMarkdown: REVIEW_MD };
+  await assert.rejects(
+    () => runExperiment(options({ onlyHead: "a691d010", runs: 1 }), deps, { ...config, unsupportedModes: ["category sweep"] }),
+    /does not reproduce: category sweep/,
+  );
+  const dry = await runExperiment(options({ onlyHead: "a691d010", runs: 1, dryRun: true }), deps, { ...config, unsupportedModes: ["category sweep"] });
+  assert.equal(dry.records.length, 1);
+  cleanup();
+});
+
+test("arm C is refused when its prompt differs from the one arm B was sent, and not when it matches", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const deps = (reviewMarkdown: string, armC = false) => ({
+    octokit: fakeOctokit(calls),
+    getWriteAttempts: () => 0,
+    verifyManifestCommitted: () => undefined,
+    modelOverride: model('{"findings":[]}'),
+    armCModelFactory: (name: string) => model('{"findings":[]}', [], name),
+    reviewMarkdown: armC ? reviewMarkdown : reviewMarkdown,
+  });
+  await runExperiment(options({ arm: "B", onlyHead: "a691d010", runs: 1 }), deps(REVIEW_MD), config);
+  const changed = REVIEW_MD.replace("## Spec Review Checklist", "## Spec Review Checklist\n\nA changed line.");
+  const armC = (md: string) =>
+    runExperiment(options({ arm: "C", modelName: "stronger-2026-05-01", onlyHead: "a691d010", runs: 1 }), deps(md, true), config);
+  await assert.rejects(() => armC(changed), /prompt differs/);
+  const ok = await armC(REVIEW_MD);
+  assert.equal(ok.records[0].outcome, "no_findings");
+  // Arm A is its own family: it never trips on B's prompt.
+  const a = await runExperiment(options({ arm: "A", onlyHead: "a691d010", runs: 1 }), deps(REVIEW_MD), config);
+  assert.equal(a.code, 0);
   cleanup();
 });
