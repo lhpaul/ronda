@@ -986,7 +986,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     }
   }
   if (!options.dryRun && !modelConfig.apiKey) {
-    console.error("No model credential is configured (RONDA_MODEL_API_KEY or modelApiKey in the operator config file).");
+    console.error("No model credential is configured; see docs/adoption/ronda-review-adoption.md.");
     return 1;
   }
 
