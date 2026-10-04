@@ -722,3 +722,58 @@ test("arms A and B must share one baseline model across invocations", async () =
   assert.equal(b.code, 0);
   cleanup();
 });
+
+test("arm C is bound to one model per evidence file", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const runC = (name: string) =>
+    runExperiment(
+      options({ arm: "C", modelName: name, onlyHead: "a691d010", runs: 1 }),
+      {
+        octokit: fakeOctokit(calls),
+        getWriteAttempts: () => 0,
+        verifyManifestCommitted: () => undefined,
+        armCModelFactory: (n) => model('{"findings":[]}', [], n),
+        reviewMarkdown: REVIEW_MD,
+      },
+      config,
+    );
+  await runC("stronger-2026-05-01");
+  await assert.rejects(() => runC("another-2026-06-01"), /already ran on "stronger-2026-05-01"/);
+  assert.equal((await runC("stronger-2026-05-01")).records.length, 0);
+  cleanup();
+});
+
+test("arms must compare the same input: a changed file set or PR text between arms is refused", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const deps = (octokit: Octokit) => ({
+    octokit,
+    getWriteAttempts: () => 0,
+    verifyManifestCommitted: () => undefined,
+    modelOverride: model('{"findings":[]}'),
+    reviewMarkdown: REVIEW_MD,
+  });
+  const a = await runExperiment(options({ arm: "A", onlyHead: "a691d010", runs: 1 }), deps(fakeOctokit(calls)), config);
+  assert.match(a.records[0].inputSha256 ?? "", /^[0-9a-f]{64}$/);
+  // Arm B with the spec excluded (a configured glob) no longer reviews the same input as arm A.
+  await assert.rejects(
+    () =>
+      runExperiment(options({ arm: "B", onlyHead: "a691d010", runs: 1 }), deps(fakeOctokit(calls)), {
+        ...config,
+        excludePathGlobs: ["docs/specs/**"],
+      }),
+    /inputs shared by every arm/,
+  );
+  // The PR text edited between arms is refused too.
+  const edited = fakeOctokit(calls);
+  (edited.pulls as unknown as { get: unknown }).get = async () => ({
+    data: { title: "an edited title", body: "body", head: { ref: "spec/105-x" }, base: { sha: "b".repeat(40) } },
+  });
+  await assert.rejects(() => runExperiment(options({ arm: "B", onlyHead: "a691d010", runs: 1 }), deps(edited), config), /inputs shared by every arm/);
+  // The same input is accepted, and the checklist and approved spec (the intended differences) do not matter.
+  const b = await runExperiment(options({ arm: "B", onlyHead: "a691d010", runs: 1 }), deps(fakeOctokit(calls)), config);
+  assert.equal(b.code, 0);
+  assert.equal(b.records[0].inputSha256, a.records[0].inputSha256);
+  cleanup();
+});

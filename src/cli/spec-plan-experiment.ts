@@ -359,6 +359,8 @@ export interface ExperimentRecord {
     | "dry_run";
   /** Fingerprint of the exact system and user prompt sent; absent when no prompt was built. */
   promptSha256?: string;
+  /** Fingerprint of the inputs every arm shares for this head: PR text, the files reviewed and their patches, and the authoritative documents. */
+  inputSha256?: string;
   errorMessage?: string;
   findingCount: number;
   findings: ExperimentFinding[];
@@ -429,6 +431,11 @@ export function promptFamily(headSha: string, arm: ExperimentArm, patchSource: "
   return `${headSha}|${arm === "A" ? "A" : "BC"}|${patchSource}`;
 }
 
+/** Attempts on one head and patch source, whatever the arm, must share their inputs. */
+export function inputFamily(headSha: string, patchSource: "synthesize" | "github"): string {
+  return `${headSha}|${patchSource}`;
+}
+
 /** Outcomes that do not count as a completed attempt: a resume retries them. */
 const INCOMPLETE_OUTCOMES: ReadonlySet<string> = new Set(["model_error", "unusable_output", "model_unverified"]);
 
@@ -439,11 +446,15 @@ export interface CompletedAttempts {
   prompts: Map<string, Set<string>>;
   /** Models that arms A and B were already run on in this file: the experiment has one baseline. */
   baselineModels: Set<string>;
+  /** The one model arm C may run on in this file. */
+  armCModels: Set<string>;
+  /** Shared-input fingerprints per head and patch source, across all arms. */
+  inputs: Map<string, Set<string>>;
 }
 
 /** Reads the evidence file for attempts a resume must not repeat (never a dry run, model error, unusable or unverified result). */
 export function completedAttempts(outPath: string): CompletedAttempts {
-  const result: CompletedAttempts = { keys: new Set(), prompts: new Map(), baselineModels: new Set() };
+  const result: CompletedAttempts = { keys: new Set(), prompts: new Map(), baselineModels: new Set(), armCModels: new Set(), inputs: new Map() };
   if (!existsSync(outPath)) {
     return result;
   }
@@ -468,8 +479,16 @@ export function completedAttempts(outPath: string): CompletedAttempts {
       typeof record.modelRequested === "string"
     ) {
       result.keys.add(attemptKey(record.headSha, record.arm, record.run, record.patchSource, record.modelRequested));
-      if (record.arm !== "C") {
+      if (record.arm === "C") {
+        result.armCModels.add(record.modelRequested);
+      } else {
         result.baselineModels.add(record.modelRequested);
+      }
+      if (record.inputSha256) {
+        const inputGroup = inputFamily(record.headSha, record.patchSource);
+        const inputs = result.inputs.get(inputGroup) ?? new Set<string>();
+        inputs.add(record.inputSha256);
+        result.inputs.set(inputGroup, inputs);
       }
       if (record.promptSha256) {
         const group = promptFamily(record.headSha, record.arm, record.patchSource);
@@ -636,6 +655,13 @@ export async function runExperiment(
   // a head more than its fixed number of runs. Failed attempts are retried and
   // the later record supersedes them; dry runs never count.
   const completed = completedAttempts(outPath);
+  if (!options.dryRun && options.arm === "C" && [...completed.armCModels].some((name) => name !== modelRequested)) {
+    // Arm C is one stronger model. A second model in the same file would repeat
+    // completed runs under a new key rather than reject the change.
+    throw new SpecPlanExperimentUsageError(
+      `Arm C in ${options.outPath} already ran on ${[...completed.armCModels].map((name) => `"${name}"`).join(", ")}, not "${modelRequested}". Use one stronger model per evidence file, or a new --out file.`,
+    );
+  }
   if (!options.dryRun && options.arm !== "C" && [...completed.baselineModels].some((name) => name !== modelRequested)) {
     // Arms A and B differ in the prompt only. A different baseline model in the
     // same evidence file would confound that comparison with a model change.
@@ -742,6 +768,23 @@ export async function runExperiment(
       : undefined;
     const promptChars = prompt ? prompt.systemPrompt.length + prompt.userPrompt.length : 0;
 
+    const inputSha256 = createHash("sha256")
+      .update(
+        JSON.stringify({
+          title: pr.title,
+          body: pr.body,
+          files: changedFiles.map((file) => [file.path, file.status, file.patch ?? null]),
+          docs: authoritativeDocs.map((doc) => [doc.id, doc.path, doc.text]),
+        }),
+      )
+      .digest("hex");
+    const earlierInputs = completed.inputs.get(inputFamily(head.headSha, options.patchSource));
+    if (!options.dryRun && earlierInputs && [...earlierInputs].some((sha) => sha !== inputSha256)) {
+      throw new SpecPlanExperimentUsageError(
+        `#${head.pullNumber} ${head.headSha.slice(0, 8)}: the inputs shared by every arm (PR text, files reviewed, authoritative documents) differ from those earlier attempts in ${options.outPath} were sent. Arms must compare the same input; use a new --out file.`,
+      );
+    }
+
     // A resume must send the prompt the earlier attempts sent. The PR title and
     // body are mutable and the checklist is read from the working tree, so a
     // change between invocations would otherwise mix incomparable attempts in
@@ -772,6 +815,7 @@ export async function runExperiment(
         patchSource: options.patchSource,
         filesWithoutGithubPatch,
         excludedFiles,
+        inputSha256,
         ...(promptSha256 ? { promptSha256 } : {}),
       };
       const finish = (extra: Partial<ExperimentRecord> & Pick<ExperimentRecord, "outcome">): void => {
