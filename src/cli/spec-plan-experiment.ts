@@ -530,6 +530,7 @@ export async function runExperiment(
   // a head more than its fixed number of runs. Failed attempts are retried and
   // the later record supersedes them; dry runs never count.
   const completed = completedAttemptKeys(outPath);
+  mkdirSync(dirname(outPath), { recursive: true });
 
   for (const head of heads) {
     // The head's own branch decides the stage, as production does; the manifest's stage must agree.
@@ -609,7 +610,7 @@ export async function runExperiment(
         filesWithoutGithubPatch,
       };
       const finish = (extra: Partial<ExperimentRecord> & Pick<ExperimentRecord, "outcome">): void => {
-        records.push({
+        const record: ExperimentRecord = {
           ...base,
           findingCount: 0,
           findings: [],
@@ -618,7 +619,11 @@ export async function runExperiment(
           responseChars: 0,
           elapsedMs: 0,
           ...extra,
-        });
+        };
+        records.push(record);
+        // Persisted at once: a paid attempt must survive a later read failure
+        // or an interrupted process, or a resume would repeat it.
+        appendFileSync(outPath, `${JSON.stringify(record)}\n`, "utf8");
       };
 
       let prompt: ReviewPrompt;
@@ -688,9 +693,6 @@ export async function runExperiment(
       }
     }
   }
-
-  mkdirSync(dirname(outPath), { recursive: true });
-  appendFileSync(outPath, records.map((record) => `${JSON.stringify(record)}\n`).join(""), "utf8");
 
   const writeAttempts = deps.getWriteAttempts();
   if (writeAttempts !== 0) {

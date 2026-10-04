@@ -498,3 +498,38 @@ test("arm A uses the production patch budget it was given, not a hard-coded defa
   assert.equal((await run(400_000)).records[0].outcome, "dry_run");
   cleanup();
 });
+
+test("each attempt is persisted as it completes, so a later failure keeps earlier results and a resume does not repeat them", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const octokit = fakeOctokit(calls);
+  // The second head's pull request cannot be read.
+  const originalGet = (octokit.pulls as unknown as { get: (arg: { pull_number: number }) => Promise<unknown> }).get;
+  let reads = 0;
+  (octokit.pulls as unknown as { get: unknown }).get = async (arg: { pull_number: number }) => {
+    reads += 1;
+    if (reads === 2) throw new Error("GitHub read failed");
+    return originalGet(arg);
+  };
+  await assert.rejects(
+    () =>
+      runExperiment(
+        options({ runs: 2 }),
+        { octokit, getWriteAttempts: () => 0, modelOverride: model('{"findings":[]}'), reviewMarkdown: REVIEW_MD },
+        config,
+      ),
+    /GitHub read failed/,
+  );
+  const persisted = readFileSync(join(REPO_ROOT, OUT), "utf8").trim().split("\n");
+  assert.equal(persisted.length, 2, "the first head's two completed attempts are on disk");
+
+  const seen: string[] = [];
+  const resumed = await runExperiment(
+    options({ runs: 2, onlyHead: "a691d010" }),
+    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, modelOverride: model('{"findings":[]}', seen), reviewMarkdown: REVIEW_MD },
+    config,
+  );
+  assert.equal(resumed.records.length, 0);
+  assert.equal(seen.length, 0, "no paid attempt is repeated");
+  cleanup();
+});
