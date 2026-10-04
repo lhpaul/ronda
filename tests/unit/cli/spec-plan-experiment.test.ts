@@ -55,6 +55,13 @@ test("parseExperimentArgs requires an explicit arm and has no default", () => {
   assert.equal(parseExperimentArgs(["--arm", "A"]).arm, "A");
 });
 
+test("a real run must use the fixed three runs; other counts are for dry runs only", () => {
+  assert.throws(() => parseExperimentArgs(["--arm", "A", "--runs", "1"]), SpecPlanExperimentUsageError);
+  assert.throws(() => parseExperimentArgs(["--arm", "A", "--runs", "5"]), SpecPlanExperimentUsageError);
+  assert.equal(parseExperimentArgs(["--arm", "A", "--runs", "3"]).runs, 3);
+  assert.equal(parseExperimentArgs(["--arm", "A", "--runs", "1", "--dry-run"]).runs, 1);
+});
+
 test("parseExperimentArgs defaults to 3 runs and the synthesize patch source", () => {
   const options = parseExperimentArgs(["--arm", "B"]);
   assert.equal(options.runs, 3);
@@ -775,5 +782,50 @@ test("arms must compare the same input: a changed file set or PR text between ar
   const b = await runExperiment(options({ arm: "B", onlyHead: "a691d010", runs: 1 }), deps(fakeOctokit(calls)), config);
   assert.equal(b.code, 0);
   assert.equal(b.records[0].inputSha256, a.records[0].inputSha256);
+  cleanup();
+});
+
+test("a real run verifies the manifest, the checklist and the prompt-building code are committed", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const verified: string[] = [];
+  await runExperiment(
+    options({ onlyHead: "a691d010", runs: 1 }),
+    {
+      octokit: fakeOctokit(calls),
+      getWriteAttempts: () => 0,
+      verifyManifestCommitted: (path) => verified.push(path),
+      modelOverride: model('{"findings":[]}'),
+      reviewMarkdown: REVIEW_MD,
+    },
+    config,
+  );
+  assert.deepEqual(verified, [
+    "docs/testing/ronda/spec-plan-experiment-heads-143.md",
+    "REVIEW.md",
+    "src/cli/spec-plan-experiment.ts",
+    "src/inference/review-prompt.ts",
+  ]);
+  cleanup();
+});
+
+test("a manifest changed after results exist is refused", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const deps = {
+    octokit: fakeOctokit(calls),
+    getWriteAttempts: () => 0,
+    verifyManifestCommitted: () => undefined,
+    modelOverride: model('{"findings":[]}'),
+    reviewMarkdown: REVIEW_MD,
+  };
+  const first = await runExperiment(options({ onlyHead: "a691d010", runs: 1 }), deps, config);
+  assert.match(first.records[0].manifestSha256 ?? "", /^[0-9a-f]{64}$/);
+  // Pretend the earlier records were run against a different cohort.
+  const out = join(REPO_ROOT, OUT);
+  const tampered = readFileSync(out, "utf8").replace(first.records[0].manifestSha256 as string, "0".repeat(64));
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(out, tampered);
+  await assert.rejects(() => runExperiment(options({ onlyHead: "a691d010", runs: 1 }), deps, config), /differs from the manifest/);
   cleanup();
 });

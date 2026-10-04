@@ -49,6 +49,7 @@ export type ExperimentStage = "spec" | "plan";
 export const DEFAULT_HEADS_PATH = "docs/testing/ronda/spec-plan-experiment-heads-143.md";
 export const DEFAULT_OUT_PATH = "docs/testing/ronda/spec-plan-experiment-143.jsonl";
 export const DEFAULT_REPOSITORY = "lhpaul/ronda";
+/** The manifest fixes three runs per head per arm, so run-to-run variation is comparable across arms. */
 export const DEFAULT_RUNS = 3;
 
 /** The spec #115 merged, read at its merge commit so later edits cannot leak into the plan replay. */
@@ -153,6 +154,11 @@ export function parseExperimentArgs(
   }
   if (runsRaw !== undefined && !/^[1-9]\d*$/.test(runsRaw)) {
     throw new SpecPlanExperimentUsageError(`--runs must be a positive integer. ${usage}`);
+  }
+  if (runsRaw !== undefined && parseInt(runsRaw, 10) !== DEFAULT_RUNS && !dryRun) {
+    throw new SpecPlanExperimentUsageError(
+      `--runs must be ${DEFAULT_RUNS} for a real run (the committed design fixes three runs per head per arm); other values are for --dry-run. ${usage}`,
+    );
   }
   if (arm === "C" && !dryRun && !modelName) {
     // Arm C's model is the one thing the owner chooses, and it is pinned
@@ -361,6 +367,8 @@ export interface ExperimentRecord {
   promptSha256?: string;
   /** Fingerprint of the inputs every arm shares for this head: PR text, the files reviewed and their patches, and the authoritative documents. */
   inputSha256?: string;
+  /** Fingerprint of the heads manifest this record was run against. */
+  manifestSha256?: string;
   errorMessage?: string;
   findingCount: number;
   findings: ExperimentFinding[];
@@ -450,11 +458,13 @@ export interface CompletedAttempts {
   armCModels: Set<string>;
   /** Shared-input fingerprints per head and patch source, across all arms. */
   inputs: Map<string, Set<string>>;
+  /** Manifests the earlier attempts in this file were run against. */
+  manifests: Set<string>;
 }
 
 /** Reads the evidence file for attempts a resume must not repeat (never a dry run, model error, unusable or unverified result). */
 export function completedAttempts(outPath: string): CompletedAttempts {
-  const result: CompletedAttempts = { keys: new Set(), prompts: new Map(), baselineModels: new Set(), armCModels: new Set(), inputs: new Map() };
+  const result: CompletedAttempts = { keys: new Set(), prompts: new Map(), baselineModels: new Set(), armCModels: new Set(), inputs: new Map(), manifests: new Set() };
   if (!existsSync(outPath)) {
     return result;
   }
@@ -483,6 +493,9 @@ export function completedAttempts(outPath: string): CompletedAttempts {
         result.armCModels.add(record.modelRequested);
       } else {
         result.baselineModels.add(record.modelRequested);
+      }
+      if (record.manifestSha256) {
+        result.manifests.add(record.manifestSha256);
       }
       if (record.inputSha256) {
         const inputGroup = inputFamily(record.headSha, record.patchSource);
@@ -609,7 +622,13 @@ export async function runExperiment(
   if (!options.dryRun) {
     // The cohort was committed before any arm ran; a real run may only use that
     // committed list, never a file edited after seeing results.
-    (deps.verifyManifestCommitted ?? verifyManifestCommittedInGit)(options.headsPath);
+    const verify = deps.verifyManifestCommitted ?? verifyManifestCommittedInGit;
+    // Everything that shapes a prompt is committed too: the checklist the B and
+    // C prompts quote, and the code that builds both. Otherwise a prompt could
+    // be tuned in the working tree after arm A has been seen.
+    for (const path of [options.headsPath, "REVIEW.md", "src/cli/spec-plan-experiment.ts", "src/inference/review-prompt.ts"]) {
+      verify(path);
+    }
     if (config.unsupportedModes && config.unsupportedModes.length > 0) {
       throw new SpecPlanExperimentUsageError(
         `Production prompt mode(s) enabled that this replay does not reproduce: ${config.unsupportedModes.join(", ")}. Arm A would not be the production prompt. Unset them for the run.`,
@@ -617,7 +636,9 @@ export async function runExperiment(
     }
   }
 
-  let heads = parseHeadsManifest(readFileSync(headsPath, "utf8"));
+  const manifestText = readFileSync(headsPath, "utf8");
+  const manifestSha256 = createHash("sha256").update(manifestText).digest("hex");
+  let heads = parseHeadsManifest(manifestText);
   if (heads.length === 0) {
     throw new SpecPlanExperimentUsageError(`No heads found in ${options.headsPath}`);
   }
@@ -655,6 +676,14 @@ export async function runExperiment(
   // a head more than its fixed number of runs. Failed attempts are retried and
   // the later record supersedes them; dry runs never count.
   const completed = completedAttempts(outPath);
+  if (!options.dryRun && [...completed.manifests].some((sha) => sha !== manifestSha256)) {
+    // The cohort is fixed before the first arm runs. A manifest changed after
+    // results exist would leave added heads without an arm A baseline and
+    // removed heads without later arms.
+    throw new SpecPlanExperimentUsageError(
+      `${options.headsPath} differs from the manifest the earlier attempts in ${options.outPath} were run against. The cohort cannot change mid-experiment; use a new --out file.`,
+    );
+  }
   if (!options.dryRun && options.arm === "C" && [...completed.armCModels].some((name) => name !== modelRequested)) {
     // Arm C is one stronger model. A second model in the same file would repeat
     // completed runs under a new key rather than reject the change.
@@ -816,6 +845,7 @@ export async function runExperiment(
         filesWithoutGithubPatch,
         excludedFiles,
         inputSha256,
+        manifestSha256,
         ...(promptSha256 ? { promptSha256 } : {}),
       };
       const finish = (extra: Partial<ExperimentRecord> & Pick<ExperimentRecord, "outcome">): void => {
