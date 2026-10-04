@@ -10,6 +10,7 @@ import {
   type BuildArmPromptInput,
   buildSpecPlanSystemPrompt,
   extractChecklist,
+  isDatedModelId,
   parseExperimentArgs,
   parseHeadsManifest,
   resolveRepoPath,
@@ -62,10 +63,29 @@ test("parseExperimentArgs defaults to 3 runs and the synthesize patch source", (
 test("parseExperimentArgs pins arm C's model and refuses --model elsewhere", () => {
   assert.throws(() => parseExperimentArgs(["--arm", "C"]), SpecPlanExperimentUsageError);
   assert.equal(parseExperimentArgs(["--arm", "C", "--model", "some-model-2026-01-01"]).modelName, "some-model-2026-01-01");
+  assert.equal(parseExperimentArgs(["--arm", "C", "--model", "some-model-20260101"]).modelName, "some-model-20260101");
   assert.throws(() => parseExperimentArgs(["--arm", "A", "--model", "x"]), SpecPlanExperimentUsageError);
   assert.throws(() => parseExperimentArgs(["--arm", "B", "--model", "x"]), SpecPlanExperimentUsageError);
   // A dry run sends nothing, so arm C needs no model to build prompts.
   assert.equal(parseExperimentArgs(["--arm", "C", "--dry-run"]).dryRun, true);
+});
+
+test("arm C refuses a mutable model alias", () => {
+  for (const alias of ["qwen-plus", "latest", "some-model-2026", "some-model-v2", "some-model-2026-01"]) {
+    assert.throws(() => parseExperimentArgs(["--arm", "C", "--model", alias]), SpecPlanExperimentUsageError, alias);
+  }
+  assert.equal(isDatedModelId("qwen-plus-2025-12-01"), true);
+  assert.equal(isDatedModelId("claude-haiku-4-5-20251001"), true);
+  assert.equal(isDatedModelId("qwen-plus"), false);
+});
+
+test("an option is never allowed to swallow another option as its value, and unknown options are refused", () => {
+  assert.throws(() => parseExperimentArgs(["--arm", "A", "--out", "--dry-run"]), SpecPlanExperimentUsageError);
+  assert.throws(() => parseExperimentArgs(["--arm", "--dry-run"]), SpecPlanExperimentUsageError);
+  assert.throws(() => parseExperimentArgs(["--arm", "A", "--runs"]), SpecPlanExperimentUsageError);
+  assert.throws(() => parseExperimentArgs(["--arm", "A", "--bogus"]), SpecPlanExperimentUsageError);
+  assert.throws(() => parseExperimentArgs(["--arm", "A", "stray"]), SpecPlanExperimentUsageError);
+  assert.equal(parseExperimentArgs(["--arm", "A", "--dry-run", "--out", "docs/x.jsonl"]).dryRun, true);
 });
 
 test("parseExperimentArgs rejects a bad run count, patch source and repo", () => {
@@ -354,6 +374,7 @@ test("unusable model output and a model error are recorded, not thrown", async (
     config,
   );
   assert.equal(unusable.records[0].outcome, "unusable_output");
+  assert.equal(unusable.code, 1, "an arm with no usable result must not exit 0");
   const failing: ModelClient = {
     modelName: "m",
     async complete() {
@@ -367,6 +388,7 @@ test("unusable model output and a model error are recorded, not thrown", async (
   );
   assert.equal(errored.records[0].outcome, "model_error");
   assert.equal(errored.records[0].errorMessage, "boom");
+  assert.equal(errored.code, 1);
   cleanup();
 });
 

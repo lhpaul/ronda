@@ -84,6 +84,11 @@ export interface ExperimentOptions {
   patchSource: "synthesize" | "github";
 }
 
+/** A model id that ends in a date (`-YYYY-MM-DD` or `-YYYYMMDD`), the form providers use for an immutable snapshot. */
+export function isDatedModelId(modelName: string): boolean {
+  return /[-@]\d{4}-\d{2}-\d{2}$/.test(modelName) || /[-@]\d{8}$/.test(modelName);
+}
+
 export function parseExperimentArgs(
   argv: string[],
   env: NodeJS.ProcessEnv = process.env,
@@ -100,38 +105,42 @@ export function parseExperimentArgs(
   let dryRun = false;
   let patchSource: "synthesize" | "github" = "synthesize";
 
+  const valueOptions = new Set(["--patch-source", "--arm", "--runs", "--repo", "--heads", "--out", "--head", "--model"]);
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    const next = argv[index + 1];
     if (arg === "--dry-run") {
       dryRun = true;
-    } else if (arg === "--patch-source" && next !== undefined) {
-      if (next !== "synthesize" && next !== "github") {
+      continue;
+    }
+    if (!valueOptions.has(arg)) {
+      throw new SpecPlanExperimentUsageError(`Unknown option "${arg}". ${usage}`);
+    }
+    // A value is never another option: `--out --dry-run` must not silently
+    // turn a dry run into paid model requests.
+    const value = argv[index + 1];
+    if (value === undefined || value.startsWith("--")) {
+      throw new SpecPlanExperimentUsageError(`${arg} requires a value. ${usage}`);
+    }
+    index += 1;
+    if (arg === "--patch-source") {
+      if (value !== "synthesize" && value !== "github") {
         throw new SpecPlanExperimentUsageError(`--patch-source must be "synthesize" or "github". ${usage}`);
       }
-      patchSource = next;
-      index += 1;
-    } else if (arg === "--arm" && next !== undefined) {
-      arm = next;
-      index += 1;
-    } else if (arg === "--runs" && next !== undefined) {
-      runsRaw = next;
-      index += 1;
-    } else if (arg === "--repo" && next !== undefined) {
-      repo = next;
-      index += 1;
-    } else if (arg === "--heads" && next !== undefined) {
-      headsPath = next;
-      index += 1;
-    } else if (arg === "--out" && next !== undefined) {
-      outPath = next;
-      index += 1;
-    } else if (arg === "--head" && next !== undefined) {
-      onlyHead = next;
-      index += 1;
-    } else if (arg === "--model" && next !== undefined) {
-      modelName = next;
-      index += 1;
+      patchSource = value;
+    } else if (arg === "--arm") {
+      arm = value;
+    } else if (arg === "--runs") {
+      runsRaw = value;
+    } else if (arg === "--repo") {
+      repo = value;
+    } else if (arg === "--heads") {
+      headsPath = value;
+    } else if (arg === "--out") {
+      outPath = value;
+    } else if (arg === "--head") {
+      onlyHead = value;
+    } else {
+      modelName = value;
     }
   }
 
@@ -146,6 +155,13 @@ export function parseExperimentArgs(
     // Arm C's model is the one thing the owner chooses, and it is pinned
     // directly so the model that answered is known. There is no fallback.
     throw new SpecPlanExperimentUsageError(`--model is required for arm C (an exact, dated model id). ${usage}`);
+  }
+  if (modelName !== undefined && !isDatedModelId(modelName)) {
+    // An alias such as `qwen-plus` can move between runs, and then no difference
+    // between arms can be attributed to the model that was chosen.
+    throw new SpecPlanExperimentUsageError(
+      `--model must be an exact dated model id ending in a date (for example name-2025-12-01 or name-20251201), not an alias: "${modelName}". ${usage}`,
+    );
   }
   if (arm !== "C" && modelName) {
     throw new SpecPlanExperimentUsageError(`--model is only valid for arm C; arms A and B use the configured model. ${usage}`);
@@ -622,6 +638,13 @@ export async function runExperiment(
     return { code: 1, records };
   }
   console.log(`Spec/plan experiment arm ${options.arm}: ${records.length} record(s) appended to ${outPath}`);
+  // Every attempt is recorded either way, but a run that produced no usable
+  // result must not read as success to whatever drives the next arm.
+  const unusable = records.filter((record) => record.outcome === "model_error" || record.outcome === "unusable_output");
+  if (unusable.length > 0) {
+    console.error(`${unusable.length} of ${records.length} run(s) produced no usable result (model_error or unusable_output); the arm is incomplete.`);
+    return { code: 1, records };
+  }
   return { code: 0, records };
 }
 
