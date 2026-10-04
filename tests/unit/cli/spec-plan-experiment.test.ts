@@ -697,3 +697,28 @@ test("arm C is refused when its prompt differs from the one arm B was sent, and 
   assert.equal(a.code, 0);
   cleanup();
 });
+
+test("arms A and B must share one baseline model across invocations", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const deps = (name: string) => ({
+    octokit: fakeOctokit(calls),
+    getWriteAttempts: () => 0,
+    verifyManifestCommitted: () => undefined,
+    modelOverride: model('{"findings":[]}', [], name),
+    reviewMarkdown: REVIEW_MD,
+  });
+  await runExperiment(options({ arm: "A", onlyHead: "a691d010", runs: 1 }), deps("baseline-2026-01-01"), { ...config, modelName: "baseline-2026-01-01" });
+  await assert.rejects(
+    () =>
+      runExperiment(options({ arm: "B", onlyHead: "a691d010", runs: 1 }), deps("different-model-2026-02-01"), {
+        ...config,
+        modelName: "different-model-2026-02-01",
+      }),
+    /already ran on "baseline-2026-01-01"/,
+  );
+  // The same baseline resumes, and arm C is free to name a stronger model.
+  const b = await runExperiment(options({ arm: "B", onlyHead: "a691d010", runs: 1 }), deps("baseline-2026-01-01"), { ...config, modelName: "baseline-2026-01-01" });
+  assert.equal(b.code, 0);
+  cleanup();
+});

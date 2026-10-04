@@ -437,11 +437,13 @@ export interface CompletedAttempts {
   keys: Set<string>;
   /** Prompt fingerprints of those completed attempts, per head, prompt family (A, or B and C together) and patch source. */
   prompts: Map<string, Set<string>>;
+  /** Models that arms A and B were already run on in this file: the experiment has one baseline. */
+  baselineModels: Set<string>;
 }
 
 /** Reads the evidence file for attempts a resume must not repeat (never a dry run, model error, unusable or unverified result). */
 export function completedAttempts(outPath: string): CompletedAttempts {
-  const result: CompletedAttempts = { keys: new Set(), prompts: new Map() };
+  const result: CompletedAttempts = { keys: new Set(), prompts: new Map(), baselineModels: new Set() };
   if (!existsSync(outPath)) {
     return result;
   }
@@ -466,6 +468,9 @@ export function completedAttempts(outPath: string): CompletedAttempts {
       typeof record.modelRequested === "string"
     ) {
       result.keys.add(attemptKey(record.headSha, record.arm, record.run, record.patchSource, record.modelRequested));
+      if (record.arm !== "C") {
+        result.baselineModels.add(record.modelRequested);
+      }
       if (record.promptSha256) {
         const group = promptFamily(record.headSha, record.arm, record.patchSource);
         const shas = result.prompts.get(group) ?? new Set<string>();
@@ -631,6 +636,13 @@ export async function runExperiment(
   // a head more than its fixed number of runs. Failed attempts are retried and
   // the later record supersedes them; dry runs never count.
   const completed = completedAttempts(outPath);
+  if (!options.dryRun && options.arm !== "C" && [...completed.baselineModels].some((name) => name !== modelRequested)) {
+    // Arms A and B differ in the prompt only. A different baseline model in the
+    // same evidence file would confound that comparison with a model change.
+    throw new SpecPlanExperimentUsageError(
+      `Arms A and B in ${options.outPath} already ran on ${[...completed.baselineModels].map((name) => `"${name}"`).join(", ")}, not "${modelRequested}". Use one baseline model for the whole experiment, or a new --out file.`,
+    );
+  }
   mkdirSync(dirname(outPath), { recursive: true });
 
   for (const head of heads) {
