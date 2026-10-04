@@ -394,6 +394,13 @@ export interface RepositoryContextPassRecord {
    * early-warning signal for the rate-limit risk in Risks & Mitigations.
    */
   contentRequestCount: number;
+  /**
+   * Distinct references identification declined to request because they cannot
+   * name repository code (built-in/global members, `node:*` and package
+   * imports, member accesses not traceable to a relative import). A count, not
+   * a list (#153).
+   */
+  nonRepositoryReferencesSkipped: number;
   charsUsed: number;
   maxCandidates: number;
   maxChars: number;
