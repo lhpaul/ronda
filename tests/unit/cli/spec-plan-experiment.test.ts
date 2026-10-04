@@ -533,3 +533,27 @@ test("each attempt is persisted as it completes, so a later failure keeps earlie
   assert.equal(seen.length, 0, "no paid attempt is repeated");
   cleanup();
 });
+
+test("no record or output file ever carries the model credential", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const secret = "SECRET-KEY-VALUE-do-not-leak-123";
+  const failing: ModelClient = {
+    modelName: "m",
+    async complete() {
+      throw new Error("provider rejected the request");
+    },
+  };
+  await runExperiment(
+    options({ onlyHead: "a691d010", runs: 1 }),
+    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, modelOverride: failing, reviewMarkdown: REVIEW_MD },
+    { ...config, apiKey: secret },
+  );
+  await runExperiment(
+    options({ onlyHead: "a691d010", runs: 1, dryRun: true }),
+    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, reviewMarkdown: REVIEW_MD },
+    { ...config, apiKey: secret },
+  );
+  assert.ok(!readFileSync(join(REPO_ROOT, OUT), "utf8").includes(secret));
+  cleanup();
+});
