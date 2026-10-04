@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -383,6 +383,48 @@ function toExperimentFinding(finding: {
   };
 }
 
+export function attemptKey(
+  headSha: string,
+  arm: ExperimentArm,
+  run: number,
+  patchSource: "synthesize" | "github",
+  modelRequested: string,
+): string {
+  return `${headSha}|${arm}|${run}|${patchSource}|${modelRequested}`;
+}
+
+/** Keys of the attempts already recorded with a usable result (anything but a dry run, model error or unusable output). */
+export function completedAttemptKeys(outPath: string): Set<string> {
+  const keys = new Set<string>();
+  if (!existsSync(outPath)) {
+    return keys;
+  }
+  for (const line of readFileSync(outPath, "utf8").split("\n")) {
+    if (line.trim() === "") {
+      continue;
+    }
+    let record: Partial<ExperimentRecord>;
+    try {
+      record = JSON.parse(line) as Partial<ExperimentRecord>;
+    } catch {
+      continue;
+    }
+    if (
+      record.dryRun === false &&
+      record.outcome !== "model_error" &&
+      record.outcome !== "unusable_output" &&
+      typeof record.headSha === "string" &&
+      (record.arm === "A" || record.arm === "B" || record.arm === "C") &&
+      typeof record.run === "number" &&
+      (record.patchSource === "synthesize" || record.patchSource === "github") &&
+      typeof record.modelRequested === "string"
+    ) {
+      keys.add(attemptKey(record.headSha, record.arm, record.run, record.patchSource, record.modelRequested));
+    }
+  }
+  return keys;
+}
+
 /** A whole-file addition patch for a document GitHub returned no patch for. */
 export function synthesizeAddedPatch(text: string): string {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
@@ -433,6 +475,16 @@ async function readChangedFilesAtHead(
   return changed;
 }
 
+/** The model settings and the production budgets the replay must share with production, so arm A is the same baseline. */
+export interface ExperimentConfig {
+  modelName: string;
+  apiKey: string;
+  baseUrl: string;
+  maxPatchChars?: number;
+  maxAuthoritativeDocCount?: number;
+  maxAuthoritativeDocChars?: number;
+}
+
 /**
  * The testable core: everything after argv parsing and octokit construction.
  * Returns the records it wrote, and a process exit code.
@@ -440,7 +492,7 @@ async function readChangedFilesAtHead(
 export async function runExperiment(
   options: ExperimentOptions,
   deps: RunExperimentDeps,
-  config: { modelName: string; apiKey: string; baseUrl: string },
+  config: ExperimentConfig,
 ): Promise<{ code: number; records: ExperimentRecord[] }> {
   const [owner, repo] = options.repo.split("/");
   const now = deps.now ?? (() => Date.now());
@@ -473,6 +525,11 @@ export async function runExperiment(
 
   let approvedSpec: { path: string; text: string } | undefined;
   const records: ExperimentRecord[] = [];
+  // Resume, not duplicate: an attempt that already has a usable record is not
+  // run again, so a rerun after an interruption or a failed attempt cannot give
+  // a head more than its fixed number of runs. Failed attempts are retried and
+  // the later record supersedes them; dry runs never count.
+  const completed = completedAttemptKeys(outPath);
 
   for (const head of heads) {
     // The head's own branch decides the stage, as production does; the manifest's stage must agree.
@@ -517,8 +574,8 @@ export async function runExperiment(
       });
     }
     const authoritativeDocs = applyAuthoritativeDocBudgets(withText, {
-      maxAuthoritativeDocCount: DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
-      maxAuthoritativeDocChars: DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
+      maxAuthoritativeDocCount: config.maxAuthoritativeDocCount ?? DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
+      maxAuthoritativeDocChars: config.maxAuthoritativeDocChars ?? DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
     }).selected;
 
     if (stage === "plan" && options.arm !== "A" && !approvedSpec) {
@@ -533,6 +590,9 @@ export async function runExperiment(
     const checklistSha256 = createHash("sha256").update(checklist).digest("hex");
 
     for (let run = 1; run <= options.runs; run += 1) {
+      if (!options.dryRun && completed.has(attemptKey(head.headSha, options.arm, run, options.patchSource, modelRequested))) {
+        continue;
+      }
       const base: Omit<ExperimentRecord, "outcome" | "findingCount" | "findings" | "malformedCount" | "promptChars" | "responseChars" | "elapsedMs"> = {
         recordedAt: new Date(now()).toISOString(),
         repo: options.repo,
@@ -569,7 +629,7 @@ export async function runExperiment(
           title: pr.title,
           body: pr.body,
           changedFiles,
-          maxPatchChars: DEFAULT_MAX_PATCH_CHARS,
+          maxPatchChars: config.maxPatchChars ?? DEFAULT_MAX_PATCH_CHARS,
           authoritativeDocs,
           checklist,
           ...(approvedSpec ? { approvedSpec } : {}),
@@ -664,19 +724,28 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     writeAttempts += 1;
   });
 
-  let modelConfig = { modelName: "(not configured)", apiKey: "", baseUrl: "" };
-  if (!options.dryRun) {
-    try {
-      const loaded = loadConfig();
-      modelConfig = { modelName: loaded.model.modelName, apiKey: loaded.model.apiKey, baseUrl: loaded.model.baseUrl };
-    } catch (error) {
+  let modelConfig: ExperimentConfig = { modelName: "(not configured)", apiKey: "", baseUrl: "" };
+  try {
+    const loaded = loadConfig();
+    modelConfig = {
+      modelName: loaded.model.modelName,
+      apiKey: loaded.model.apiKey,
+      baseUrl: loaded.model.baseUrl,
+      maxPatchChars: loaded.maxPatchChars,
+      maxAuthoritativeDocCount: loaded.maxAuthoritativeDocCount,
+      maxAuthoritativeDocChars: loaded.maxAuthoritativeDocChars,
+    };
+  } catch (error) {
+    // A dry run sends no model request, so it may proceed on the built-in
+    // budgets; a real run must not guess at the production baseline.
+    if (!options.dryRun) {
       console.error(error instanceof ConfigLoadError ? error.publicMessage : "Failed to load Ronda config");
       return 1;
     }
-    if (!modelConfig.apiKey) {
-      console.error("No model credential is configured (RONDA_MODEL_API_KEY or modelApiKey in the operator config file).");
-      return 1;
-    }
+  }
+  if (!options.dryRun && !modelConfig.apiKey) {
+    console.error("No model credential is configured (RONDA_MODEL_API_KEY or modelApiKey in the operator config file).");
+    return 1;
   }
 
   try {

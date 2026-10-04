@@ -448,3 +448,53 @@ test("--head matching no committed head is refused", async () => {
     SpecPlanExperimentUsageError,
   );
 });
+
+test("a rerun resumes: usable attempts are not repeated, failed ones are retried, dry runs never count", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const deps = (m: ModelClient) => ({
+    octokit: fakeOctokit(calls),
+    getWriteAttempts: () => 0,
+    modelOverride: m,
+    reviewMarkdown: REVIEW_MD,
+  });
+  // A dry run first: it must not occupy any attempt.
+  await runExperiment(options({ onlyHead: "a691d010", runs: 2, dryRun: true }), deps(model("{}")), config);
+  // First real run: run 1 succeeds, run 2 fails.
+  let calls1 = 0;
+  const flaky: ModelClient = {
+    modelName: "m",
+    async complete() {
+      calls1 += 1;
+      if (calls1 === 2) throw new Error("boom");
+      return { content: '{"findings":[]}' };
+    },
+  };
+  const first = await runExperiment(options({ onlyHead: "a691d010", runs: 2 }), deps(flaky), config);
+  assert.deepEqual(first.records.map((record) => record.outcome), ["no_findings", "model_error"]);
+  // Rerun: only the failed run 2 is attempted again.
+  const seen: string[] = [];
+  const second = await runExperiment(options({ onlyHead: "a691d010", runs: 2 }), deps(model('{"findings":[]}', seen)), config);
+  assert.equal(seen.length, 1);
+  assert.deepEqual(second.records.map((record) => [record.run, record.outcome]), [[2, "no_findings"]]);
+  // A third run has nothing left to do.
+  const third = await runExperiment(options({ onlyHead: "a691d010", runs: 2 }), deps(model('{"findings":[]}', seen)), config);
+  assert.equal(third.records.length, 0);
+  assert.equal(seen.length, 1);
+  cleanup();
+});
+
+test("arm A uses the production patch budget it was given, not a hard-coded default", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const patch = `@@ -0,0 +1,1 @@\n+${"x".repeat(5_000)}`;
+  const run = (maxPatchChars: number) =>
+    runExperiment(
+      options({ onlyHead: "a691d010", runs: 1, dryRun: true }),
+      { octokit: fakeOctokit(calls, { patchFor: () => patch }), getWriteAttempts: () => 0, reviewMarkdown: REVIEW_MD },
+      { ...config, maxPatchChars },
+    );
+  assert.equal((await run(1_000)).records[0].outcome, "changes_too_large");
+  assert.equal((await run(400_000)).records[0].outcome, "dry_run");
+  cleanup();
+});
