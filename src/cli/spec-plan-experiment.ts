@@ -344,7 +344,16 @@ export interface ExperimentRecord {
   patchSource: "synthesize" | "github";
   /** Files that had no GitHub patch (large diffs), whichever way they were sent. */
   filesWithoutGithubPatch: string[];
-  outcome: "findings" | "no_findings" | "changes_too_large" | "unusable_output" | "model_error" | "dry_run";
+  outcome:
+    | "findings"
+    | "no_findings"
+    | "changes_too_large"
+    | "unusable_output"
+    | "model_error"
+    | "model_unverified"
+    | "dry_run";
+  /** Fingerprint of the exact system and user prompt sent; absent when no prompt was built. */
+  promptSha256?: string;
   errorMessage?: string;
   findingCount: number;
   findings: ExperimentFinding[];
@@ -390,14 +399,34 @@ export function attemptKey(
   patchSource: "synthesize" | "github",
   modelRequested: string,
 ): string {
-  return `${headSha}|${arm}|${run}|${patchSource}|${modelRequested}`;
+  return `${attemptGroup(headSha, arm, patchSource, modelRequested)}|${run}`;
 }
 
-/** Keys of the attempts already recorded with a usable result (anything but a dry run, model error or unusable output). */
-export function completedAttemptKeys(outPath: string): Set<string> {
-  const keys = new Set<string>();
+/** The runs of one head under one arm, patch source and model: they must all share one prompt. */
+export function attemptGroup(
+  headSha: string,
+  arm: ExperimentArm,
+  patchSource: "synthesize" | "github",
+  modelRequested: string,
+): string {
+  return `${headSha}|${arm}|${patchSource}|${modelRequested}`;
+}
+
+/** Outcomes that do not count as a completed attempt: a resume retries them. */
+const INCOMPLETE_OUTCOMES: ReadonlySet<string> = new Set(["model_error", "unusable_output", "model_unverified"]);
+
+export interface CompletedAttempts {
+  /** Attempt keys already recorded with a usable result. */
+  keys: Set<string>;
+  /** Prompt fingerprints of those completed attempts, per head/arm/patch source/model. */
+  prompts: Map<string, Set<string>>;
+}
+
+/** Reads the evidence file for attempts a resume must not repeat (never a dry run, model error, unusable or unverified result). */
+export function completedAttempts(outPath: string): CompletedAttempts {
+  const result: CompletedAttempts = { keys: new Set(), prompts: new Map() };
   if (!existsSync(outPath)) {
-    return keys;
+    return result;
   }
   for (const line of readFileSync(outPath, "utf8").split("\n")) {
     if (line.trim() === "") {
@@ -411,18 +440,24 @@ export function completedAttemptKeys(outPath: string): Set<string> {
     }
     if (
       record.dryRun === false &&
-      record.outcome !== "model_error" &&
-      record.outcome !== "unusable_output" &&
+      typeof record.outcome === "string" &&
+      !INCOMPLETE_OUTCOMES.has(record.outcome) &&
       typeof record.headSha === "string" &&
       (record.arm === "A" || record.arm === "B" || record.arm === "C") &&
       typeof record.run === "number" &&
       (record.patchSource === "synthesize" || record.patchSource === "github") &&
       typeof record.modelRequested === "string"
     ) {
-      keys.add(attemptKey(record.headSha, record.arm, record.run, record.patchSource, record.modelRequested));
+      result.keys.add(attemptKey(record.headSha, record.arm, record.run, record.patchSource, record.modelRequested));
+      if (record.promptSha256) {
+        const group = attemptGroup(record.headSha, record.arm, record.patchSource, record.modelRequested);
+        const shas = result.prompts.get(group) ?? new Set<string>();
+        shas.add(record.promptSha256);
+        result.prompts.set(group, shas);
+      }
     }
   }
-  return keys;
+  return result;
 }
 
 /** A whole-file addition patch for a document GitHub returned no patch for. */
@@ -529,7 +564,7 @@ export async function runExperiment(
   // run again, so a rerun after an interruption or a failed attempt cannot give
   // a head more than its fixed number of runs. Failed attempts are retried and
   // the later record supersedes them; dry runs never count.
-  const completed = completedAttemptKeys(outPath);
+  const completed = completedAttempts(outPath);
   mkdirSync(dirname(outPath), { recursive: true });
 
   for (const head of heads) {
@@ -590,8 +625,45 @@ export async function runExperiment(
     const checklist = extractChecklist(reviewMarkdown, stage);
     const checklistSha256 = createHash("sha256").update(checklist).digest("hex");
 
+    // The prompt is the same for every run of this head and arm, so it is built once.
+    let prompt: ReviewPrompt | undefined;
+    let tooLarge: string | undefined;
+    try {
+      prompt = buildArmPrompt({
+        arm: options.arm,
+        stage,
+        title: pr.title,
+        body: pr.body,
+        changedFiles,
+        maxPatchChars: config.maxPatchChars ?? DEFAULT_MAX_PATCH_CHARS,
+        authoritativeDocs,
+        checklist,
+        ...(approvedSpec ? { approvedSpec } : {}),
+      });
+    } catch (error) {
+      if (!(error instanceof ChangesTooLargeError)) {
+        throw error;
+      }
+      tooLarge = error.message;
+    }
+    const promptSha256 = prompt
+      ? createHash("sha256").update(prompt.systemPrompt).update("\u0000").update(prompt.userPrompt).digest("hex")
+      : undefined;
+    const promptChars = prompt ? prompt.systemPrompt.length + prompt.userPrompt.length : 0;
+
+    // A resume must send the prompt the earlier attempts sent. The PR title and
+    // body are mutable and the checklist is read from the working tree, so a
+    // change between invocations would otherwise mix incomparable attempts in
+    // one arm.
+    const earlier = completed.prompts.get(attemptGroup(head.headSha, options.arm, options.patchSource, modelRequested));
+    if (!options.dryRun && promptSha256 && earlier && [...earlier].some((sha) => sha !== promptSha256)) {
+      throw new SpecPlanExperimentUsageError(
+        `#${head.pullNumber} ${head.headSha.slice(0, 8)} arm ${options.arm}: the prompt differs from the one earlier attempts in ${options.outPath} were sent (the PR text or REVIEW.md checklist changed). Use a new --out file rather than mixing attempts.`,
+      );
+    }
+
     for (let run = 1; run <= options.runs; run += 1) {
-      if (!options.dryRun && completed.has(attemptKey(head.headSha, options.arm, run, options.patchSource, modelRequested))) {
+      if (!options.dryRun && completed.keys.has(attemptKey(head.headSha, options.arm, run, options.patchSource, modelRequested))) {
         continue;
       }
       const base: Omit<ExperimentRecord, "outcome" | "findingCount" | "findings" | "malformedCount" | "promptChars" | "responseChars" | "elapsedMs"> = {
@@ -608,6 +680,7 @@ export async function runExperiment(
         dryRun: options.dryRun,
         patchSource: options.patchSource,
         filesWithoutGithubPatch,
+        ...(promptSha256 ? { promptSha256 } : {}),
       };
       const finish = (extra: Partial<ExperimentRecord> & Pick<ExperimentRecord, "outcome">): void => {
         const record: ExperimentRecord = {
@@ -626,28 +699,11 @@ export async function runExperiment(
         appendFileSync(outPath, `${JSON.stringify(record)}\n`, "utf8");
       };
 
-      let prompt: ReviewPrompt;
-      try {
-        prompt = buildArmPrompt({
-          arm: options.arm,
-          stage,
-          title: pr.title,
-          body: pr.body,
-          changedFiles,
-          maxPatchChars: config.maxPatchChars ?? DEFAULT_MAX_PATCH_CHARS,
-          authoritativeDocs,
-          checklist,
-          ...(approvedSpec ? { approvedSpec } : {}),
-        });
-      } catch (error) {
-        if (error instanceof ChangesTooLargeError) {
-          // Recorded, not skipped: a spec over the patch budget is itself a result.
-          finish({ outcome: "changes_too_large", errorMessage: error.message });
-          continue;
-        }
-        throw error;
+      if (tooLarge !== undefined || !prompt) {
+        // Recorded, not skipped: a spec over the patch budget is itself a result.
+        finish({ outcome: "changes_too_large", errorMessage: tooLarge ?? "no prompt" });
+        continue;
       }
-      const promptChars = prompt.systemPrompt.length + prompt.userPrompt.length;
 
       if (!model) {
         finish({ outcome: "dry_run", promptChars });
@@ -666,6 +722,20 @@ export async function runExperiment(
         continue;
       }
       const elapsedMs = now() - started;
+      if (options.arm === "C" && modelReported !== modelRequested) {
+        // Arm C exists to isolate one pinned model. A response that does not
+        // name that model (a provider alias, fallback or misrouting, or no model
+        // at all) cannot be attributed to it, so it is not a result.
+        finish({
+          outcome: "model_unverified",
+          errorMessage: `endpoint reported ${modelReported === undefined ? "no model" : `"${modelReported}"`}, expected "${modelRequested}"`,
+          ...(modelReported ? { modelReported } : {}),
+          promptChars,
+          responseChars: content.length,
+          elapsedMs,
+        });
+        continue;
+      }
       try {
         const parsed = parseModelResponse(content, changedFiles);
         finish({
@@ -702,9 +772,9 @@ export async function runExperiment(
   console.log(`Spec/plan experiment arm ${options.arm}: ${records.length} record(s) appended to ${outPath}`);
   // Every attempt is recorded either way, but a run that produced no usable
   // result must not read as success to whatever drives the next arm.
-  const unusable = records.filter((record) => record.outcome === "model_error" || record.outcome === "unusable_output");
+  const unusable = records.filter((record) => INCOMPLETE_OUTCOMES.has(record.outcome));
   if (unusable.length > 0) {
-    console.error(`${unusable.length} of ${records.length} run(s) produced no usable result (model_error or unusable_output); the arm is incomplete.`);
+    console.error(`${unusable.length} of ${records.length} run(s) produced no usable result (model_error, unusable_output or model_unverified); the arm is incomplete.`);
     return { code: 1, records };
   }
   return { code: 0, records };

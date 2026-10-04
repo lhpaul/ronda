@@ -244,12 +244,12 @@ function options(overrides: Partial<ExperimentOptions> = {}): ExperimentOptions 
 
 const config = { modelName: "configured-model", apiKey: "k", baseUrl: "https://example.test/v1" };
 
-function model(content: string, seen: string[] = []): ModelClient {
+function model(content: string, seen: string[] = [], reportedModel: string | null = "reported-model"): ModelClient {
   return {
     modelName: "m",
     async complete(request) {
       seen.push(request.userPrompt);
-      return { content, reportedModel: "reported-model" };
+      return { content, ...(reportedModel ? { reportedModel } : {}) };
     },
   };
 }
@@ -309,7 +309,7 @@ test("arm C builds its model from the pinned id and records that id", async () =
       getWriteAttempts: () => 0,
       armCModelFactory: (name) => {
         requested.push(name);
-        return model('{"findings":[]}');
+        return model('{"findings":[]}', [], name);
       },
       reviewMarkdown: REVIEW_MD,
     },
@@ -555,5 +555,55 @@ test("no record or output file ever carries the model credential", async () => {
     { ...config, apiKey: secret },
   );
   assert.ok(!readFileSync(join(REPO_ROOT, OUT), "utf8").includes(secret));
+  cleanup();
+});
+
+test("arm C results from a model that is not the pinned one are inadmissible, and the arm exits nonzero", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const run = (reported: string | null) =>
+    runExperiment(
+      options({ arm: "C", modelName: "stronger-2026-05-01", onlyHead: "a691d010", runs: 1 }),
+      {
+        octokit: fakeOctokit(calls),
+        getWriteAttempts: () => 0,
+        armCModelFactory: () => model('{"findings":[]}', [], reported),
+        reviewMarkdown: REVIEW_MD,
+      },
+      config,
+    );
+  const aliased = await run("stronger");
+  assert.equal(aliased.records[0].outcome, "model_unverified");
+  assert.equal(aliased.code, 1);
+  const silent = await run(null);
+  assert.equal(silent.records[0].outcome, "model_unverified");
+  assert.match(silent.records[0].errorMessage ?? "", /no model/);
+  // Unverified attempts are retried by a resume rather than counted as done.
+  const verified = await run("stronger-2026-05-01");
+  assert.equal(verified.records[0].outcome, "no_findings");
+  assert.equal(verified.code, 0);
+  cleanup();
+});
+
+test("a resume is refused when the prompt differs from the one earlier attempts were sent", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const deps = (reviewMarkdown: string) => ({
+    octokit: fakeOctokit(calls),
+    getWriteAttempts: () => 0,
+    modelOverride: model('{"findings":[]}'),
+    reviewMarkdown,
+  });
+  const first = await runExperiment(options({ arm: "B", onlyHead: "a691d010", runs: 1 }), deps(REVIEW_MD), config);
+  assert.match(first.records[0].promptSha256 ?? "", /^[0-9a-f]{64}$/);
+  // Run 2 of the same head and arm, but the checklist changed in between.
+  const changed = REVIEW_MD.replace("## Spec Review Checklist", "## Spec Review Checklist\n\nA new line.");
+  await assert.rejects(
+    () => runExperiment(options({ arm: "B", onlyHead: "a691d010", runs: 2 }), deps(changed), config),
+    /prompt differs/,
+  );
+  // The unchanged prompt resumes normally.
+  const resumed = await runExperiment(options({ arm: "B", onlyHead: "a691d010", runs: 2 }), deps(REVIEW_MD), config);
+  assert.deepEqual(resumed.records.map((record) => record.run), [2]);
   cleanup();
 });
