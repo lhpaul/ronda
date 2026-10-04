@@ -23,6 +23,8 @@ import type { ModelClient } from "../inference/model-client.js";
 import { createOpenAiCompatibleClient, CHAT_COMPLETION_TEMPERATURE } from "../inference/openai-compatible-client.js";
 import { parseModelResponse, UnusableModelOutputError } from "../inference/parse-model-response.js";
 import { buildReviewPrompt, ChangesTooLargeError, type ReviewPrompt } from "../inference/review-prompt.js";
+import { filterExcludedFiles, type ExcludedFile } from "../review/path-exclusion.js";
+import { isRepositoryContextEligiblePath } from "../review/symbol-resolver.js";
 import { reviewStageForBranch } from "../review/stage-resolution.js";
 import { createNoWriteOctokit } from "./control-pass.js";
 
@@ -345,6 +347,8 @@ export interface ExperimentRecord {
   patchSource: "synthesize" | "github";
   /** Files that had no GitHub patch (large diffs), whichever way they were sent. */
   filesWithoutGithubPatch: string[];
+  /** Files production's exclusion rules removed before the prompt (default globs, configured globs, no patch). */
+  excludedFiles: ExcludedFile[];
   outcome:
     | "findings"
     | "no_findings"
@@ -487,20 +491,15 @@ export function verifyManifestCommittedInGit(relativePath: string): void {
   }
 }
 
-/** The production prompt modes this replay cannot reproduce, from a loaded config. */
-export function unsupportedProductionModes(config: {
-  sweepMode: string;
-  repositoryContextMode: string;
-  durabilityMode: string;
-  durabilityModeDefault: boolean;
-  excludePathGlobs: string[];
-}): string[] {
-  const modes: string[] = [];
-  if (config.sweepMode === "on") modes.push("category sweep");
-  if (config.repositoryContextMode === "on") modes.push("repository context");
-  if (config.durabilityMode === "on" || config.durabilityModeDefault) modes.push("durability mode");
-  if (config.excludePathGlobs.length > 0) modes.push("path exclusions");
-  return modes;
+/**
+ * The production prompt modes this replay cannot reproduce, from a loaded config.
+ * Durability mode is not listed: it is inactive for spec and plan branches
+ * whatever its setting. Repository context is checked per head, because it adds
+ * nothing to a head whose changed files are all documents. Path exclusions are
+ * reproduced, not refused.
+ */
+export function unsupportedProductionModes(config: { sweepMode: string }): string[] {
+  return config.sweepMode === "on" ? ["category sweep"] : [];
 }
 
 /** A whole-file addition patch for a document GitHub returned no patch for. */
@@ -563,6 +562,10 @@ export interface ExperimentConfig {
   maxAuthoritativeDocChars?: number;
   /** Production prompt modes enabled in the loaded config that this replay does not reproduce. */
   unsupportedModes?: string[];
+  /** Repository context is enabled; it changes the prompt only for a head with TypeScript or JavaScript files. */
+  repositoryContextOn?: boolean;
+  /** Configured path exclusions, applied as production applies them. */
+  excludePathGlobs?: string[];
 }
 
 /**
@@ -604,6 +607,13 @@ export async function runExperiment(
   const reviewMarkdown = deps.reviewMarkdown ?? readFileSync(join(REPO_ROOT, "REVIEW.md"), "utf8");
 
   const modelRequested = options.arm === "C" ? (options.modelName ?? "(dry-run)") : config.modelName;
+  if (!options.dryRun && options.arm !== "C" && !isDatedModelId(config.modelName)) {
+    // The baseline must be pinned too, or arms run in separate invocations can
+    // compare different actual models and call the difference a prompt effect.
+    throw new SpecPlanExperimentUsageError(
+      `The configured baseline model "${config.modelName}" is not an exact dated id; arms A and B need a pinned baseline (for example qwen-plus-2025-12-01).`,
+    );
+  }
   let model: ModelClient | undefined;
   if (!options.dryRun) {
     model =
@@ -639,17 +649,30 @@ export async function runExperiment(
     const filesWithoutGithubPatch = githubFiles
       .filter((file) => file.patch === undefined && file.status !== "removed")
       .map((file) => file.path);
-    const changedFiles: ChangedFile[] = [];
+    const patchedFiles: ChangedFile[] = [];
     for (const file of githubFiles) {
       if (options.patchSource === "synthesize" && filesWithoutGithubPatch.includes(file.path)) {
         const text = await readRepositoryFileAtRef(deps.octokit, owner, repo, file.path, head.headSha);
         if (text === undefined) {
           throw new SpecPlanExperimentUsageError(`#${head.pullNumber}: ${file.path} has no GitHub patch and is unreadable at ${head.headSha}`);
         }
-        changedFiles.push({ ...file, patch: synthesizeAddedPatch(text) });
+        patchedFiles.push({ ...file, patch: synthesizeAddedPatch(text) });
       } else {
-        changedFiles.push(file);
+        patchedFiles.push(file);
       }
+    }
+    // Production's exclusion, applied before every downstream use: fixed-default
+    // paths, configured globs, and every file with no GitHub patch. Under
+    // `--patch-source github` that last rule is why production reviewed nothing
+    // on a large spec diff; `synthesize` gives those files a patch first.
+    const { included: changedFiles, excluded: excludedFiles } = filterExcludedFiles(
+      patchedFiles,
+      config.excludePathGlobs ?? [],
+    );
+    if (!options.dryRun && config.repositoryContextOn && changedFiles.some((file) => isRepositoryContextEligiblePath(file.path))) {
+      throw new SpecPlanExperimentUsageError(
+        `Repository context is enabled and #${head.pullNumber} changes TypeScript or JavaScript files; this replay does not reproduce it. Unset it for the run.`,
+      );
     }
 
     const readAtHead = (path: string) =>
@@ -736,6 +759,7 @@ export async function runExperiment(
         dryRun: options.dryRun,
         patchSource: options.patchSource,
         filesWithoutGithubPatch,
+        excludedFiles,
         ...(promptSha256 ? { promptSha256 } : {}),
       };
       const finish = (extra: Partial<ExperimentRecord> & Pick<ExperimentRecord, "outcome">): void => {
@@ -778,8 +802,9 @@ export async function runExperiment(
         continue;
       }
       const elapsedMs = now() - started;
-      if (options.arm === "C" && modelReported !== modelRequested) {
-        // Arm C exists to isolate one pinned model. A response that does not
+      if (modelReported !== modelRequested) {
+        // Every arm is attributed to one model: arms A and B to the pinned
+        // baseline, arm C to its pinned stronger model. A response that does not
         // name that model (a provider alias, fallback or misrouting, or no model
         // at all) cannot be attributed to it, so it is not a result.
         finish({
@@ -863,6 +888,8 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       maxAuthoritativeDocCount: loaded.maxAuthoritativeDocCount,
       maxAuthoritativeDocChars: loaded.maxAuthoritativeDocChars,
       unsupportedModes: unsupportedProductionModes(loaded),
+      repositoryContextOn: loaded.repositoryContextMode === "on",
+      excludePathGlobs: loaded.excludePathGlobs,
     };
   } catch (error) {
     // A dry run sends no model request, so it may proceed on the built-in

@@ -244,9 +244,9 @@ function options(overrides: Partial<ExperimentOptions> = {}): ExperimentOptions 
   };
 }
 
-const config = { modelName: "configured-model", apiKey: "k", baseUrl: "https://example.test/v1" };
+const config = { modelName: "configured-model-2026-01-01", apiKey: "k", baseUrl: "https://example.test/v1" };
 
-function model(content: string, seen: string[] = [], reportedModel: string | null = "reported-model"): ModelClient {
+function model(content: string, seen: string[] = [], reportedModel: string | null = "configured-model-2026-01-01"): ModelClient {
   return {
     modelName: "m",
     async complete(request) {
@@ -291,8 +291,8 @@ test("a model run records parsed findings, the reported model and the temperatur
   for (const record of records) {
     assert.equal(record.outcome, "findings");
     assert.equal(record.findingCount, 1);
-    assert.equal(record.modelRequested, "configured-model");
-    assert.equal(record.modelReported, "reported-model");
+    assert.equal(record.modelRequested, "configured-model-2026-01-01");
+    assert.equal(record.modelReported, "configured-model-2026-01-01");
     assert.equal(record.temperature, 0);
     assert.equal(record.stage, "spec");
     assert.match(record.checklistSha256, /^[0-9a-f]{64}$/);
@@ -343,9 +343,11 @@ test("a file GitHub returned no patch for is sent as document text, or as produc
     { octokit: noPatch, getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: model('{"findings":[]}', productionPrompts), reviewMarkdown: REVIEW_MD },
     config,
   );
-  assert.ok(productionPrompts[0].includes("(no textual diff available for this file)"));
+  assert.ok(productionPrompts[0].includes("(no changed files)"), "production excludes a file with no patch, so nothing is reviewed");
   assert.ok(!productionPrompts[0].includes("full document"));
   assert.equal(production.records[0].patchSource, "github");
+  assert.deepEqual(production.records[0].excludedFiles, [{ path: "docs/specs/developments/x/1_x_specs.md", reason: "no_patch" }]);
+  assert.deepEqual(synthesized.records[0].excludedFiles, []);
   cleanup();
 });
 
@@ -469,7 +471,7 @@ test("a rerun resumes: usable attempts are not repeated, failed ones are retried
     async complete() {
       calls1 += 1;
       if (calls1 === 2) throw new Error("boom");
-      return { content: '{"findings":[]}' };
+      return { content: '{"findings":[]}', reportedModel: "configured-model-2026-01-01" };
     },
   };
   const first = await runExperiment(options({ onlyHead: "a691d010", runs: 2 }), deps(flaky), config);
@@ -620,14 +622,9 @@ test("a real run refuses a manifest that is untracked; the check passes for a co
   }
 });
 
-test("production prompt modes the replay cannot reproduce are listed, and refuse a real run but not a dry run", async () => {
-  const base = { sweepMode: "off", repositoryContextMode: "off", durabilityMode: "default", durabilityModeDefault: false, excludePathGlobs: [] as string[] };
-  assert.deepEqual(unsupportedProductionModes(base), []);
-  assert.deepEqual(
-    unsupportedProductionModes({ ...base, sweepMode: "on", repositoryContextMode: "on", durabilityMode: "on", excludePathGlobs: ["docs/**"] }),
-    ["category sweep", "repository context", "durability mode", "path exclusions"],
-  );
-  assert.deepEqual(unsupportedProductionModes({ ...base, durabilityModeDefault: true }), ["durability mode"]);
+test("only a category sweep is refused outright; repository context is refused only for a head with code files; durability and exclusions are not", async () => {
+  assert.deepEqual(unsupportedProductionModes({ sweepMode: "off" }), []);
+  assert.deepEqual(unsupportedProductionModes({ sweepMode: "on" }), ["category sweep"]);
 
   cleanup();
   const calls: FakeCalls = { writes: 0, contentRefs: [] };
@@ -638,6 +635,42 @@ test("production prompt modes the replay cannot reproduce are listed, and refuse
   );
   const dry = await runExperiment(options({ onlyHead: "a691d010", runs: 1, dryRun: true }), deps, { ...config, unsupportedModes: ["category sweep"] });
   assert.equal(dry.records.length, 1);
+  // Repository context adds nothing to a documents-only head, so it does not refuse one.
+  const withContext = await runExperiment(options({ onlyHead: "a691d010", runs: 1 }), deps, { ...config, repositoryContextOn: true });
+  assert.equal(withContext.records.length, 1);
+  cleanup();
+});
+
+test("production's path exclusions apply to arm A: a configured glob removes the file", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const seen: string[] = [];
+  const { records } = await runExperiment(
+    options({ onlyHead: "a691d010", runs: 1 }),
+    { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: model('{"findings":[]}', seen), reviewMarkdown: REVIEW_MD },
+    { ...config, excludePathGlobs: ["docs/specs/**"] },
+  );
+  assert.deepEqual(records[0].excludedFiles, [{ path: "docs/specs/developments/x/1_x_specs.md", reason: "configured_glob" }]);
+  assert.ok(seen[0].includes("(no changed files)"));
+  cleanup();
+});
+
+test("arms A and B need a pinned baseline and a response that names it", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const deps = (reported: string | null) => ({ octokit: fakeOctokit(calls), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: model('{"findings":[]}', [], reported), reviewMarkdown: REVIEW_MD });
+  await assert.rejects(
+    () => runExperiment(options({ onlyHead: "a691d010", runs: 1 }), deps("qwen-plus"), { ...config, modelName: "qwen-plus" }),
+    /not an exact dated id/,
+  );
+  for (const arm of ["A", "B"] as const) {
+    const fallback = await runExperiment(options({ arm, onlyHead: "a691d010", runs: 1 }), deps("something-else"), config);
+    assert.equal(fallback.records[0].outcome, "model_unverified");
+    assert.equal(fallback.code, 1);
+    cleanup();
+  }
+  const dry = await runExperiment(options({ onlyHead: "a691d010", runs: 1, dryRun: true }), deps(null), { ...config, modelName: "qwen-plus" });
+  assert.equal(dry.records[0].outcome, "dry_run");
   cleanup();
 });
 
