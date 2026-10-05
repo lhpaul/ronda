@@ -2,6 +2,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createHash } from "node:crypto";
+import { Agent, fetch as undiciFetch } from "undici";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { Octokit } from "@octokit/rest";
@@ -42,6 +43,13 @@ import { createNoWriteOctokit } from "./control-pass.js";
  * Arm A is the production prompt unchanged. Arms B and C use the spec/plan
  * prompt below. Arm C names its model with `--model`, pinned by exact id.
  */
+
+// Arm C's reasoning model answers non-streaming calls only after thinking, which
+// can exceed undici's default 300 s headers timeout; arms A and B keep the default.
+const MODEL_CALL_TIMEOUT_MS = 1_200_000;
+const longTimeoutAgent = new Agent({ headersTimeout: MODEL_CALL_TIMEOUT_MS, bodyTimeout: MODEL_CALL_TIMEOUT_MS });
+const longTimeoutFetch = ((input, init) =>
+  undiciFetch(input as never, { ...(init as object), dispatcher: longTimeoutAgent } as never)) as typeof fetch;
 
 export type ExperimentArm = "A" | "B" | "C";
 export type ExperimentStage = "spec" | "plan";
@@ -663,7 +671,7 @@ export async function runExperiment(
   if (!options.dryRun) {
     model =
       options.arm === "C"
-        ? (deps.armCModelFactory ?? ((name) => createOpenAiCompatibleClient({ ...config, modelName: name })))(
+        ? (deps.armCModelFactory ?? ((name) => createOpenAiCompatibleClient({ ...config, modelName: name, fetchImpl: longTimeoutFetch })))(
             options.modelName as string,
           )
         : (deps.modelOverride ?? createOpenAiCompatibleClient(config));
@@ -880,7 +888,7 @@ export async function runExperiment(
       let content: string;
       let modelReported: string | undefined;
       try {
-        const completion = await model.complete(prompt, AbortSignal.timeout(600_000));
+        const completion = await model.complete(prompt, AbortSignal.timeout(MODEL_CALL_TIMEOUT_MS));
         content = completion.content;
         modelReported = completion.reportedModel;
       } catch (error) {

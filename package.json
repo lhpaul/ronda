@@ -33,6 +33,7 @@
     "markdownlint-rule-relative-links": "5.1.0",
     "prettier": "^3.8.3",
     "tsx": "4.23.13",
-    "typescript-eslint": "8.69.0"
+    "typescript-eslint": "8.69.0",
+    "undici": "^8.11.2"
   }
 }
