@@ -86,6 +86,11 @@ export interface ExperimentOptions {
   onlyHead?: string;
   /** Arm C's model, pinned by exact id. Required for arm C, refused for A and B. */
   modelName?: string;
+  /**
+   * The one name the endpoint reports for `modelName` when it differs (an endpoint
+   * that answers a dated id with its own short alias). Arm C only; recorded on every row.
+   */
+  reportedModelName?: string;
   /** Build every prompt and write records, but send no model request. */
   dryRun: boolean;
   /**
@@ -106,7 +111,7 @@ export function parseExperimentArgs(
   env: NodeJS.ProcessEnv = process.env,
 ): ExperimentOptions {
   const usage =
-    "Usage: quality:spec-plan-experiment -- --arm A|B|C [--runs <n>] [--head <sha>] [--model <id>] [--patch-source synthesize|github] [--dry-run] [--repo <owner/repo>] [--heads <path>] [--out <path>]";
+    "Usage: quality:spec-plan-experiment -- --arm A|B|C [--runs <n>] [--head <sha>] [--model <id>] [--reported-model <name>] [--patch-source synthesize|github] [--dry-run] [--repo <owner/repo>] [--heads <path>] [--out <path>]";
   let arm: string | undefined;
   let runsRaw: string | undefined;
   let repo = env.GITHUB_REPOSITORY ?? DEFAULT_REPOSITORY;
@@ -114,10 +119,11 @@ export function parseExperimentArgs(
   let outPath = DEFAULT_OUT_PATH;
   let onlyHead: string | undefined;
   let modelName: string | undefined;
+  let reportedModelName: string | undefined;
   let dryRun = false;
   let patchSource: "synthesize" | "github" = "synthesize";
 
-  const valueOptions = new Set(["--patch-source", "--arm", "--runs", "--repo", "--heads", "--out", "--head", "--model"]);
+  const valueOptions = new Set(["--patch-source", "--arm", "--runs", "--repo", "--heads", "--out", "--head", "--model", "--reported-model"]);
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--dry-run") {
@@ -151,6 +157,8 @@ export function parseExperimentArgs(
       outPath = value;
     } else if (arg === "--head") {
       onlyHead = value;
+    } else if (arg === "--reported-model") {
+      reportedModelName = value;
     } else {
       modelName = value;
     }
@@ -180,6 +188,9 @@ export function parseExperimentArgs(
       `--model must be an exact dated model id ending in a date (for example name-2025-12-01 or name-20251201), not an alias: "${modelName}". ${usage}`,
     );
   }
+  if (arm !== "C" && reportedModelName) {
+    throw new SpecPlanExperimentUsageError(`--reported-model is only valid for arm C. ${usage}`);
+  }
   if (arm !== "C" && modelName) {
     throw new SpecPlanExperimentUsageError(`--model is only valid for arm C; arms A and B use the configured model. ${usage}`);
   }
@@ -195,6 +206,7 @@ export function parseExperimentArgs(
     outPath,
     ...(onlyHead ? { onlyHead } : {}),
     ...(modelName ? { modelName } : {}),
+    ...(reportedModelName ? { reportedModelName } : {}),
     dryRun,
     patchSource,
   };
@@ -659,6 +671,7 @@ export async function runExperiment(
 
   const reviewMarkdown = deps.reviewMarkdown ?? readFileSync(join(REPO_ROOT, "REVIEW.md"), "utf8");
 
+  const expectedReported = options.arm === "C" && options.reportedModelName ? options.reportedModelName : undefined;
   const modelRequested = options.arm === "C" ? (options.modelName ?? "(dry-run)") : config.modelName;
   if (!options.dryRun && options.arm !== "C" && !isDatedModelId(config.modelName)) {
     // The baseline must be pinned too, or arms run in separate invocations can
@@ -896,14 +909,14 @@ export async function runExperiment(
         continue;
       }
       const elapsedMs = now() - started;
-      if (modelReported !== modelRequested) {
+      if (modelReported !== (expectedReported ?? modelRequested)) {
         // Every arm is attributed to one model: arms A and B to the pinned
         // baseline, arm C to its pinned stronger model. A response that does not
         // name that model (a provider alias, fallback or misrouting, or no model
         // at all) cannot be attributed to it, so it is not a result.
         finish({
           outcome: "model_unverified",
-          errorMessage: `endpoint reported ${modelReported === undefined ? "no model" : `"${modelReported}"`}, expected "${modelRequested}"`,
+          errorMessage: `endpoint reported ${modelReported === undefined ? "no model" : `"${modelReported}"`}, expected "${expectedReported ?? modelRequested}"`,
           ...(modelReported ? { modelReported } : {}),
           promptChars,
           responseChars: content.length,

@@ -662,6 +662,30 @@ test("production's path exclusions apply to arm A: a configured glob removes the
   cleanup();
 });
 
+test("arm C accepts exactly the declared reported alias and nothing else", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const run = (reported: string) =>
+    runExperiment(
+      options({ arm: "C", modelName: "stronger-2026-05-01", reportedModelName: "stronger", onlyHead: "a691d010", runs: 1 }),
+      {
+        octokit: fakeOctokit(calls),
+        getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined,
+        armCModelFactory: () => model('{"findings":[]}', [], reported),
+        reviewMarkdown: REVIEW_MD,
+      },
+      config,
+    );
+  const ok = await run("stronger");
+  assert.equal(ok.records[0].outcome, "no_findings");
+  assert.equal(ok.records[0].modelRequested, "stronger-2026-05-01");
+  assert.equal(ok.records[0].modelReported, "stronger");
+  cleanup();
+  const other = await run("stronger-2026-05-01");
+  assert.equal(other.records[0].outcome, "model_unverified");
+  cleanup();
+});
+
 test("arms A and B need a pinned baseline and a response that names it", async () => {
   cleanup();
   const calls: FakeCalls = { writes: 0, contentRefs: [] };
