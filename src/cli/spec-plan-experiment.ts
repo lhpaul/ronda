@@ -487,8 +487,9 @@ export interface CompletedAttempts {
 }
 
 /**
- * Removes an unterminated last line (a torn append from an interrupted run), so
- * the next append starts on a fresh line instead of gluing onto invalid JSON.
+ * Repairs an unterminated last line (an interrupted append) so the next append
+ * starts on a fresh line: an invalid tail is removed, a complete record only
+ * missing its newline is kept.
  */
 export function trimTornTail(outPath: string): void {
   if (!existsSync(outPath)) {
@@ -498,7 +499,14 @@ export function trimTornTail(outPath: string): void {
   if (text === "" || text.endsWith("\n")) {
     return;
   }
-  writeFileSync(outPath, text.slice(0, text.lastIndexOf("\n") + 1), "utf8");
+  const cut = text.lastIndexOf("\n") + 1;
+  try {
+    JSON.parse(text.slice(cut));
+    // A complete record that only lost its newline is a paid result: keep it.
+    writeFileSync(outPath, `${text}\n`, "utf8");
+  } catch {
+    writeFileSync(outPath, text.slice(0, cut), "utf8");
+  }
 }
 
 /** Reads the evidence file for attempts a resume must not repeat (never a dry run, model error, unusable or unverified result). */

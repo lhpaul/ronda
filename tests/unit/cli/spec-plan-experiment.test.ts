@@ -9,6 +9,7 @@ import {
   unsupportedProductionModes,
   verifyManifestCommittedInGit,
   completedAttempts,
+  trimTornTail,
   APPROVED_SPEC_PATH,
   APPROVED_SPEC_REF,
   buildArmPrompt,
@@ -657,6 +658,17 @@ test("a torn last line is trimmed before the next paid result is appended, so th
   await runExperiment(options({ onlyHead: "90a694ea", runs: 1 }), deps, config); // appends after the trim
   assert.equal(completedAttempts(file).keys.size, 2);
   assert.doesNotThrow(() => completedAttempts(file));
+  cleanup();
+});
+
+test("a complete last record that only lost its newline is kept, not trimmed", () => {
+  cleanup();
+  const file = join(REPO_ROOT, OUT);
+  const good = JSON.stringify({ dryRun: false, outcome: "no_findings", headSha: "a".repeat(40), arm: "A", run: 1, patchSource: "synthesize", modelRequested: "m-2026-01-01" });
+  writeFileSync(file, good);
+  trimTornTail(file);
+  assert.equal(readFileSync(file, "utf8"), `${good}\n`);
+  assert.equal(completedAttempts(file).keys.size, 1);
   cleanup();
 });
 
