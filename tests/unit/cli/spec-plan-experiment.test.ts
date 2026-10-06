@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import type { Octokit } from "@octokit/rest";
 import {
@@ -202,7 +203,7 @@ interface FakeCalls {
 }
 
 /** Heads are the 8 committed ones; #115 branches are spec/, #117 are implementation-plan/. */
-function fakeOctokit(calls: FakeCalls, opts: { patchFor?: (path: string) => string | undefined } = {}): Octokit {
+function fakeOctokit(calls: FakeCalls, opts: { patchFor?: (path: string) => string | undefined; extraFiles?: string[] } = {}): Octokit {
   const patchFor = opts.patchFor ?? (() => "@@ -0,0 +1,1 @@\n+# doc");
   return {
     pulls: {
@@ -226,6 +227,7 @@ function fakeOctokit(calls: FakeCalls, opts: { patchFor?: (path: string) => stri
               additions: 1,
               deletions: 0,
             },
+            ...(opts.extraFiles ?? []).map((filename) => ({ filename, status: "modified", patch: "@@ -1 +1 @@\n-a\n+b", additions: 1, deletions: 1 })),
           ],
         },
       }),
@@ -620,14 +622,21 @@ test("a resume is refused when the prompt differs from the one earlier attempts 
   cleanup();
 });
 
-test("a real run refuses a manifest that is untracked; the check passes for a committed clean file", () => {
+test("a real run refuses a manifest that is untracked or modified, and accepts it once restored", () => {
   assert.throws(() => verifyManifestCommittedInGit("docs/testing/ronda/does-not-exist.md"), SpecPlanExperimentUsageError);
-  // REVIEW.md is tracked; a clean checkout passes. (Skipped when the working tree has local edits to it.)
-  try {
-    verifyManifestCommittedInGit("REVIEW.md");
-  } catch (error) {
-    assert.match(String(error), /uncommitted changes/);
+  const file = join(REPO_ROOT, "REVIEW.md");
+  const original = readFileSync(file, "utf8");
+  if (execFileSync("git", ["status", "--porcelain", "--", "REVIEW.md"], { cwd: REPO_ROOT, encoding: "utf8" }).trim() !== "") {
+    return; // local edits to REVIEW.md: do not touch it
   }
+  try {
+    verifyManifestCommittedInGit("REVIEW.md"); // tracked and clean: accepted
+    writeFileSync(file, `${original}\nplanted edit\n`);
+    assert.throws(() => verifyManifestCommittedInGit("REVIEW.md"), /uncommitted changes/); // tracked and modified: refused
+  } finally {
+    writeFileSync(file, original);
+  }
+  verifyManifestCommittedInGit("REVIEW.md"); // restored: accepted again
 });
 
 test("only a category sweep is refused outright; repository context is refused only for a head with code files; durability and exclusions are not", async () => {
@@ -643,6 +652,16 @@ test("only a category sweep is refused outright; repository context is refused o
   );
   const dry = await runExperiment(options({ onlyHead: "a691d010", runs: 1, dryRun: true }), deps, { ...config, unsupportedModes: ["category sweep"] });
   assert.equal(dry.records.length, 1);
+  // A head that changes TypeScript is refused under repository context, and accepted with it off.
+  const codeDeps = { ...deps, octokit: fakeOctokit(calls, { extraFiles: ["src/x.ts"] }) };
+  await assert.rejects(
+    () => runExperiment(options({ onlyHead: "a691d010", runs: 1 }), codeDeps, { ...config, repositoryContextOn: true }),
+    /changes TypeScript or JavaScript files/,
+  );
+  cleanup();
+  const contextOff = await runExperiment(options({ onlyHead: "a691d010", runs: 1 }), codeDeps, { ...config, repositoryContextOn: false });
+  assert.equal(contextOff.records.length, 1);
+  cleanup();
   // Repository context adds nothing to a documents-only head, so it does not refuse one.
   const withContext = await runExperiment(options({ onlyHead: "a691d010", runs: 1 }), deps, { ...config, repositoryContextOn: true });
   assert.equal(withContext.records.length, 1);
