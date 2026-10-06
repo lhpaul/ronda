@@ -744,7 +744,10 @@ export async function runExperiment(
   for (const head of heads) {
     // The head's own branch decides the stage, as production does; the manifest's stage must agree.
     const pull = (await deps.octokit.pulls.get({ owner, repo, pull_number: head.pullNumber })).data;
-    const pr = { title: pull.title, body: pull.body ?? "", headBranch: pull.head.ref ?? "" };
+    // The PR description is deliberately not replayed: GitHub returns the current one,
+    // which holds decisions made after the replayed head (hindsight), and no earlier
+    // version is available. Every arm gets the same empty body.
+    const pr = { title: pull.title, body: "", headBranch: pull.head.ref ?? "" };
     const stage = reviewStageForBranch(pr.headBranch);
     if (stage !== head.stage) {
       throw new SpecPlanExperimentUsageError(

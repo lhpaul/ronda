@@ -1,5 +1,7 @@
 # Spec/plan miss experiment — results and match table (#143)
 
+> **Superseded.** These numbers come from a run that gave every head the *current* PR description, which holds decisions made after the replayed head (hindsight). The data is kept in `spec-plan-experiment-143-superseded-current-pr-body.jsonl`. The experiment was rerun with no PR description for any arm; see the rerun results.
+
 Scoring was done by two reviewer agents reading each finding against the document at its head; matches require the same defect, not proximity. Verdicts on unmatched findings are a single-judge read, not ground truth. Raw findings: `spec-plan-experiment-143.jsonl`. Arm C: requested `qwen3.8-max-2026-09-02`, endpoint reports `qwen3.8-max-0902`.
 
 ## Arm B
