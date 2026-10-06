@@ -647,11 +647,24 @@ test("a real run refuses a manifest that is untracked or modified, and accepts i
   }
 });
 
+test("a torn last line is trimmed before the next paid result is appended, so the resume cycle stays readable", async () => {
+  cleanup();
+  const file = join(REPO_ROOT, OUT);
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const deps = { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: model('{"findings":[]}'), reviewMarkdown: REVIEW_MD };
+  await runExperiment(options({ onlyHead: "a691d010", runs: 1 }), deps, config);
+  writeFileSync(file, `${readFileSync(file, "utf8")}{"torn":`);
+  await runExperiment(options({ onlyHead: "90a694ea", runs: 1 }), deps, config); // appends after the trim
+  assert.equal(completedAttempts(file).keys.size, 2);
+  assert.doesNotThrow(() => completedAttempts(file));
+  cleanup();
+});
+
 test("a malformed record in the middle of the evidence file fails closed; a torn last line is tolerated", () => {
   cleanup();
   const file = join(REPO_ROOT, OUT);
   const good = JSON.stringify({ dryRun: false, outcome: "no_findings", headSha: "a".repeat(40), arm: "A", run: 1, patchSource: "synthesize", modelRequested: "m-2026-01-01" });
-  writeFileSync(file, `${good}\n{"torn":\n`);
+  writeFileSync(file, `${good}\n{"torn":`);
   assert.equal(completedAttempts(file).keys.size, 1);
   writeFileSync(file, `{"torn":\n${good}\n`);
   assert.throws(() => completedAttempts(file), /malformed record at line 1/);

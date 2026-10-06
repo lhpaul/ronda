@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { Agent, fetch as undiciFetch } from "undici";
@@ -486,6 +486,21 @@ export interface CompletedAttempts {
   manifests: Set<string>;
 }
 
+/**
+ * Removes an unterminated last line (a torn append from an interrupted run), so
+ * the next append starts on a fresh line instead of gluing onto invalid JSON.
+ */
+export function trimTornTail(outPath: string): void {
+  if (!existsSync(outPath)) {
+    return;
+  }
+  const text = readFileSync(outPath, "utf8");
+  if (text === "" || text.endsWith("\n")) {
+    return;
+  }
+  writeFileSync(outPath, text.slice(0, text.lastIndexOf("\n") + 1), "utf8");
+}
+
 /** Reads the evidence file for attempts a resume must not repeat (never a dry run, model error, unusable or unverified result). */
 export function completedAttempts(outPath: string): CompletedAttempts {
   const result: CompletedAttempts = { keys: new Set(), prompts: new Map(), baselineModels: new Set(), armCModels: new Set(), armCReported: new Set(), patchSources: new Set(), inputs: new Map(), manifests: new Set() };
@@ -501,10 +516,11 @@ export function completedAttempts(outPath: string): CompletedAttempts {
     try {
       record = JSON.parse(line) as Partial<ExperimentRecord>;
     } catch {
-      // Only the last line can be a torn append from an interrupted run (that
-      // attempt was never completed, so a resume retries it). A malformed line
-      // anywhere else is corruption: failing closed beats repeating paid runs.
-      if (lines.slice(index + 1).every((rest) => rest.trim() === "")) {
+      // Only an unterminated last line can be a torn append from an interrupted
+      // run (that attempt never completed, so a resume retries it; `trimTornTail`
+      // removes it before the next append). Any other malformed line is
+      // corruption: failing closed beats repeating paid runs.
+      if (index === lines.length - 1) {
         continue;
       }
       throw new SpecPlanExperimentUsageError(`${outPath} has a malformed record at line ${index + 1}; repair or move the file rather than resuming from it.`);
@@ -709,6 +725,9 @@ export async function runExperiment(
   // run again, so a rerun after an interruption or a failed attempt cannot give
   // a head more than its fixed number of runs. Failed attempts are retried and
   // the later record supersedes them; dry runs never count.
+  if (!options.dryRun) {
+    trimTornTail(outPath);
+  }
   const completed = completedAttempts(outPath);
   if (!options.dryRun && [...completed.manifests].some((sha) => sha !== manifestSha256)) {
     // The cohort is fixed before the first arm runs. A manifest changed after
