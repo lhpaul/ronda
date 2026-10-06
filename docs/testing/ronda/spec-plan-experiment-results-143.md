@@ -9,16 +9,16 @@ Scoring was done by reviewer agents reading each finding against the document at
 | Arm | Misses recovered (any run) | Clearly false per pass (mean / max) | Findings per pass |
 | --- | --- | --- | --- |
 | A (production prompt, `qwen-plus-2025-12-01`) | 0 of 29 (0%) | 0 / 0 | 0 |
-| B (spec/plan prompt, same model) | 3 of 29 (10%) | 4.1 / 6 | 4-5 |
-| C (spec/plan prompt, `qwen3.8-max`) | 15 of 29 (52%) | 3.8 / 10 (2.7 mean excluding 27 findings that only ask for a PR-description log the harness did not supply) | 13-25 |
+| B (spec/plan prompt, same model) | 3 of 29 (10%) | 4.1 / 6 | 3-6 |
+| C (spec/plan prompt, `qwen3.8-max`) | 15 of 29 (52%) | 3.8 / 10 (2.7 mean excluding 27 findings that only ask for a PR-description log the harness did not supply) | 10-25 |
 
 ## Decision (thresholds: B ≥ 30% recovered and ≤ 1 clearly false finding per pass)
 
 - B fails both: 10% recovered, ~4.1 clearly false per pass.
 - C clears the recovery bar (52%) but not the precision bar: ~3.8 clearly false per pass (2.7 after removing the PR-description artifacts), against a limit of 1.
 - By the stated rule, **neither clears it**: do not build the mode as designed. The model is the larger lever (3 → 15 recovered), but a stronger model alone is not enough at this noise level.
-- What the unreached 14 have in common (C): the typo-level defects (e.g. the extra closing parenthesis on `40b89f74`) and head `8c28ba8c` (0 of 3, precision-evidence pairing) are never named; every recovered miss is a contradiction or undefined-case defect.
-- Cost: C ~11 min and 13-25 findings per pass; B ~10 s and 4-5 findings.
+- What the unreached 14 have in common (C): the typo-level defects (e.g. the extra closing parenthesis on `40b89f74`) and head `8c28ba8c` (0 of 3, precision-evidence pairing) are never named; the misses C recovers are mostly contradiction or undefined-case defects, plus the stray fragment and duplicated word on `40b89f74` (the extra closing parenthesis is not named).
+- Cost: C ~11 min and 10-25 findings per pass; B ~10 s and 3-6 findings.
 - Caveats: single judge; the real/plausible split on unmatched findings is the softest part (C: 206 real, 125 plausible, 92 clearly false of 423 unmatched); recovery varies across runs (C: 8, 14, 12 per run).
 - Possible next step (not part of this experiment): a precision filter or findings cap on C's output, then re-measure; tracked in #157.
 
