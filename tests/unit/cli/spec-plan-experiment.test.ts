@@ -1,12 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import type { Octokit } from "@octokit/rest";
 import {
   unsupportedProductionModes,
   verifyManifestCommittedInGit,
+  completedAttempts,
   APPROVED_SPEC_PATH,
   APPROVED_SPEC_REF,
   buildArmPrompt,
@@ -624,19 +626,36 @@ test("a resume is refused when the prompt differs from the one earlier attempts 
 
 test("a real run refuses a manifest that is untracked or modified, and accepts it once restored", () => {
   assert.throws(() => verifyManifestCommittedInGit("docs/testing/ronda/does-not-exist.md"), SpecPlanExperimentUsageError);
-  const file = join(REPO_ROOT, "REVIEW.md");
-  const original = readFileSync(file, "utf8");
-  if (execFileSync("git", ["status", "--porcelain", "--", "REVIEW.md"], { cwd: REPO_ROOT, encoding: "utf8" }).trim() !== "") {
-    return; // local edits to REVIEW.md: do not touch it
-  }
+  // A throwaway repository, so the proof never touches this checkout.
+  const dir = mkdtempSync(join(tmpdir(), "ronda-manifest-"));
   try {
-    verifyManifestCommittedInGit("REVIEW.md"); // tracked and clean: accepted
-    writeFileSync(file, `${original}\nplanted edit\n`);
-    assert.throws(() => verifyManifestCommittedInGit("REVIEW.md"), /uncommitted changes/); // tracked and modified: refused
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, stdio: "ignore" });
+    git("init", "-q");
+    git("config", "user.email", "t@example.com");
+    git("config", "user.name", "t");
+    writeFileSync(join(dir, "manifest.md"), "heads\n");
+    assert.throws(() => verifyManifestCommittedInGit("manifest.md", dir), /not tracked/);
+    git("add", "manifest.md");
+    git("commit", "-q", "-m", "manifest");
+    verifyManifestCommittedInGit("manifest.md", dir); // tracked and clean: accepted
+    writeFileSync(join(dir, "manifest.md"), "heads\nplanted edit\n");
+    assert.throws(() => verifyManifestCommittedInGit("manifest.md", dir), /uncommitted changes/);
+    git("checkout", "--", "manifest.md");
+    verifyManifestCommittedInGit("manifest.md", dir); // restored: accepted again
   } finally {
-    writeFileSync(file, original);
+    rmSync(dir, { recursive: true, force: true });
   }
-  verifyManifestCommittedInGit("REVIEW.md"); // restored: accepted again
+});
+
+test("a malformed record in the middle of the evidence file fails closed; a torn last line is tolerated", () => {
+  cleanup();
+  const file = join(REPO_ROOT, OUT);
+  const good = JSON.stringify({ dryRun: false, outcome: "no_findings", headSha: "a".repeat(40), arm: "A", run: 1, patchSource: "synthesize", modelRequested: "m-2026-01-01" });
+  writeFileSync(file, `${good}\n{"torn":\n`);
+  assert.equal(completedAttempts(file).keys.size, 1);
+  writeFileSync(file, `{"torn":\n${good}\n`);
+  assert.throws(() => completedAttempts(file), /malformed record at line 1/);
+  cleanup();
 });
 
 test("only a category sweep is refused outright; repository context is refused only for a head with code files; durability and exclusions are not", async () => {

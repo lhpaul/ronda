@@ -492,7 +492,8 @@ export function completedAttempts(outPath: string): CompletedAttempts {
   if (!existsSync(outPath)) {
     return result;
   }
-  for (const line of readFileSync(outPath, "utf8").split("\n")) {
+  const lines = readFileSync(outPath, "utf8").split("\n");
+  for (const [index, line] of lines.entries()) {
     if (line.trim() === "") {
       continue;
     }
@@ -500,7 +501,13 @@ export function completedAttempts(outPath: string): CompletedAttempts {
     try {
       record = JSON.parse(line) as Partial<ExperimentRecord>;
     } catch {
-      continue;
+      // Only the last line can be a torn append from an interrupted run (that
+      // attempt was never completed, so a resume retries it). A malformed line
+      // anywhere else is corruption: failing closed beats repeating paid runs.
+      if (lines.slice(index + 1).every((rest) => rest.trim() === "")) {
+        continue;
+      }
+      throw new SpecPlanExperimentUsageError(`${outPath} has a malformed record at line ${index + 1}; repair or move the file rather than resuming from it.`);
     }
     if (
       record.dryRun === false &&
@@ -541,9 +548,9 @@ export function completedAttempts(outPath: string): CompletedAttempts {
 }
 
 /** Refuses a manifest that is untracked or differs from HEAD. */
-export function verifyManifestCommittedInGit(relativePath: string): void {
+export function verifyManifestCommittedInGit(relativePath: string, cwd: string = REPO_ROOT): void {
   const git = (...args: string[]): string =>
-    execFileSync("git", args, { cwd: REPO_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   try {
     git("ls-files", "--error-unmatch", "--", relativePath);
   } catch {
