@@ -775,6 +775,28 @@ test("arm C is bound to one model per evidence file", async () => {
   cleanup();
 });
 
+test("arm C keeps one reported alias per evidence file, and B and C share one patch source", async () => {
+  cleanup();
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  const runC = (reportedModelName: string | undefined, head = "a691d010", patchSource: "synthesize" | "github" = "synthesize") =>
+    runExperiment(
+      options({ arm: "C", modelName: "stronger-2026-05-01", ...(reportedModelName ? { reportedModelName } : {}), onlyHead: head, runs: 1, patchSource }),
+      {
+        octokit: fakeOctokit(calls),
+        getWriteAttempts: () => 0,
+        verifyManifestCommitted: () => undefined,
+        armCModelFactory: () => model('{"findings":[]}', [], reportedModelName ?? "stronger-2026-05-01"),
+        reviewMarkdown: REVIEW_MD,
+      },
+      config,
+    );
+  await runC("stronger");
+  await assert.rejects(() => runC("stronger-b", "90a694ea"), /already has responses reported as "stronger"/);
+  await assert.rejects(() => runC("stronger", "90a694ea", "github"), /already ran with --patch-source synthesize/);
+  assert.equal((await runC("stronger", "90a694ea")).records.length, 1);
+  cleanup();
+});
+
 test("arms must compare the same input: a changed file set or PR text between arms is refused", async () => {
   cleanup();
   const calls: FakeCalls = { writes: 0, contentRefs: [] };

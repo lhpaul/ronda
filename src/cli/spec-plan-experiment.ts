@@ -476,6 +476,10 @@ export interface CompletedAttempts {
   baselineModels: Set<string>;
   /** The one model arm C may run on in this file. */
   armCModels: Set<string>;
+  /** The model names completed arm C responses reported: one identity per evidence file. */
+  armCReported: Set<string>;
+  /** Patch sources of completed arm B and C attempts: they must share one, or the model is not the only difference. */
+  bcPatchSources: Set<string>;
   /** Shared-input fingerprints per head and patch source, across all arms. */
   inputs: Map<string, Set<string>>;
   /** Manifests the earlier attempts in this file were run against. */
@@ -484,7 +488,7 @@ export interface CompletedAttempts {
 
 /** Reads the evidence file for attempts a resume must not repeat (never a dry run, model error, unusable or unverified result). */
 export function completedAttempts(outPath: string): CompletedAttempts {
-  const result: CompletedAttempts = { keys: new Set(), prompts: new Map(), baselineModels: new Set(), armCModels: new Set(), inputs: new Map(), manifests: new Set() };
+  const result: CompletedAttempts = { keys: new Set(), prompts: new Map(), baselineModels: new Set(), armCModels: new Set(), armCReported: new Set(), bcPatchSources: new Set(), inputs: new Map(), manifests: new Set() };
   if (!existsSync(outPath)) {
     return result;
   }
@@ -511,8 +515,12 @@ export function completedAttempts(outPath: string): CompletedAttempts {
       result.keys.add(attemptKey(record.headSha, record.arm, record.run, record.patchSource, record.modelRequested));
       if (record.arm === "C") {
         result.armCModels.add(record.modelRequested);
+        result.armCReported.add(record.modelReported ?? record.modelRequested);
       } else {
         result.baselineModels.add(record.modelRequested);
+      }
+      if (record.arm !== "A") {
+        result.bcPatchSources.add(record.patchSource);
       }
       if (record.manifestSha256) {
         result.manifests.add(record.manifestSha256);
@@ -710,6 +718,18 @@ export async function runExperiment(
     // completed runs under a new key rather than reject the change.
     throw new SpecPlanExperimentUsageError(
       `Arm C in ${options.outPath} already ran on ${[...completed.armCModels].map((name) => `"${name}"`).join(", ")}, not "${modelRequested}". Use one stronger model per evidence file, or a new --out file.`,
+    );
+  }
+  if (!options.dryRun && options.arm === "C" && [...completed.armCReported].some((name) => name !== (expectedReported ?? modelRequested))) {
+    // A resume under a different declared alias would mix response identities in one arm.
+    throw new SpecPlanExperimentUsageError(
+      `Arm C in ${options.outPath} already has responses reported as ${[...completed.armCReported].map((name) => `"${name}"`).join(", ")}, not "${expectedReported ?? modelRequested}". Keep one --reported-model per evidence file, or use a new --out file.`,
+    );
+  }
+  if (!options.dryRun && options.arm !== "A" && [...completed.bcPatchSources].some((source) => source !== options.patchSource)) {
+    // B and C send the same prompt; a different patch source changes the files and text sent.
+    throw new SpecPlanExperimentUsageError(
+      `Arms B and C in ${options.outPath} already ran with --patch-source ${[...completed.bcPatchSources].join(", ")}, not ${options.patchSource}. Use one patch source for B and C, or a new --out file.`,
     );
   }
   if (!options.dryRun && options.arm !== "C" && [...completed.baselineModels].some((name) => name !== modelRequested)) {
