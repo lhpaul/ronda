@@ -344,6 +344,7 @@ test("a file GitHub returned no patch for is sent as document text, or as produc
   assert.deepEqual(synthesized.records[0].filesWithoutGithubPatch, ["docs/specs/developments/x/1_x_specs.md"]);
   assert.equal(synthesized.records[0].patchSource, "synthesize");
 
+  cleanup(); // one evidence file holds one patch source
   const productionPrompts: string[] = [];
   const production = await runExperiment(
     options({ onlyHead: "90a694ea", runs: 1, patchSource: "github" }),
@@ -792,7 +793,7 @@ test("arm C keeps one reported alias per evidence file, and B and C share one pa
     );
   await runC("stronger");
   await assert.rejects(() => runC("stronger-b", "90a694ea"), /already has responses reported as "stronger"/);
-  await assert.rejects(() => runC("stronger", "90a694ea", "github"), /already ran with --patch-source synthesize/);
+  await assert.rejects(() => runC("stronger", "90a694ea", "github"), /already has attempts with --patch-source synthesize/);
   assert.equal((await runC("stronger", "90a694ea")).records.length, 1);
   cleanup();
 });
