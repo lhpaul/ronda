@@ -704,6 +704,11 @@ export async function runExperiment(
     if (heads.length === 0) {
       throw new SpecPlanExperimentUsageError(`--head ${options.onlyHead} matches no committed head`);
     }
+    if (heads.length > 1) {
+      throw new SpecPlanExperimentUsageError(
+        `--head ${options.onlyHead} matches ${heads.length} committed heads (${heads.map((head) => head.headSha.slice(0, 8)).join(", ")}); give a longer prefix`,
+      );
+    }
   }
 
   const reviewMarkdown = deps.reviewMarkdown ?? readFileSync(join(REPO_ROOT, "REVIEW.md"), "utf8");

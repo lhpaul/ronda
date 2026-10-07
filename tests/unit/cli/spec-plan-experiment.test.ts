@@ -466,6 +466,20 @@ test("--head matching no committed head is refused", async () => {
   );
 });
 
+test("--head matching more than one committed head is refused before any request", async () => {
+  const calls: FakeCalls = { writes: 0, contentRefs: [] };
+  await assert.rejects(
+    () =>
+      runExperiment(
+        options({ onlyHead: "a" }),
+        { octokit: fakeOctokit(calls), getWriteAttempts: () => 0, verifyManifestCommitted: () => undefined, modelOverride: model("{}"), reviewMarkdown: REVIEW_MD },
+        config,
+      ),
+    /matches 2 committed heads/,
+  );
+  assert.deepEqual(calls.contentRefs, []);
+});
+
 test("a rerun resumes: usable attempts are not repeated, failed ones are retried, dry runs never count", async () => {
   cleanup();
   const calls: FakeCalls = { writes: 0, contentRefs: [] };
