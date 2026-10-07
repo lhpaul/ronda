@@ -18,7 +18,8 @@
     "quality:summary": "tsx src/cli/summarize-review-comparisons.ts",
     "quality:misses": "tsx src/cli/capture-external-review-misses.ts",
     "quality:report": "tsx src/cli/report-review-quality.ts",
-    "quality:control-pass": "tsx src/cli/control-pass.ts"
+    "quality:control-pass": "tsx src/cli/control-pass.ts",
+    "quality:spec-plan-experiment": "tsx src/cli/spec-plan-experiment.ts"
   },
   "dependencies": {
     "@octokit/rest": "22.0.1",
@@ -32,6 +33,7 @@
     "markdownlint-rule-relative-links": "5.1.0",
     "prettier": "^3.8.3",
     "tsx": "4.23.13",
-    "typescript-eslint": "8.69.0"
+    "typescript-eslint": "8.69.0",
+    "undici": "^7.30.0"
   }
 }
