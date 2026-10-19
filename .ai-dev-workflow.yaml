@@ -57,7 +57,7 @@ review:
     #   coderabbit    — hosted-service reviewer.
     #   codex-github  — hosted-service reviewer.
     runner:
-      - claude
+      - codex
 
     # Ordered list of GitHub/App/CLI reviewers that can safely evaluate draft
     # PRs. These run before the PR is converted to ready.
