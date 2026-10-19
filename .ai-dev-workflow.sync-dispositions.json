@@ -1,0 +1,65 @@
+{
+  "dispositions": [
+    {
+      "baseline_advanced": false,
+      "path": "scripts/development-workflow/tests/test-pr-agent-runtime.sh",
+      "reason": "PR-Agent trusted-base workflow and publication runtime (#1975/#1953) deferred by maintainer; workflows unchanged.",
+      "status": "not_adopted"
+    },
+    {
+      "baseline_advanced": false,
+      "path": "scripts/development-workflow/tests/test_pr_agent_runtime.py",
+      "reason": "PR-Agent trusted-base workflow and publication runtime (#1975/#1953) deferred by maintainer; workflows unchanged.",
+      "status": "not_adopted"
+    },
+    {
+      "baseline_advanced": true,
+      "path": "scripts/development-workflow/pr-agent-runtime.py",
+      "reason": "Maintainer approved exact v0.48.4 runtime required by shared readiness classifier; workflow adoption remains deferred.",
+      "status": "adopted"
+    }
+  ],
+  "incoming_commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+  "issue": 160,
+  "omitted_assertions": [
+    {
+      "dependency": ".github/workflows/shellcheck.yml",
+      "name": "1876_shellcheck_lints_one_file_per_process",
+      "reason": "Maintainer deferred upstream workflow adoption to separate workflows item.",
+      "suite": "scripts/development-workflow/tests/test-pr-review-loop.sh"
+    },
+    {
+      "dependency": ".github/workflows/shellcheck.yml",
+      "name": "1876_shellcheck_job_has_timeout",
+      "reason": "Maintainer deferred upstream workflow adoption to separate workflows item.",
+      "suite": "scripts/development-workflow/tests/test-pr-review-loop.sh"
+    },
+    {
+      "dependency": ".github/workflows/closing-keyword-scope.yml",
+      "name": "closed PR without siblings emits exactly two keyed output lines",
+      "reason": "Maintainer deferred upstream empty-target workflow fix to separate workflows item.",
+      "suite": "scripts/development-workflow/tests/test-validate-closing-keyword-scope.sh"
+    },
+    {
+      "dependency": ".github/workflows/closing-keyword-scope.yml",
+      "name": "closed non-implementation PR emits exactly two keyed output lines",
+      "reason": "Maintainer deferred upstream empty-target workflow fix to separate workflows item.",
+      "suite": "scripts/development-workflow/tests/test-validate-closing-keyword-scope.sh"
+    },
+    {
+      "dependency": ".github/workflows/closing-keyword-scope.yml",
+      "name": "closed PR with unreadable listing emits exactly two keyed output lines",
+      "reason": "Maintainer deferred upstream empty-target workflow fix to separate workflows item.",
+      "suite": "scripts/development-workflow/tests/test-validate-closing-keyword-scope.sh"
+    },
+    {
+      "dependency": ".github/workflows/closing-keyword-scope.yml",
+      "name": "unreadable closed listing retains warning annotation",
+      "reason": "Maintainer deferred upstream empty-target workflow fix to separate workflows item.",
+      "suite": "scripts/development-workflow/tests/test-validate-closing-keyword-scope.sh"
+    }
+  ],
+  "schema_version": 1,
+  "template_id": "lhpaul/ai-dev-framework-template",
+  "template_version": "v0.48.4"
+}

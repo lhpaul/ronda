@@ -1,0 +1,3474 @@
+{
+  "files": {
+    ".agents/skills/add-backlog-item/SKILL.md": {
+      "blob": "12508e6116fd896547699906ebd8ba8e80bfd93a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/add-backlog-item/agents/openai.yaml": {
+      "blob": "6df551a18ad6a76e4bd6c8cd029826fe68933774",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/batch-merge": {
+      "blob": "04157cc2c382a6f52fa4f016103875e95935c0c1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".agents/skills/code-review/SKILL.md": {
+      "blob": "aea2552247f4da5fb0cc22ac01a1daa49b0c7535",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/code-review/agents/openai.yaml": {
+      "blob": "c95fed38606faa9c09867c4aa8c3b19a9250cd60",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/graduate-development/SKILL.md": {
+      "blob": "2c6a90134c7e0880a03c8854b8c2fa23d3820d76",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/graduate-development/agents/openai.yaml": {
+      "blob": "664055be4b36b559c619e71efcb064d752345c20",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/merged-qa-tester/SKILL.md": {
+      "blob": "2539e3fdee194a85f98456b801383a7a0a58732c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/post-merge-cleanup": {
+      "blob": "4af06b328f709bbf495698e7e7dd1762aad25a87",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".agents/skills/post-merge-qa/SKILL.md": {
+      "blob": "bea75bf939e27ba357e7ea306e5e77b7bc08c3ce",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/post-merge-qa/agents/openai.yaml": {
+      "blob": "af2d78a701f8643f0ea47c9602422c73fc31ca17",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/prepare-release/SKILL.md": {
+      "blob": "d95a80377cb2b5e65bae94bfc185393dbd3a22c2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/prepare-release/agents/openai.yaml": {
+      "blob": "228216b4a71cf3ec21fe7c0a50d875bd33197788",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/retrospective/SKILL.md": {
+      "blob": "ef386423ab9cee67c1f7095b45d17cab9eac8e2d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/retrospective/agents/openai.yaml": {
+      "blob": "3d2e6c2ffc151c8d5d826b0214feac3c3697e79a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/run-epic/SKILL.md": {
+      "blob": "314f3d3539e26e89fb148ca429928d6f6750382a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/run-epic/agents/openai.yaml": {
+      "blob": "10e3c83c3895f138c9f87a95df7063fde417c1c2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/run-item-work/SKILL.md": {
+      "blob": "285802f499c381a3eefe89c253f0180c233eb40f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/run-item-work/agents/openai.yaml": {
+      "blob": "28b3719199ae9562e18212d4126bafa15bd637b9",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/run-item/SKILL.md": {
+      "blob": "57407d3a0e2991c0434e7221c8438c24bf7ff67a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/run-item/agents/openai.yaml": {
+      "blob": "9d1635649dbdced6435940a875b2fa1339c1ffe3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/run-items/SKILL.md": {
+      "blob": "0dce7b970c858613b1da97559b0142ba51ce63c5",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/run-items/agents/openai.yaml": {
+      "blob": "e35d672bf44ab8f5ef17e87d166d3eb913102416",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/run-reviewer-loop/SKILL.md": {
+      "blob": "fb3a9530ff2bd4a336f3d6441873af780c49bcd5",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/run-reviewer-loop/agents/openai.yaml": {
+      "blob": "e1bf6768b486e118f9cf18c724745d70a43c4a1e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/run-work/SKILL.md": {
+      "blob": "ce2148adb9f0f7392b00a575e9991ae2d79f596b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/run-work/agents/openai.yaml": {
+      "blob": "fa1ab342f2cf6c8d64f23386c8dc4da8caa6937d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/sync-template/SKILL.md": {
+      "blob": "fc6ca146e9984ce3a704d9f6051b328dc61e2440",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/sync-template/agents/openai.yaml": {
+      "blob": "b9f975dad2b2b53d72d34853cd0ebbebb2317393",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".agents/skills/workflow-code-reviewer": {
+      "blob": "1642213c43fec56fa4189ba1ae4ffec5d07c3a48",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".agents/skills/workflow-implementer": {
+      "blob": "cf1e36a0a4134cbe5527400b20fbff4e63043251",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".agents/skills/workflow-item-orchestrator": {
+      "blob": "ec27b5c929ea8a57933824accc44f929299a8418",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".agents/skills/workflow-orchestrator": {
+      "blob": "70eedc35e9e6a4aeebf38e8b6a3cb14f44b24369",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".agents/skills/workflow-plan-reviewer": {
+      "blob": "19100f090d13326486e5ba13f128a0c9b445355b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".agents/skills/workflow-plan-writer": {
+      "blob": "ed34020f06ea7fa98a1f4293d4bddc5d26aa007d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".agents/skills/workflow-project-setup": {
+      "blob": "b01c92ba2e9a37b319c8a09d4c76ac791d876b71",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".agents/skills/workflow-retrospective": {
+      "blob": "df4ee5b8f56ba8ade216d46da4aa68e09e34784e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".agents/skills/workflow-reviewer-loop": {
+      "blob": "c12bba5c14b82d22393acb448d44d8ff0e12ad4d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".agents/skills/workflow-spec-reviewer": {
+      "blob": "53cc4729db5fe3352c176ada216047156fdd79bf",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".agents/skills/workflow-spec-writer": {
+      "blob": "32206e75ca9b6acefcb7cf6304eb2a9625c00d1a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".agents/skills/workflow-sync-template": {
+      "blob": "3ea5fce0d7b6f93a0b41f0ff240e650799d18095",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "120000",
+      "source": "template"
+    },
+    ".claude/agents/automated-reviewer-loop.md": {
+      "blob": "c193cecb1b8cef9f502ab0f8878dc936bb4fc8d9",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/agents/code-reviewer.md": {
+      "blob": "c33dacb77557b7fbb04286db97397e4ba685639a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/agents/design-reviewer.md": {
+      "blob": "9c0f2ba20c60cba5a293b0fd2ea4c0f509029eba",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/agents/developer.md": {
+      "blob": "d7aa76519c4787ef394ff48b83ecfbd44a5454e6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/agents/implementation-plan-reviewer.md": {
+      "blob": "2389c671cb63621823cb8811ee2904e55203a64c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/agents/item-orchestrator.md": {
+      "blob": "bddad72f8f77cc420a4bc9074f04937901456401",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/agents/orchestrator.md": {
+      "blob": "fc174053bf2e24b5571d2a7202ebb93081a7b6f5",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/agents/post-merge-qa.md": {
+      "blob": "43e22320ed4f2a7a31ce8e6f38b7e59331e1b82f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/agents/product-manager.md": {
+      "blob": "ba9c6b070dc58896647468a1a1028a5822421c40",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/agents/project-setup.md": {
+      "blob": "94817c24fdd94dd3935d5de803ab687334780eb3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/agents/retrospective.md": {
+      "blob": "28f46c7b322016b285e50973e5069f945d966585",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/agents/smoke-tester.md": {
+      "blob": "710e7080fc7a8cf0f751020bdb420a0e8f7c64f8",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/agents/spec-reviewer.md": {
+      "blob": "cb044452463323496ba83873d066fc0e305e0ef0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/agents/tech-lead.md": {
+      "blob": "536d56df2ead46aa8d72145d37719b8b0ccd9117",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/add-backlog-item.md": {
+      "blob": "7d4eb055ce6ab2c168aa09619aecee9629589467",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/batch-merge.md": {
+      "blob": "5ac6d70efbd1a59dc822fa2b446961b835d1d170",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/code-review.md": {
+      "blob": "d8d4e7854e6b5f5b3d0c34bb4b2d67b3f1f1b55e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/graduate-development.md": {
+      "blob": "838556807f325a0480282cef7dfddcab24ebdf60",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/merged-qa-tester.md": {
+      "blob": "d926a6bedafad758dead7527ca7086462d1d09ca",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/post-merge-cleanup.md": {
+      "blob": "c192aa6c4d135215e6d23395ea4074910eabb2d0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/post-merge-qa.md": {
+      "blob": "5a7147ce3f3834651fc21737865f00d2db444c11",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/prepare-release.md": {
+      "blob": "3903efaa2fe22265e837230fbc890f7aa515a684",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/retrospective.md": {
+      "blob": "b8caa83a11f326b6bc757446900c5f35d2ce9310",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/run-epic.md": {
+      "blob": "2731d22055e9540b1a839c5fe416dd2633a4e197",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/run-item-work.md": {
+      "blob": "5eb8012f74ce93128b8d7a22c2dde7459f7c0694",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/run-item.md": {
+      "blob": "b1b0ce449785cb26ea9a1a6b07b8cd93a43c2db6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/run-items.md": {
+      "blob": "f99dcbb0a95feac212ff9ba907af863a67db3b5b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/run-reviewer-loop.md": {
+      "blob": "05cc417697b08c3f9d74abdb6e9ffe511f90f541",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/run-work.md": {
+      "blob": "03d0cf21ae9d552671313090b7eff947d3818a05",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/commands/sync-template.md": {
+      "blob": "13d199290f23670992835ce8f594fb74424b8ed3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/skills/post-merge-cleanup.md": {
+      "blob": "1ed90bbf6dbb436e0fb3343a166eafabbabde1aa",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".claude/skills/sync-template.md": {
+      "blob": "9b0e729e2086f722261da475037d53a24addf9bd",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/batch-merge/SKILL.md": {
+      "blob": "47c4acca1c9adbf9fe6595156dcd5669c68bb0d4",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/batch-merge/agents/openai.yaml": {
+      "blob": "0de69b1d2f19e1fa570e1823d232a5e725c9d6e8",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/merged-qa-tester/SKILL.md": {
+      "blob": "2539e3fdee194a85f98456b801383a7a0a58732c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/post-merge-cleanup/SKILL.md": {
+      "blob": "3611930905d2b279a9bd7e563a15b2edf49cc45a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/post-merge-cleanup/agents/openai.yaml": {
+      "blob": "8c739b2ed2275f40e61e36a3bf3458b2c960dcac",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/post-merge-qa/SKILL.md": {
+      "blob": "bea75bf939e27ba357e7ea306e5e77b7bc08c3ce",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/post-merge-qa/agents/openai.yaml": {
+      "blob": "af2d78a701f8643f0ea47c9602422c73fc31ca17",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-code-reviewer/SKILL.md": {
+      "blob": "deed3b35a224995e11fc6c7f7563a3c35ccc57a7",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-code-reviewer/agents/openai.yaml": {
+      "blob": "444e768822b29e2fa9c0a3c43c095362d2df1b97",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-implementer/SKILL.md": {
+      "blob": "6982f343ee8d5dda047b29d0e12c95644496bf06",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-implementer/agents/openai.yaml": {
+      "blob": "6e77a6362bc08cf6bc3ebb4815396d8fa1352264",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-item-orchestrator/SKILL.md": {
+      "blob": "f164dfc7c4f20eaec80747ca02fb0310d69c9d6e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-item-orchestrator/agents/openai.yaml": {
+      "blob": "fe629a91c4a34d287968be4b532ad38988c16286",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-orchestrator/SKILL.md": {
+      "blob": "a79ffe1a195384af14f12c709f98afafeef144ca",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-orchestrator/agents/openai.yaml": {
+      "blob": "19e908510a4826285798944907d3902ad8cddf59",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-plan-reviewer/SKILL.md": {
+      "blob": "4e33d4394255ae2d3c0a7eed0dfd13002b5aebb1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-plan-reviewer/agents/openai.yaml": {
+      "blob": "e57f189a81b33711649c020c7925a8a2141cb011",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-plan-writer/SKILL.md": {
+      "blob": "910ed97f29d7b4d96ec433f3ed4b803f78049720",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-plan-writer/agents/openai.yaml": {
+      "blob": "7776a4d6b20561812aadaec3733807ba9c2ca454",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-project-setup/SKILL.md": {
+      "blob": "57229e61aadbc01e004849cf2067f4225903fcf1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-project-setup/agents/openai.yaml": {
+      "blob": "72ae20f943ede65fdc52d972fd7ccf179cc872ef",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-retrospective/SKILL.md": {
+      "blob": "727deeeac69c2a6864714add6396ce63457fc0c6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-retrospective/agents/openai.yaml": {
+      "blob": "19dd487ef5868217ec35dd74d1664e178b0109cd",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-reviewer-loop/SKILL.md": {
+      "blob": "afddd03a1782b92972cd9cfe371cc67bd258e492",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-reviewer-loop/agents/openai.yaml": {
+      "blob": "1dc41e82b4af62f3b4be20dfff10aecb8d4a8dd0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-spec-reviewer/SKILL.md": {
+      "blob": "fe1dd591b7cf467f6eb7cf3729107e083b7a581d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-spec-reviewer/agents/openai.yaml": {
+      "blob": "e641674359ddfa9e9e70cd81c352dde620aefa4c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-spec-writer/SKILL.md": {
+      "blob": "bb2ea97458792fbc4402d15c042dc3b35db4507e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-spec-writer/agents/openai.yaml": {
+      "blob": "d8329649e395e7ead25785c97d10b4708fa5865a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".codex/skills/workflow-sync-template/SKILL.md": {
+      "blob": "afd7911cdf9cde5103720486af1a93f2a3a89225",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/automated-reviewer-loop.md": {
+      "blob": "aa813c6d9c85a10706d9632af04fa178d15be16e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/code-reviewer.md": {
+      "blob": "e7697fb4b3837171831704f531139ad5fc645735",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/design-reviewer.md": {
+      "blob": "44dbb0ae20dd862c78ff2eb39ac1b0a12a2c5383",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/developer.md": {
+      "blob": "d2db54e13054fd7ae1cdeeac686deea5a11c5a55",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/implementation-plan-reviewer.md": {
+      "blob": "0b2c9f6bc6e2c918d95055e03a4b28fd968c472a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/item-orchestrator.md": {
+      "blob": "4c2e3d67a4a77a234d2e1b24dfa796fdb6006020",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/orchestrator.md": {
+      "blob": "859d5ac3ddd44b2def80868015ac37e629e98cc2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/post-merge-qa.md": {
+      "blob": "c2739659b231b6c64b87c25f83b3806ea687af7a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/product-manager.md": {
+      "blob": "c138f014f1f677a9a8c7d8efa6d904d8174a5e4e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/project-setup.md": {
+      "blob": "f6ebc3ab010b413c156ec035d91e9d177ba0bd8a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/retrospective.md": {
+      "blob": "b9be23049ea58f925035593c787d2d3a372b50aa",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/smoke-tester.md": {
+      "blob": "48a3048ea1c96c421dbb688777336405d3329aeb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/spec-reviewer.md": {
+      "blob": "5b5c7ad356756bf6e55d7557f189996049cac897",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/agents/tech-lead.md": {
+      "blob": "fbd9b1bdbedee04ad9f6a56a3a9e41452f07a7c5",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/add-backlog-item.md": {
+      "blob": "2c18f0571a335d95adfdde30645d4a9c663aaf9b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/batch-merge.md": {
+      "blob": "5dd4594389f8dab8b499bd74936085dfd9e38351",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/generate-implementation-plan.md": {
+      "blob": "bfeaf02307800a3e31a9e8e82fb62b3cc0064677",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/generate-new-feature.md": {
+      "blob": "821c1cc534ee6a46954c5ca4a73ff651e0d2a9be",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/graduate-development.md": {
+      "blob": "6868b9f27dd0aeec395eab8a558f7be502740d50",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/implement-development.md": {
+      "blob": "249852a901ddfce25b14dd1a35385bb9e8f47afe",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/merged-qa-tester.md": {
+      "blob": "409f3186b2759df025f4c26c19323240d8b64314",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/post-merge-cleanup.md": {
+      "blob": "24716a8d0dcce999a8df42693ffab6e9733ab16e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/post-merge-qa.md": {
+      "blob": "f318d4610c7e1a98ee333b95bb6de0555493ad88",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/prepare-commit.md": {
+      "blob": "a63df36a46f01a2fe07bb6790000c50bebbdd231",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/prepare-release.md": {
+      "blob": "9e129961ce7e9537048894c4e19cd30e65141e87",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/retrospective.md": {
+      "blob": "25da9ec6c036431b9e6dae39eb5f62a2a5c40bb0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/review-code.md": {
+      "blob": "745acc2e6e91d1d80885a2fc005c74240dbf6f5b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/review-implementation-plan.md": {
+      "blob": "1992e7d95ec249d05db2cba0573501ed1fd85c0f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/review-spec.md": {
+      "blob": "fde2118ad4ab54854e8b77770eba29ff5771209d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/run-epic.md": {
+      "blob": "162e17f1bd9d0c332afea53145a75e656e59b82d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/run-item-work.md": {
+      "blob": "5113668c135a354070f0308d828e310bf3a1870c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/run-item.md": {
+      "blob": "0296ed3075b56ae928c1e6d019529e2d7817d4c1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/run-items.md": {
+      "blob": "db4b435ef75a7218189b99909d193ea856cd20ec",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/run-reviewer-loop.md": {
+      "blob": "744e2c76b884f18854a29a31ecabbd4cb1a46bcf",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/run-work.md": {
+      "blob": "258b359b1d5b2e9de26159fd656810a50f180da6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/setup-project.md": {
+      "blob": "0a7ffc5dfadde201ffe2f917909e98a34ac2bae3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/smoke-tester.md": {
+      "blob": "d6089afb08ad432e9e1ecffac00d9e9ba6a7e83a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/commands/sync-template.md": {
+      "blob": "55bba05665d222f593d24687bc758750728eeabf",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/rules/code.mdc": {
+      "blob": "086fd6165ee49815bded8db9c588660d875a8f90",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/rules/documentation.mdc": {
+      "blob": "d284c33992b013663b513ef8e6eceac98a692c4b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    ".cursor/rules/workflow.mdc": {
+      "blob": "ff1d8c92c25c69e0e5661fc4e2cfd7f4817b4fcb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "REVIEW.md": {
+      "blob": "422416ea340314516e89c270144f757cbed771fb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "changelog.d/README.md": {
+      "blob": "3abfb1d5b87bb62e8b18b86c28cde9912a96d869",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/best-practices/1-general.md": {
+      "blob": "7b23ff58dc0b68a33040e2f18de2e2e2d6bbe3e1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/best-practices/2-version-control.md": {
+      "blob": "50d60000918c07eaec7995716e0008b67f621b79",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/best-practices/3-testing.md": {
+      "blob": "f73421ea5249fd64c188d0e8bf8a6d9d00d71b52",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/testing/workflow/codex-model-routing.smoke-test.md": {
+      "blob": "626f64928d16acf6183ef54efea11b819dbae6a8",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/testing/workflow/dsh-model-routing.smoke-test.md": {
+      "blob": "adf203c231596789f4012074fb7e4990fa89fc40",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/testing/workflow/retrospective-protocol.smoke-test.md": {
+      "blob": "ff93541c0b6783771e7954ba9ee609efcc2124ea",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/testing/workflow/tracker-type-field-classification.smoke-test.md": {
+      "blob": "513812d9a923441e72bc70f8b64f6726db5fe69d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/README.md": {
+      "blob": "2c1371fd1251f716d56c7ad9d8a58f3803decd72",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/agent-model-config.md": {
+      "blob": "d02137f52ae0f8e93ab54ecf38a278b6d0a5d360",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/architecture-decision-escalation.md": {
+      "blob": "5b75f3eea62971606284b6e818bd0def0991cb15",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/bounded-run-prelude.md": {
+      "blob": "80741d7389be2e7c861de278ba827cd646dd746b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/component-release-evidence-contract.md": {
+      "blob": "9619e2a9543322c84ff1f74ac51e398e8b9dbaad",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/cross-repo-pr-flow.md": {
+      "blob": "d1653c2f9eaa6b306b28f87ef6c8690b33fdab8d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/design-assets.md": {
+      "blob": "386045054b49499029c43dadb2918cc43e6de12d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/guardrails-enforcement.md": {
+      "blob": "9bc1d709fbf3f4f4c6fe37b595148a32d2f4a68d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/guardrails.md": {
+      "blob": "271fe7428875cd218b95dd40f6d1c5e6d0bdaae4",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/actions-cost-audit.md": {
+      "blob": "19810fcfcb28be72c9d6342a5394aca0b327d191",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/bugbot.md": {
+      "blob": "2a57b178e012337813049b5797d31a62f8a9bbb1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/ci-cd-deployment.md": {
+      "blob": "d27fdfcfd3ad30cc59948688224045578c38eda0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/ci-enforcement.md": {
+      "blob": "d048e799e4fed9ec528a7df23517123439dfa517",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/claude-code-action.md": {
+      "blob": "3568fd09170e06a665b85da68abaa90c140bc69d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/coderabbit.md": {
+      "blob": "15ea828c6271e027593afe445a10b769104c1990",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/codex-github.md": {
+      "blob": "b368aac2dbaff9e6a7d2b75802aaf92f1c48d5bf",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/codex-model-routing.md": {
+      "blob": "a15886e8000e312ad1567d0941250a630354d92d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/copilot.md": {
+      "blob": "47edbfd88e7a904e7f097c6def158df3a9749da1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/cursor-dispatch-profiles.md": {
+      "blob": "96c2f152056e60b5528b3395f9f574e8f913741e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/devin.md": {
+      "blob": "630bec70334c6c209ee9eb2640d9525bd55db950",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/dsh.md": {
+      "blob": "3c06a0955697691084d0b7655f0b3f426057433b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/e2e-regression.md": {
+      "blob": "a8b5e13b0de08f21de6a2be1bb44d6a0f3a7a63a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/examples/codex-model-routing/review.config.toml": {
+      "blob": "6aec400fb3eb4125a45a3e6f0a67a499e4b29785",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/examples/codex-model-routing/reviewer.toml": {
+      "blob": "bee9e9d5e92649f5016d650ed037f06c3c17e442",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/examples/codex-model-routing/router.config.toml": {
+      "blob": "1bccdf529d02feab4318bd99d5707cddc8c5c3af",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/github-projects.md": {
+      "blob": "2ff4ec4c31cddfe78173eb617a5dee060004d43d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/greptile.md": {
+      "blob": "2c4aaf2987a6e2bcdffb8965a49d426608461f08",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/haystack-triage.md": {
+      "blob": "b2211232d1c801fe54fb8d62623377af38805a0d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/haystack.md": {
+      "blob": "388c63f5c7b9065dd9aab3ce9b33a61d64dd0149",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/issue-tracker.md": {
+      "blob": "883f1175987edc6207115538a74c4177bc50dd0b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/linear.md": {
+      "blob": "b5e6cdc32d86412adf9dd5a5025ffb08a6b57e78",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/llm-router.md": {
+      "blob": "3cc6f6285763cd0c46cc6207e9a5fe15a07f7dbc",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/local-ai-reviewer.md": {
+      "blob": "6945464197bd5dd0da69e66991f0cb0e4d30660e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/pr-agent.md": {
+      "blob": "e7e2f4e11e4ea64892e72930eff97face8574378",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/pr-review-platform.md": {
+      "blob": "192fa4d308c07ae0bb188ee9b38d8bf933277227",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/ronda.md": {
+      "blob": "859c531efdde08e9e4611212bea74f498fc5aacd",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/integrations/workflow-hub-github-app.md": {
+      "blob": "19ab1ed56619f25df08f78028fe854290e6cc991",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/multi-repo-release-adoption.md": {
+      "blob": "4b5b4b69288713fddd31d3f91473f57173f8bb41",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/plan-authoring-rigor-rules.md": {
+      "blob": "9317049864319be32ceae6709a66ac190475713b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/product-repo-injection.md": {
+      "blob": "967830dd141430b4fc9da6690ec7cd890cb87516",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/00-add-backlog-item-protocol.md": {
+      "blob": "7b44eaa42f9de568f366f258b99af9b1bb52fe41",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/01-generate-spec-protocol.md": {
+      "blob": "bb9f5f42f27541d6c8b5bfb25787e2a35b526b5c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/01-review-spec-protocol.md": {
+      "blob": "21f29b6f5f168208601e3d64e79e58470a976eb2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/02-generate-implementation-plan-protocol.md": {
+      "blob": "73b7a25db8b20a5d0bf81f6f639c2fd5d258ca8c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/02-review-implementation-plan-protocol.md": {
+      "blob": "289900b46bf0a4c6f941813d15ebf63ecf84d7f2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/03-implement-development-protocol.md": {
+      "blob": "d9f24fb7f58a0bb8be2cfb998c838c645e1290b6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/03-review-implementation-protocol.md": {
+      "blob": "f6204e18e4143352eaa6a69a7f10987e8a52bbd3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/04-smoke-test-protocol.md": {
+      "blob": "22a6d64483c2128495d5444e0b9902598b0bef4e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/05-prepare-release-protocol.md": {
+      "blob": "61e2beb75262ad89a483c7d364ab2f84357958bb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/05b-graduate-development-protocol.md": {
+      "blob": "c3c7400cc33f603cb5f220de5eb6e9c3a305c8ae",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/06-retrospective-protocol.md": {
+      "blob": "247facf0e506726acc450100d7dbd0fc0ddcca26",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/06b-meta-retrospective-protocol.md": {
+      "blob": "8349dfeb90232d5dbb845cc78ecefa21a122be85",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/07-feedback-triage-protocol.md": {
+      "blob": "7f75dc740f950fd16f6c89ac2d8e59804930eb0d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/08-post-merge-qa-protocol.md": {
+      "blob": "2034132e403cc0567cc1a19f70034441a0b79356",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/90-batch-orchestrate-work-protocol.md": {
+      "blob": "a04062aa13f3075a57be488e2f041eee3476365a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/91-orchestrate-work-protocol.md": {
+      "blob": "a1ce7ed5a4b4a0caeea41edc2f37f7164c8a15ed",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/92-pr-readiness-signal-protocol.md": {
+      "blob": "0257b2ac1547bb1fc3695b68d8f3d9fa0325b51f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/93-automated-reviewer-loop-protocol.md": {
+      "blob": "dbce9952a13d2d32cd512643bcce175ec68a0dc1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/94-batch-merge-protocol.md": {
+      "blob": "41ac9eb78a4fe9330a71d8da630e651db3dcea4b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/95-run-epic-protocol.md": {
+      "blob": "acfb58f3b2cdfc838eb78b06848c76cca06b8174",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/protocols/96-run-work-routing-protocol.md": {
+      "blob": "94e97672c885c51d5805065cc875d46b08658ba4",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/provider-contingency-runner-failover.md": {
+      "blob": "8acf9759546b3f7c9c17523d77d3c790d58fef97",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/repository-modes.md": {
+      "blob": "908ec092cddc8cee50932220e4c10289e568393a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/review-doctrine.md": {
+      "blob": "837571b1c96b1866bbfcc731a8f5270d2d0aac57",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/strict-plan-checks.md": {
+      "blob": "51a48f7f5d4e6f2617fadc455f4df5e4122ed904",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/strict-spec-checks.md": {
+      "blob": "56d7bb6994005ce708867a3c312e1f1507180689",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/templates/implementation-plan-template.md": {
+      "blob": "f2d8f5556f1eabbff05e9c96a0282b1df7068637",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/templates/smoke-test-runbook-template.md": {
+      "blob": "7ba8b7d6abe6d0e0539bc03a7f6fb1fce7947f14",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/templates/spec-template.md": {
+      "blob": "d064c929605ec8f8e0dfa780074b754c8bdf4463",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/test-scope-proportionality.md": {
+      "blob": "cfe872bacf936a80559a42796f23790784cb2987",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/tracker-status-mapping.md": {
+      "blob": "b11ba9d4d068c726593647f7952ddd71ceebdf2e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/development-workflow/workflow-hub-setup.md": {
+      "blob": "e9512424b3c15591f45b3fde68f4d46b36b71d2d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "docs/workflow/setup/protocol.md": {
+      "blob": "15804d9d1e30fd9d4911a5a87f38dd6027063640",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/README.md": {
+      "blob": "5362f680e2ea1dbf023d13bde3a7cb629e2c305a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/README.md": {
+      "blob": "ba00c2472d0d54aeeef3dfc2509f4758ae29d2e6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/actions-cost-audit.sh": {
+      "blob": "57648165fd2b85c186d844b6db792ad1a2cc0fdc",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/add-backlog-item.sh": {
+      "blob": "31dac8e44bb39fb0fd080106c374a0ae67fd9e19",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/apply-readiness-labels.sh": {
+      "blob": "109d9d89d5bd58fe81ab572719b17493dd34655a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/batch-merge.sh": {
+      "blob": "9ed42cab7b3749b5621634cbd4c1381427be5693",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/changelog-fragments.sh": {
+      "blob": "4d56dd5da9c733a5376898c5c36f87b4d8619322",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/check-documentation-stage-alignment.sh": {
+      "blob": "9880d753cd0cd1aa4810da8e7b93a5fd00c6ab72",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/check-sync-manifest-coverage.py": {
+      "blob": "dc32be9d232b482229562e192275f8bc6b757bae",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/check-tracker-merge-mapping.sh": {
+      "blob": "b557684a1c81d6bf611b3a854c69ef84891ba7c2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/check-workflow-branch.sh": {
+      "blob": "1e40b6e9a1c49b7f9b9f6b09ae2bf25495af18e7",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/checkpoint-resume-gate.sh": {
+      "blob": "5c49b02d4e969502c0aea3490b8118bfa59ebc61",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/claude-code-action-reviewer.sh": {
+      "blob": "2e7311e5d0d17f1f040abb961aa25f4c9a095bf8",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/closing-keyword-lib.sh": {
+      "blob": "3578d87fd25f5749034d8b3c64a1b113f9449b4c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/coderabbit-cli-reviewer.sh": {
+      "blob": "5bce9eb0419460e02e28d29c73e4321962ee01f4",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/codex-github-evidence-lib.sh": {
+      "blob": "0bc0d31f426a7b43abdacf1853f827290941d7c0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/codex-github-reviewer.sh": {
+      "blob": "331930bf4e40b6020b7d4cab57911a5aae3e9b2a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/component-milestone-reconciliation.sh": {
+      "blob": "45c92afc086dd2f12f7e6112fd20e81f0327fec1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/component-release-evidence.sh": {
+      "blob": "2d884f432d953f99556cc834af5917bfd19e059b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/component-release-target.sh": {
+      "blob": "d8bb63f26bfae7e3ff37ce713b881ffb49975adf",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/delivery-bundle-manifest.sh": {
+      "blob": "8955f330ed6affb12b4939610116f0428348dd06",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/discover-workflow-state.sh": {
+      "blob": "d6d5dbcf034e3d0eec79bf9d25446b992478847d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/framework-mode-backlog-type-gate.sh": {
+      "blob": "fbb9c288a8ec95c0f50bb8a1ff6065b15bb79c00",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/github-app-token.sh": {
+      "blob": "42fab598a9ead7ebe668dd2bb6989c7d5f841b2f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/graduation-closeout-from-merged-pr.sh": {
+      "blob": "02003d323039343f56e30ed83bf8f24a5c3bee5f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/graduation-closeout.sh": {
+      "blob": "a4548dbe9d8b5549f27c7cf143d531114024555f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/haystack-reviewer.sh": {
+      "blob": "af35cb389cfa9aac3e653ae45205f089bc3f87c2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/hub-list-prs.sh": {
+      "blob": "357dc4f5c06c41147501d5d7d3470b4b75e05481",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/hub-preflight-product-repos.sh": {
+      "blob": "7bdc5cdf14eb8e494915ee92c27a5e7f64c7d08c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/hub-product-repo-lib.sh": {
+      "blob": "f5c9873827cca09df2412d818b91da84afaea4e0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/hub-status.sh": {
+      "blob": "3cc4c35eb61906b4c8417f1c50df719d657fd7c7",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/hub-sync-product-repos.sh": {
+      "blob": "c876265a581ea8c018ef69a9693abc367210fe41",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/install-codex-skills.sh": {
+      "blob": "1a731a98c42912f1e05b39cf979266c7ead1793e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/internal-review-gate-freshness-guard.sh": {
+      "blob": "2e1fb2e807fa2ae0c20dc49a169b688a98e627f1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/item-completion-self-check.sh": {
+      "blob": "1f7c6f9ed990c7b9a4f09f918b523fd12389cd0f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/list_open_framework_items.sh": {
+      "blob": "ee625ca36c32c497103c9a58cf8899fda83b7aa6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/local-ai-reviewer-findings.py": {
+      "blob": "e65ca11aa83c9a37d37114675b867e610789e476",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/local-ai-reviewer.sh": {
+      "blob": "96af0bc81eac809fe244a703bbcd39173c1714aa",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/local-codex-review-command.sh": {
+      "blob": "f925a3772d1f24fdaecb34c74ce9747074168d08",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/local-codex-reviewer.sh": {
+      "blob": "e7f68f483ca3c9747fda35c0c641817fca579ff6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/local-http-review-command.sh": {
+      "blob": "3c590ecfa5b4ed48147e41e0626e9768c5a6324e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/local-http-reviewer.sh": {
+      "blob": "4acffe4f7a9e26922d65e100b48aad44e122731d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/multi-repo-release-assurance.sh": {
+      "blob": "bef7f058c440079832c5eb1feaccce8f8a9073fb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/open-product-pr.sh": {
+      "blob": "1a6210ec7cc154f09dd2149dc620cdf307570f79",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/post-merge-cleanup.sh": {
+      "blob": "9910e16534c6735a3c141f14902103b97deade8c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/post-merge-qa-scope.sh": {
+      "blob": "81673698fb59d6f171eda4b92a833d9b32e9c0d7",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/pr-agent-runtime.py": {
+      "blob": "b49f5b6a62abfd0c0edea04ccdae9d08340e4ee2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/pr-ci-loop.sh": {
+      "blob": "8989874d8d2abdc9138f70fb894d7dd3b1158528",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/pr-ownership-guard.sh": {
+      "blob": "fee56f330f7959ccd119843d6bf757edd5ffdb85",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/pr-review-loop.sh": {
+      "blob": "29be0451447cbffa3daecc027465ef58709c79b6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/prepare-release-post-merge-cleanup.sh": {
+      "blob": "2ce359ae0e883a53b0eadaf09bb98b9b5f769b5c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/resolve-reviewer-availability.sh": {
+      "blob": "bcc34737554ccbaa25fb0ec4bb1af5f2504eaf90",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/reviewer-effectiveness-report.sh": {
+      "blob": "ba64738e03377645efb3122e32a26f2955eacf65",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/reviewer-preflight.sh": {
+      "blob": "5bf753c4d87849137e850540fcd48d0fc15e8550",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/reviewer_preflight.py": {
+      "blob": "43ab2ba250320c7bd57ac78e02195bc6c22e34d4",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/reviewer_preflight_build_input.py": {
+      "blob": "ce2b8fe7ad914a046b73ed4cb6524f5431c848e5",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/reviewer_preflight_coderabbit.py": {
+      "blob": "be2e282edf4c18a22d69bb605148446959288e8a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/run-advisory-checks.sh": {
+      "blob": "1d35c62f40f18a181a10b7533eba3d7f80c81d82",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/run-bounded-prelude.sh": {
+      "blob": "3e10f2ba40a1c09e141072d5fc88c3a3ccd3a837",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/run-epic-audit-trail.sh": {
+      "blob": "9a24060d4059168bf4050a263c2976f30ee19492",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/run-epic-checkpoint-lifecycle.sh": {
+      "blob": "eb73f3400874e8ba247b50d5a629f24dc3fc5173",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/run-epic-delegated-gate.sh": {
+      "blob": "6bf398bf1a10e725b359783d54bfad8d67925d04",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/run-epic-policy-recommender.sh": {
+      "blob": "900b4711d478fdf34ef1dd76456a6526cd61cdd9",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/run-epic-risk-classifier.sh": {
+      "blob": "46730540c41cec9524b36001b3cd0f99eca88703",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/run-epic-scope-resolver.sh": {
+      "blob": "f503935187b1f38fcd6a7fedfadda2f8f990c68f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/run-item-scope-resolver.sh": {
+      "blob": "294d116fd9af40b362f0445e56e917a798555bc8",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/run-nested-artifact-guard.sh": {
+      "blob": "91c988837018fe75abd2364253599975d8d29f8b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/run-work-router.sh": {
+      "blob": "fa7d29f8e155ac373ca5e2efa38f377af0c80563",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/scope-residual-gate.sh": {
+      "blob": "084046d395eedfedd33293cd24514acc161325d2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/security-advisory-classifier.sh": {
+      "blob": "f1cdf9776f408fc0424994e9833c0e0898d4592d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/security-advisory-tracker.sh": {
+      "blob": "4991a5fcad4e3a4a6d78b35d5ac6b29097210158",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/select-sync-manifest-entries.py": {
+      "blob": "6318d72ae9a8c22a6ce0d9673ec1879d26c4651a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/select-test-suites.sh": {
+      "blob": "6ebfc7b7bb68d2995a1dd469338dacd115920bce",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/spec-dispatch-context.sh": {
+      "blob": "df6ec653d65c40362d47ca0eff34ad55b4800d64",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/sync-template-merge.py": {
+      "blob": "9f2f5781b918778e05a2bea2fb93a3ff9dd0c221",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/1354-routing/ambiguous-target.json": {
+      "blob": "d5ef7c8771d877dcc6b416b13b0092cb2f17d504",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/1354-routing/config-workflow-hub.json": {
+      "blob": "49ed3b85fa2ba79c6067f630b246a53c1614bc46",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/1354-routing/hub-only.json": {
+      "blob": "dd5110695ffce4e066d2558f6941f7e5e72b02ad",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/1354-routing/missing-target.json": {
+      "blob": "c3b9d7ab5f6bb575299f70d7dc243a44911b2112",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/1354-routing/multiple-targets.json": {
+      "blob": "2ccf2e5ff0ac0dd43240409fedfb408b696da1b4",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/1354-routing/product-owned-admin-portal.json": {
+      "blob": "ab3efb1808663a177f420c9de80e2e90000a0361",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/1354-routing/product-owned.json": {
+      "blob": "27d7f0436c24b8fdabcb6981d4ee02181e109fe3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/1354-routing/product-repo.json": {
+      "blob": "c26e7ffa3e234489528fbdd513a22f9022ee6a14",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/1354-routing/single-repo.json": {
+      "blob": "92807035350418b55da6674adfc2ec86de37e385",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/1354-routing/unsupported-mode.json": {
+      "blob": "a6aa2bb71a7367036392c21d0825660769b90400",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/1644-planted-violation-description.md": {
+      "blob": "7603e4b14599082c49685400e2bfa607f880f66b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/extract-fanout-jq.py": {
+      "blob": "4e1cf4255811917d4724f2c6caf99c42f4780129",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/plan-authoring-rigor/boundary-heading.md": {
+      "blob": "42ae84d4fc32fbafdab5583b8ecc60f10b84ddec",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/plan-authoring-rigor/multiple-on-one-line.md": {
+      "blob": "25b50e2b8f7c10f56dadf58ec075f67bd9ff8821",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/plan-authoring-rigor/negative-lookalike.md": {
+      "blob": "4578fdde471c60f51e280906ad9463b121fa1999",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/plan-authoring-rigor/nested-link-reference.md": {
+      "blob": "cdc24960e1f7d6a4f845c58087c5e5d6525fc3aa",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/plan-authoring-rigor/outcome-labels-correct-case.md": {
+      "blob": "f68174ea7e71864f84c7b1a3bc00bd029c375b47",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/plan-authoring-rigor/outcome-labels-wrong-case.md": {
+      "blob": "d91c55237234289bf7068d632d0680f1889f6660",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/plant-remove-validate-fork-guard.py": {
+      "blob": "4798263c2ac760f6ac6ecfd80201200444fee32c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/post-merge-qa-tracker-none.yaml": {
+      "blob": "f30b46c522a7e704aa9815c6b4fa3c4e45c6a4c3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/review-doctrine/empty.md": {
+      "blob": "aa410a585f79498f8dd62e56b61bcdde74b41ed4",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/review-doctrine/incident-dev-path.md": {
+      "blob": "1f95ebba9d79a506d619aefc930be2731284af0c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/review-doctrine/incident-forge-url.md": {
+      "blob": "5842a033eaacb25df8584f9a6fd6f39d69436874",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/review-doctrine/incident-hash-number.md": {
+      "blob": "d779685ff32aa6123ac1660bd5c64315634793ce",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/review-doctrine/incident-spelled-out.md": {
+      "blob": "6ab4b4ad5bd4b68df31a8781c6a88a6257c80966",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/review-doctrine/malformed-duplicate-shape.md": {
+      "blob": "68f52878804d8e5e2e8df91f93c7bbc06cb21edb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/review-doctrine/malformed-empty-field.md": {
+      "blob": "57bf79ac76d3fc20dbda47ebc4354264b5db18a7",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/review-doctrine/malformed-missing-detect.md": {
+      "blob": "b7211d6815ac02bd51a844a7b93795ef37bd4964",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/review-doctrine/malformed-wrong-order.md": {
+      "blob": "f5add196030e68b999973cb3b9f2c9bf0266d9cd",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/review-doctrine/preamble-dev-path-clean-entries.md": {
+      "blob": "04978a91dc10b805ca18ec3040390d4912f9e614",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/review-doctrine/well-formed.md": {
+      "blob": "02bc4b15e208299eae3bf540bd3d005a091f35e4",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/reviewer-effectiveness/full-telemetry.body": {
+      "blob": "ec3cc2d50d6f167349d1e92efd6cb8c92e501be0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/reviewer-effectiveness/full-telemetry.json": {
+      "blob": "cb5d0419997db5224ad46de94b565f98592c3b21",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/reviewer-effectiveness/malformed-json.body": {
+      "blob": "9509f468b0366b106eed097cf91b95cc7a47b318",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/reviewer-effectiveness/no-marker.body": {
+      "blob": "56a37a876a309e93d9becd8d5d5d6edc37e89bcc",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/reviewer-effectiveness/partial-telemetry.json": {
+      "blob": "947f036d5b9f55cb82f3a93e6e9254f630763aab",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/reviewer-effectiveness/today-schema.body": {
+      "blob": "1fb7842db01650bc4c1823ed804bcf63470f5c1c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/reviewer-effectiveness/today-schema.json": {
+      "blob": "a4df15e30d55951c6ecfffff34f0715f780994a3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/reviewer-effectiveness/unavailable.body": {
+      "blob": "fdf43bb4bb02c139758bac6e5e2eebcd09a00876",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/reviewer-effectiveness/unavailable.json": {
+      "blob": "a2024034bfbcfa54751299681d7ece9655dd9313",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/reviewer-effectiveness/unparseable.body": {
+      "blob": "e1a40b87aba96bef5c2afd6404ff9ddd13c610a8",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/reviewer-effectiveness/wrap-history.sh": {
+      "blob": "5500b2cfe404c91e15e77b37164db0f12028e21a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-checks/compensating-duplicate-source.md": {
+      "blob": "e33def308a488873b6d849df80f1f97cee0a0f1d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-checks/invalid-source-value.md": {
+      "blob": "6035a78c37db334201b0b9084823ca918bea0f81",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-checks/missing-source-last.md": {
+      "blob": "456d6b66dd8a8fd15c07dd056032e798dd1028c1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-checks/well-formed.md": {
+      "blob": "4160fe6ff1354150c3bce703b02190f0e1262068",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/ac_test_coverage/1_ac_test_coverage_specs.md": {
+      "blob": "e4ad88933661eb44fe7d52b95ff9173e888818e3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/ac_test_coverage/2_ac_test_coverage_implementation-plan.md": {
+      "blob": "eaaeeec719f0f281e7389fc1a9f8bca7ef32cf0b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/dependency_state/1_dependency_state_specs.md": {
+      "blob": "2f69d53492e66bd0521b9e39299532758af96b34",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/dependency_state/2_dependency_state_implementation-plan.md": {
+      "blob": "c40c79b6e075edde88025ca468725cc011aa65da",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/phase_ordering/1_phase_ordering_specs.md": {
+      "blob": "f5ba0804baf759e8341fde88b436798ea054544b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/phase_ordering/2_phase_ordering_implementation-plan.md": {
+      "blob": "a97e7ac58ec5fa40adc1fced37970b4355195c96",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/reversal_risk/1_reversal_risk_specs.md": {
+      "blob": "2ea92a78a3c1873c87b1c2b23144d8c81ef1e01c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/reversal_risk/2_reversal_risk_implementation-plan.md": {
+      "blob": "09ddd67d3432b7d7f5b1c5a48c5252336f0b210d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/source_declaration/1_source_declaration_specs.md": {
+      "blob": "0d4ccbb1fb4f86ffc0af5dd1585aad4c5fa534ff",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/source_declaration/2_source_declaration_implementation-plan.md": {
+      "blob": "bf24b71c0532f10e061db36867731427f5730aae",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/spec_traceability/1_spec_traceability_specs.md": {
+      "blob": "08a5ea2f0fee9fc173ae8f0d53287a4fc146355f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/spec_traceability/2_spec_traceability_implementation-plan.md": {
+      "blob": "6a2c026d31c30c4ae4e40e783c2b42958b62fcea",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/test_scope_proportionality/1_test_scope_proportionality_specs.md": {
+      "blob": "cc39a7201baffa39de45d5f1ff4a2674efc0e36c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/test_scope_proportionality/2_test_scope_proportionality_implementation-plan.md": {
+      "blob": "f54dd0698455ffa90d18e2cb0c63e787e3624157",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/unspecified_step/1_unspecified_step_specs.md": {
+      "blob": "8b668ce68a0e05a7ff398e313b44ed1adc5f3f05",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans-pass/unspecified_step/2_unspecified_step_implementation-plan.md": {
+      "blob": "f55a4ea4b816777e6f4901247d7ac42afc762608",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/ac_test_coverage/1_ac_test_coverage_specs.md": {
+      "blob": "e4ad88933661eb44fe7d52b95ff9173e888818e3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/ac_test_coverage/2_ac_test_coverage_implementation-plan.md": {
+      "blob": "6d9500a9b5021903690363a09a4840e94a340ea6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/all_falsifying_tests/1_all_falsifying_tests_specs.md": {
+      "blob": "a09940ce58dcd013c77794b5912bb512beb48ba9",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/all_falsifying_tests/2_all_falsifying_tests_implementation-plan.md": {
+      "blob": "5bf563cf8af33b5d744985a7f797b2692161814a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/declared_addition/1_declared_addition_specs.md": {
+      "blob": "57b7f67cb9c2051e42710113e4d567a00cc48120",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/declared_addition/2_declared_addition_implementation-plan.md": {
+      "blob": "0eace7c5ef244c08d09f124bc6eae1643bc193b8",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/dependency_state/1_dependency_state_specs.md": {
+      "blob": "2f69d53492e66bd0521b9e39299532758af96b34",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/dependency_state/2_dependency_state_implementation-plan.md": {
+      "blob": "0e7a08778a5af1fcf323372e156bd6a594081081",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/irreversible_declared/1_irreversible_declared_specs.md": {
+      "blob": "38d97c6337fb7288f212a17bec11e3f97fb33bad",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/irreversible_declared/2_irreversible_declared_implementation-plan.md": {
+      "blob": "68a88d507a0317d08ea03e6a5e94d26998622960",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/phase_ordering/1_phase_ordering_specs.md": {
+      "blob": "f5ba0804baf759e8341fde88b436798ea054544b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/phase_ordering/2_phase_ordering_implementation-plan.md": {
+      "blob": "e452a65754d414b1eac3426473c35213bf41185f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/refactor_brief/2_refactor_brief_implementation-plan.md": {
+      "blob": "d20e2cbff9b1328db19f75c1f28d5d5994cd127a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/reversal_risk/1_reversal_risk_specs.md": {
+      "blob": "2ea92a78a3c1873c87b1c2b23144d8c81ef1e01c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/reversal_risk/2_reversal_risk_implementation-plan.md": {
+      "blob": "e281452fd071b01f0b7d042706cb33afab9d9727",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/source_declaration/1_source_declaration_specs.md": {
+      "blob": "727561bab144d06773f724a7d40a3e49ae817205",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/source_declaration/2_source_declaration_implementation-plan.md": {
+      "blob": "e7e84a121040a81147a5709687e55966dcb7ed71",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/spec_traceability/1_spec_traceability_specs.md": {
+      "blob": "772688b4e22083d549e6dc271e2d82f0e420d0e7",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/spec_traceability/2_spec_traceability_implementation-plan.md": {
+      "blob": "288f700d9a59b0b4669f7f7add0afc8dd2843e4f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/test_scope_proportionality/1_test_scope_proportionality_specs.md": {
+      "blob": "cc39a7201baffa39de45d5f1ff4a2674efc0e36c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/test_scope_proportionality/2_test_scope_proportionality_implementation-plan.md": {
+      "blob": "87264e896208742381e6e52a473b15e0e48614fb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/unspecified_step/1_unspecified_step_specs.md": {
+      "blob": "8b668ce68a0e05a7ff398e313b44ed1adc5f3f05",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-plan-plans/unspecified_step/2_unspecified_step_implementation-plan.md": {
+      "blob": "fc286fa72ff166fccbf45457851b1a609c565f4f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-checks/duplicate-id.md": {
+      "blob": "b0a238b69e6401b3602fdb7384c9462f65a0fcdb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-checks/empty.md": {
+      "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-checks/malformed-heading.md": {
+      "blob": "645ecc3f31547bcb281b4e8177583bb69cb6a3ac",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-checks/nine-section.md": {
+      "blob": "54a2dd4ae7b46dd38bc2ca931b2e3e16c4d86172",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-checks/no-headings.md": {
+      "blob": "1a97001c5d1258511374306c732e48ac36553ed1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-checks/well-formed.md": {
+      "blob": "56d7bb6994005ce708867a3c312e1f1507180689",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-specs/ac_consistency.md": {
+      "blob": "ce094118296d19fc6c5f9b756b4579c1f045504c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-specs/ac_testability.md": {
+      "blob": "158cec83b1058ee3e6defe837003e551c29b5111",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-specs/ambiguous_phrase.md": {
+      "blob": "243270b09ba87d289938412b9ed777a0e091ed3c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-specs/ambiguous_phrase_rationale.md": {
+      "blob": "17217898f70323a073a526cf720e3f9a1df8c463",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-specs/example_contradiction.md": {
+      "blob": "74fd95c4cd5b4ec0484ce825561022132a38f9ea",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-specs/gate_matrix_complete.md": {
+      "blob": "9ca25cce8d75b5ded66ebfc3414ac39c3b0420f9",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-specs/gate_matrix_order_stated.md": {
+      "blob": "9c5dcb8761db72789d4748f9c39f7a0f078c856d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-specs/gate_matrix_order_unstated.md": {
+      "blob": "591bfd3968f183a0bf515e0cadea57d4192e96f2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-specs/gate_matrix_reachable.md": {
+      "blob": "78762c2f886f1aa6013abfd49281f07b379898d0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-specs/opt_out_source.md": {
+      "blob": "0726488428ed5ca7d59f752d446c373970e8b530",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-specs/parser_surface.md": {
+      "blob": "56688f721901a86747fb8c5e940d8c2d92f3eca9",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/strict-spec-specs/trigger_semantics.md": {
+      "blob": "b3b3b0b73982d4219fb1aeb4f6872a604282cc4b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/workflow-hub-smoke/README.md": {
+      "blob": "b06326da1b59233c4598cc83218818360ccbd15c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/workflow-hub-smoke/hub/.ai-dev-workflow.yaml": {
+      "blob": "74e5fea29caec8f985f2d3f44d719c0fb1e748d1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/workflow-hub-smoke/local-config.template.yaml": {
+      "blob": "d485e45bb70fefda4d99416b71d8b7f198e34139",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/workflow-hub-smoke/products/admin-portal/README.md": {
+      "blob": "6ce3ff7e38aef1eea673050fdf5eb922871c1a25",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/workflow-hub-smoke/products/mobile-app/README.md": {
+      "blob": "ae05e23c36f213629698b6cf1975d0f02a0ceb4d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/fixtures/workflow-merge-budget/fake-gh.py": {
+      "blob": "9f2714c9840e1300cce8c7e6a2d914aa1c74cb36",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/lib/merge-budget-runner.py": {
+      "blob": "f928102e605941838b3c13760739d98fa5bc3d37",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/lib/pr-review-loop-harness.sh": {
+      "blob": "3d8283cc7cb96ea2dc64d15997466401055ffc2d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/run-strict-plan-smoke-fixtures.sh": {
+      "blob": "1eaa3e249478043d3e807623271daa275385117c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/setup-component-milestone-fixture.sh": {
+      "blob": "bc9b854c1737ebb548c1fdc4e95ebe0a8dfa4b19",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/setup-component-release-fixture.sh": {
+      "blob": "dcd1dc3559f91046a5436b0de333ffcee2b2516d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/setup-multi-repo-release-assurance-fixture.sh": {
+      "blob": "fbdca465f5214a5b560299263a7064feaa0bd1fb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-actions-cost-audit.sh": {
+      "blob": "5cba3e8933a87b145edbf92c1d7b85ed601c5e6c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-add-backlog-item.sh": {
+      "blob": "c25d1759139ef6077d77563ea5ca3ea2d56b2bec",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-apply-readiness-labels.sh": {
+      "blob": "6cd296b5507ae6e0e3e6cd3860e97d40fe8a81c1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-batch-merge-changelog-race.sh": {
+      "blob": "360357a168b6078ebef8587f8d5ea413ce3ab1bf",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-batch-merge-checkpoints.sh": {
+      "blob": "e0e3ddc7d2de43efe6cfa00e227b0078ef36a330",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-batch-merge-recheck-remaining.sh": {
+      "blob": "399b8b1bf096c5df53c17fcafade14a1e8823a39",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-changelog-fragments.sh": {
+      "blob": "7ec1aec1c1aaba54092ef9fef18cc001f6c492fa",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-check-documentation-stage-alignment.sh": {
+      "blob": "4feb120a41a8b1475b4dc35f3e406799735c34b6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-check-sync-manifest-coverage.sh": {
+      "blob": "a345c416f09df60ae91eed1a4e933d59fb9ef482",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-check-tracker-merge-mapping.sh": {
+      "blob": "d1024232131ff517df65d74833ca40273ee3f181",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-checkpoint-resume-gate.sh": {
+      "blob": "3b30a7c739b76e2170efeb700bcf00658b86d276",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-claude-code-action-reviewer.sh": {
+      "blob": "d8d6a414585f7ffc7a7abee0e9d32fc7fb0d74f0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-coderabbit-cli-pr-review-loop-dispatch.sh": {
+      "blob": "cbc7258bb82ef93c43f437951deeccb4dc427159",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-coderabbit-cli-reviewer.sh": {
+      "blob": "c60cc885212d663b1d3e4d8ff904a7442b68f9fd",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-component-milestone-reconciliation.sh": {
+      "blob": "1e6d365b2b3da888fe1669ed3392638bce785d0e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-component-release-evidence.sh": {
+      "blob": "0b748e75007c1bed54432230b64067ad00a1c1dc",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-component-release-target.sh": {
+      "blob": "fe18a22ae434424b20e06f9f9b8f241b3b11c0a6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-consumer-tree-test-gating.sh": {
+      "blob": "fd74ba8ba4b97b6cca121305cc49b265e1cb707d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-cross-cutting-plan-assumption-contract.sh": {
+      "blob": "ec8c3776f4937501357f536894f841e9fb98f0fb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-cursor-dispatch-profile-pointers.sh": {
+      "blob": "01cc2a173860961f34f09668664e34d8bea4ba44",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-cursor-model-pin-guidance.sh": {
+      "blob": "05c6c8a1338e5bfa49dfd8ae27315fc8c1ee0919",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-delivery-bundle-manifest.sh": {
+      "blob": "0fac321abfd5caa5040a0657666f0efd8b4208ca",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-dsh-model-routing.sh": {
+      "blob": "195b97a86e10adefb89db297f3057c955a5a4e64",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-expensive-reviewer-gate.sh": {
+      "blob": "8344e184ce7eb453e19ab3f813b997585bda695e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-framework-mode-type-routing.sh": {
+      "blob": "eb8aded665b8208e5d292f67e1567babba4d2ebe",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-github-app-token.sh": {
+      "blob": "cef563f6943dbc9ca7213a77842c39d98114827b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-graduation-closeout-from-merged-pr.sh": {
+      "blob": "0d5dae52c91ed076e4c2bcc7c8af4f21fbc73d62",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-graduation-closeout.sh": {
+      "blob": "a2d0c01e8a91a4ddad6c8d7e32d07010709eeb63",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-haystack-commit-msg-hook.sh": {
+      "blob": "307d97cfa33a43331d5b280c2bb88a613a8d6ca0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-haystack-reviewer.sh": {
+      "blob": "5ed2fc8187d00457a725b459689911cbb799d984",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-hub-preflight-product-repos.sh": {
+      "blob": "bcae9750925783f1a518f989682cfe9a626d2953",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-install-codex-skills.sh": {
+      "blob": "d95b38707a087b8b3ca689fb75d250993ff3eaa7",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-internal-review-gate-freshness-guard.sh": {
+      "blob": "b3bbca936fb0044bbd67b70097d35e8e3086b436",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-item-completion-self-check.sh": {
+      "blob": "24b37cc49ed508b640a60d8c568e2ac9ed0dfaec",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-local-ai-reviewer-findings.py": {
+      "blob": "6e0c68ca3424e4a813b7ce343a2b5138f26c97ac",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-local-ai-reviewer-findings.sh": {
+      "blob": "5dacd9e6cc7af64dccc5c54f434ba53fccf3c2ed",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-local-ai-reviewer-pr-review-loop-dispatch.sh": {
+      "blob": "0aabeacb8f44fd857930b7eff1c80cedf78b7000",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-local-ai-reviewer.sh": {
+      "blob": "499a4c87516d0c1059f2e0ad3bdf35cb2109d3e7",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-local-codex-review-command.sh": {
+      "blob": "4020d82d902e51cbb9f905aa98e1532c7adb2b28",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-local-http-review-command.sh": {
+      "blob": "a17f9cd4c8760952742d87461cc3ce327905fc2f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-may-merge-terminal-contract.sh": {
+      "blob": "78e1d56f087489237f9534343b168200eebf2eb3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-multi-repo-release-assurance.sh": {
+      "blob": "e2c3d6422533404be114b8253d5ee54453538758",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-placeholder-workflows-opt-in.sh": {
+      "blob": "77ee4eb887b4646933fa07fe1837133c74b11407",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-plan-authoring-rigor-mirror.sh": {
+      "blob": "c98dc66cd4871cde60add27987e2c19ec7f20a14",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-post-merge-cleanup.sh": {
+      "blob": "9241669fbbf145b79dd644a3e0a5eae9544bbc86",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-post-merge-qa-scope.sh": {
+      "blob": "4af8e26eed112582ab10beec12e12f2542783347",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-pr-ci-loop.sh": {
+      "blob": "c2a8a69940fc7aeb64dc956ecdea8d40a13b1360",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-pr-ownership-guard.sh": {
+      "blob": "82b01403e1999ce9af0c643f3b04528789d71e14",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-pr-review-loop-cycles-labels.sh": {
+      "blob": "6d243ac44f6c6283b500d337c54cf3992176dd28",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-pr-review-loop-failure-paths-1.sh": {
+      "blob": "fa7f37970fc6dfe4713e686d78ac84bf33ec0641",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-pr-review-loop-failure-paths-2.sh": {
+      "blob": "f14a31bfe0c17a9b42cfadfd9327853f549f8c99",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-pr-review-loop-failure-paths-3.sh": {
+      "blob": "31f71a99de62510128647086e4f7f42e62489ea0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-pr-review-loop-failure-paths-4.sh": {
+      "blob": "0581492510920f829b675b58b055c2871e9072b9",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-pr-review-loop-no-verdict-yet.sh": {
+      "blob": "7bcc6828836d8890cc274dd673846b4918b7484c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-pr-review-loop-pr-agent-coderabbit.sh": {
+      "blob": "4afd08eed506b7575fbe0125b29e8ba403470a49",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-pr-review-loop-release-bugbot.sh": {
+      "blob": "672a01614a7d3dc1ba8914b89308e8657d698f79",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-pr-review-loop-staged-gates.sh": {
+      "blob": "fc13415084693a382d6742c4d49a6633e5408e4b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-pr-review-loop.sh": {
+      "blob": "4fafedc460d750c177338bb5838eda318544bdbc",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-prepare-release-tracker-cleanup.sh": {
+      "blob": "026aa79c22335f02609eee5abab53e22075e153d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-protocol-02-portable-parser-guidance.sh": {
+      "blob": "04500f956498eaea9c720961472dc7ab9265d0a3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-protocol-91-readiness-checklist.sh": {
+      "blob": "e140ae2463a86149eebc7db8063a2b6870ed1019",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-resolve-reviewer-availability.sh": {
+      "blob": "4b7fb850b1a50a37d9cb3c212266a34150a4229e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-review-doctrine-lint.sh": {
+      "blob": "68304f0c6cd96d7db4b62f9e3c035001f03aabd2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-review-effective-yaml-parser.sh": {
+      "blob": "f33ec381b9557959aa2273d3104b4bc28f25bc83",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-reviewer-effectiveness-report.sh": {
+      "blob": "4f984e0de36ac23c5469b33f728862b5b94f6efb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-reviewer-loop-commit-ancestry.sh": {
+      "blob": "861faf4132566c0e7b8d6fada8cc7aeeb91aff3e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-reviewer-loop-guard-workflow.sh": {
+      "blob": "b4c13d46598e6aa9ad0fd05287b9618b91059596",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-reviewer-preflight-surfaces.sh": {
+      "blob": "4e48107c3b9269f5fd6e36d3982f29bdd88787bf",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-reviewer-preflight.sh": {
+      "blob": "f589f32be147ad051621e340e7d3b7c52f444769",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-ronda-pr-review-loop-dispatch.sh": {
+      "blob": "f3946f21ac3c6b3448f9dec077acedb9b9d4344e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-run-bounded-prelude.sh": {
+      "blob": "071e9693a67e0a6c4d4da577df3acdb5a112e83d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-run-epic-audit-trail.sh": {
+      "blob": "d9629031b1ad1a8f82c44827f5f021791a5e1afc",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-run-epic-checkpoint-lifecycle.sh": {
+      "blob": "7face03c124ed7e884346c5a4c7310875e812ca5",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-run-epic-delegated-gate.sh": {
+      "blob": "72ab7d64eaa3ebdda87018c8f4ab1c4d30feaedb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-run-epic-policy-recommender.sh": {
+      "blob": "43fe2070c1018ea21b85d24351b83799276c6d38",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-run-epic-risk-classifier.sh": {
+      "blob": "4e91cef43e3c03e5a478e3f8cf4b2c9a28ba8a8d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-run-epic-scope-resolver.sh": {
+      "blob": "61bbff7d36a4aff0e0fb21d49ce62106736122d3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-run-item-scope-resolver.sh": {
+      "blob": "ab8a72e12ef1016503ff7502d04673e2ad1d5031",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-run-nested-artifact-guard.sh": {
+      "blob": "f8049bd7c58d995bf86b10f9d9929f99965d8da9",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-run-work-router.sh": {
+      "blob": "931f278f02507370aa42c5ec51c7e5c984d741c6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-scope-residual-gate.sh": {
+      "blob": "89c6641fe0faf639418b7b1efa8fbeb14e6ee9db",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-security-advisory-classifier.sh": {
+      "blob": "b224c7a1b773b42ec1994ef218fe82d9f100cbb0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-security-advisory-tracker.sh": {
+      "blob": "2968aeef204b7c8b8aba6234ee50f58cee6be163",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-select-test-suites.sh": {
+      "blob": "740792abbe2bb1c5565ee15e295ed90eb1e390a9",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-small-finding-terminal-policy.sh": {
+      "blob": "995aaf25d876fde12385ff44cd83d55224792af6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-spec-dispatch-context.sh": {
+      "blob": "5042958273d40cf2596f8b902e17df193095ee61",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-status-check-rollup-dedupe.sh": {
+      "blob": "9c0f67df2ea8b8b6d7e412a2f19d92af9d6d5dce",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-step7a-surface-consistency.sh": {
+      "blob": "8174bc55d8dedeed68d2f484b643634bf5d0cba1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-sync-template-apply-modes.sh": {
+      "blob": "6873939fb85a6534bb37146e0d0a97038257f5ae",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-sync-template-merge.sh": {
+      "blob": "fd486233e950138f8ec5953e11613d4d0b489be7",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-sync-template-mode-scopes.sh": {
+      "blob": "33e7db7a4509bbba090e03326211a38e1574e2fb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-tracker-status-mapping.sh": {
+      "blob": "152b82d741fe9e8891e1cab112fb597a1d940566",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-validate-branch-reuse.sh": {
+      "blob": "518109042ac389c51eb88e194949bbeaf45a68fb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-validate-closing-keyword-scope.sh": {
+      "blob": "62f6c82b9a5964cfa9b93f8bd2ed600e4fac2f17",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-validate-workflow-branch-name.sh": {
+      "blob": "3beb3760056be984c722831d90de1b82f41bc9f9",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-work-item-repository-routing.sh": {
+      "blob": "3fa0cceb6bc2291f1ee3fea8c1da46d2d2bece33",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-agent-product-repo-guidance.sh": {
+      "blob": "c4ceca15d316daedf4fd537a7211d2cfd684e3b4",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-batch-lanes.sh": {
+      "blob": "c6fa056cf6c50e24154182520d9027cf54eefafa",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-batch-overlap.sh": {
+      "blob": "9e7f6416622d23279e379ff62a1d477c388f8040",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-branch-filters.sh": {
+      "blob": "374c8ee1afc77105cfd95d274e9422d99234b536",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-branch-push-guard.sh": {
+      "blob": "864d9466e15e9af38fd42924824d5f3bd39ee43c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-config-resolver.sh": {
+      "blob": "8978575d0998cb49458b116d96f254ad92746a3e",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-hub-docs.sh": {
+      "blob": "c879696ff3d91a35068c9154fdcea33c7fe9e4e7",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-hub-pr-auth.sh": {
+      "blob": "337db54e972e9722230921720057af7fe83ff910",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-hub-product-repo-commands.sh": {
+      "blob": "7fcbee62626dfbd18bcc6fe7f6f374e7d5f33936",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-hub-skeletons.sh": {
+      "blob": "4d8f86081f28d306d9a125f4f1d320e4ec5875d1",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-hub-smoke-fixtures.sh": {
+      "blob": "03579c3f7243858c1ee6a5f8ec5612b286730351",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-lib-github-projects.sh": {
+      "blob": "283b56f27baca79f6ca459b117f13d97f73ae1f2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-merge-budget-part-2.sh": {
+      "blob": "f0ad391f2239b3f1ae5662b076c51af984902858",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-merge-budget-part-3.sh": {
+      "blob": "70e867cf2744aa01e84649b7b237392db452021c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-merge-budget-part-4.sh": {
+      "blob": "fb1afa12973096cd42acce0610f25d4f70c6abb4",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-merge-budget-part-5.sh": {
+      "blob": "5b2afc896663515a3a6ac83bb688e4c21fd2682c",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-merge-budget-part-6.sh": {
+      "blob": "e1c630f834703f2a90bfbe47252c65eaa29376c3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-merge-budget-part-7.sh": {
+      "blob": "31627db7d00aa152c29491b0bb692b4a051a2269",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-merge-budget-part-8.sh": {
+      "blob": "5df9aea62c1a7f7939f7194f2def8a6154505982",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-merge-budget.sh": {
+      "blob": "983c1e5a859d07b78fd68e9357bc3ff3822a37d2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-orchestration-product-repo-aware.sh": {
+      "blob": "691d716415b32c115ee7fdef5e220921105c98f5",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-portfolio-scan.py": {
+      "blob": "09beffc4911fde48a79b19e9aaafabf34a8069c3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-portfolio-scan.sh": {
+      "blob": "4fac9877d92e99e44bdda1e91e81cdbb1316bc98",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-workflow-risk-paths.sh": {
+      "blob": "85d66c424154b8f1c4e6c16d0a02f1327f45ada5",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-worktree-recipe.sh": {
+      "blob": "10cdb0a5b0ab0c027ed29b9edc71bcd68f6a437d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test-worktree-resume-preflight.sh": {
+      "blob": "a65094e494bd503cd25bcfd557c1ed9b0e61f123",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test_reviewer_preflight.py": {
+      "blob": "ada122044e1f368b2dff05f39b7d659ead444db8",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test_sync_template_merge.py": {
+      "blob": "da87d71af178ecdbfbc77f8ebbd4424cb58343ac",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test_workflow_dsh_model_routing.py": {
+      "blob": "32ec63bda97c00dd99ab0855f1c8af7439e77feb",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tests/test_workflow_merge_budget.py": {
+      "blob": "c323e5217974cbb7d0ab71ff1d1433463db78744",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/tracker-status-for.sh": {
+      "blob": "b8e9eebe52bdc055ed9d06c64ed396a8597fbb81",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/validate-branch-reuse.sh": {
+      "blob": "8f28571c70a63c15a686570f7f3e43e4674c720b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/validate-closing-keyword-scope.sh": {
+      "blob": "378cda476e12759091cb94c43c3a3e9d695a98d6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/validate-workflow-branch-name.sh": {
+      "blob": "c8d7a9d9a386a626753dc69fadad415bcb8f0550",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/validate-workflow-config.sh": {
+      "blob": "24db7995e7903909b85e25e25eb8c107641ad39b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/validate-workflow-hub-skeletons.py": {
+      "blob": "de1aa40d8af20874824ac15b0ea7935c1521c4c6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/work-item-repository-routing.py": {
+      "blob": "e626e5fd6576ef940aac151c310f45d904b54320",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/workflow-batch-lanes.sh": {
+      "blob": "69ec01e1608d58aef26b3b3d08bc377d135a4f8b",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/workflow-batch-overlap.sh": {
+      "blob": "1ce4854b082cbf88bb9559c30bbd32f168cadce2",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/workflow-batch-plan.sh": {
+      "blob": "e67a7ce0384c11591a2513a557f887a581cfb554",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/workflow-branch-push-guard.sh": {
+      "blob": "605a96e6ae1cdca0e03b7d14d8f14504f67f44fe",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/workflow-config-resolver.py": {
+      "blob": "48b09eaab3a5831006fd4b53596c42c599f10699",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/workflow-lib.sh": {
+      "blob": "4d0cfbf5eaa4593d065cec86245827c10c4133d0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/workflow-merge-budget.py": {
+      "blob": "da57f9656b07a5f816c385a826ab41737a3fc515",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/workflow-next-action.sh": {
+      "blob": "2be04e8d052881f7979194a2619acafa50292aa3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/workflow-portfolio-scan.py": {
+      "blob": "8e624ec3b8ff8cecb1a0da1512370e96a62661c3",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/workflow-portfolio-scan.sh": {
+      "blob": "2b496fa5c43f5cda2fe7c344eee5701937fd0859",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/workflow-project-reader.py": {
+      "blob": "f9aa2625dbeb87bdbc690add5a0d39db21aac90f",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/workflow-risk-paths.py": {
+      "blob": "f91942e443a9ed0cdfe4267868d1d4a93ed15ee6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/development-workflow/worktree-cwd-guard.sh": {
+      "blob": "070afd08e5efecd9df31efd6cf898ba4d1aa1e44",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/development-workflow/worktree-resume-preflight.sh": {
+      "blob": "fabbb41832ab0a3220eb497bb84142f3191dcd12",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/lint/README.md": {
+      "blob": "8f2aa95e79c04d1d463e55b7c9030646bf37c593",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/lint/check-changelog-duplicate-headers.sh": {
+      "blob": "dd81d31f4872a8548080f131e7db66f5f5b7d250",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/lint/lint-graphql-query-literals.py": {
+      "blob": "b43892041fa4f3716c643a16947d1220fd9ba924",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/lint/markdown-heuristic-lint.py": {
+      "blob": "03c60f25437220bbfddbba7799a1ea066a131711",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "scripts/lint/review-doctrine-lint.sh": {
+      "blob": "a1b37f36a19621450bfc5f7b12d2627757c35677",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/lint/tests/test-lint-graphql-query-literals.sh": {
+      "blob": "cfd19888122e7250ea530fb71688eedf953d3218",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/lint/tests/test-workflow-shell-guard-lint.sh": {
+      "blob": "9f19a95f3bf50ccecbbde3797b0991fb9b8ce4e0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/lint/tests/test-workflow-shell-snippet-lint.sh": {
+      "blob": "3fdcc6713cf18e377129482b7daaa3bf48fe5064",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/lint/workflow-shell-guard-lint.py": {
+      "blob": "5b8c693ffe0b9eb956f89e6d68b5c711e7cb95d6",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100755",
+      "source": "template"
+    },
+    "scripts/lint/workflow-shell-snippet-lint.py": {
+      "blob": "9d4b50ae6ace9be032ad024bff5adecbfec87aa9",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "sync-manifest.yaml": {
+      "blob": "7b85b03699a0bfdbba149e6de39c02421eae86bc",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "template/product-repo-injection/README.md": {
+      "blob": "58e2a9a1238ea06e91317e4e72117b3dc842174a",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "template/product-repo-injection/skeleton-manifest.yaml": {
+      "blob": "3b9f7ba953f71ef9f54ce8eeeadd4b4570146560",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "template/workflow-hub/README.md": {
+      "blob": "02bc61259a14e0f730abe157248130c96ee4d9d0",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    },
+    "template/workflow-hub/skeleton-manifest.yaml": {
+      "blob": "3634bdb618a6f68ad03a1f059a90bed4f744990d",
+      "commit": "493473b11c3f46479aaf5db0c918ed49edb600a3",
+      "mode": "100644",
+      "source": "template"
+    }
+  },
+  "schema_version": 1,
+  "template_id": "lhpaul/ai-dev-framework-template"
+}

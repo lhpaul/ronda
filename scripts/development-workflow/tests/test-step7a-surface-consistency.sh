@@ -19,7 +19,7 @@ cg = 'docs/workflow/development-workflow/integrations/codex-github.md'
 readme = 'docs/workflow/development-workflow/README.md'
 helper = 'scripts/development-workflow/resolve-reviewer-availability.sh'
 header = 'scripts/development-workflow/codex-github-reviewer.sh'
-supported = {'claude','cursor','codex','coderabbit','codex-github'}
+supported = {'claude','cursor','codex','dsh','coderabbit','codex-github'}
 start = '<!-- step7a-codex-github-availability:start -->'
 end = '<!-- step7a-codex-github-availability:end -->'
 
@@ -57,6 +57,13 @@ def documented_shipped_runner_list(s):
     if not m: return None
     return [x.strip() for x in m.group(1).split(',') if x.strip()]
 
+def template_mode(base):
+    # Keep mode semantics identical to the shell suites and runtime helpers.
+    return subprocess.check_output([
+        'bash', '-c', 'set -euo pipefail; source "$1"; workflow_template_is_template "$2"',
+        'mode-check', str(base/'scripts/development-workflow/workflow-lib.sh'), str(base/shared),
+    ], text=True).strip() == 'true'
+
 def checks(base):
     def read(path): return (base/path).read_text()
     p=read(protocol); gate=section(p,'### Determining which reviewers to run','### Step 7a loop parameters')
@@ -69,7 +76,7 @@ def checks(base):
     summary=gate.split('#### Step 7a summary comment (mandatory)',1)[-1]
     out={}
     declared=section(entry,'Supported reviewer values are ','. If no list')
-    out['D-1']=set(re.findall(r'`([^`]+)`',declared))==supported and contains(entry,'Supported reviewer values are `claude`, `cursor`, `codex` (local-runtime), and','`coderabbit`, `codex-github` (hosted-service)')
+    out['D-1']=set(re.findall(r'`([^`]+)`',declared))==supported and contains(entry,'Supported reviewer values are `claude`, `cursor`, `codex`, `dsh` (local-runtime), and','`coderabbit`, `codex-github` (hosted-service)')
     out['D-2']=not any(x in gate.lower() for x in ('runner identity is a sufficient proxy','reachability classification table'))
     grep=subprocess.run(['git','-C',str(base),'grep','-n','-i','-F','universally reachable','--','*.md','*.sh','*.yaml','*.yml','*.mdc',':(exclude)CHANGELOG.md',':(exclude)docs/specs/developments/**',':(exclude)docs/testing/**',':(exclude)scripts/**/tests/**'],capture_output=True)
     out['D-3']=grep.returncode==1 # search errors must never count as an empty result
@@ -85,12 +92,14 @@ def checks(base):
     fixed=reasons-{'check-inconclusive'}
     out['D-5']=set(doc)==reasons|contexts and set(code)==fixed|contexts and all(doc[key]==code[key] for key in code)
     out['D-5']=out['D-5'] and contains(runtime,'explicit internal probe context','four reason values and output keys stay unchanged')
-    out['D-6']=contains(dispatch,'Every dispatched failure is a review failure under either policy.','claude -p --output-format text','cursor-agent --print --output-format text','codex exec --sandbox read-only','Request a read-only review and exactly one `VERDICT: APPROVED` or `VERDICT: NEEDS REVISION`','The parent applies deterministic fixes, commits and pushes them','never add permission-bypass flags','approval requires exit `0` and exactly one valid terminal verdict','non-zero CLI exit, timeout, permission denial, or missing/ambiguous verdict')
+    out['D-6']=contains(dispatch,'Every dispatched failure is a review failure under either policy.','claude -p --output-format text','cursor-agent --print --output-format text','codex exec --sandbox read-only','DSH_PERMISSION_MODE=read-only dsh --profile headless','Request a read-only review and exactly one `VERDICT: APPROVED` or `VERDICT: NEEDS REVISION`','The parent applies deterministic fixes, commits and pushes them','never add permission-bypass flags','approval requires exit `0` and exactly one valid terminal verdict','non-zero CLI exit, timeout, permission denial, or missing/ambiguous verdict')
     out['D-6']=out['D-6'] and contains(gate,'Cross-runner CLI reviewers remain read-only; the parent owns their fixes, commits, pushes, and required review reruns.')
     out['D-7']=all("driving runner's own stage reviewer" in normalized(x) for x in (entry,read(readme))) and 'stage-appropriate `claude` reviewer' not in entry
     out['D-8']=contains(runtime,'is read-only: do not review, post a comment, alter the PR, install software, or substitute a reviewer','Do not provision services or write tracked files.')
     declared_runner_list=documented_shipped_runner_list(read(readme))
-    out['D-9']=declared_runner_list is not None and lists[0]==[declared_runner_list] and not re.search(r'expected behavio[u]?r.*hard.fail',read(shared),re.I)
+    # D-4 still validates supported reviewers in every repository. Only the
+    # template must match the README's shipped default list.
+    out['D-9']=not template_mode(base) or (declared_runner_list is not None and lists[0]==[declared_runner_list] and not re.search(r'expected behavio[u]?r.*hard.fail',read(shared),re.I))
     c=read(cr)
     out['D-10']=contains(section(c,'### Draft conversion','### Invocation'),'reviews.auto_review.enabled: true','after availability and policy') and 'coderabbitai[bot]' in c and contains(hard,'CodeRabbit draft-eligibility precondition','before its dispatch') and 'Switch to Claude' not in c
     def dispatch_block(s):
@@ -124,12 +133,22 @@ def checks(base):
         (isolated/'.gitignore').write_text(read('.gitignore'))
         ignored=subprocess.run(['git','-C',str(isolated),'-c','core.excludesFile=/dev/null','check-ignore','--no-index','.ai-dev-workflow.local.yaml.retired'],capture_output=True)
         normal=subprocess.run(['git','-C',str(isolated),'-c','core.excludesFile=/dev/null','check-ignore','--no-index','.ai-dev-workflow.local.example.yaml'],capture_output=True)
-        out['D-25']=ignored.returncode==0 and normal.returncode==1 and contains(read(local),'Before retiring a file in a downstream project','covered by its .gitignore')
+        # .gitignore is shared/project-owned in sync-manifest.yaml. The shipped
+        # template rule is mandatory here; consumers must add it before the
+        # retirement operation, not merely to run the framework's tests. The
+        # local example is customizable too; its exact template prose is not
+        # a consumer contract. Emit the retirement instructions below instead.
+        out['D-25']=not template_mode(base) or (ignored.returncode==0 and normal.returncode==1 and contains(read(local),'Before retiring a file in a downstream project','covered by its .gitignore'))
+        if base == root and not template_mode(base) and (ignored.returncode != 0 or normal.returncode != 1):
+            print('ACTION: before retiring local configuration, add .ai-dev-workflow.local.yaml.retired to your .gitignore and verify .ai-dev-workflow.local.example.yaml remains trackable.',flush=True)
     return out
 
 def report(result):
-    for name,passed in result.items(): print(('PASS' if passed else 'FAIL')+': '+name,flush=True)
-    print(f'{sum(result.values())} passed; {len(result)-sum(result.values())} failed',flush=True)
+    skipped={'D-9'} if not template_mode(root) else set()
+    for name,passed in result.items():
+        if name in skipped: print('SKIP: '+name+' (consumer-owned reviewer policy)',flush=True)
+        else: print(('PASS' if passed else 'FAIL')+': '+name,flush=True)
+    print(f'{sum(result.values())-len(skipped)} passed; {len(result)-sum(result.values())} failed; {len(skipped)} skipped',flush=True)
 
 baseline=checks(root);report(baseline)
 if not all(baseline.values()): raise SystemExit(1)
@@ -162,6 +181,8 @@ if sys.argv[2]=='--prove-plants':
             ('D-6',protocol,'Every dispatched failure is a review failure under either policy.','Every dispatched failure is skipped under warn.'),
             ('D-6',protocol,'Request a read-only review and exactly one','Request a mutating review and exactly one'),
             ('D-6',protocol,'Cross-runner CLI reviewers remain read-only; the parent owns their fixes, commits, pushes, and required review reruns.','Cross-runner CLI reviewers apply fixes directly.'),
+            ('D-1',protocol,'`codex`, `dsh` (local-runtime), and','`codex`, and'),
+            ('D-6',protocol,'DSH_PERMISSION_MODE=read-only dsh --profile headless','dsh --profile web without read-only preset'),
             ('D-7',readme,"driving runner's own stage reviewer",'fixed Claude reviewer'),
             ('D-8',protocol,'install software, or\nsubstitute a reviewer','install software, or\nreplace a reviewer'),
             ('D-9',readme,'The shipped list is `[claude]`','The shipped list is `[claude, cursor]`'),
@@ -186,6 +207,9 @@ if sys.argv[2]=='--prove-plants':
             ('D-24',protocol,'Where the service is not installed and reachable it is\nunavailable with a named reason.','No source condition applies when the service is absent.'),
             ('D-25','.gitignore','.ai-dev-workflow.local.yaml.retired\n',''),
         ]
+        if not template_mode(fixture):
+            plants=[plant for plant in plants if plant[0] not in {'D-9','D-25'}]
+            print('SKIP: D-9/D-25 plants (consumer-owned reviewer policy and ignore rules)',flush=True)
         for number,(case,files,needle,replacement) in enumerate(plants,1):
             files=[files] if isinstance(files,str) else files
             originals={};evidence=[]

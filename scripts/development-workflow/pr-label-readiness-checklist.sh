@@ -395,7 +395,7 @@ fi
 # Check 1: PR is non-draft
 DRAFT=$(gh pr view "$PR_NUMBER" --json isDraft --jq '.isDraft')
 if [ "$DRAFT" = "true" ]; then
-  echo "ERROR: PR is still a draft. Run 'gh pr ready $PR_NUMBER' first."
+  echo "ERROR: PR is still a draft. Return to the ready-transition preflight first."
   exit 1
 fi
 

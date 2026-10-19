@@ -45,7 +45,21 @@ Use the tier names as stable policy and map them to whatever your current runner
 
 - In Claude Code, map the tier to the model family or explicit model ID configured in `.claude/agents/*.md`.
 - In Cursor, set `.cursor/agents/*.md` to `auto` for ordinary coordination and QA agents, and pin an explicit high-reasoning model for agents that author or deeply review specs, plans, and code. Those `model:` fields are the source of truth for Cursor runs (see "Cursor model source of truth" below).
-- In Codex, keep skills tier-based (`economy`, `balanced`, `premium`) and map the active runner model to the current OpenAI model family.
+- In Codex, keep skills tier-based (`economy`, `balanced`, `premium`) and explicitly select a supported task model/effort or dispatch a configured native role. Skill prose does not enforce a model. See [Codex model routing](integrations/codex-model-routing.md).
+- In DSH, optional `models.dsh.tiers` and `models.dsh.roles` map this canonical catalogue to child routes. Before each fresh dispatch, the parent resolves the role, passes provider/model and configured reasoning_effort when the frozen session allowlist permits them, and records SOURCE/file/tier plus actual dispatch. Disabled selection or an exact-pair denial produces a visible inherited fallback. No policy inherits the session; the headless default remains separately pinned by its profile/overlay. DSH has no in-repo per-role agent files. See [`integrations/dsh.md`](integrations/dsh.md#project-role-and-tier-routing).
+
+Activation requires the exact `# adf-models-dsh: v1` first physical line and
+`# adf-models-dsh: end` close in each contributing file. Bare policy without
+that opener remains inactive legacy data. Inside, use the documented strict
+subset: two-space block mappings, known keys, one-line quoted/bare strings and
+`{}` only. Lists with or without indentation, nonempty flow collections,
+multiline values, tags/directives, duplicates and wrong types fail closed.
+`validate`, `model-route` and `model-routes` share the same policy reading path
+and first CODE/FILE/FIELD/MESSAGE error, exit 2 and empty stdout. The legacy tail
+and unactivated files retain the existing dependency-free reading contract.
+See the [format and activation guide](integrations/dsh.md#explicit-activation-and-strict-format).
+
+YAML anchors, aliases and merge keys are unsupported in `models.dsh`; use explicit block mappings. Unsupported node syntax fails closed before dispatch. The activated strict parser does not apply YAML reference/merge semantics, and quoted scalar characters remain ordinary text.
 - In any runner, prefer keeping the tier intent stable even when provider model names change.
 
 ### Claude Code model defaults (template)
@@ -58,15 +72,13 @@ Claude Code agents pin concrete model IDs in `.claude/agents/*.md`.
 | `balanced` | `claude-sonnet-5` | Implementation, review, setup, QA, smoke testing, item orchestration, and retrospectives |
 | `premium` | `claude-opus-5` | Spec writing and technical planning |
 
-### Codex / OpenAI model mapping (template)
+### Codex model selection
 
-Codex skills intentionally store recommended tiers rather than concrete model IDs. Map those tiers to the current OpenAI family in the Codex runner or model picker:
+Codex skills store recommended tiers rather than model pins. Map each tier to models available in your active account/provider catalog; select effort separately according to the model and task. The Agent Assignments table above remains the role policy.
 
-| Tier | OpenAI model mapping | Used for |
-| ---- | -------------------- | -------- |
-| `economy` | `gpt-5.6-luna` | Mechanical coordination and high-volume checklist work |
-| `balanced` | `gpt-5.6-terra` | Implementation, review, setup, QA, item orchestration, and retrospectives |
-| `premium` | `gpt-5.6-sol` | Spec writing and technical planning |
+Use [Codex role and model routing](integrations/codex-model-routing.md) for the audited skill surfaces, task/profile examples, opt-in native reviewer configuration, explicit dispatch and optional Responses router requirements. A task invocation selects its own model; a custom-agent file applies only to the named spawned role. These are separate from skill metadata.
+
+The adapter's version-labeled smoke evidence does not establish live router or cross-provider role parity. #1760 remains an independent OpenCode adapter track; the separate reviewer-effort variable in #1895 is outside the Codex guidance change.
 
 ### Cursor model source of truth
 
@@ -289,9 +301,11 @@ The table below shows the typical and maximum expected wall-clock duration for t
 | Agent                     | Typical run | Consider timed out if no progress after |
 | ------------------------- | ----------- | --------------------------------------- |
 | `item-orchestrator`       | 5–15 min    | ~25 min                                 |
-| `automated-reviewer-loop` | 2–10 min    | ~20 min                                 |
+| `automated-reviewer-loop` | 2–10 min    | the sum of the configured reviewers' wait budgets, twice (see note) |
 
 These estimates assume a single development item with a normal review-fix cycle. Runs that encounter multiple fixer cycles, slow CI, or rate-limited external reviewers can exceed the typical range — escalate to human only when the maximum threshold is crossed with no visible progress.
+
+The `automated-reviewer-loop` threshold is no longer a single 20-minute wait. Each reviewer waits for its own budget (2400 s for Bugbot, 1800 s for Codex GitHub, 1200 s for the others, configurable under `review.wait_budgets`), the reviewers run one after another, and a No verdict yet result gets one automatic re-wait per revision. A loop is therefore still in progress until the sum of its reviewers' budgets has elapsed twice; for this repository's default reviewers (PR-Agent and `local-ai-reviewer`) that is about 80 minutes. See "Reviewer wait budgets and outcome classes" in [`protocols/93-automated-reviewer-loop-protocol.md`](protocols/93-automated-reviewer-loop-protocol.md#reviewer-wait-budgets-and-outcome-classes-1789).
 
 ---
 
