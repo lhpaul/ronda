@@ -235,7 +235,9 @@ Read [`docs/best-practices/STACK-SPECIFIC.md`](docs/best-practices/STACK-SPECIFI
 
 - **No `git push --force`**, `git reset --hard`, or rebase on shared branches without explicit human approval
 - **Stop and ask** if an action seems destructive or has wide blast radius
-- Human review is required before merging PRs; opening a PR is not a terminal condition by itself
+- Opening a PR is not a terminal condition by itself
+- **Agent merge policy (LH, 2026-10-19):** the Ronda Dev agent may merge its own PRs into `develop` up to **medium** risk (`/run-item <N> --delegate-review --may-merge --max-risk medium`) when CI is green on the head SHA, the draft review gate is clean, and the PR disposition is recorded. High risk, any stop condition in `.ai-dev-workflow.yaml`, `main`/release/hotfix PRs, `.github/workflows/**`, deploys, and anything needing secrets go to human review
+- Never touch work owned by other people (branches, PRs, issues), never print or copy secrets, and never deploy
 
 ---
 
