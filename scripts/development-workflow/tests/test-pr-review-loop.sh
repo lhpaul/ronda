@@ -2321,11 +2321,13 @@ run_test "1876_area_filter_is_per_suite" "2" \
   "$(env -u TEST_PR_REVIEW_LOOP_SNAPSHOT -u TEST_PR_REVIEW_LOOP_ORIGIN \
       PATH="$TEST_PR_REVIEW_LOOP_REAL_PATH" bash "$_1876_fp2" --area 0a >/dev/null 2>&1; echo $?)"
 
-# These two upstream assertions depend on shellcheck.yml changes deferred by
-# the maintainer to the separate workflows item (#160); the workflow is not
-# adopted by this sync. Keep the split-harness assertions above active.
-echo "SKIP: 1876_shellcheck_lints_one_file_per_process (upstream shellcheck.yml deferred to workflows item)"
-echo "SKIP: 1876_shellcheck_job_has_timeout (upstream shellcheck.yml deferred to workflows item)"
+# ShellCheck runs one process per file so its memory is bounded by the largest
+# file, and the job is time-boxed.
+_1876_sc_workflow="$REPO_ROOT/.github/workflows/shellcheck.yml"
+run_test "1876_shellcheck_lints_one_file_per_process" "yes" \
+  "$(grep -Eq 'xargs -0 -n 1 -P [0-9]+ shellcheck --severity=warning' "$_1876_sc_workflow" && echo yes || echo no)"
+run_test "1876_shellcheck_job_has_timeout" "yes" \
+  "$(grep -Eq '^    timeout-minutes: [0-9]+' "$_1876_sc_workflow" && echo yes || echo no)"
 
 unset _1876_max_lines _1876_tests_dir _1876_lib _1876_count _1876_oversized _1876_unshared
 unset _1876_uncovered _1876_suite _1876_name _1876_lines _1876_fp2 _1876_sc_workflow
