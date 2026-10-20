@@ -943,6 +943,7 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
                 self.assertTrue({workflow, helper} <= selected(planted), 'shared runtime missing')
         self.assertTrue({workflow, helper} <= selected(manifest))
 
+    @unittest.skipIf(IMAGE_SMOKE, 'suite selection uses host Git metadata outside the container mount')
     def test_suite_selection(self):
         selector = ROOT / 'scripts/development-workflow/select-test-suites.sh'
         for path in ('scripts/development-workflow/pr-agent-runtime.py',
