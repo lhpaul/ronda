@@ -1,5 +1,11 @@
 # Protocol: Run One Workflow Item
 
+## Merge-session admission and recovery
+
+After ordinary review/CI/readiness and before any merge-operation audit, hold, bypass, merge or follow-up mutation, follow [Protocol 94 section 3.6](94-batch-merge-protocol.md#36-merge-session-admission-and-recovery). Freeze the entire selected ordered set in one authoritative owner-bound session; an unaffordable set admits no prefix. Supply the same `--merge-session` to mutating merge/cleanup helpers, and `--operation merge` to operation-owned audit calls. Direct authorized `gh pr merge` commands run through `workflow-merge-budget.py run-step` with their existing argv unchanged. Read-only risk classification remains separate; delegated merge requires the durable session plus all existing gates.
+
+Deferred reports quota/reset, recorded PR states and pending follow-up without operation-owned remote writes; fresh selected PRs stay unmerged, while recovery deferral retains historical merged/uncertain facts. Waiting records a verified queue/auto-merge submission, stops subsequent selected merges and leaves merge-dependent follow-up pending. Interrupted retains completed/uncertain/pending work locally even if every API fails; stop further selected merges and use explicit verified recovery without duplicate submission or uncertain mutation replay. Completed requires all owned planned follow-up independently verified, including tracker and audit. Budget admission grants no risk, checkpoint, admin or deletion authority. Report the session recovery command together with the existing Ground-Truth Completion Verification before claiming a workflow terminal outcome.
+
 **Agent role**: Work Item Runner (`item-orchestrator`)
 **Purpose**: Advance one workflow item, execute the next deterministic action, and keep that item moving until it reaches a real terminal condition
 
@@ -59,6 +65,73 @@ Named stop conditions (exact strings): `dispatch_profile_declaration_missing`, `
 No named stop for a harness or local-path denial: a reachable stage role's harness tool or local file-path permission denial on a delegated action is not a named stop condition; it is only observably similar to the `SUBAGENT_PERMISSION_DENIAL` contract (Work Item Runner to Portfolio Orchestrator only), and is Out of Scope, tracked as #1746.
 
 Invalid-declaration boundaries: an invalid profile value, an invalid accountable role (none named, including empty), an invalid posture for the checkpoint, and a coarse-fact mismatch in either direction (more permissive or less permissive than the assigned outcome) are each a missing declaration. The coarse check governs the initial declaration and coarse-fact re-declarations only; it does not govern the mid-run recovery transitions (stage-handoff loss, native-handoff mid-run failure), which remain valid re-declarations.
+
+---
+
+## DSH child model routing
+
+For a DSH driving session, resolve the canonical target role before every fresh
+stage or review child. Role names/default tiers follow Agent Assignments in
+[`agent-model-config.md`](../agent-model-config.md); runner-specific aliases are
+not inferred. The optional project policy is `models.dsh` in the shared workflow
+YAML, deep-merged with the selected local override. Follow the schema,
+precedence, operator setup and headless boundary in
+[DSH routing guidance](../integrations/dsh.md#project-role-and-tier-routing).
+
+Activation requires the exact `# adf-models-dsh: v1` first physical line and
+`# adf-models-dsh: end` close in each contributing file. Bare policy without
+that opener remains inactive legacy data. Inside, use the documented strict
+subset: two-space block mappings, known keys, one-line quoted/bare strings and
+`{}` only. Lists with or without indentation, nonempty flow collections,
+multiline values, tags/directives, duplicates and wrong types fail closed.
+`validate`, `model-route` and `model-routes` share the same policy reading path
+and first CODE/FILE/FIELD/MESSAGE error, exit 2 and empty stdout. The legacy tail
+and unactivated files retain the existing dependency-free reading contract.
+See the [format and activation guide](../integrations/dsh.md#explicit-activation-and-strict-format).
+
+YAML anchors, aliases and merge keys are unsupported in `models.dsh`. Use
+explicit block mappings: reject these features with a clear structured
+`invalid_yaml` error before dispatch. The activated strict parser rejects these operators; it never expands YAML
+references or merges into a route. Quoted
+scalar ids containing `&`, `*` or `<<` remain ordinary text.
+
+<!-- workflow-shell-contract: bash-zsh -->
+```bash
+python3 scripts/development-workflow/workflow-config-resolver.py model-route \
+  --runner dsh --role developer --repo-root "$PWD" --json
+```
+
+**Resolve, pass, and record**: parse the resolver's JSON without eval. For
+SOURCE inherited, omit provider/model/reasoning_effort. For a valid configured
+route, verify the installed backend's selection capability and this session's
+captured exact provider/model allowlist; pass provider/model together, and
+reasoning_effort only when configured. Record role, tier, requested route,
+SOURCE/SOURCE_FILE and actual route plus parent/child ids in the Work Item Runner
+Summary and review evidence. Re-resolve for each fresh dispatch; old evidence
+cannot establish a later child route.
+
+| Gate inputs | Allowed outcome | Required next action |
+| --- | --- | --- |
+| Invalid query or project policy | Configuration error | Show structured CODE/FILE/FIELD/MESSAGE; correct before dispatch |
+| Valid resolution, SOURCE inherited | Inherited dispatch | Omit route fields; record inheritance |
+| Configured route, selection enabled, exact pair permitted | Configured dispatch | Pass the resolved fields; record actual route and source |
+| Configured route, selection disabled | Visible inherited fallback | Report selection-disabled; omit all route fields; retain requested-source record |
+| Configured route, exact pair denied | Visible inherited fallback | Report allowlist-denied; omit all route fields; retain requested-source record |
+| Capability/policy unknown | Existing runner clarification/failure path | Report specific evidence to parent; do not invent permission from catalog membership |
+| Child/provider fails after dispatch | Existing stage/review failure | Preserve route evidence and use existing fix/escalation path |
+
+The host's selection policy is captured at fresh top-level session composition,
+inherited by children and frozen. Later host-setting changes require a new
+session; a restored session without a recorded policy remains disabled.
+Model-catalog absence is advisory and does not prove exact-pair denial. Invalid
+policy or post-dispatch failure never becomes successful inherited fallback.
+Project routing does not choose a headless default or change fork routing, the
+shared draft-review runner, reviewer gates, permissions, or merge-risk authority.
+
+Mirrors: DSH integration guidance, model-policy runner notes, commented shared/
+local examples and the [DSH smoke runbook](../../../testing/workflow/dsh-model-routing.smoke-test.md).
+Examples in those surfaces cover no policy, distinct tier routes, private role
+override, selection-disabled and allowlist-denied outcomes.
 
 ---
 
@@ -467,8 +540,8 @@ mutation.
 | Plan Ready                                                         | Plan PR is merged                                                                                                                                   | Set tracker status to **In Development**, then run `03-implement-development-protocol.md`                                                                                                                                                                                    |
 | In Development                                                     | Tracker **In Development** — feature/fix PR not yet human-ready                                                                                     | Continue implementation branch/PR work (Step 7a, 7, 8) until tracker moves to **Development in Review**                                                                                                                                                                      |
 | Development in Review                                              | Tracker **Development in Review** — feature/fix PR ready for humans                                                                                 | Wait — human review / merge (unless addressing `needs-fixes`)                                                                                                                                                                                                                |
-| Dev branch pushed, no PR yet                                       | Branch exists on local / remote / worktree; `stages.implementation.may_open_pr` is `true` (default) — if `false`, do not open the PR and report the `stages.implementation.may_open_pr` guardrail | Open draft PR, run the internal review gate (Step 7a), run `gh pr ready` to convert to non-draft, then run automated reviewer loop (Step 7) and CI loop (Step 8)                                                                                                             |
-| Draft PR open, internal review pending                             | PR is draft and the relevant internal review gate has not run yet or has open findings                                                              | Run the stage-specific internal review gate (Step 7a); apply fixes, push, repeat until clean. Once APPROVED, run `gh pr ready` to convert to non-draft                                                                                                                       |
+| Dev branch pushed, no PR yet                                       | Branch exists on local / remote / worktree; `stages.implementation.may_open_pr` is `true` (default) — if `false`, do not open the PR and report the `stages.implementation.may_open_pr` guardrail | Open draft PR, run the internal review gate (Step 7a), run the ready-transition preflight below, then complete automated reviewer loop (Step 7) and CI loop (Step 8)                                                                                                             |
+| Draft PR open, internal review pending                             | PR is draft and the relevant internal review gate has not run yet or has open findings                                                              | Run the stage-specific internal review gate (Step 7a); apply fixes, push, repeat until clean. Once APPROVED, run the ready-transition preflight below; keep draft until the draft GitHub gate clears                                                                                                                       |
 | Non-draft PR open, no readiness label, external review not yet run | PR is non-draft (converted after Step 7a APPROVED), external review not yet run                                                                     | Run Step 7 (external automated reviewers) and Step 8 (CI)                                                                                                                                                                                                                    |
 | PR open (non-draft), no readiness label                            | PR exists and latest push has not fully cleared                                                                                                     | Run Step 7 and Step 8 until clean or escalated                                                                                                                                                                                                                               |
 | PR labeled `needs-fixes`                                           | Human or automated systems requested changes                                                                                                        | Address feedback, push, then run Step 7a, Step 7, and Step 8                                                                                                                                                                                                                 |
@@ -1556,7 +1629,7 @@ Gate` log in the draft PR description before Step 7a begins. If the log is
 missing or obviously incomplete, treat the creator stage as incomplete and fix
 the PR description before running reviewer readiness loops.
 
-`creator -> draft PR opened with Document Quality Gate log when applicable -> internal review gate with all review.on_draft.runner reviewers (Step 7a) -> draft GitHub reviewer gate with review.on_draft.github -> gh pr ready -> ready GitHub reviewer phase with review.on_ready.github (Step 7) -> regression label (Step 7b, implementation PRs only) -> CI loop (Step 8) -> label readiness checklist (Step 8a) -> tracker status update (Step 8b) -> independent PR verification (Step 8c) -> wait or escalation`
+`creator -> draft PR opened with Document Quality Gate log when applicable -> internal review gate with all review.on_draft.runner reviewers (Step 7a) -> draft GitHub reviewer gate with review.on_draft.github -> ready-transition preflight (full loop owns conversion) -> ready GitHub reviewer phase with review.on_ready.github (Step 7) -> regression label (Step 7b, implementation PRs only) -> CI loop (Step 8) -> label readiness checklist (Step 8a) -> tracker status update (Step 8b) -> independent PR verification (Step 8c) -> wait or escalation`
 
 After any subagent finishes, determine whether the item still has a deterministic next action:
 
@@ -1652,7 +1725,7 @@ Run this step immediately after opening a draft PR, and again after any push tha
 
 The only configuration resolution for Step 7a is the bounded availability
 helper. Run it on every cycle, before dispatch, passing the actual driving
-session kind (`claude`, `cursor`, `codex`, or `unknown`), never a value inferred
+session kind (`claude`, `cursor`, `codex`, `dsh`, or `unknown`), never a value inferred
 from PATH, the reviewer list, or `WORKFLOW_RUNNER_KIND`. There is no independent `review-effective` or `review-overrides` call before this helper. Its bounded entry includes configuration parsing; never prepend an unbounded parser invocation. A stalled parser is verified by smoke Step 16.
 
 The strict `review-effective` reader requires PyYAML (CI pin `6.0.2`) in the gate's
@@ -1690,7 +1763,7 @@ bash scripts/development-workflow/resolve-reviewer-availability.sh \
   --runner-kind <actual-driving-session-kind>
 ```
 
-Supported reviewer values are `claude`, `cursor`, `codex` (local-runtime), and
+Supported reviewer values are `claude`, `cursor`, `codex`, `dsh` (local-runtime), and
 `coderabbit`, `codex-github` (hosted-service). If no list is defined, the
 helper falls back to the driving runner's own stage reviewer. Consume reviewer
 names only from its indexed `REVIEWER_N_*` fields; aggregate lists are
@@ -1926,6 +1999,7 @@ internal review gate would silently pass with reduced coverage.
 | `coderabbit` | `.coderabbit.yaml` has `reviews.auto_review.drafts: false` (the default)    |
 | `claude`     | Never — Claude Code agents always review regardless of draft state          |
 | `codex`      | Never — Codex skill reviewers always review regardless of draft state       |
+| `dsh`        | Never — DSH skill reviewers always review regardless of draft state         |
 
 Read `.coderabbit.yaml` as YAML and select only the root
 `reviews.auto_review.drafts` field; similarly named keys or instruction text do
@@ -2016,6 +2090,9 @@ For each indexed Reachable reviewer selected by the proceed verdict, dispatch th
 | `codex`      | `spec/*`                                          | `workflow-spec-reviewer` Codex skill against `REVIEW.md`                                                               |
 | `codex`      | `implementation-plan/*`                           | `workflow-plan-reviewer` Codex skill against `REVIEW.md`                                                               |
 | `codex`      | `feature/*` / `refactor/*` / `fix/*` / `hotfix/*` | `workflow-code-reviewer` Codex skill against `REVIEW.md`                                                               |
+| `dsh`        | `spec/*`                                          | `workflow-spec-reviewer` skill against `REVIEW.md`                                                                     |
+| `dsh`        | `implementation-plan/*`                           | `workflow-plan-reviewer` skill against `REVIEW.md`                                                                     |
+| `dsh`        | `feature/*` / `refactor/*` / `fix/*` / `hotfix/*` | `workflow-code-reviewer` skill against `REVIEW.md`                                                                     |
 | `coderabbit` | `spec/*`                                          | Trigger CodeRabbit via push (auto-review); poll for `coderabbitai[bot]` response — see `coderabbit.md` Step 7a section |
 | `coderabbit` | `implementation-plan/*`                           | Trigger CodeRabbit via push (auto-review); poll for `coderabbitai[bot]` response — see `coderabbit.md` Step 7a section |
 | `coderabbit` | `feature/*` / `refactor/*` / `fix/*` / `hotfix/*` | Trigger CodeRabbit via push (auto-review); poll for `coderabbitai[bot]` response — see `coderabbit.md` Step 7a section |
@@ -2030,14 +2107,17 @@ the re-audit itself is performed by the loop runner, not the dispatched fixer.
 
 When a local-runtime reviewer does not match the driving runner, invoke its
 installed CLI from the artifact root: `claude -p --output-format text`,
-`cursor-agent --print --output-format text`, or `codex exec --sandbox read-only`.
+`cursor-agent --print --output-format text`, `codex exec --sandbox read-only`,
+or `DSH_PERMISSION_MODE=read-only dsh --profile headless`.
 The prompt names the stage protocol, `REVIEW.md`, spec/brief and plan paths,
 reviewed base/head, and active pass. Request a read-only review and exactly one
 `VERDICT: APPROVED` or `VERDICT: NEEDS REVISION`. The parent applies deterministic
 fixes, commits and pushes them, and re-runs the required reviewers after the push.
 Preserve existing CLI permission controls; never add permission-bypass flags or
 substitute another runtime. The read-only prompt is an instruction; the Codex
-command additionally enforces a read-only sandbox. Capture the exit status and
+command additionally enforces a read-only sandbox, and the DSH form composes the
+shipped base-bundle `read-only` permission preset via `DSH_PERMISSION_MODE`
+(not prompt-only instructions). Capture the exit status and
 complete response; approval requires exit `0` and exactly one valid terminal verdict.
 For `codex-github`, exit `0` approves, `1` enters revision, `2` and `3` are
 review failures, and `4` waits for the reviewer. A non-zero CLI exit, timeout,
@@ -2062,7 +2142,7 @@ Initialize `internal_review_cycle = 0` at the start of Step 7a. Increment each t
 
 | Outcome                                                                                                   | Action                                                                                                                                                                        |
 | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| All reviewers `APPROVED`                                                                                  | Post the Step 7a summary comment (see below), then run `gh pr ready <pr_number>` to convert the draft PR to non-draft, then continue to Step 7 (external automated reviewers) |
+| All reviewers `APPROVED`                                                                                  | Post the Step 7a summary comment (see below), then run the ready-transition preflight below and continue to Step 7 (external automated reviewers) |
 | Any reviewer returns `NEEDS REVISION` (fixable) and `internal_review_cycle < max_internal_review_cycles`  | Fixes already applied by the agent; increment `internal_review_cycle`; re-run **all** internal reviewers from the beginning of the list                                       |
 | Any reviewer returns `NEEDS REVISION` (fixable) and `internal_review_cycle >= max_internal_review_cycles` | Post the Step 7a summary comment with verdict `escalated — max cycles reached`, then escalate to human                                                                        |
 | Any reviewer returns `NEEDS REVISION` (product/design decision)                                           | Post the Step 7a summary comment with verdict `escalated — human decision required`, then stop and escalate to human before proceeding                                        |
@@ -2087,7 +2167,7 @@ Implementation PRs run two sequential passes before final approval (with the con
 | Any reviewer returns `NEEDS REVISION` on Pass 1 (fixable) and `internal_review_cycle < max_internal_review_cycles`                                                               | Fixes already applied; increment `internal_review_cycle`; restart from Pass 1 for all reviewers                                                                                                                                                                                         |
 | Any reviewer returns `NEEDS REVISION` on Pass 1 (fixable) and `internal_review_cycle >= max_internal_review_cycles`                                                              | Post the Step 7a summary comment with verdict `escalated — max cycles reached`, then escalate to human                                                                                                                                                                                  |
 | Any reviewer returns `NEEDS REVISION` on Pass 1 (product/design decision)                                                                                                        | Post the Step 7a summary comment with verdict `escalated — human decision required`, then stop and escalate to human                                                                                                                                                                    |
-| All reviewers `APPROVED` on Pass 2                                                                                                                                               | Post the Step 7a summary comment (see below), then run `gh pr ready <pr_number>` to convert the draft PR to non-draft, then continue to Step 7 (external automated reviewers)                                                                                                           |
+| All reviewers `APPROVED` on Pass 2                                                                                                                                               | Post the Step 7a summary comment (see below), then run the ready-transition preflight below and continue to Step 7 (external automated reviewers)                                                                                                           |
 | Any reviewer returns `NEEDS REVISION` on Pass 2 (fixable) — fix is **non-trivial** — and `internal_review_cycle < max_internal_review_cycles`                                    | Fixes already applied; increment `internal_review_cycle`; restart from **Pass 1** for all reviewers                                                                                                                                                                                     |
 | Any reviewer returns `NEEDS REVISION` on Pass 2 (fixable) — fix is **trivial** (all three trivial-fix conditions met) — and `internal_review_cycle < max_internal_review_cycles` | Skip Pass 1 re-run; increment `internal_review_cycle`; post a skip note (see Trivial-fix skip rule); restart from **Pass 2** only. The same-SHA requirement does not apply to Pass 1 for this cycle — only Pass 2 must approve at the current commit SHA before `gh pr ready` is called |
 | Any reviewer returns `NEEDS REVISION` on Pass 2 (fixable) and `internal_review_cycle >= max_internal_review_cycles`                                                              | Post the Step 7a summary comment with verdict `escalated — max cycles reached`, then escalate to human                                                                                                                                                                                  |
@@ -2097,7 +2177,7 @@ Both passes must complete with all selected reviewers `APPROVED` before final ad
 
 #### Step 7a summary comment (mandatory)
 
-A Step 7a summary comment **must always be posted to the PR** when the gate exits — whether all reviewers ran, some were skipped, or the gate hard-failed (BR-7). Post via `gh pr comment` immediately before `gh pr ready` (in the success path) or immediately before stopping (in the hard-fail or escalation paths).
+A Step 7a summary comment **must always be posted to the PR** when the gate exits — whether all reviewers ran, some were skipped, or the gate hard-failed (BR-7). Post via `gh pr comment` immediately before the ready-transition preflight (in the success path) or immediately before stopping (in the hard-fail or escalation paths).
 
 Include a per-reviewer verdict for every configured reviewer, with its display
 label and its reason and remedy when unreachable, plus the gate outcome.
@@ -2369,15 +2449,123 @@ label or push, or Step 8a when the final readiness checklist was skipped.
 When `.ai-dev-workflow.yaml` contains `review.on_ready.github`, run the external
 reviewer loop in two PR lifecycle phases:
 
-Run the reviewer loop in two phases: keep the PR as draft and run
-`review.on_draft.github` platforms (`--draft-github-only`) until they are clean,
-then convert to non-draft with `gh pr ready` and run the full loop so
-`review.on_ready.github` platforms see a clean-gated ready PR. The legacy
-`--pre-after-clean-only` flag remains accepted as an alias for
-`--draft-github-only` during the transition release. For the full runbook and
-`READY_PHASE_*` telemetry details, see the **"Draft GitHub gate before
-ready-phase reviewers"** section in
-[`93-automated-reviewer-loop-protocol.md`](93-automated-reviewer-loop-protocol.md).
+Keep the PR draft after Step 7a approval. The **ready-transition preflight**
+is mandatory before any normal post-approval ready conversion, including resume
+and readiness-checklist recovery. It records the draft-loop output, refuses a
+missing, malformed, failed, or stale verdict, and leaves ready conversion to the
+full loop when ready-phase reviewers are configured. Step 7a approval alone is
+never draft GitHub evidence. Do not reuse a prior invocation's output.
+
+Fill `PR_NUMBER` and `BRANCH` with the selected PR and expected branch, then run
+this executable preflight after posting the APPROVED Step 7a summary. Preserve
+both loop outputs for Step 8a; the full output is the final Step 7 evidence.
+The draft loop's `READY_PHASE_ENABLED` and `PLATFORM_COUNT` telemetry is the
+source for conversion ownership and empty-draft detection: it resolves the PR's
+base configuration and local overrides, unlike a separate checkout-config read.
+The existing pre-dispatch CodeRabbit eligibility exception in Step 7a remains
+separate; this preflight governs the normal post-approval transition.
+
+| Draft-loop evidence | Ready-phase telemetry | Decision |
+| --- | --- | --- |
+| Loop exits nonzero | Any | Print its reason, stop without conversion |
+| Missing/malformed/duplicate required telemetry or changed head | Any | Stop without conversion |
+| Current-head `clean`, draft-only invocation | `1` | Full loop owns conversion |
+| Current-head `clean`, draft-only invocation | `0` | Convert only if draft, then full loop |
+| `skipped/not_configured`, zero draft platforms, unchanged head | `0` or `1` | Follow conversion ownership above |
+| `skipped/release_pr`, matching PR/branch, `release/*` or `hotfix/*`, unchanged head | Intentionally absent | Preserve the existing release skip; guarded manual conversion, then full-loop skip |
+| Other skipped/failed/missing verdict | Any | Stop without conversion |
+
+<!-- protocol-91-ready-transition:start -->
+<!-- workflow-shell-contract: bash-zsh -->
+```bash
+set -euo pipefail
+PR_NUMBER=<pr_number>
+BRANCH=<branch_name>
+./scripts/development-workflow/pr-ownership-guard.sh --pr "$PR_NUMBER" --expected-branch "$BRANCH"
+DRAFT_HEAD=$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid')
+if [ -z "$DRAFT_HEAD" ]; then
+  echo "ERROR: draft gate head unavailable." >&2
+  exit 1
+fi
+DRAFT_GATE_RC=0
+DRAFT_GATE_OUTPUT=$(./scripts/development-workflow/pr-review-loop.sh "$PR_NUMBER" --branch "$BRANCH" --draft-github-only) || DRAFT_GATE_RC=$?
+printf '%s\n' "$DRAFT_GATE_OUTPUT"
+if [ "$DRAFT_GATE_RC" -ne 0 ]; then
+  exit "$DRAFT_GATE_RC"
+fi
+ready_gate_value() {
+  printf '%s\n' "$DRAFT_GATE_OUTPUT" | awk -F= -v key="$1" '
+    $1 == key { n++; if (NF == 2) value=$2; else bad=1 }
+    END { if (n == 1 && !bad) print value }
+  '
+}
+DRAFT_RESULT=$(ready_gate_value RESULT)
+DRAFT_MODE=$(ready_gate_value DRAFT_GITHUB_ONLY)
+DRAFT_REVIEWED_HEAD=$(ready_gate_value POST_CLEAN_HEAD_SHA)
+DRAFT_REASON=$(ready_gate_value REASON)
+READY_ENABLED=$(ready_gate_value READY_PHASE_ENABLED)
+DRAFT_COUNT=$(ready_gate_value PLATFORM_COUNT)
+LIVE_HEAD=$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid')
+if [ "$LIVE_HEAD" != "$DRAFT_HEAD" ]; then
+  echo "ERROR: draft gate head changed; rerun on current head." >&2
+  exit 1
+fi
+if [ "$DRAFT_RESULT" = skipped ] && [ "$DRAFT_REASON" = release_pr ]; then
+  case "$BRANCH" in
+    release/*|hotfix/*) : ;;
+    *) echo "ERROR: release skip does not apply to this branch." >&2; exit 1 ;;
+  esac
+  if [ "$(ready_gate_value PR_NUMBER)" != "$PR_NUMBER" ] || [ "$(ready_gate_value BRANCH)" != "$BRANCH" ]; then
+    echo "ERROR: release skip identity missing or mismatched." >&2
+    exit 1
+  fi
+  # The existing release guard exits before ordinary phase/count telemetry.
+  READY_ENABLED=0
+else
+  case "$DRAFT_COUNT" in
+    ''|*[!0-9]*) echo "ERROR: draft platform count missing or malformed." >&2; exit 1 ;;
+  esac
+  case "$READY_ENABLED" in
+    0|1) : ;;
+    *) echo "ERROR: ready-phase telemetry missing or malformed." >&2; exit 1 ;;
+  esac
+  if [ "$DRAFT_MODE" != 1 ]; then
+    echo "ERROR: draft gate invocation missing or malformed." >&2
+    exit 1
+  fi
+  if [ "$DRAFT_RESULT" = clean ] && [ "$DRAFT_REVIEWED_HEAD" = "$LIVE_HEAD" ]; then
+    :
+  elif [ "$DRAFT_RESULT" = skipped ] && [ "$DRAFT_REASON" = not_configured ] && [ "$DRAFT_COUNT" -eq 0 ]; then
+    :
+  else
+    echo "ERROR: draft GitHub gate has no current-head clean verdict; refuse ready transition." >&2
+    exit 1
+  fi
+fi
+if [ "$READY_ENABLED" = 0 ]; then
+  IS_DRAFT=$(gh pr view "$PR_NUMBER" --json isDraft --jq '.isDraft')
+  case "$IS_DRAFT" in
+    true)
+      ./scripts/development-workflow/pr-ownership-guard.sh --pr "$PR_NUMBER" --expected-branch "$BRANCH"
+      gh pr ready "$PR_NUMBER"
+      ;;
+    false) : ;;
+    *) echo "ERROR: draft state unavailable; refuse ready transition." >&2; exit 1 ;;
+  esac
+fi
+./scripts/development-workflow/pr-review-loop.sh "$PR_NUMBER" --branch "$BRANCH"
+```
+<!-- protocol-91-ready-transition:end -->
+
+A nonzero loop exit stops this sequence. Retain its reason (including rate-limit
+reset telemetry), address fixable findings through the existing fixer flow, and
+rerun at the current head. Never run `gh pr ready` as a workaround. For a resumed
+PR already ready, this preflight still requires fresh draft-phase evidence (or the
+identity-bound intentional release skip) before
+continuing the full loop; it does not undo an existing ready state.
+The legacy `--pre-after-clean-only` flag remains an alias for
+`--draft-github-only` during the transition release. See Protocol 93's
+**Draft GitHub gate before ready-phase reviewers** runbook for phase telemetry.
 
 After running the helper script (it reads `.ai-dev-workflow.yaml` for the platform list automatically):
 
@@ -2408,6 +2596,10 @@ loop_status=0
 cat "$loop_out"
 if [ "$loop_status" -ne 0 ]; then
   echo "Reviewer loop exited ${loop_status}: act on its RESULT=/REASON= lines (needs_fixes, escalate, ...). Do not enter Step 8a on this run."
+  if [ "$loop_status" -eq 4 ]; then
+    rewait="$(grep -E '^NO_VERDICT_REWAIT=' "$loop_out" | tail -n 1 | cut -d= -f2- || true)"
+    echo "waiting_on_reviewer: NO_VERDICT_REWAIT=${rewait:-<absent>}. Re-run Step 7 once, immediately, with the same PR_REVIEW_LOOP_RUN_ID only when it is 'available'; otherwise stop as Waiting on reviewer."
+  fi
 else
   settle_kv="$(mktemp)"
   grep -E '^(POST_CLEAN|LOCAL_AI)_[A-Z_]+=[A-Za-z0-9:_-]*$' "$loop_out" > "$settle_kv" || true
@@ -2433,9 +2625,36 @@ Interpret the result as follows:
 | `needs_fixes` and `cycle < max_cycles`  | Summary comment posted or updated automatically by the script. Increment `cycle`, dispatch the matching fixer agent, wait for a push, then run Step 7 again                                                                                                                                                                                                                                |
 | `needs_fixes` and `cycle >= max_cycles` | Summary comment posted or updated automatically by the script. Escalate to human                                                                                                                                                                                                                                                                                                          |
 | `needs_rerun` (exit code 3)             | (Reserved — not currently emitted.) Treat as `escalate` if encountered unexpectedly.                                                                                                                                                                                                                                                                                                      |
-| `waiting_on_reviewer` (exit code 4)     | Summary comment posted automatically by the script. Stop this local runner as waiting on the named reviewer; do not dispatch fixes, post duplicate triggers, apply readiness labels, enter CI readiness gates, or merge. Re-run Step 7 after the reviewer posts current-head terminal evidence or the human explicitly asks to poll again.                                                                                                                 |
+| `waiting_on_reviewer` (exit code 4) with `NO_VERDICT_REWAIT=available` | No verdict yet (#1789): a reviewer's wait budget ran out with no verdict and no failure evidence. Re-run Step 7 **once, immediately**, with the same `PR_REVIEW_LOOP_RUN_ID`. Do not dispatch a fixer, do not increment `cycle`, and do not apply a readiness label. The re-run adopts the request the first run recorded and posts no duplicate review request. |
+| `waiting_on_reviewer` (exit code 4) with `NO_VERDICT_REWAIT=used` | The automatic re-wait for this revision already ran. Stop this local runner as **Waiting on reviewer**: name `PENDING_REVIEWER`, `PENDING_REVIEW_HEAD_SHA`, the request time (`PENDING_REVIEW_REQUESTED_AT`), and the waited seconds (`PENDING_REVIEW_WAITED_SECONDS`), plus the failure statement below. Human action: re-run the reviewer loop later on the same revision, or investigate the platform if it still has not answered. Do not dispatch fixes, post duplicate triggers, apply readiness labels, enter CI readiness gates, or merge. This is not an escalation. |
+| `waiting_on_reviewer` (exit code 4) with `NO_VERDICT_REWAIT=untracked` | Stop as **Waiting on reviewer** exactly as for `used`, without the automatic re-wait: the once-per-revision bound cannot be enforced without a stable `PR_REVIEW_LOOP_RUN_ID` or a persisted waiting entry. |
+| `waiting_on_reviewer` (exit code 4) with `NO_VERDICT_REWAIT` absent or any other value | Treat as `untracked`: stop as **Waiting on reviewer** without the automatic re-wait. This fails closed, so a result the runner cannot place within the once-per-revision bound never re-runs Step 7 automatically. |
+| Result of the automatic re-wait run | Act on it with its own row in this table (`clean`, `needs_fixes`, `escalate`, or a `waiting_on_reviewer` row). |
 | `escalate` with `REASON=pr_ownership_branch_required`, `REASON=pr_ownership_mismatch`, or `REASON=pr_ownership_unverified` | The loop stopped before any side effect: the PR number passed to it is not verified as the PR of `--branch` (or, without `--branch`, of the workflow branch checked out where it ran), issue #1444. For `pr_ownership_branch_required`, re-run with `--branch <branch_name>`. No summary comment was posted and nothing on the PR changed. Do not dispatch a fixer. Re-resolve this item's PR with `gh pr view --json number` on the item branch and re-run Step 7 with that number; if the PR cannot be resolved, stop with `pr_ownership_refused` (`guardrails-enforcement.md` section 4) and include the `PR_OWNERSHIP_*` lines. |
 | `escalate`                              | Summary comment posted automatically by the script. Escalate to human                                                                                                                                                                                                                                                                                                                      |
+
+**Failure statement in a Waiting on reviewer stop (#1789).** Read it from the
+waiting run's own output, never from an earlier run:
+
+- `NO_FAILURE_DETECTED=1`: state that no reviewer failure was detected.
+- `NO_FAILURE_DETECTED=0` with a non-empty `FAILED_PEER_PLATFORMS`: do not say
+  that no failure was detected. Name each listed platform as carrying failure
+  evidence with `reviewer-failed` applied, and add the human action "fix the
+  failed peer's problem and re-run the loop". The pending platform is still
+  reported as Waiting on reviewer, and the `available` re-wait row still
+  applies.
+- `NO_FAILURE_DETECTED=0` with `FAILED_PEER_PLATFORMS` absent or empty: state
+  that `reviewer-failed` was applied, without naming a peer.
+- `NO_FAILURE_DETECTED` absent or any other value: make no failure statement
+  either way. This fails closed: an unknown value never becomes "no failure
+  was detected".
+
+The re-wait does not count toward `max_cycles`: the loop counts only
+`needs_fixes` / `needs_rerun` entries, and the runner increments `cycle` only
+when it dispatches a fixer. See "Reviewer wait budgets and outcome classes" in
+[`93-automated-reviewer-loop-protocol.md`](93-automated-reviewer-loop-protocol.md#reviewer-wait-budgets-and-outcome-classes-1789)
+for the outcome classes, budgets, precedence, and the `reviewer-failed` label
+rule.
 
 ### PR-Agent "Possible Issue" advisory labels
 
@@ -2614,8 +2833,8 @@ discarded when the orchestration session ends.
 
 | Parameter       | Value  | Description                                                        |
 | --------------- | ------ | ------------------------------------------------------------------ |
-| `poll_interval` | 2 min  | Time to wait between review status checks                          |
-| `max_wait`      | 20 min | Max wait **per fix cycle** for the reviewer to respond             |
+| `poll_interval` | 2 min  | Time to wait between review status checks (30 s on documentation branches; 60 s for Codex GitHub) |
+| `max_wait`      | per platform | Each reviewer's own wait budget: 2400 s for Bugbot, 1800 s for Codex GitHub, 1200 s for the others, configurable under `review.wait_budgets` (Protocol 93); a wait that runs out is No verdict yet, re-waited once per revision |
 | `max_cycles`    | 10     | Max number of times a fixing agent is dispatched before escalating |
 
 ---
@@ -2676,11 +2895,13 @@ checks complete (Step 8a), before merging, apply the delegated merge gate from
 `guardrails-enforcement.md` section 3 Gate 5. When `stages.<stage>.may_merge_pr`
 is `true` in the effective guardrails, assemble the evidence object and run:
 
+<!-- workflow-shell-contract: bash-zsh -->
 ```bash
+set -euo pipefail
 ./scripts/development-workflow/run-epic-risk-classifier.sh \
   --pr <pr-number> --max-risk <stages.<stage>.max_merge_risk>
 
-./scripts/development-workflow/run-epic-delegated-gate.sh --input <evidence-file>
+./scripts/development-workflow/run-epic-delegated-gate.sh --merge-session "$MERGE_SESSION" --input <evidence-file>
 ```
 
 **Security-sensitive advisory evidence (BR8, BR9, AC8, AC9)**: the assembled
@@ -2796,7 +3017,7 @@ Interpret the result as follows:
 | Exit Code | Meaning                                                                                          | Action                                              |
 | --------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
 | 0         | PR is ready (CI green, non-draft, regression label verified for implementation PRs, no unresolved threads) | Apply `ready-for-human-review`               |
-| 1         | PR is still in draft                                                                             | Run `gh pr ready` first                             |
+| 1         | PR is still in draft                                                                             | Return to the ready-transition preflight first                             |
 | 2         | `ready-for-regression` label applied this run                                                    | Re-run Step 8 (pr-ci-loop.sh) before returning here |
 | 3         | `ready-for-regression` label missing at pre-Check-4 gate                                         | Apply label, re-run Step 8                          |
 | 4         | Unresolved review threads at pre-Check-4 gate                                                    | Resolve threads, push fixes, re-run checklist       |
@@ -3094,7 +3315,7 @@ a wait of its own (issue #1574).
 
 - **All checks pass (exit 0)**: Continue to Step 8b (update tracker status) and then Step 8c (independent PR verification); only report the PR as ready after Step 8c also passes
 - **Any check fails**: Stop and fix the condition. Do not apply `ready-for-human-review` until all checks pass
-  - If `PR is still a draft` (exit 1): Human error; run `gh pr ready <pr_number>` manually
+  - If `PR is still a draft` (exit 1): Return to the ready-transition preflight; do not convert manually
   - If `missing ready-for-regression` on implementation PR (exit 2 from Check 2): The label has been applied by Check 2. **Do not continue to Check 3/4.** Re-run `pr-ci-loop.sh` (Step 8) first to wait for the e2e/regression workflow triggered by the label. Only re-enter Step 8a after CI is green again. This ensures the e2e/regression check completes before the PR is marked ready.
   - If `ready-for-regression not verified` on implementation PR (exit 3 from pre-Check-4 gate): Step 7b was not completed. Apply the label via Step 7b, run Step 8 (CI loop), and re-enter Step 8a from the beginning. This gate is a hard block — `ready-for-human-review` cannot be applied until `ready-for-regression` is verified present.
   - If `unresolved review threads found` (exit 4 from GraphQL pre-Check-4 gate): The GraphQL query returned unresolved bot-authored review threads. Address the findings, push fixes, and re-enter Step 8a from the beginning. This gate is a hard block — `ready-for-human-review` cannot be applied until the GraphQL query confirms all threads are resolved. **Do not rely on self-tracked thread state** — the GraphQL query is the authoritative check.
@@ -3335,7 +3556,8 @@ non-closing — recorded in the item report.
 
 <!-- workflow-shell-contract: bash-zsh -->
 ```bash
-./scripts/development-workflow/post-merge-cleanup.sh [--repo <product-repo>] --base <base-branch> --pr <merged-pr-number> <merged-branch>
+set -euo pipefail
+./scripts/development-workflow/post-merge-cleanup.sh --merge-session "$MERGE_SESSION" [--repo <product-repo>] --base <base-branch> --pr <merged-pr-number> <merged-branch>
 ```
 
 - Cleanup never removes the caller's own worktree (#1386). When the merged

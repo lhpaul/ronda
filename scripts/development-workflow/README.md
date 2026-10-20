@@ -1,6 +1,38 @@
 # Development workflow scripts
 
+## Merge-session admission and recovery
+
+After ordinary review/CI/readiness and before any merge-operation audit, hold, bypass, merge or follow-up mutation, follow [Protocol 94 section 3.6](../../docs/workflow/development-workflow/protocols/94-batch-merge-protocol.md#36-merge-session-admission-and-recovery). Freeze the entire selected ordered set in one authoritative owner-bound session; an unaffordable set admits no prefix. Supply the same `--merge-session` to mutating merge/cleanup helpers, and `--operation merge` to operation-owned audit calls. Direct authorized `gh pr merge` commands run through `workflow-merge-budget.py run-step` with their existing argv unchanged. Read-only risk classification remains separate; delegated merge requires the durable session plus all existing gates.
+
+Deferred reports quota/reset, recorded PR states and pending follow-up without operation-owned remote writes; fresh selected PRs stay unmerged, while recovery deferral retains historical merged/uncertain facts. Waiting records a verified queue/auto-merge submission, stops subsequent selected merges and leaves merge-dependent follow-up pending. Interrupted retains completed/uncertain/pending work locally even if every API fails; stop further selected merges and use explicit verified recovery without duplicate submission or uncertain mutation replay. Completed requires all owned planned follow-up independently verified, including tracker and audit. Budget admission grants no risk, checkpoint, admin or deletion authority. Report the session recovery command together with the existing Ground-Truth Completion Verification before claiming a workflow terminal outcome.
+
 Scripts used by the staged AI development workflow. Referenced by `docs/workflow/development-workflow/` and by the Codex skills in `.agents/skills/` and `.codex/skills/`. Run from the repository root.
+
+## PR-Agent publication runtime
+
+`pr-agent-runtime.py` installs the pinned PR-Agent review-composer and final
+GitHub publication hooks before invoking the image's original action runner.
+`python3 scripts/development-workflow/pr-agent-runtime.py --image` prints the
+image reference without live work. The GitHub workflow supplies its context,
+mounts and existing model configuration; do not invoke the live mode on the host.
+
+Oversized review publications prioritize complete original summaries/verdicts
+over history, recognized ancillary content and omission notices. Unsafe or
+non-retainable content produces a manual-verification diagnostic. Within-limit
+reviews and non-review limiter behavior remain unchanged. Omission logs contain
+reasons/counts; absent state never claims complete history or resolution.
+
+<!-- workflow-shell-contract: bash-zsh -->
+```bash
+bash scripts/development-workflow/tests/test-pr-agent-runtime.sh
+bash scripts/development-workflow/tests/test-pr-agent-runtime.sh --image-smoke
+```
+
+The image smoke test has networking disabled and mocks final create/edit calls.
+It verifies compatibility before any live runner invocation. Consumer sync
+includes the launcher alongside the shared PR-Agent workflow. See the
+[integration guide](../../docs/workflow/development-workflow/integrations/pr-agent.md#publication-runtime-and-comment-limits)
+for image upgrades, omission behavior and reversal/recovery limits.
 
 ## Running the test suite
 
@@ -27,37 +59,58 @@ enough to detect a failure even though each script's own PASS/FAIL lines keep
 scrolling past. Individual `test-*.sh` files typically run in a few seconds
 each and are safe to invoke with a default foreground timeout.
 
-Note that the full harness is heavily lopsided: `test-pr-review-loop.sh` alone
-is roughly half the total wall clock (~13 minutes of ~27), while the median
-suite finishes in a few seconds.
+Note that the full harness is lopsided: the `test-pr-review-loop*.sh` suites
+together are the largest share of the total wall clock, while the median suite
+finishes in a few seconds.
 
-### Iterating on `test-pr-review-loop.sh`
+### Iterating on the `test-pr-review-loop*.sh` suites
 
-That suite is ~13.6k lines and ~900 assertions, and its runtime is extremely
-lopsided (issue #1562): **Area 13 is ~94% of it** — 156 `codex-github-reviewer.sh`
-invocations that each really sleep — while the other 27 areas together take
-about 13 seconds. Use `--area` when you are not working on Area 13:
+The `pr-review-loop.sh` harness is ~2,900 assertions split across ten suites
+(issue #1876). As one 24k-line file it needed ~17 GB of memory for ShellCheck
+to lint, enough to get the smaller runners private repositories use shut down
+mid-step. The suites share their preamble through
+`tests/lib/pr-review-loop-harness.sh`:
+
+| Suite | Areas |
+| ----- | ----- |
+| `test-pr-review-loop.sh` | 0a–10b core, 18 suite ergonomics, 1876 split size |
+| `test-pr-review-loop-cycles-labels.sh` | 10c cycle limits, 11–12b labels and rate-limit gate |
+| `test-pr-review-loop-failure-paths-1.sh` … `-4.sh` | 13 PR #801 failure paths |
+| `test-pr-review-loop-release-bugbot.sh` | 14–16 release guard and Bugbot |
+| `test-pr-review-loop-pr-agent-coderabbit.sh` | 17 PR-Agent, CodeRabbit, 19, 20, 1648 |
+| `test-pr-review-loop-staged-gates.sh` | 1649–1692 expensive gate, ledgers, staging |
+| `test-pr-review-loop-no-verdict-yet.sh` | 1789 wait budgets and no-verdict-yet |
+
+Area 13 is still the slow one: about 156 `codex-github-reviewer.sh` invocations
+that each really sleep, so each failure-paths suite takes a minute or two while
+most of the others take seconds. Each suite accepts `--area`, which filters
+that suite's own areas:
 
 <!-- workflow-shell-contract: bash-zsh -->
 
 ```bash
-# What areas are there?
+# What areas does a suite have?
 bash scripts/development-workflow/tests/test-pr-review-loop.sh --list-areas
 
 # Run one area (matches an area number exactly, or any substring of its title)
 bash scripts/development-workflow/tests/test-pr-review-loop.sh --area 1
 bash scripts/development-workflow/tests/test-pr-review-loop.sh --area haystack
-bash scripts/development-workflow/tests/test-pr-review-loop.sh --area 0a --area 12b
+bash scripts/development-workflow/tests/test-pr-review-loop-cycles-labels.sh --area 12b
 ```
 
 A filtered run still prints the summary and still exits non-zero if anything in
 the selected areas failed.
 
-The suite re-executes itself from a temp-file snapshot. Bash reads a script
-incrementally, so editing this file mid-run used to make the running shell pick
-up part of the new text — during the #1531 work that produced a run whose
+Keep every suite small. `test-pr-review-loop.sh` checks that each suite, and the
+shared library, stays at or under 4,000 lines. When a suite gets close, move
+areas into a new `test-pr-review-loop-<topic>.sh` that sources the library,
+with the same `# covers:` lines as the other suites. Do not raise the cap.
+
+Each suite re-executes itself from a temp-file snapshot. Bash reads a script
+incrementally, so editing a suite mid-run used to make the running shell pick
+up part of the new text. During the #1531 work that produced a run whose
 pass/fail counts matched neither version of the file, with nothing to indicate
-it. You can now edit it freely while a run is in flight.
+it. You can now edit freely while a run is in flight.
 
 ### How CI decides which suites to run
 
@@ -293,7 +346,7 @@ Usage:
 
 <!-- workflow-shell-contract: bash-zsh -->
 ```bash
-bash ./scripts/development-workflow/batch-merge.sh recheck-remaining \
+bash ./scripts/development-workflow/batch-merge.sh --merge-session "$MERGE_SESSION" recheck-remaining \
   --prs 101,102,103 \
   --after-merged-pr 101 \
   --base develop \
@@ -1020,6 +1073,48 @@ Run focused coverage with:
 bash scripts/development-workflow/tests/test-sync-template-mode-scopes.sh
 ```
 
+### `check-sync-manifest-coverage.py`
+
+Reports files that synced test suites read but `sync-manifest.yaml` does not
+ship, and checks a downstream checkout for the manifest's `required_additions`
+(#1874). Sync-template Step 0.5 runs it from the template source; the template's
+own CI runs it through its test suite so the manifest cannot fall behind a new
+test.
+
+Usage:
+
+<!-- workflow-shell-contract: bash-zsh -->
+```bash
+# Template: every file a synced suite reads must be shipped, project-owned, or exempt.
+python3 scripts/development-workflow/check-sync-manifest-coverage.py \
+  --repo-root . --role single_repo
+
+# Consumer pre-flight: also report additive updates project-owned files still need.
+python3 <template>/scripts/development-workflow/check-sync-manifest-coverage.py \
+  --repo-root <template> --role single_repo --consumer-root .
+```
+
+What it does:
+
+- Scans the suites the role receives for repository paths they read, resolving
+  `VAR="$REPO_ROOT/dir"` assignments and Python `ROOT / "a" / "b"` joins, and
+  counting `# covers:` declarations. Other comment lines and JSON key values
+  (`"path": "..."`) are skipped.
+- Prints `UNCOVERED`, `PROJECT_OWNED`, and `EXEMPT` lines (`--show-covered`
+  adds `COVERED`). Exemptions come from the manifest's
+  `sync_coverage_exemptions`, each with a reason.
+- With `--consumer-root`, prints `REQUIRED_ADDITION_MISSING`, `_PRESENT`, or
+  `_NOT_APPLICABLE` for each `required_additions` entry.
+- Exits `0` when clean, `1` on any uncovered path or missing required
+  addition, and `2` when the manifest or tracked file list cannot be read.
+
+Run focused coverage with:
+
+<!-- workflow-shell-contract: bash -->
+```bash
+bash scripts/development-workflow/tests/test-check-sync-manifest-coverage.sh
+```
+
 #### `hub-sync-product-repos.sh`
 
 Safely prepares clean product repository checkouts.
@@ -1108,7 +1203,189 @@ GitHub-form `git_url` values such as `git@github.com:owner/repo.git` and
 resolved, it fails for that product repository instead of falling back to the
 workflow hub repository.
 
+
+### `workflow-risk-paths.py`
+
+Read-only configuration/matching helper used by `run-epic-risk-classifier.sh`.
+It reads normalized classifier JSON from stdin and returns an object with
+`matches`, keyed by changed path. Each match records the highest project risk
+and all applicable reasons. A missing or empty map returns no matches; invalid
+configuration or path evidence exits nonzero without a risk verdict. The
+classifier rebuilds this internal evidence even in `--input` mode, then applies
+its own built-in categories, immutable sensitive/tooling floors and PR gates.
+
+Arguments are `--repo-root <project-policy-root>` and optional
+`--product-repo <stable-product-name>`. Policy comes only from the shared
+`.ai-dev-workflow.yaml`, using the existing strict YAML reader and PyYAML
+toolchain. Hub product rules are selected in the hub's shared product entry;
+they do not require a local product checkout or inherit the hub's map.
+
+See [Project Path Risk Maps](../../docs/workflow/development-workflow/guardrails.md#project-path-risk-maps)
+for rule shape, full-path glob grammar, precedence, project selection and
+configuration-error repair. Public classifier CLI/result keys remain unchanged.
+Ordinary release-named docs no longer trigger a release-tooling floor. Missing
+changed-file evidence still yields High risk, governed by the existing ceiling.
+
+### `workflow-merge-budget.py`
+
+Creates a private, owner-bound local journal for an authorized merge sequence. `begin` receives selected identities and planned phases, resolves owning issue/cleanup targets read-only, and samples actual GraphQL quota; it does not accept caller quota or success flags. The returned JSON includes the absolute `session` path. The complete lifecycle and ordered outcomes are normative in [Protocol 94 section 3.6](../../docs/workflow/development-workflow/protocols/94-batch-merge-protocol.md#36-merge-session-admission-and-recovery).
+
+A manifest freezes every selected PR, its reviewed head/base/root and planned step identities. For example, replace every illustrative identity/path/head with current approved readiness evidence before calling `begin`:
+
+```json
+{
+  "ownerRoot": "/path/to/artifact-repository",
+  "prs": [{
+    "repo": "example/project",
+    "pr": 42,
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "base": "develop",
+    "root": "/path/to/participant-repository",
+    "steps": [
+      {"id": "disposition-pre", "phase": "audit", "auditRepo": "example/project", "auditTarget": 42, "marker": "<!-- run-epic:pr-disposition -->"},
+      {"id": "merge_api", "phase": "merge_api"},
+      {"id": "cleanup", "phase": "cleanup"},
+      {"id": "disposition-final", "phase": "audit", "auditRepo": "example/project", "auditTarget": 42, "marker": "<!-- run-epic:pr-disposition -->"}
+    ]
+  }]
+}
+```
+
+Add the required owning ledger targets and route-specific phases before admission; a batch manifest contains the complete ordered list, not only the next PR. Distinct pre/final audit step IDs may update the same existing stable marker without replaying a completed step. The non-audit `phases` shorthand is available for simple operations; audit phases require their explicit destination/marker. `policySkipped` may declare `remote_delete`/`local_cleanup` only under the already resolved cleanup policy; it grants no deletion or skip authorization and retained-branch evidence must be verified.
+
+Public commands are `begin --input <manifest> [--repo-root <owner>] [--reserve <nonnegative integer>]`, `run-step --session <state.json> --repo <owner/repo> --pr <number> --step <declared-id> --phase <phase> -- <argv...>`, `resume --session <state.json>`, and `report --session <state.json> [--final]`. `before-step`/`after-step` serve nested runtime hooks; only declared identities/steps can execute. A direct merge uses the declared `merge_api` step and preserves its existing `gh pr merge` arguments. For an audit, supply `--expected-file` with the exact rendered body so independent live read-back can discharge it. Do not execute a completed or uncertain step again; explicit resume reconciles live evidence first.
+
+The read-only `check --require-merge-scope` used by the delegated gate additionally
+requires frozen merge, merge verification, cleanup and owning follow-up duties.
+An admitted audit-only session can execute its declared audit without granting
+merge authority. Merge routes derive mandatory follow-up during `begin`, even
+when a caller provides only the merge phase. Linear recovery follows the
+[existing bridge](../../docs/workflow/development-workflow/integrations/linear.md#durable-merge-operation-bridge),
+with fresh proof bound to one recovery continuation.
+
+Optional `--final` reporting samples quota without erasing verified progress when the remote read fails; ordinary reporting uses the local record offline. Reports retain each readable sample, component estimate/margin/reserve, verified PR states, uncertain actions, pending follow-up and recovery command. The journal remains under `<owner-git-common-dir>/workflow-merge-budget/<session-id>/state.json`; do not commit or delete it during closeout or a coordinated reversal.
+
+#### Explicit paired releases
+
+Add `"releasePair":{"version":"v1.2.3","productionPr":42,"backportPr":43}`
+to the manifest and select exactly those two PRs in that order. Both bind the
+same repository, Git common directory, checkout, reviewed head and release
+branch ending in that version, with the existing optional `v` prefix accepted
+for identity. The frozen version preserves the validated branch spelling for
+projection, provider markers and cleanup; component publication tags retain
+their opaque evidence identity. Production targets `main`; backport targets its
+distinct approved base. Each selection includes merge and cleanup phases.
+Component pairing additionally binds `productRepo` and absolute `evidenceFile`
+through the existing component target/evidence contract. A hub-owned pair
+selecting a different repository must supply both before inspection; omission
+is refused during admission and scope rechecks before execution or shared cleanup.
+Declared components require an independently validated component binding in
+their projection. A release-looking
+branch alone grants no exception.
+Pairing preserves the existing cross-repository remote-cleanup veto: a fork head
+never creates a deletion duty for a same-named origin branch.
+Unknown or conflicting frozen remote ownership refuses pairing.
+Before a declared paired remote deletion, the actual origin ref must match the
+frozen head. An exact expected-SHA deletion condition also refuses a concurrent
+advance; changed tips preserve their commits and leave the journal incomplete
+for explicit recovery after the approved ref is restored.
+
+Admission derives production's `publication` step and shared backport issue
+`release_stamp:<id>`, `tracker:<id>:pre` where supported, and GitHub
+`release_finalize` steps. It moves branch cleanup/retention to backport and
+retains production's cleanup completion barrier. Declare all audit/ledger
+destinations as usual; only production final audits may explicitly set
+`deferUntilPairCleanup:true`. Duties and conservative read/proof costs contribute
+to whole-pair admission. A separate provider-proof pool reserves at least 150
+units per stamp, tracker transition and finalization duty, plus the estimation
+margin. Its weight grows to 75 times the number of branch-cleanup/retention
+duties when that exceeds 150, covering every repeated branch proof and the
+tracker's bounded pagination.
+It includes completed provider duties while any follow-up remains pending,
+because cleanup, completion and recovery independently reread their proofs.
+Missing scope or insufficient quota admits no prefix.
+
+Read-only `prepare-release-post-merge-cleanup.sh --inspect-targets --release-head
+<reviewed SHA>` extracts the exact finalized version section from the committed
+changelog. It paginates the owning Project's Merged candidates and includes only
+closing or cross-referenced merged-PR commits in the selected release repository,
+proven ancestors of that head.
+Known merged references in sibling product repositories are excluded from a
+shared hub Project's selected release; unknown owning PRs still defer admission.
+Recovery reads statuses from the frozen Project ID, regardless of current
+project configuration. After exhausting an issue's Project connection without
+the owning card, paired read-back reuses the existing filtered board reader
+with the frozen Project ID and exact repository/issue join, without cached
+results. Unreadable or conflicting primary evidence is never replaced by a
+permissive board value. Missing, malformed,
+truncated or ambiguous evidence defers; current tag/Release timestamps are not
+required. Working-copy changelog edits cannot change reviewed scope.
+Read-only `--target-root <checkout>` keeps a selected linked release checkout
+separate from the session owner's `--repo-root`; component targets must match
+their resolved checkout. This option is refused for mutating cleanup.
+Shared cleanup first verifies authorized product branch cleanup or retention,
+then permits release stamps, Released tracker transitions and marker closure.
+Independent provider proof also rechecks that product-cleanup evidence.
+Before every stamp, tracker transition or marker finalization, the executor
+resolves its effective provider, repository, Project ID and Linear marker again.
+Any difference from the frozen binding refuses execution before a provider
+intent or write, including configuration changes introduced by cleanup's
+fast-forward. This bounded binding read uses the provider-proof reserve and
+does not reproject the issue scope. Restore the admitted binding before recovery.
+
+Paired `merge_api` executors require regular `gh pr merge N --repo REPO --merge
+--match-head-commit SHA` arguments, preserving argv and existing authority.
+The guard parses option values before execution: enabled `--merge` is required,
+duplicate/conflicting booleans and every deletion or alternative-method form
+are refused, including assignments and short clusters. Unknown options and
+identity aliases are refused; supported commit-text options retain their values.
+Independent verification requires exactly two parents, including the reviewed
+head. Run `merge_verify`, then production `publication -- true`; its read-back
+dereferences lightweight/annotated version tags and verifies a published
+non-draft GitHub Release at the production merge. Backport rechecks publication
+before merge. Shared cleanup and each release follow-up require both merges and
+publication; only this validated pair may defer earlier shared cleanup.
+
+<!-- workflow-shell-contract: bash-zsh -->
+```bash
+bash scripts/development-workflow/prepare-release-post-merge-cleanup.sh \
+  v1.2.3 --backport-base develop --merge-session "$MERGE_SESSION" --json
+```
+
+This entrypoint validates frozen caller/owner/version/base/component scope,
+enters the declared shared cleanup executor, invokes existing provider helpers
+through nested journal steps and verifies every actual effect. It preserves
+component cleanup locks, owning hub tracker routing, linked worktrees and
+declared retention; it never deletes worktrees. Authorized local deletion reuses
+a clean frozen checkout already on the backport base, fast-forwards it and
+detaches the selected checkout onto that updated base. Unfrozen ownership or
+tracked base changes refuse cleanup. Progress goes to stderr, with
+one session JSON document on stdout. Production cleanup completes only after
+shared backport cleanup verifies. Pending final audits still prevent Completed.
+
+GitHub stamp proof reads each owning issue's version milestone; finalization
+reads the uniquely matching closed milestone. Linear remains deferred until
+the existing `record-provider-result` bridge receives independent owning proof.
+For `--phase release_stamp`, supply `releaseVersion`, frozen `releaseMarker`
+(configured field/value or release label), `markerId`, provider/repo/issue,
+distinct mutation/read request IDs and a fresh `observedAt`; tracker proof keeps
+its existing statusName/statusId contract. Both proof kinds bind declared intent
+and recovery generation. Guidance or best-effort success never discharges them.
+
+At interruptions after production merge, during publication, after backport or
+partial cleanup, use `resume --session "$MERGE_SESSION"` before continuation.
+Fresh proof reconciles completed effects; only verified outstanding intents
+become pending. Unknown effects preserve historical merged/uncertain facts,
+even offline. Waiting never resubmits a queued merge. Normal `report` is local;
+`--final` additionally samples quota. Completed requires all declared duties,
+including audits, independently verified; report the recovery command and
+Ground-Truth Completion Verification. Preserve journals and a compatible reader
+before reverting this optional contract; ordinary sessions need no migration.
+
 ### `post-merge-cleanup.sh`
+
+Paired release operators use `prepare-release-post-merge-cleanup.sh
+--merge-session <state.json>` instead; see the contract above.
 
 After a development PR is merged and the remote branch deleted, sync with
 origin, switch to the merged PR's base branch, pull, and delete the local
@@ -1118,7 +1395,8 @@ Usage:
 
 <!-- workflow-shell-contract: bash-zsh -->
 ```bash
-./scripts/development-workflow/post-merge-cleanup.sh [--base develop-workflow-hub-mode] [--pr merged-pr-number] [BRANCH]
+set -euo pipefail
+./scripts/development-workflow/post-merge-cleanup.sh [--merge-session session-path] [--base develop-workflow-hub-mode] [--pr merged-pr-number] [BRANCH]
 ```
 
 - With `--pr`: bind implementation remote branch cleanup to the exact merged PR
@@ -1170,6 +1448,7 @@ Usage:
 
 <!-- workflow-shell-contract: bash-zsh -->
 ```bash
+set -euo pipefail
 # Discovery mode — auto-discover all ready-for-human-review PRs targeting develop
 ./scripts/development-workflow/batch-merge.sh discover
 
@@ -1177,7 +1456,7 @@ Usage:
 ./scripts/development-workflow/batch-merge.sh discover --prs 101,102,103
 
 # Per-PR merge — attempt to merge one reviewed PR into develop (called in a loop by the agent)
-./scripts/development-workflow/batch-merge.sh merge --pr 101 --expected-head-sha <reviewed-headRefOid>
+./scripts/development-workflow/batch-merge.sh --merge-session "$MERGE_SESSION" merge --pr 101 --expected-head-sha <reviewed-headRefOid>
 ```
 
 Outputs structured `KEY=VALUE` lines. See the script header for the full output format.

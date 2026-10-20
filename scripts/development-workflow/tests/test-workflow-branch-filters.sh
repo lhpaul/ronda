@@ -180,7 +180,7 @@ bf_glob_matches() {
     esac
     i=$((i+1))
   done
-  printf '%s' "$sample" | grep -qE "^${re}\$"
+  grep -qE "^${re}\$" <<< "$sample"
 }
 
 # Is <sample> included by a positive `branches:` list?
@@ -288,7 +288,7 @@ for wf in "$WF_DIR"/*.yml "$WF_DIR"/*.yaml; do
   [ -n "$block" ] || continue
   # Only workflows that gate on `develop` are in scope; a main-only workflow
   # (release tagging) legitimately never runs on an integration branch.
-  printf '%s\n' "$block" | grep -qx "develop" || continue
+  grep -qx "develop" <<< "$block" || continue
   # update-tracker-on-merge.yml is deliberately out of scope: it closes issues
   # and writes tracker status on merge, so extending it to integration branches
   # is a tracker-lifecycle decision (does a sub-item merged into develop-<slug>
@@ -305,8 +305,21 @@ for wf in "$WF_DIR"/*.yml "$WF_DIR"/*.yaml; do
   fi
 done
 
-run_test "some_workflows_gate_on_develop" "yes" "$([ "$checked" -gt 0 ] && echo yes || echo no)"
-run_test "develop_gated_workflows_cover_integration_branches" "" "$missing"
+# Consumer workflows and their triggers are project-owned (including shared
+# sync-manifest entries). Keep the coverage diagnosis actionable without making
+# the template's default integration-branch policy a consumer CI requirement.
+# shellcheck source=scripts/development-workflow/workflow-lib.sh
+source "$REPO_ROOT/scripts/development-workflow/workflow-lib.sh"
+IS_TEMPLATE="$(workflow_template_is_template "$REPO_ROOT/.ai-dev-workflow.yaml")"
+if [ "$IS_TEMPLATE" = "true" ]; then
+  run_test "some_workflows_gate_on_develop" "yes" "$([ "$checked" -gt 0 ] && echo yes || echo no)"
+  run_test "develop_gated_workflows_cover_integration_branches" "" "$missing"
+else
+  echo "SKIP: live integration-branch coverage assertions (consumer-owned workflows)"
+  if [ -n "$missing" ]; then
+    echo "ACTION: before using develop-<slug> integration branches, review pull_request filters and add develop-** where checks are required: $missing"
+  fi
+fi
 
 # A hardcoded slug is not coverage: it reads as covered while the current
 # integration branch is absent (the zeki-cl/zeki-platform trap in #1525).
@@ -333,7 +346,11 @@ for wf in "$WF_DIR"/*.yml "$WF_DIR"/*.yaml; do
     esac
   done <<< "$(branches_for_trigger "$wf" pull_request)"
 done
-run_test "no_hardcoded_integration_branch_slugs" "" "$hardcoded"
+if [ "$IS_TEMPLATE" = "true" ]; then
+  run_test "no_hardcoded_integration_branch_slugs" "" "$hardcoded"
+elif [ -n "$hardcoded" ]; then
+  echo "ACTION: replace stale integration-branch slugs with develop-** where appropriate: $hardcoded"
+fi
 
 # A `push:` filter's `branches:` list is a different trigger than
 # `pull_request:` — PR checks are not gated by it. A parser that folds both
@@ -542,10 +559,10 @@ run_test "pull_request_target_branches_are_trigger_scoped" "$(printf 'develop\nd
 # Planted violation: the flattened view is what used to be checked, and it
 # contains develop-**, so the old logic passed this workflow.
 run_test "flattened_view_would_have_passed_this" "yes" \
-  "$(branch_filter_block "$FIXTURE_DIR/pr-vs-pr-target.yml" | grep -qx 'develop-\*\*' && echo yes || echo no)"
+  "$(branch_filter_block "$FIXTURE_DIR/pr-vs-pr-target.yml" | grep -x 'develop-\*\*' > /dev/null && echo yes || echo no)"
 # Trigger-scoped, the pull_request filter is correctly seen as missing it.
 run_test "trigger_scoped_view_catches_the_gap" "no" \
-  "$(branches_for_trigger "$FIXTURE_DIR/pr-vs-pr-target.yml" pull_request | grep -qx 'develop-\*\*' && echo yes || echo no)"
+  "$(branches_for_trigger "$FIXTURE_DIR/pr-vs-pr-target.yml" pull_request | grep -x 'develop-\*\*' > /dev/null && echo yes || echo no)"
 
 # Argument validation: a missing or unreadable file must be a reported error,
 # not a shell failure or a Python traceback, and must not read as "no filter".

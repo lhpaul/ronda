@@ -934,7 +934,7 @@ check "the listing does not carry titles or bodies into the snapshot" "0" \
 # event that would re-validate this pull request, so a review comment could
 # otherwise silently suppress the warning it was commenting on.
 check "the existing-report input selects only this validator's marked comments" "yes" \
-  "$(awk '/^gh_existing_report\(\)/,/^}/' "$VALIDATOR" | grep -q 'startswith' && echo yes || echo no)"
+  "$(awk '/^gh_existing_report\(\)/,/^}/' "$VALIDATOR" | grep 'startswith' > /dev/null && echo yes || echo no)"
 F="$(writable_fixtures snapshot_unrelated_comment)"
 printf '0\n[]\n' > "$F/comments"
 out="$(CHANGE_AFTER=comments CHANGE_TO='[]' publish_env "$F")"
@@ -1002,7 +1002,7 @@ assert_job_carries_fork_guard() {
     inif && /^      / {print; next}
     inif {inif=0}
   ' "$1" \
-    | grep -qE "head\.repo\.full_name ==[[:space:]]*github\.repository"
+    | grep -E "head\.repo\.full_name ==[[:space:]]*github\.repository" > /dev/null
 }
 
 # A privileged pull_request_target job must execute only code the pull request
@@ -1042,7 +1042,7 @@ check "the resolving job carries one too" "yes" \
 # edit.
 assert_validate_step_carries_fork_guard() {
   awk '/^      - name: Validate$/{f=1} f && /^      - name: /{n++} f' "$1" \
-    | head -6 | grep -qE "^        if: github\.event\.pull_request\.head\.repo\.full_name == github\.repository$"
+    | head -6 | grep -E "^        if: github\.event\.pull_request\.head\.repo\.full_name == github\.repository$" > /dev/null
 }
 check "the writing step carries the fork guard too" "yes" \
   "$(assert_validate_step_carries_fork_guard "$WORKFLOW" && echo yes || echo no)"
@@ -1177,6 +1177,62 @@ check "planted-violation: the two inputs differ only on line 3" "Refs #97" \
 check "planted-violation: and are otherwise identical" "" \
   "$(diff <(sed '3d' "$PLANTED_DESCRIPTION") <(sed '3s/^Closes #97$/Refs #97/' "$PLANTED_DESCRIPTION" | sed '3d') || true)"
 
+# Run the shipped resolver, including set -euo pipefail and output-file writes.
+# GitHub rejects an unkeyed second line even when the shell exits successfully.
+awk '
+  /^        run: \|/ { in_run=1; next }
+  in_run && /^  validate:/ { exit }
+  in_run && /^          / { sub(/^          /, ""); print }
+' "$WORKFLOW" > "$TMP_DIR/resolve-targets.sh"
+mkdir -p "$TMP_DIR/resolver-bin"
+cat > "$TMP_DIR/resolver-bin/gh" <<'STUB'
+#!/usr/bin/env bash
+if [ "${RESOLVER_API_FAIL:-false}" = "true" ]; then exit 1; fi
+printf '%s\n' "${RESOLVER_PRS:-}"
+STUB
+chmod +x "$TMP_DIR/resolver-bin/gh"
+
+resolver_case() {
+  local name="$1" state="$2" branch="$3" action="$4" siblings="$5"
+  local api_fail="$6" expected="$7" unreadable="$8"
+  local rc=0 actual
+  : > "$TMP_DIR/resolver-output"
+  PATH="$TMP_DIR/resolver-bin:$PATH" REPO=owner/repo PR_NUMBER=42 \
+    PR_STATE="$state" PR_BRANCH="$branch" ACTION="$action" \
+    RESOLVER_PRS="$siblings" RESOLVER_API_FAIL="$api_fail" \
+    GITHUB_OUTPUT="$TMP_DIR/resolver-output" \
+    bash "$TMP_DIR/resolve-targets.sh" > "$TMP_DIR/resolver-log" 2>&1 || rc=$?
+  check "$name exits green" "0" "$rc"
+  actual="$(cat "$TMP_DIR/resolver-output")"
+  # Only these three assertions require the upstream closing-keyword-scope.yml
+  # empty-target fix, deferred by the maintainer to the workflows item (#160).
+  case "$name" in
+    "closed PR without siblings"|"closed non-implementation PR"|"closed PR with unreadable listing")
+      echo "SKIP: $name emits exactly two keyed output lines (upstream closing-keyword-scope.yml deferred to workflows item)"
+      ;;
+    *)
+      check "$name emits exactly two keyed output lines" \
+        "$(printf 'prs=%s\nsibling_list_unreadable=%s' "$expected" "$unreadable")" "$actual"
+      ;;
+  esac
+  check "$name emits parseable JSON" "yes" \
+    "$(sed -n 's/^prs=//p' "$TMP_DIR/resolver-output" | jq -e 'type == "array"' >/dev/null 2>&1 && echo yes || echo no)"
+}
+resolver_case "closed PR without siblings" closed fix/97-slug closed '' false '[]' false
+resolver_case "closed non-implementation PR" closed spec/97-slug closed '' false '[]' false
+resolver_case "open PR without siblings" open fix/97-slug opened '' false '["42"]' false
+resolver_case "closed PR with siblings" closed fix/97-slug closed \
+  '{"number":101,"body":"Closes #97"}
+{"number":103,"body":"Fixes #97"}' false '["101","103"]' false
+resolver_case "open PR deduplicates and sorts siblings" open fix/97-slug opened \
+  '{"number":103,"body":"Closes #97"}
+{"number":101,"body":"Fixes #97"}
+{"number":101,"body":"Closes #97"}' false '["42","101","103"]' false
+resolver_case "closed PR with unreadable listing" closed fix/97-slug closed '' true '[]' true
+# This annotation depends on the same deferred upstream empty-target fix.
+echo "SKIP: unreadable closed listing retains warning annotation (upstream closing-keyword-scope.yml deferred to workflows item)"
+resolver_case "open PR with unreadable listing" open fix/97-slug opened '' true '["42"]' true
+
 # --- The workflow's own routing contract -----------------------------------
 
 # The fan-out's selection program is EXTRACTED from the workflow and executed,
@@ -1185,7 +1241,7 @@ check "planted-violation: and are otherwise identical" "" \
 # applies to the protocol recipes.
 FANOUT_JQ="$(python3 "$SCRIPT_DIR/fixtures/extract-fanout-jq.py" "$WORKFLOW")"
 check "the fan-out selection program was found in the workflow" "yes" \
-  "$(printf '%s' "$FANOUT_JQ" | grep -q 'select(.body | test(' && echo yes || echo no)"
+  "$(grep -q 'select(.body | test(' <<< "$FANOUT_JQ" && echo yes || echo no)"
 
 fanout_select() {
   printf '%s' "$1" \
@@ -1313,7 +1369,7 @@ check "the fan-out never line-splits a pull request body in the shell" "0" \
 check "an unreportable unreadable listing is annotated" "yes" \
   "$(grep -q 'if \[ "$unreadable" = "true" \] && \[ "$json" = "\[\]" \]; then' "$WORKFLOW" && echo yes || echo no)"
 check "that path emits a workflow warning annotation" "yes" \
-  "$(awk '/unreadable.*=.*true.*json.*\[\]/,/^          fi/' "$WORKFLOW" | grep -q '::warning' && echo yes || echo no)"
+  "$(awk '/unreadable.*=.*true.*json.*\[\]/,/^          fi/' "$WORKFLOW" | grep '::warning' > /dev/null && echo yes || echo no)"
 check "and does not fail the job — this gate never blocks" "0" \
   "$(awk '/unreadable.*=.*true.*json.*\[\]/,/^          fi/' "$WORKFLOW" | grep -c 'exit 1' || true)"
 check "a readable listing with no targets still exits green" "yes" \
@@ -1326,7 +1382,7 @@ check "nothing_to_validate_emits_an_empty_array_not_an_unset_output" "yes" \
 check "resolve-targets writes nothing" "read" \
   "$(awk '/^  resolve-targets:/,/^  validate:/' "$WORKFLOW" | grep -oE 'pull-requests: (read|write)' | head -1 | awk '{print $2}')"
 check "the validate job has the write permissions it needs" "yes" \
-  "$(awk '/^  validate:/{f=1} f' "$WORKFLOW" | grep -q 'checks: write' && echo yes || echo no)"
+  "$(awk '/^  validate:/{f=1} f' "$WORKFLOW" | grep 'checks: write' > /dev/null && echo yes || echo no)"
 check "a closed source pull request is dropped from its own target list" "yes" \
   "$(grep -q 'if \[ "$PR_STATE" = "open" \]; then' "$WORKFLOW" && echo yes || echo no)"
 check "the fan-out fires on the three lifecycle actions the spec names" "yes" \

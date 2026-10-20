@@ -12,11 +12,18 @@
 # downstream sync.
 #
 # Usage: bash scripts/development-workflow/tests/test-consumer-tree-test-gating.sh
+# covers: scripts/development-workflow/tests/test-apply-readiness-labels.sh
+# covers: scripts/development-workflow/tests/test-review-doctrine-lint.sh
+# covers: scripts/development-workflow/tests/test-reviewer-loop-guard-workflow.sh
+# covers: scripts/development-workflow/tests/test-workflow-branch-filters.sh
+# covers: scripts/development-workflow/tests/test-step7a-surface-consistency.sh
+# covers: scripts/development-workflow/tests/test-workflow-portfolio-scan.py
 # covers: scripts/development-workflow/workflow-lib.sh
 # covers: scripts/development-workflow/tests/test-reviewer-loop-guard-workflow.sh
 # covers: scripts/development-workflow/tests/test-placeholder-workflows-opt-in.sh
 # covers: scripts/development-workflow/tests/test-batch-merge-recheck-remaining.sh
 # covers: scripts/development-workflow/tests/test-local-ai-reviewer-pr-review-loop-dispatch.sh
+# covers: scripts/development-workflow/tests/test-pr-review-loop-pr-agent-coderabbit.sh
 
 set -euo pipefail
 
@@ -455,7 +462,9 @@ run_test "placeholder_guard_is_load_bearing" "yes" \
 
 # --- the two suites too expensive to nest -----------------------------------
 # test-batch-merge-recheck-remaining.sh mocks a full gh surface, and
-# test-pr-review-loop.sh runs for roughly 13 minutes; re-running either inside
+# the pr-review-loop harness (the PR-Agent area now lives in
+# test-pr-review-loop-pr-agent-coderabbit.sh, #1876) sources the whole
+# reviewer loop and real reviewer companions; re-running either inside
 # this suite would dominate its cost. Assert structurally instead that the
 # gated assertion sits *inside* the guard block, which a comment or a dead
 # branch cannot satisfy. Both still run for real in CI, in both trees.
@@ -513,7 +522,7 @@ run_test "batch_merge_assertion_inside_is_template_guard" "yes" \
   "$(assertion_is_inside_guard test-batch-merge-recheck-remaining.sh \
       'workflow_template_is_template' 'placeholder_e2e_workflow_name_synced')"
 run_test "pr_review_loop_assertion_inside_reviewer_guard" "yes" \
-  "$(assertion_is_inside_guard test-pr-review-loop.sh \
+  "$(assertion_is_inside_guard test-pr-review-loop-pr-agent-coderabbit.sh \
       'workflow_config_review_github_reviewer_configured' 'workflows/pr-agent.yml')"
 
 # --- assertions that must not come back -------------------------------------
@@ -562,7 +571,7 @@ echo "=== Area 5: PyYAML provisioning planted-violation proof ==="
 branch_filters_suite="$REPO_ROOT/scripts/development-workflow/tests/test-workflow-branch-filters.sh"
 
 run_test "pyyaml_gate_line_is_where_expected" "yes" \
-  "$(if sed -n '245p' "$branch_filters_suite" | grep -Fq "python3 -c 'import yaml'"; then printf 'yes\n'; else printf 'no\n'; fi)"
+  "$(if sed -n '245p' "$branch_filters_suite" | grep -F "python3 -c 'import yaml'" > /dev/null; then printf 'yes\n'; else printf 'no\n'; fi)"
 
 # Negative direction — PyYAML unavailable.
 blocked_pythonpath="$TMP_ROOT/no-pyyaml"
@@ -593,7 +602,251 @@ else
   echo "SKIP: branch_filters_passes_with_pyyaml - this interpreter has no PyYAML; the CI 'Provision PyYAML' step supplies it on the runner"
 fi
 
+# ---------------------------------------------------------------------------
+# Area 6: #1914 consumer-shaped regression, including machine-local policy.
+# Run the real suites in a standalone consumer tree. Copies keep all fixture
+# writes away from the source checkout; documents are read-only symlinks.
+# ---------------------------------------------------------------------------
 echo ""
+echo "=== Area 6: consumer-owned reviewer/trigger/legacy state ==="
+
+portable_root="$TMP_ROOT/portable-consumer"
+build_fake_root "$portable_root" false
+cp -R "$REPO_ROOT/scripts/." "$portable_root/scripts/"
+cp -R "$REPO_ROOT/.github/." "$portable_root/.github/"
+for surface in docs .claude .cursor template sync-manifest.yaml REVIEW.md; do
+  ln -s "$REPO_ROOT/$surface" "$portable_root/$surface"
+done
+git -C "$portable_root" init -q
+cat > "$portable_root/.ai-dev-workflow.yaml" <<'YAML'
+template:
+  is_template: false
+review:
+  on_ready:
+    github:
+      - pr-agent
+YAML
+cat > "$portable_root/.ai-dev-workflow.local.yaml" <<'YAML'
+review:
+  on_ready:
+    github:
+      - local-ai-reviewer
+YAML
+printf '%s\n' 'name: Consumer Markdown' 'on:' '  workflow_dispatch:' \
+  > "$portable_root/.github/workflows/markdown-lint.yml"
+for legacy in apply-regression-label remove-regression-label-on-push reviewer-loop-guard; do
+  printf '%s\n' 'name: Consumer legacy policy' 'on:' '  workflow_dispatch:' \
+    > "$portable_root/.github/workflows/$legacy.yml"
+done
+
+run_consumer_suite() {
+  local suite="$1" expected="$2" output rc=0
+  output="$(cd "$portable_root" && bash "scripts/development-workflow/tests/$suite" 2>&1)" || rc=$?
+  run_test "$suite consumer exit" "$expected" "$rc"
+  if [ "$rc" != "$expected" ]; then
+    printf '%s\n' "$output"
+  fi
+}
+run_consumer_suite test-apply-readiness-labels.sh 0
+run_consumer_suite test-review-doctrine-lint.sh 0
+run_consumer_suite test-reviewer-loop-guard-workflow.sh 0
+
+if [ -f "$portable_root/.github/workflows/pr-policy.yml" ]; then
+  mv "$portable_root/.github/workflows/pr-policy.yml" "$portable_root/pr-policy.yml"
+  run_consumer_suite test-reviewer-loop-guard-workflow.sh 0
+  # Exercise the readiness suite through its static producer assertions without
+  # repeating its later reviewer matrix. It still invokes the real helper.
+  python3 - "$portable_root/scripts/development-workflow/tests" <<'NO_POLICY'
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+s = (root / "test-apply-readiness-labels.sh").read_text()
+s = s.split('echo "=== Area 5:', 1)[0] + '\n[ "$fail" -eq 0 ]\n'
+(root / "readiness-no-policy-smoke.sh").write_text(s)
+NO_POLICY
+  run_consumer_suite readiness-no-policy-smoke.sh 0
+  mv "$portable_root/pr-policy.yml" "$portable_root/.github/workflows/pr-policy.yml"
+fi
+
+# Those same states remain regressions in template mode.
+sed 's/is_template: false/is_template: true/' "$portable_root/.ai-dev-workflow.yaml" \
+  > "$portable_root/template.yaml"
+mv "$portable_root/template.yaml" "$portable_root/.ai-dev-workflow.yaml"
+run_consumer_suite test-review-doctrine-lint.sh 1
+run_consumer_suite test-reviewer-loop-guard-workflow.sh 1
+sed 's/is_template: true/is_template: false/' "$portable_root/.ai-dev-workflow.yaml" \
+  > "$portable_root/consumer.yaml"
+mv "$portable_root/consumer.yaml" "$portable_root/.ai-dev-workflow.yaml"
+
+# Removing either template guard must reproduce the consumer failure. The
+# suites' shared assertions continue running on consumers; only template-owned
+# state is gated. Existing missing-check/failed-check readiness cases likewise
+# remain real negative tests, rather than skipping its reviewer gate.
+for suite in test-review-doctrine-lint.sh test-reviewer-loop-guard-workflow.sh; do
+  if [ "$suite" = "test-reviewer-loop-guard-workflow.sh" ] && \
+      [ ! -f "$portable_root/.github/workflows/pr-policy.yml" ]; then
+    echo "SKIP: legacy-removal planted proof - consumer has no consolidated PR policy workflow"
+    continue
+  fi
+  suite_path="$portable_root/scripts/development-workflow/tests/$suite"
+  python3 - "$suite_path" <<'UNWRAP'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text()
+try:
+    start = s.index('if [ "$(workflow_template_is_template "$REPO_ROOT/.ai-dev-workflow.yaml")" = "true" ]; then', s.index('PASS_COUNT=0'))
+    end = s.index('\nfi\n', start) + len('\nfi\n')
+    body, _ = s[start:end].split('\n', 1)[1].split('\nelse\n', 1)
+except ValueError:
+    raise SystemExit("FAIL: planted template guard shape changed in " + p.name)
+p.write_text(s[:start] + body + '\n' + s[end:])
+UNWRAP
+  run_consumer_suite "$suite" 1
+done
+
+# Readiness is expensive to nest twice. Re-run its real prefix through the
+# first head-policy scenario with isolation removed: this includes the genuine
+# mocked API, helper, and assertions, not a structural grep for the fix.
+readiness_path="$portable_root/scripts/development-workflow/tests/test-apply-readiness-labels.sh"
+python3 - "$readiness_path" <<'PLANT_READINESS'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text().split('# ...and a head-config fetch failure', 1)[0]
+s = s.replace('export WORKFLOW_LOCAL_REVIEW_OVERRIDE_ROOT="$ISOLATED_OVERRIDE_ROOT"',
+              'export WORKFLOW_LOCAL_REVIEW_OVERRIDE_ROOT="$REPO_ROOT"')
+s = s.replace('${MOCK_LOCAL_OVERRIDE_ROOT:-$ISOLATED_OVERRIDE_ROOT}', '${MOCK_LOCAL_OVERRIDE_ROOT:-}')
+s += '\n[ "$fail" -eq 0 ]\n'
+p.write_text(s)
+PLANT_READINESS
+run_consumer_suite test-apply-readiness-labels.sh 1
+
+# ---------------------------------------------------------------------------
+# Area 7: #1920 — project-owned workflows, ignore rules and historical plans.
+# Each root is private to this run; no source checkout or consumer is edited.
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Area 7: remaining consumer-sync regression ==="
+
+compatibility_root="$TMP_ROOT/consumer with spaces [1920]"
+build_fake_root "$compatibility_root" false
+cp -R "$REPO_ROOT/scripts/." "$compatibility_root/scripts/"
+cp -R "$REPO_ROOT/.github/." "$compatibility_root/.github/"
+cp -R "$REPO_ROOT/docs" "$compatibility_root/docs"
+for surface in .claude .cursor .ai-dev-workflow.local.example.yaml; do
+  ln -s "$REPO_ROOT/$surface" "$compatibility_root/$surface"
+done
+# Deliberately diverge from template defaults: project 2 and a supported
+# consumer reviewer policy must never leak into framework-mode repair proofs.
+cat > "$compatibility_root/.ai-dev-workflow.yaml" <<'YAML'
+issue_tracker:
+  provider: github_projects
+  project_number: 2
+template:
+  is_template: false
+review:
+  on_draft:
+    runner:
+      - codex
+YAML
+printf '%s\n' 'build/' > "$compatibility_root/.gitignore"
+cat > "$compatibility_root/.github/workflows/consumer-service.yml" <<'YAML'
+name: Consumer service
+on:
+  pull_request:
+    branches: [develop, main]
+YAML
+mkdir -p "$compatibility_root/docs/specs/developments/consumer-history"
+cat > "$compatibility_root/docs/specs/developments/consumer-history/2_consumer_implementation-plan.md" <<'PLAN'
+## Dependencies
+None before implementation of #294. #246 depends on this item and must not resume validation until this baseline lands.
+PLAN
+git -C "$compatibility_root" init -q
+
+compatibility_suite() {
+  local suite="$1" expected="$2" output rc=0
+  output="$(cd "$compatibility_root" && bash "scripts/development-workflow/tests/$suite" 2>&1)" || rc=$?
+  run_test "$suite compatibility exit" "$expected" "$rc"
+  if [ "$rc" != "$expected" ]; then printf '%s\n' "$output"; fi
+  COMPATIBILITY_OUTPUT="$output"
+}
+compatibility_suite test-workflow-branch-filters.sh 0
+run_test "consumer_branch_gap_has_actionable_guidance" "yes" \
+  "$(output_contains "$COMPATIBILITY_OUTPUT" 'consumer-service.yml:pull_request')"
+run_test "consumer_branch_gap_names_remedy" "yes" \
+  "$(output_contains "$COMPATIBILITY_OUTPUT" 'ACTION: before using develop-<slug> integration branches')"
+compatibility_suite test-step7a-surface-consistency.sh 0
+run_test "consumer_ignore_gap_has_actionable_guidance" "yes" \
+  "$(output_contains "$COMPATIBILITY_OUTPUT" 'ACTION: before retiring local configuration, add .ai-dev-workflow.local.yaml.retired')"
+
+# Run the actual portfolio tests against the consumer-shaped host. Their gh
+# shim never forwards remote calls; project 2 and the historical plan must not
+# leak into the fixture's project 1 or its fixed absence grammar expectations.
+portfolio_rc=0
+portfolio_output="$(cd "$compatibility_root" && python3 \
+  scripts/development-workflow/tests/test-workflow-portfolio-scan.py \
+  Fixture.test_effective_project_scope_and_empty_owner \
+  Fixture.test_committed_none_declaration_compatibility \
+  Fixture.test_committed_non_none_declaration_compatibility 2>&1)" || portfolio_rc=$?
+run_test "portfolio_consumer_config_and_archive_are_isolated" "0" "$portfolio_rc"
+if [ "$portfolio_rc" -ne 0 ]; then printf '%s\n' "$portfolio_output"; fi
+
+# Plant the exact regressions in fixture copies, prove failure, then repair.
+branch_copy="$compatibility_root/scripts/development-workflow/tests/test-workflow-branch-filters.sh"
+cp "$branch_copy" "$TMP_ROOT/branch-original.sh"
+sed 's/if \[ "$IS_TEMPLATE" = "true" \]; then/if true; then/' \
+  "$branch_copy" > "$TMP_ROOT/branch-planted.sh"
+cp "$TMP_ROOT/branch-planted.sh" "$branch_copy"
+compatibility_suite test-workflow-branch-filters.sh 1
+cp "$TMP_ROOT/branch-original.sh" "$branch_copy"
+compatibility_suite test-workflow-branch-filters.sh 0
+
+# Template mode still rejects both planted violations; repair each without
+# suppressing the check. Ignore policy remains mandatory in the template.
+# Isolate template-owned inputs before switching modes. A consumer host can
+# have many valid project workflows without develop-**; fixing the planted
+# workflow must not require changing those unrelated workflows or its policy.
+mkdir -p "$TMP_ROOT/framework-workflows"
+cp "$compatibility_root/.github/workflows/consumer-service.yml" "$TMP_ROOT/framework-workflows/"
+mv "$compatibility_root/.github/workflows" "$TMP_ROOT/consumer-workflows"
+mv "$TMP_ROOT/framework-workflows" "$compatibility_root/.github/workflows"
+python3 - "$compatibility_root" <<'FRAMEWORK_POLICY'
+from pathlib import Path
+import re, sys
+root = Path(sys.argv[1])
+readme = (root/'docs/workflow/development-workflow/README.md').read_text()
+match = re.search(r'The shipped list is `\[([^\]]*)\]`', readme)
+if not match:
+    raise SystemExit('FAIL: no documented shipped reviewer list for framework fixture')
+reviewers = [value.strip() for value in match[1].split(',') if value.strip()]
+if not reviewers:
+    raise SystemExit('FAIL: empty documented reviewer list for framework fixture')
+(root/'.ai-dev-workflow.yaml').write_text(
+    'template:\n  is_template: true\nreview:\n  on_draft:\n    runner:\n' +
+    ''.join('      - '+value+'\n' for value in reviewers))
+FRAMEWORK_POLICY
+# The local example is project-customizable as well. Use a fixed framework
+# example for its literal documentation check, without writing through the
+# read-only symlink to the consumer host's example.
+mv "$compatibility_root/.ai-dev-workflow.local.example.yaml" "$TMP_ROOT/consumer-local-example.yaml"
+cat > "$compatibility_root/.ai-dev-workflow.local.example.yaml" <<'YAML'
+# Before retiring a file in a downstream project, ensure its backup is
+# covered by its .gitignore.
+review:
+  on_draft:
+    runner:
+      - codex
+YAML
+compatibility_suite test-workflow-branch-filters.sh 1
+sed 's/branches: \[develop, main\]/branches: [develop, develop-**, main]/' \
+  "$compatibility_root/.github/workflows/consumer-service.yml" > "$TMP_ROOT/repaired-workflow.yml"
+cp "$TMP_ROOT/repaired-workflow.yml" "$compatibility_root/.github/workflows/consumer-service.yml"
+compatibility_suite test-workflow-branch-filters.sh 0
+compatibility_suite test-step7a-surface-consistency.sh 1
+printf '%s\n' '.ai-dev-workflow.local.yaml.retired' >> "$compatibility_root/.gitignore"
+compatibility_suite test-step7a-surface-consistency.sh 0
+
 echo "=== Summary ==="
 echo "Passed: $PASS_COUNT"
 echo "Failed: $FAIL_COUNT"

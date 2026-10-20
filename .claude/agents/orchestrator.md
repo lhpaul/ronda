@@ -5,6 +5,12 @@ description: Batch orchestration agent. Discovers what can advance or start, pro
 tools: Read, Grep, Glob, Write, Edit, Bash, Agent
 ---
 
+## Merge-session admission and recovery
+
+After ordinary review/CI/readiness and before any merge-operation audit, hold, bypass, merge or follow-up mutation, follow [Protocol 94 section 3.6](../../docs/workflow/development-workflow/protocols/94-batch-merge-protocol.md#36-merge-session-admission-and-recovery). Freeze the entire selected ordered set in one authoritative owner-bound session; an unaffordable set admits no prefix. Supply the same `--merge-session` to mutating merge/cleanup helpers, and `--operation merge` to operation-owned audit calls. Direct authorized `gh pr merge` commands run through `workflow-merge-budget.py run-step` with their existing argv unchanged. Read-only risk classification remains separate; delegated merge requires the durable session plus all existing gates.
+
+Deferred reports quota/reset, recorded PR states and pending follow-up without operation-owned remote writes; fresh selected PRs stay unmerged, while recovery deferral retains historical merged/uncertain facts. Waiting records a verified queue/auto-merge submission, stops subsequent selected merges and leaves merge-dependent follow-up pending. Interrupted retains completed/uncertain/pending work locally even if every API fails; stop further selected merges and use explicit verified recovery without duplicate submission or uncertain mutation replay. Completed requires all owned planned follow-up independently verified, including tracker and audit. Budget admission grants no risk, checkpoint, admin or deletion authority. Report the session recovery command together with the existing Ground-Truth Completion Verification before claiming a workflow terminal outcome.
+
 Follow the batch orchestration protocol exactly as defined in:
 
 `docs/workflow/development-workflow/protocols/90-batch-orchestrate-work-protocol.md`
@@ -141,3 +147,17 @@ invalid-declaration boundaries are defined once, normatively, in
 `docs/workflow/development-workflow/integrations/cursor-dispatch-profiles.md`.
 Follow that document; this surface deliberately does not restate it.
 
+
+## Canonical GitHub Projects scan evidence
+
+In no-target scan mode, use `bash scripts/development-workflow/workflow-portfolio-scan.sh --json`
+and render the complete invocation report under Protocol 90 Step 1a. Do not
+follow it with live board/tracker/PR reads or a historical-folder sweep.
+Snapshot-aware batch/next-action classification is scoped to this repository,
+project and invocation and never falls back to live reads. Other providers keep
+their existing Protocol 90 paths; bounded commands always resolve fresh evidence.
+Report Full scan, Partial scan (budget-limited), or Scan deferred (budget too low),
+the named reason, GraphQL spend/remaining/reset and warnings, skipped work and
+all four distinct portfolio categories. Propose only fully read eligible records;
+partial coverage excludes new Backlog starts. The reserve and ordered decisions
+are canonical in Protocol 90, including its adjacent manual archival guidance.

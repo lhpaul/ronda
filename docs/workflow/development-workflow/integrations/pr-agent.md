@@ -22,10 +22,9 @@ PR-Agent is **optional**. The workflow functions without it. See [`integrations/
 ### 1. Add the GitHub Actions Workflow
 
 The workflow file is already committed at `.github/workflows/pr-agent.yml`.
-It triggers automatically on low-volume PR lifecycle events
-(`opened`, `reopened`, `ready_for_review`) and on the explicit `/review`
-PR comment command. It does **not** run on every PR synchronize event by
-default, and arbitrary human comments do not trigger it.
+It triggers on same-repository PR events (`opened`, `reopened`,
+`ready_for_review`, `synchronize`) and on the exact `/review` PR comment
+command. Arbitrary discussion comments do not trigger it.
 
 ### 2. Choose a Model and Add the API Key
 
@@ -86,6 +85,63 @@ To switch models: update **all three keys** (`model`, `fallback_models`, `model_
 
 ---
 
+## Publication Runtime and Comment Limits
+
+The workflow invokes the original PR-Agent action runner through
+[`pr-agent-runtime.py`](../../../../scripts/development-workflow/pr-agent-runtime.py).
+The launcher owns the immutable Docker image reference; its `--image` command
+prints that reference without importing PR-Agent or starting a review. Checkout
+uses the PR base commit resolved through the GitHub API for both automatic
+pull-request reviews and `/review` issue-comment requests, including PRs targeting
+a non-default branch, with credentials not persisted.
+The container receives workspace/event/output mounts and the existing model
+configuration; secret values remain environment variables passed by name.
+
+The patch defers the review composer's size cap and fits the final GitHub
+create/edit body after persistent-update identity and current-head metadata.
+Complete comments at or below the provider limit pass through unchanged.
+Oversized reviews lose the exact generated resolved-history suffix first,
+then the complete hidden state marker if necessary. Retained state remains
+valid; omitted state is absent, rather than an empty or partially complete
+snapshot. Other provider comments use the original limiter.
+
+When the visible review itself is oversized, recognized tool guides, source
+excerpts after finding summaries, and safe non-verdict metadata may be removed.
+Original introductions, finding summaries and verdict/status rows remain
+complete. Unknown status content is protected. Only an unsafe layout/state or
+protected content that cannot fit uses a bounded diagnostic requesting manual
+verification; the existing classifier escalates it. Fitting never invents a
+clean verdict. An omission notice uses remaining space only, becomes shorter
+when necessary, and is omitted when it would displace the retained summary or
+verdict. Workflow logs record the reason and character counts even then,
+without logging review bodies or secrets.
+
+Run the publication regressions and real-image compatibility smoke test:
+
+<!-- workflow-shell-contract: bash-zsh -->
+```bash
+bash scripts/development-workflow/tests/test-pr-agent-runtime.sh
+bash scripts/development-workflow/tests/test-pr-agent-runtime.sh --image-smoke
+```
+
+The first command uses the standard library; the second uses the launcher's
+pinned image with networking disabled and mocked GitHub publication. It checks
+the actual parser/renderer, composer bindings and final fresh/persistent
+publication. Neither command starts a live review or needs API credentials.
+An unsupported hook signature fails before the runner starts, without an
+unpatched fallback. To upgrade the image, inspect its producer helpers and
+publication consumers, update the launcher's image reference deliberately,
+and repeat both suites before adopting the change.
+
+Consumer sync must adopt the shared launcher and `.github/workflows/pr-agent.yml`
+together, including for `product_repo`. A consumer that keeps its customized
+workflow must also port the launcher invocation and configuration forwarding.
+Reversal uses a reviewed follow-up PR restoring the previous action route and
+removing its shared-helper dependency together. Omitted history/excerpts cannot
+be recovered from the fitted persistent comment or count-only logs: recovery
+requires a retained pre-edit copy. A new full review establishes current
+findings; it does not recover or resolve the omitted historical findings.
+
 ## Step 7 — PR-Agent-Specific Implementation
 
 The **Work Item Runner's** Step 7 (Automated Reviewer Loop) requires platform-specific commands. Below are the PR-Agent adapter details used by the shared helper.
@@ -121,21 +177,58 @@ review even when it authenticates as a bot or GitHub App.
 
 ### Step 7.2 — Detect review completion
 
-PR-Agent signals completion by posting a plain issue comment (not a formal GitHub PR review). The helper polls the issue comments API for a comment from `github-actions[bot]` with:
+PR-Agent signals completion by posting a plain issue comment (not a formal GitHub PR review) from `github-actions[bot]` whose body contains `PR Reviewer Guide` (PR-Agent's stable output marker). PR-Agent keeps **one persistent summary comment** and edits it in place, so the comment's `created_at` or `updated_at` cannot show which revision it describes. Since #1789 the helper accepts a summary comment for the current head `H` only by one of two rules, never by its time:
 
-- Body containing `PR Reviewer Guide` (PR-Agent's stable output marker)
-- `updated_at` timestamp after the HEAD commit's push time (so stale comments from a prior HEAD are ignored)
+- **Rule (a) — head marker.** With PR-Agent's hidden `<!-- pr-agent-review-state:v1 … -->` block removed, the visible body contains the marker line `Review updated until commit https://<host>/<owner>/<repo>/commit/<H>)` naming the full 40-character `H`. A match of `H` anywhere else, including inside the review-state block, does not count. A block opener with no `-->` terminator makes the comment unbound (fail closed). PR-Agent writes this marker whenever it updates its summary.
+- **Rule (b) — first summary bound to its run.** An unedited first summary with no marker (`updated_at == created_at`) is accepted only when every condition holds: a `PR-Agent review` check run on `commits/H/check-runs` completed with conclusion `success` and its `started_at <= created_at <= completed_at`; no `PR-Agent review` check run on `H` is queued or in progress; no `pull_request` run of that workflow on the PR's head branch for another revision was in progress at `created_at`; and no `/review` comment on the PR was posted at or before the summary (an `issue_comment` run records neither the PR nor the revision it read). Any failed API read or failed condition leaves the summary unbound.
+
+An unbound summary keeps the helper polling. A first summary that rule (b)
+cannot bind (for example, because a `/review` preceded it or another
+revision's run overlapped it) ends that invocation in the `no_review` kept
+skip, never in a verdict for another revision; any later PR-Agent run on `H`
+rewrites the summary with the `H` marker, which rule (a) accepts.
 
 | Result                                                                   | Action                                                                          |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| Comment with `No major issues detected`                                  | Review complete — clean                                                         |
-| Comment with `Recommended focus areas for review` + hard-blocker label   | Review complete — blocking                                                      |
-| Comment with `Recommended focus areas for review` + advisory labels only | Review complete — clean (advisory only)                                         |
-| Comment with neither marker                                              | Ambiguous — escalate for human review                                           |
-| No matching comment and `elapsed < max_wait`                             | GHA still running — wait `poll_interval` and poll again                         |
-| `elapsed >= max_wait` and no comment posted                              | Treat as `skipped` (GHA may not have run, e.g., fork PR with no secrets access or PR-Agent unavailable) |
+| Bound comment with `No major issues detected`                            | Review complete — clean                                                         |
+| Bound comment with `Recommended focus areas for review` + hard-blocker label | Review complete — blocking                                                   |
+| Bound comment with `Recommended focus areas for review` + advisory labels only | Review complete — clean (advisory only)                                   |
+| Bound comment with neither marker                                        | Ambiguous — escalate for human review                                           |
+| No bound comment and `elapsed < max_wait`                                | GHA still running — wait `poll_interval` and poll again                         |
+| The newest `PR-Agent review` check run on `H` completed `failure`, `timed_out`, `cancelled`, `action_required`, `startup_failure`, or `stale`, and no summary is bound to `H` | **Reviewer failed** — `RESULT=escalate`, `REASON=pr_agent_run_failed`, `reviewer-failed` applied (see below for when) |
+| `elapsed >= max_wait` and no bound comment                               | Kept skip — `RESULT=skipped`, `REASON=no_review`, `NO_VERDICT_YET=1`, `DISPLAY_RESULT=no verdict yet (non-blocking skip: no_review)`; reported as No verdict yet, no `reviewer-failed` label (GHA may not have run, e.g., fork PR with no secrets access or PR-Agent unavailable) |
 
-Unlike Devin, there are no check runs to monitor — the comment itself is the completion signal.
+**When a failed PR-Agent run is a failure.** The newest `PR-Agent review` check
+run on `H` (latest `started_at`, then highest id) governs; a newer run on `H`
+or a summary bound to `H` supersedes an earlier failed one. When the helper did
+not post or adopt a `/review` request because a run on `H` was already active,
+a failure-type result returns `pr_agent_run_failed` on that poll. When the
+helper's own request is outstanding (it posted `/review`, reused a trigger
+recorded for `H`, or adopted the recorded request in a re-wait), it keeps
+polling until the budget ends, because only a summary bound to `H` or a newer
+run on `H` can answer that request; at the budget end a failure-type newest run
+on `H` with no bound summary gives `pr_agent_run_failed` instead of the kept
+skip. A failed `/review` (`issue_comment`) run on its own is never read as
+failure, because its check run sits on the default-branch tip, not on `H`. A
+failed read keeps the last successful read; with no successful read there is
+no failure signal.
+
+**Trigger reuse.** In a fresh run the helper reuses a recent `/review` comment
+inside the reuse window only when the loop's ledger records that comment's id
+as a request for the current head; an older revision's `/review` never
+suppresses the new request. When the runner re-waits once on the same revision
+(Protocol 91 Step 7, `NO_VERDICT_REWAIT=available`), the request the first run
+recorded is treated as still pending and nothing is posted, even when its
+comment id is empty.
+
+PR-Agent waits for its own budget: 1200 s by default, configurable as
+`review.wait_budgets.pr-agent` (see "Reviewer wait budgets and outcome
+classes" in
+[`../protocols/93-automated-reviewer-loop-protocol.md`](../protocols/93-automated-reviewer-loop-protocol.md#reviewer-wait-budgets-and-outcome-classes-1789)).
+
+The summary comment is the completion signal; the `PR-Agent review` check runs
+on `H` are read only to bind a first summary (rule (b)) and to detect a failed
+run.
 
 ### Step 7.3 — Classify findings
 
@@ -174,7 +267,7 @@ dispatch a fixer, or escalate.
 
 ### Fork PR handling
 
-When a PR is opened from a fork, GitHub Actions **does not expose repository secrets** to the workflow. This means `DEEPSEEK_API_KEY` (or the alternative key) is unavailable and the workflow will fail silently — no review is posted. The helper will time out and report `RESULT=skipped` with `REASON=no_review`. This is expected behavior and is not a configuration error.
+When a PR is opened from a fork, GitHub Actions **does not expose repository secrets** to the workflow. This means `DEEPSEEK_API_KEY` (or the alternative key) is unavailable and the workflow will fail silently — no review is posted. When its wait budget ends, the helper reports the kept No verdict yet skip, `RESULT=skipped` with `REASON=no_review`. This is expected behavior and is not a configuration error.
 
 If fork PRs need automated review, consider using a GitHub App token instead of `GITHUB_TOKEN`.
 
@@ -195,14 +288,11 @@ issue-comment fan-out and should be an explicit local decision.
 
 ## Migration Notes for Downstream Repositories
 
-Earlier versions of this template ran PR-Agent on every same-repository PR
-synchronize event and on every human PR comment. That was convenient, but it
-could consume private-repository runner minutes even when PR-Agent output was
-not needed.
+The runtime patch preserves the existing triggers, permissions and model keys.
+Adopt the shared workflow and launcher together; do not replace the immutable
+image with a floating tag without repeating compatibility verification.
 
-After this change:
-
-- pushing a new commit to a PR does not run PR-Agent by default;
+- pushing a new commit to a same-repository PR triggers PR-Agent;
 - arbitrary human comments do not run PR-Agent;
 - `/run-reviewer-loop`, `/run-item`, and `/run-epic` still request PR-Agent when
   the effective review config includes `pr-agent`;

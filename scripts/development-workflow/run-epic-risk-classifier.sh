@@ -9,8 +9,11 @@ source "$SCRIPT_DIR/workflow-lib.sh"
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/development-workflow/run-epic-risk-classifier.sh --pr <number> [--why-safe-file <file>] [--max-risk <low|medium|high>] [--repo-root <path>] [--product-repo <name>] [--json]
-  ./scripts/development-workflow/run-epic-risk-classifier.sh --input <file> [--why-safe-file <file>] [--max-risk <low|medium|high>] [--repo-root <path>] [--product-repo <name>] [--json]
+  ./scripts/development-workflow/run-epic-risk-classifier.sh --pr <number> [--why-safe-file <file>] [--max-risk <low|medium|high>] [--repo-root <path>] [--product-repo <name>] [--merge-session <path>] [--json]
+  ./scripts/development-workflow/run-epic-risk-classifier.sh --input <file> [--why-safe-file <file>] [--max-risk <low|medium|high>] [--repo-root <path>] [--product-repo <name>] [--merge-session <path>] [--json]
+
+--merge-session adds read-only durable budget metadata; it never changes risk
+classification, blockers or merge authority.
 
 Classifies delegated /run-epic PR merge risk. The classifier is read-only: it
 does not run reviewers, poll CI, edit labels, update trackers, merge PRs, close
@@ -78,6 +81,7 @@ pr_number=""
 input_file=""
 why_safe_file=""
 repo_root=""
+merge_session=""
 product_repo=""
 max_risk="low"
 json_output=0
@@ -171,7 +175,7 @@ live_pr_state() {
   require_gh
 
   if ! pr_json="$(gh pr view "$number" \
-    --json number,title,baseRefName,headRefName,headRefOid,headRepository,mergeStateStatus,labels,statusCheckRollup,reviewDecision,isDraft 2>/dev/null)"; then
+    --json number,title,baseRefName,headRefName,headRefOid,url,mergeStateStatus,labels,statusCheckRollup,reviewDecision,isDraft 2>/dev/null)"; then
     error_exit "failed to read PR #$number"
   fi
   if [ -z "$pr_json" ]; then
@@ -198,13 +202,8 @@ live_pr_state() {
     base: .baseRefName,
     head: .headRefName,
     head_sha: (.headRefOid // null),
-    github_repo: (
-      if (.headRepository.owner.login? and .headRepository.name?) then
-        (.headRepository.owner.login + "/" + .headRepository.name)
-      else
-        ""
-      end
-    ),
+    # The PR URL names the target repository, including for fork PRs.
+    github_repo: ((.url // "" | split("/")) | if length >= 5 then .[3:5] | join("/") else "" end),
     merge_state: .mergeStateStatus,
     is_draft: .isDraft,
     labels: [.labels[]?.name],
@@ -358,68 +357,87 @@ ci_workflow_is_test_or_lint() {
   return 1
 }
 
+protected_risk_path() {
+  case "$1" in
+    scripts/*release*.sh|scripts/*release*.py|.github/workflows/*release*|\
+    .claude/commands/*release*.md|.cursor/commands/*release*.md|\
+    .agents/skills/*release*/*|.codex/skills/*release*/*|\
+    *branch-deletion*|*delete-branch*|\
+    auth/*|*/auth/*|*/auth|authentication/*|*/authentication/*|*/authentication|\
+    secret/*|*/secret/*|*/secret|secrets/*|*/secrets/*|*/secrets|\
+    credential/*|*/credential/*|*/credential|credentials/*|*/credentials/*|*/credentials|\
+    permission/*|*/permission/*|*/permission|permissions/*|*/permissions/*|*/permissions)
+      return 0 ;;
+  esac
+  return 1
+}
+
 changed_file_risk() {
   local state_json="$1"
   local risk="low"
   local reasons='[]'
-  local file reason_count
+  local file reason_count file_risk file_reasons floor_reason project_match project_risk
 
   while IFS= read -r file; do
     [ -n "$file" ] || continue
-    case "$file" in
+    file_risk="low"
+    floor_reason=""
+    file_reasons='[]'
+    if protected_risk_path "$file"; then
+      file_risk="high"
+      floor_reason="sensitive or broad file category: ${file}"
+    else
+      case "$file" in
       .github/workflows/*)
         # Split before the sensitive category below, which would otherwise
         # collapse every workflow edit into `high` (issue #1565).
         if ci_workflow_is_test_or_lint "$file"; then
-          if [ "$risk" != "high" ]; then
-            risk="medium"
-          fi
-          reasons="$(append_json_array_string "$reasons" "test or lint CI workflow change: ${file}")"
+          file_risk="medium"
+          file_reasons="$(append_json_array_string "$file_reasons" "test or lint CI workflow change: ${file}")"
         else
-          risk="high"
-          reasons="$(append_json_array_string "$reasons" "sensitive or broad file category: ${file}")"
+          file_risk="high"
+          floor_reason="sensitive or broad file category: ${file}"
         fi
-        ;;
-      *release*|*branch-deletion*|*delete-branch*|\
-      auth/*|*/auth/*|*/auth|\
-      authentication/*|*/authentication/*|*/authentication|\
-      secret/*|*/secret/*|*/secret|\
-      secrets/*|*/secrets/*|*/secrets|\
-      credential/*|*/credential/*|*/credential|\
-      credentials/*|*/credentials/*|*/credentials|\
-      permission/*|*/permission/*|*/permission|\
-      permissions/*|*/permissions/*|*/permissions)
-        risk="high"
-        reasons="$(append_json_array_string "$reasons" "sensitive or broad file category: ${file}")"
         ;;
       scripts/development-workflow/tests/*|test/*|tests/*)
-        if [ "$risk" = "low" ]; then
-          reasons="$(append_json_array_string "$reasons" "low-risk docs or tests change: ${file}")"
-        fi
+        file_reasons="$(append_json_array_string "$file_reasons" "low-risk docs or tests change: ${file}")"
         ;;
       scripts/development-workflow/*.sh)
-        if [ "$risk" != "high" ]; then
-          risk="medium"
-        fi
-        reasons="$(append_json_array_string "$reasons" "workflow script or harness change: ${file}")"
+        file_risk="medium"
+        file_reasons="$(append_json_array_string "$file_reasons" "workflow script or harness change: ${file}")"
         ;;
       docs/workflow/development-workflow/protocols/*|.agents/skills/run-epic/*|.claude/commands/run-epic.md|.cursor/commands/run-epic.md)
-        if [ "$risk" = "low" ]; then
-          reasons="$(append_json_array_string "$reasons" "workflow guidance change: ${file}")"
-        fi
+        file_reasons="$(append_json_array_string "$file_reasons" "workflow guidance change: ${file}")"
         ;;
       docs/*|*.md)
-        if [ "$risk" = "low" ]; then
-          reasons="$(append_json_array_string "$reasons" "low-risk docs or tests change: ${file}")"
-        fi
+        file_reasons="$(append_json_array_string "$file_reasons" "low-risk docs or tests change: ${file}")"
         ;;
       *)
-        if [ "$risk" != "high" ]; then
-          risk="medium"
-        fi
-        reasons="$(append_json_array_string "$reasons" "uncategorized implementation file: ${file}")"
+        file_risk="medium"
+        file_reasons="$(append_json_array_string "$file_reasons" "uncategorized implementation file: ${file}")"
         ;;
-    esac
+      esac
+    fi
+
+    if ! project_match="$(printf '%s\n' "$state_json" | jq -c --arg file "$file" '.risk_path_matches.matches[$file] // null')"; then
+      error_exit "could not read validated project risk match"
+    fi
+    if [ "$project_match" != null ]; then
+      if ! project_risk="$(printf '%s\n' "$project_match" | jq -er '.risk')" \
+          || ! file_reasons="$(printf '%s\n' "$project_match" | jq -ec '.reasons')"; then
+        error_exit "invalid project risk match result"
+      fi
+      file_risk="$project_risk"
+    fi
+    # Floors apply after the map, independently of docs/test/CI ordering.
+    if [ -n "$floor_reason" ]; then
+      file_risk="high"
+      file_reasons="$(append_json_array_string "$file_reasons" "$floor_reason")"
+    fi
+    if [ "$(risk_rank "$file_risk")" -gt "$(risk_rank "$risk")" ]; then
+      risk="$file_risk"
+    fi
+    reasons="$(jq -n --argjson a "$reasons" --argjson b "$file_reasons" '$a + $b')"
   done < <(printf '%s\n' "$state_json" | jq -r '.changed_files[]?')
 
   if ! reason_count="$(printf '%s\n' "$reasons" | jq -e 'length')"; then
@@ -627,6 +645,11 @@ while [ "$#" -gt 0 ]; do
       repo_root="$2"
       shift 2
       ;;
+    --merge-session)
+      require_value "$@"
+      merge_session="$2"
+      shift 2
+      ;;
     --product-repo)
       require_value "$@"
       product_repo="$2"
@@ -683,9 +706,35 @@ if [ -n "$why_safe_file" ]; then
 fi
 
 effective_root="${repo_root:-$(workflow_repo_root)}"
+# Rebuild match evidence from project-owned configuration even in --input mode;
+# caller-provided match objects must never become risk policy.
+if ! risk_path_matches="$(printf '%s\n' "$state_json" | python3 "$SCRIPT_DIR/workflow-risk-paths.py" \
+    --repo-root "$effective_root" --product-repo "$product_repo")"; then
+  error_exit "project risk path configuration or evidence is invalid"
+fi
+if ! printf '%s\n' "$risk_path_matches" | jq -e 'type == "object" and (.matches | type == "object")' >/dev/null; then
+  error_exit "project risk path helper returned invalid evidence"
+fi
+if ! state_json="$(printf '%s\n' "$state_json" | jq --argjson matches "$risk_path_matches" '.risk_path_matches = $matches')"; then
+  error_exit "could not attach validated project risk matches"
+fi
 state_json="$(workflow_merge_ci_policy_into_json "$state_json" "$effective_root" "$product_repo")"
 
 result_json="$(classify_state "$state_json")"
+if [ -n "$merge_session" ]; then
+  budget_repo="$(printf '%s\n' "$state_json" | jq -r '.github_repo // .repository // .repo // ""')"
+  budget_pr="$(printf '%s\n' "$state_json" | jq -r '.pr_number // .number // ""')"
+  budget_head="$(printf '%s\n' "$state_json" | jq -r '.head_sha // .headRefOid // ""')"
+  budget_base="$(printf '%s\n' "$state_json" | jq -r '.base // .baseRefName // ""')"
+  if ! budget_evidence="$(python3 "$SCRIPT_DIR/workflow-merge-budget.py" check \
+      --session "$merge_session" --repo "$budget_repo" --pr "$budget_pr" \
+      --head "$budget_head" --base "$budget_base" --repo-root "$effective_root" 2>&1)"; then
+    if ! printf '%s\n' "$budget_evidence" | jq -e 'type == "object"' >/dev/null 2>&1; then
+      budget_evidence='{"outcome":"Deferred","reason":"optional merge-session binding is unreadable"}'
+    fi
+  fi
+  result_json="$(printf '%s\n' "$result_json" | jq --argjson budget "$budget_evidence" '.budget = $budget')"
+fi
 if [ "$json_output" -eq 1 ]; then
   printf '%s\n' "$result_json" | jq '.'
 else

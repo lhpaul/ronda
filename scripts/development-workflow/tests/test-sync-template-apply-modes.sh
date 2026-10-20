@@ -6,6 +6,8 @@
 # covers: .cursor/commands/sync-template.md .claude/skills/sync-template.md
 # covers: .codex/skills/workflow-sync-template/**
 # covers: .agents/skills/workflow-sync-template/**
+# covers: sync-manifest.yaml scripts/development-workflow/select-sync-manifest-entries.py
+# covers: scripts/development-workflow/workflow-merge-budget.py
 
 set -euo pipefail
 
@@ -45,15 +47,15 @@ assert_primary_modes() {
     fail "$name (missing Ready-to-apply confirmation block)"
     return
   fi
-  if printf '%s\n' "$block" | grep -q 'Decide with me' \
-    && printf '%s\n' "$block" | grep -q 'Accept recommendations'; then
+  if grep -q 'Decide with me' <<< "$block" \
+    && grep -q 'Accept recommendations' <<< "$block"; then
     pass "$name primary modes Decide with me / Accept recommendations"
   else
     fail "$name missing Decide with me / Accept recommendations in confirmation block"
   fi
   # Old coverage options must not appear as quoted primary bullets in this block.
-  if printf '%s\n' "$block" | grep -qE '^\s*>\s*-\s*\*\*"apply all"\*\*' \
-    || printf '%s\n' "$block" | grep -qE '^\s*>\s*-\s*\*\*"apply always-sync only"\*\*'; then
+  if grep -qE '^\s*>\s*-\s*\*\*"apply all"\*\*' <<< "$block" \
+    || grep -qE '^\s*>\s*-\s*\*\*"apply always-sync only"\*\*' <<< "$block"; then
     fail "$name still lists old options as primary peer bullets"
   else
     pass "$name does not list old options as primary peer bullets"
@@ -80,7 +82,7 @@ for f in "${BODIES[@]}"; do
   assert_file_contains "$f" 'other configured reviewers, CI,' "$base preserves other review and CI gates"
   assert_file_contains "$f" 'unresolved-thread, regression, and readiness gates remain mandatory' "$base preserves terminal gates"
   assert_primary_modes "$f" "$base"
-  if awk '/Requires manual review \(you decide\)/,/^### /' "$f" | grep -q '\.claude/settings\.json'; then
+  if awk '/Requires manual review \(you decide\)/,/^### /' "$f" | grep '\.claude/settings\.json' > /dev/null; then
     fail "$base lists .claude/settings.json under Requires manual review (you decide)"
   else
     pass "$base does not list settings.json under discretionary you-decide heading"
@@ -104,6 +106,27 @@ for f in "${WRAPPERS[@]}"; do
     pass "$base no longer documents old primary peer pair"
   fi
 done
+
+# Exercise shipment into a clean product checkout using the actual role selection.
+# Help is offline: missing Python imports or an omitted runtime fail here without gh.
+PRODUCT_FIXTURE="$(mktemp -d)"
+trap 'rm -rf "$PRODUCT_FIXTURE"' EXIT
+budget_runtime="scripts/development-workflow/workflow-merge-budget.py"
+selection="$(python3 "$REPO_ROOT/scripts/development-workflow/select-sync-manifest-entries.py" \
+  --manifest "$REPO_ROOT/sync-manifest.yaml" --role product_repo)"
+if grep -Fq "SELECTED category=always_sync mode_scope=product_repo_injection path=$budget_runtime glob=" <<< "$selection"; then
+  mkdir -p "$PRODUCT_FIXTURE/scripts/development-workflow"
+  cp "$REPO_ROOT/$budget_runtime" "$PRODUCT_FIXTURE/$budget_runtime"
+  if (cd "$PRODUCT_FIXTURE" && python3 "$budget_runtime" --help > help.txt 2>&1) \
+    && grep -q 'run-step' "$PRODUCT_FIXTURE/help.txt" \
+    && grep -q 'resume' "$PRODUCT_FIXTURE/help.txt"; then
+    pass "product injection ships usable public budget execution and recovery CLI"
+  else
+    fail "product injection budget CLI cannot load independently"
+  fi
+else
+  fail "product role omits required budget runtime"
+fi
 
 echo
 echo "Passed: $PASS_COUNT"

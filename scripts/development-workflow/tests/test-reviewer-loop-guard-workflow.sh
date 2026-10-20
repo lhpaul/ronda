@@ -63,9 +63,13 @@ echo ""
 echo "=== Consolidated PR policy workflow static checks ==="
 
 run_test "workflow_exists" "yes" "$([ -f "$WORKFLOW" ] && echo yes || echo no)"
-run_test "old_apply_workflow_removed" "yes" "$([ ! -f "$REPO_ROOT/.github/workflows/apply-regression-label.yml" ] && echo yes || echo no)"
-run_test "old_remove_workflow_removed" "yes" "$([ ! -f "$REPO_ROOT/.github/workflows/remove-regression-label-on-push.yml" ] && echo yes || echo no)"
-run_test "old_guard_workflow_removed" "yes" "$([ ! -f "$REPO_ROOT/.github/workflows/reviewer-loop-guard.yml" ] && echo yes || echo no)"
+if [ "$(workflow_template_is_template "$REPO_ROOT/.ai-dev-workflow.yaml")" = "true" ]; then
+  run_test "old_apply_workflow_removed" "yes" "$([ ! -f "$REPO_ROOT/.github/workflows/apply-regression-label.yml" ] && echo yes || echo no)"
+  run_test "old_remove_workflow_removed" "yes" "$([ ! -f "$REPO_ROOT/.github/workflows/remove-regression-label-on-push.yml" ] && echo yes || echo no)"
+  run_test "old_guard_workflow_removed" "yes" "$([ ! -f "$REPO_ROOT/.github/workflows/reviewer-loop-guard.yml" ] && echo yes || echo no)"
+else
+  echo "SKIP: template legacy policy workflow removal - consumer-owned adoption"
+fi
 run_test "pull_request_target_trigger_present" "yes" "$(contains "pull_request_target:")"
 run_test "issue_comment_trigger_present" "yes" "$(contains "issue_comment:")"
 run_test "issue_comment_created_edited" "yes" "$(contains "types: [created, edited]")"
@@ -195,7 +199,7 @@ GUARD_FUNCTIONS="$(
   extract_workflow_function reviewer_loop_guard_verdict
 )"
 run_test "guard_functions_extractable" "yes" \
-  "$(printf '%s\n' "$GUARD_FUNCTIONS" | grep -c '() {' | grep -qx 2 && echo yes || echo no)"
+  "$(printf '%s\n' "$GUARD_FUNCTIONS" | grep -c '() {' | grep -x 2 > /dev/null && echo yes || echo no)"
 eval "$GUARD_FUNCTIONS"
 
 LIVE_HEAD="1111111111111111111111111111111111111111"
