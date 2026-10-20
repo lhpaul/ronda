@@ -3079,7 +3079,7 @@ run_claude_code_action_review() {
   # them no Claude request is recorded and every re-wait would re-dispatch.
   local script_output=""
   set +e
-  script_output="$("$reviewer_script" "${claude_args[@]}" 2>/dev/null)"
+  script_output="$("$reviewer_script" ${claude_args[@]+"${claude_args[@]}"} 2>/dev/null)"
   script_exit=$?
   set -e
   print_review_request_keys \
@@ -9569,7 +9569,7 @@ reviewer_loop_reason_in_list() {
 # apply it to the newest entry per check key after dedupe_status_check_rollup.
 reviewer_loop_build_failed_completion_jq() {
   local conclusions_json="" item
-  for item in "${REVIEWER_LOOP_FAILED_CHECK_CONCLUSIONS[@]}"; do
+  for item in ${REVIEWER_LOOP_FAILED_CHECK_CONCLUSIONS[@]+"${REVIEWER_LOOP_FAILED_CHECK_CONCLUSIONS[@]}"}; do
     conclusions_json="${conclusions_json:+${conclusions_json},}\"${item}\""
   done
   printf '%s\n' "
@@ -9732,14 +9732,14 @@ reviewer_loop_platform_outcome_class() {
     skipped)
       if [ "$no_verdict_flag" = "1" ]; then
         printf 'no_verdict_yet\n'
-      elif reviewer_loop_reason_in_list "$reason" "${REVIEWER_LOOP_FAILURE_SKIP_REASONS[@]}"; then
+      elif reviewer_loop_reason_in_list "$reason" ${REVIEWER_LOOP_FAILURE_SKIP_REASONS[@]+"${REVIEWER_LOOP_FAILURE_SKIP_REASONS[@]}"}; then
         printf 'skipped_failure_evidence\n'
       else
         printf 'skipped\n'
       fi
       ;;
     escalate)
-      if reviewer_loop_reason_in_list "$reason" "${REVIEWER_LOOP_AVAILABILITY_REASONS[@]}"; then
+      if reviewer_loop_reason_in_list "$reason" ${REVIEWER_LOOP_AVAILABILITY_REASONS[@]+"${REVIEWER_LOOP_AVAILABILITY_REASONS[@]}"}; then
         printf 'existing_handling\n'
       else
         printf 'reviewer_failed\n'
@@ -9920,7 +9920,7 @@ reviewer_failed_label_required_for_result() {
       # #1789 (plan D8/D9): only skips whose reason is failure evidence
       # require the label. An expired wait (timeout, pending_timeout, or any
       # kept skip carrying NO_VERDICT_YET=1) is No verdict yet, not a failure.
-      if reviewer_loop_reason_in_list "$reason" "${REVIEWER_LOOP_FAILURE_SKIP_REASONS[@]}"; then
+      if reviewer_loop_reason_in_list "$reason" ${REVIEWER_LOOP_FAILURE_SKIP_REASONS[@]+"${REVIEWER_LOOP_FAILURE_SKIP_REASONS[@]}"}; then
         return 0
       fi
       ;;
@@ -10050,7 +10050,7 @@ reviewer_loop_precedence_select() {
     entries=("$@")
   elif declare -p platform_peer_evidence >/dev/null 2>&1 \
       && [ "${#platform_peer_evidence[@]}" -gt 0 ]; then
-    entries=("${platform_peer_evidence[@]}")
+    entries=(${platform_peer_evidence[@]+"${platform_peer_evidence[@]}"})
   fi
 
   for entry in "${entries[@]+"${entries[@]}"}"; do
@@ -10118,7 +10118,7 @@ reviewer_loop_compare_restore_aggregate() {
 
   if declare -p platform_blocking_outputs >/dev/null 2>&1 \
       && [ "${#platform_blocking_outputs[@]}" -gt 0 ]; then
-    for entry in "${platform_blocking_outputs[@]}"; do
+    for entry in ${platform_blocking_outputs[@]+"${platform_blocking_outputs[@]}"}; do
       if [ "${entry%%$'\036'*}" = "$platform" ]; then
         output="${entry#*$'\036'}"
         break
@@ -10669,7 +10669,7 @@ reviewer_wait_budget_cache_fill() {
   local platform resolved
   for platform in "$@"; do
     [ -n "$platform" ] || continue
-    array_contains_value "$platform" "${reviewer_wait_budget_cache_platforms[@]:-}" && continue
+    array_contains_value "$platform" ${reviewer_wait_budget_cache_platforms[@]+"${reviewer_wait_budget_cache_platforms[@]}"} && continue
     resolved="$(reviewer_wait_budget_resolve "$platform")"
     reviewer_wait_budget_cache_platforms+=("$platform")
     reviewer_wait_budget_cache_values+=("$resolved")
@@ -11070,7 +11070,7 @@ reviewer_loop_replace_current_round_platform_record() {
   if declare -p platform_timing_records >/dev/null 2>&1 \
       && [ "${#platform_timing_records[@]}" -gt 0 ]; then
     local kept_timing=()
-    for record in "${platform_timing_records[@]}"; do
+    for record in ${platform_timing_records[@]+"${platform_timing_records[@]}"}; do
       if [ "$(printf '%s' "$record" | jq -r '.platform // ""')" != "$platform_name" ]; then
         kept_timing+=("$record")
       fi
@@ -14335,7 +14335,7 @@ reviewer_loop_no_verdict_rewait_state() {
     printf 'untracked\n'
     return 0
   fi
-  reasons_json="$(printf '%s\n' "${REVIEWER_LOOP_NO_VERDICT_REASONS[@]}" | jq -R . | jq -sc .)" || reasons_json='[]'
+  reasons_json="$(printf '%s\n' ${REVIEWER_LOOP_NO_VERDICT_REASONS[@]+"${REVIEWER_LOOP_NO_VERDICT_REASONS[@]}"} | jq -R . | jq -sc .)" || reasons_json='[]'
   if ! count="$(printf '%s' "$payload" | jq -r --arg rid "$run_id" --arg head "$head" \
       --argjson reasons "$reasons_json" "$REVIEWER_LOOP_INVOCATION_HEAD_JQ"'
         [ (.entries // [])[]
@@ -14374,7 +14374,7 @@ reviewer_loop_rewait_recorded_request() {
   [ -n "$run_id" ] && [ -n "$platform" ] || return 0
   reviewer_loop_head_is_unknown_or_invalid "$head" && return 0
   reviewer_loop_rewait_payload_usable "$payload" || return 0
-  reasons_json="$(printf '%s\n' "${REVIEWER_LOOP_NO_VERDICT_REASONS[@]}" | jq -R . | jq -sc .)" || return 0
+  reasons_json="$(printf '%s\n' ${REVIEWER_LOOP_NO_VERDICT_REASONS[@]+"${REVIEWER_LOOP_NO_VERDICT_REASONS[@]}"} | jq -R . | jq -sc .)" || return 0
   out="$(printf '%s' "$payload" | jq -r --arg rid "$run_id" --arg head "$head" \
       --arg platform "$platform" --argjson reasons "$reasons_json" "$REVIEWER_LOOP_INVOCATION_HEAD_JQ"'
         def oneline: (. // "") | tostring | gsub("[\r\n]"; "");
@@ -14733,7 +14733,7 @@ reviewer_loop_timing_summary_section() {
       || [ "${#platform_timing_records[@]}" -eq 0 ]; then
     return 0
   fi
-  timing_lines="$(printf '%s\n' "${platform_timing_records[@]}" | jq -r '
+  timing_lines="$(printf '%s\n' ${platform_timing_records[@]+"${platform_timing_records[@]}"} | jq -r '
       def source_label:
         if . == "default" then "built-in default"
         elif . == "configured" then "configured"
@@ -14773,7 +14773,7 @@ reviewer_loop_timing_summary_section() {
 reviewer_loop_failed_peer_platforms() {
   local entry peer_platform peer_result peer_reason
   declare -p platform_peer_evidence >/dev/null 2>&1 || return 0
-  for entry in "${platform_peer_evidence[@]:-}"; do
+  for entry in ${platform_peer_evidence[@]+"${platform_peer_evidence[@]}"}; do
     [ -n "$entry" ] || continue
     peer_platform="${entry%%|*}"
     peer_result="${entry#*|}"
@@ -14817,7 +14817,7 @@ reviewer_loop_pending_review_fields() {
   if [ -n "$pending_review_platform" ] && declare -p platform_timing_records >/dev/null 2>&1 \
       && [ "${#platform_timing_records[@]}" -gt 0 ]; then
     local rec=""
-    rec="$(printf '%s\n' "${platform_timing_records[@]}" | jq -sc --arg p "$pending_review_platform" \
+    rec="$(printf '%s\n' ${platform_timing_records[@]+"${platform_timing_records[@]}"} | jq -sc --arg p "$pending_review_platform" \
       '[.[] | select(type == "object" and .platform == $p and (.reused // false) == false)] | last // empty' 2>/dev/null)" || rec=""
     if [ -n "$rec" ]; then
       pending_review_requested_at="$(printf '%s' "$rec" | jq -r '.requested_at // empty')"
@@ -16113,7 +16113,7 @@ fi
 platform_wait_budgets_summary=""
 if [ "${#platforms[@]}" -gt 0 ]; then
   reviewer_wait_budget_config_warnings
-  reviewer_wait_budget_cache_fill "${platforms[@]}"
+  reviewer_wait_budget_cache_fill ${platforms[@]+"${platforms[@]}"}
   _wb_index=0
   while [ "$_wb_index" -lt "${#reviewer_wait_budget_cache_platforms[@]}" ]; do
     read -r _wb_seconds _wb_source _wb_adjustment <<< "${reviewer_wait_budget_cache_values[$_wb_index]}"
@@ -16124,7 +16124,7 @@ if [ "${#platforms[@]}" -gt 0 ]; then
     _wb_index=$((_wb_index + 1))
   done
   unset _wb_index _wb_seconds _wb_source _wb_adjustment
-  platform_wait_budgets_summary="$(reviewer_wait_budgets_summary "${platforms[@]}")"
+  platform_wait_budgets_summary="$(reviewer_wait_budgets_summary ${platforms[@]+"${platforms[@]}"})"
 fi
 
 # Step 7b regression-label auto-restore (implementation PRs only).
@@ -16564,7 +16564,7 @@ _post_review_summary() {
       result_line="escalated (${reason:-unknown})"
       ;;
     waiting_on_reviewer)
-      if reviewer_loop_reason_in_list "$reason" "${REVIEWER_LOOP_NO_VERDICT_REASONS[@]}"; then
+      if reviewer_loop_reason_in_list "$reason" ${REVIEWER_LOOP_NO_VERDICT_REASONS[@]+"${REVIEWER_LOOP_NO_VERDICT_REASONS[@]}"}; then
         # #1789 (plan D12): waited seconds, budget and source, and either "no
         # reviewer failure was detected" or the failure-evidence clause.
         result_line="$(reviewer_loop_no_verdict_result_line "$reason")"
@@ -17671,7 +17671,7 @@ print_kv SUGGESTION_COUNT "$total_suggestion_count"
 # for this No verdict yet result (available), already did (used), or cannot
 # bound the re-wait (untracked).
 if [ "$aggregate_result" = "waiting_on_reviewer" ] \
-    && reviewer_loop_reason_in_list "$aggregate_reason" "${REVIEWER_LOOP_NO_VERDICT_REASONS[@]}"; then
+    && reviewer_loop_reason_in_list "$aggregate_reason" ${REVIEWER_LOOP_NO_VERDICT_REASONS[@]+"${REVIEWER_LOOP_NO_VERDICT_REASONS[@]}"}; then
   print_kv NO_VERDICT_REWAIT "$(reviewer_loop_no_verdict_rewait_value "${reviewer_loop_rewait_state:-untracked}" "${_post_summary_exit:-1}")"
   # #1789 (plan D12): who is pending, since when, for how long, and whether
   # this run recorded failure evidence (NO_FAILURE_DETECTED /

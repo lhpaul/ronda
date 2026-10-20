@@ -106,7 +106,7 @@ reorder_expensive_reviewers_last
 run_test "1649_s6b_phase_bucket" "pr-agent,local-ai-reviewer,codex-github,bugbot" \
   "$(IFS=,; printf '%s' "${platforms[*]}")"
 run_test "1649_s6b_codex_before_bugbot" "1" \
-  "$(printf '%s\n' "${platforms[@]}" | awk '/codex-github/{c=NR} /bugbot/{b=NR} END{print (c<b)?1:0}')"
+  "$(printf '%s\n' ${platforms[@]+"${platforms[@]}"} | awk '/codex-github/{c=NR} /bugbot/{b=NR} END{print (c<b)?1:0}')"
 
 # --- Scenario 14b: resolve max deferrals ---
 unset PR_REVIEW_LOOP_MAX_EXPENSIVE_DEFERRALS
@@ -145,7 +145,7 @@ _1649_run_gate() {
   # Allow explicit empty head (scenario 12); only default when unset.
   local head="${3-$_1649_head}"
   if [ "${_1649_preserve_repo_platforms:-0}" -eq 0 ]; then
-    repo_review_platforms=("${platforms[@]}")
+    repo_review_platforms=(${platforms[@]+"${platforms[@]}"})
   fi
   out="$(expensive_reviewer_gate "$pr" "$platform" "$head" 2>/dev/null)" || rc=$?
   printf '%s\n---RC=%s\n' "$out" "$rc"
@@ -1256,11 +1256,11 @@ platform_result_records=("$(reviewer_loop_platform_result_record_json local-ai-r
 compare_verdicts=("local-ai-reviewer" "unavailable" "codex-github" "clean")
 reviewer_loop_replace_current_round_platform_record "local-ai-reviewer"
 run_test "1656_s6c_replace_heads" "codex-github:${_1656_head}" \
-  "$(printf '%s\n' "${platform_reviewed_heads[@]}")"
+  "$(printf '%s\n' ${platform_reviewed_heads[@]+"${platform_reviewed_heads[@]}"})"
 run_test "1656_s6c_replace_records" "1" \
-  "$(printf '%s\n' "${platform_result_records[@]}" | jq -s 'map(.platform) | length')"
+  "$(printf '%s\n' ${platform_result_records[@]+"${platform_result_records[@]}"} | jq -s 'map(.platform) | length')"
 run_test "1656_s6c_replace_compare_verdicts" "codex-github clean" \
-  "$(printf '%s %s\n' "${compare_verdicts[@]}")"
+  "$(printf '%s %s\n' ${compare_verdicts[@]+"${compare_verdicts[@]}"})"
 total_comment_count=0
 total_blocking_count=0
 total_suggestion_count=0
@@ -1270,7 +1270,7 @@ declare -a platform_peer_evidence=() aggregate_blocking_paths=() aggregate_block
 _sl_clean_out=$'RESULT=clean\nREVIEWED_HEAD='"${_1656_fresh_head}"$'\nCOMMENT_COUNT=0\nBLOCKING_COUNT=0\nSUGGESTION_COUNT=0\n'
 reviewer_loop_process_platform_output "local-ai-reviewer" 99 "$_sl_clean_out" 0 0
 run_test "1656_s6c_latest_local_head" "${_1656_fresh_head}" \
-  "$(printf '%s\n' "${platform_reviewed_heads[@]}" | awk -F: '/^local-ai-reviewer:/{h=$2} END{print h}')"
+  "$(printf '%s\n' ${platform_reviewed_heads[@]+"${platform_reviewed_heads[@]}"} | awk -F: '/^local-ai-reviewer:/{h=$2} END{print h}')"
 loop_head_sha="${_1656_fresh_head}"
 platform_reviewed_heads=("local-ai-reviewer:${_1656_stale_head}" "local-ai-reviewer:${_1656_fresh_head}")
 run_test "1656_s6d_expensive_gate_latest_head" "1" \
@@ -1573,19 +1573,19 @@ run_test "1656_lbc_unconfirmed_reason" "local_finding_unconfirmed" "$aggregate_r
 run_test "1656_lbc_unconfirmed_count" "0" "$total_blocking_count"
 run_test "1656_lbc_unconfirmed_findings" "0" "${#aggregate_blocking_findings[@]}"
 run_test "1656_lbc_unconfirmed_record_result" "escalate" \
-  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
+  "$(printf '%s\n' ${platform_result_records[@]+"${platform_result_records[@]}"} | jq -r '.raw_result')"
 run_test "1656_lbc_unconfirmed_record_reason" "local_finding_unconfirmed" \
-  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_reason')"
+  "$(printf '%s\n' ${platform_result_records[@]+"${platform_result_records[@]}"} | jq -r '.raw_reason')"
 run_test "1656_lbc_unconfirmed_token" "local-ai-reviewer:escalated (local_finding_unconfirmed)" \
-  "$(printf '%s\n' "${platform_result_tokens[@]}")"
+  "$(printf '%s\n' ${platform_result_tokens[@]+"${platform_result_tokens[@]}"})"
 run_test "1656_lbc_unconfirmed_output_result" "escalate" \
-  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^RESULT=/{print $2; exit}')"
+  "$(printf '%s\n' ${platform_blocking_outputs[@]+"${platform_blocking_outputs[@]}"} | cut -d$'\036' -f2- | awk -F= '/^RESULT=/{print $2; exit}')"
 run_test "1656_lbc_unconfirmed_output_head" "$_1656_guard_head" \
-  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^REVIEWED_HEAD=/{print $2; exit}')"
+  "$(printf '%s\n' ${platform_blocking_outputs[@]+"${platform_blocking_outputs[@]}"} | cut -d$'\036' -f2- | awk -F= '/^REVIEWED_HEAD=/{print $2; exit}')"
 run_test "1656_lbc_unconfirmed_output_stage" "implementation" \
-  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^REVIEW_STAGE=/{print $2; exit}')"
+  "$(printf '%s\n' ${platform_blocking_outputs[@]+"${platform_blocking_outputs[@]}"} | cut -d$'\036' -f2- | awk -F= '/^REVIEW_STAGE=/{print $2; exit}')"
 run_test "1656_lbc_unconfirmed_output_strict_spec" "not_applicable" \
-  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^STRICT_SPEC_STATE=/{print $2; exit}')"
+  "$(printf '%s\n' ${platform_blocking_outputs[@]+"${platform_blocking_outputs[@]}"} | cut -d$'\036' -f2- | awk -F= '/^STRICT_SPEC_STATE=/{print $2; exit}')"
 
 _1656_reset_guard_globals
 _1656_suppressed_emit="$(
@@ -1621,9 +1621,9 @@ run_test "1656_lbc_unavailable_result" "escalate" "$aggregate_result"
 run_test "1656_lbc_unavailable_reason" "local_blocker_confirmation_unavailable" "$aggregate_reason"
 run_test "1656_lbc_unavailable_count" "0" "$total_blocking_count"
 run_test "1656_lbc_unavailable_record_result" "escalate" \
-  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
+  "$(printf '%s\n' ${platform_result_records[@]+"${platform_result_records[@]}"} | jq -r '.raw_result')"
 run_test "1656_lbc_unavailable_record_reason" "local_blocker_confirmation_unavailable" \
-  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_reason')"
+  "$(printf '%s\n' ${platform_result_records[@]+"${platform_result_records[@]}"} | jq -r '.raw_reason')"
 
 _1656_reset_guard_globals
 {
@@ -1637,7 +1637,7 @@ run_test "1656_lbc_stale_confirm_result" "escalate" "$aggregate_result"
 run_test "1656_lbc_stale_confirm_reason" "local_blocker_confirmation_unavailable" "$aggregate_reason"
 run_test "1656_lbc_stale_confirm_count" "0" "$total_blocking_count"
 run_test "1656_lbc_stale_confirm_record_result" "escalate" \
-  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
+  "$(printf '%s\n' ${platform_result_records[@]+"${platform_result_records[@]}"} | jq -r '.raw_result')"
 
 _1656_reset_guard_globals
 {
@@ -1664,13 +1664,13 @@ run_test "1656_lbc_moved_head_reason" "head_moved_during_pass" "$local_blocker_c
 run_test "1656_lbc_moved_head_aggregate" "head_moved_during_run" "$aggregate_reason"
 run_test "1656_lbc_moved_head_count" "0" "$total_blocking_count"
 run_test "1656_lbc_moved_head_record_result" "needs_fixes" \
-  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_result')"
+  "$(printf '%s\n' ${platform_result_records[@]+"${platform_result_records[@]}"} | jq -r '.raw_result')"
 run_test "1656_lbc_moved_head_record_reason" "head_moved_during_run" \
-  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r '.raw_reason')"
+  "$(printf '%s\n' ${platform_result_records[@]+"${platform_result_records[@]}"} | jq -r '.raw_reason')"
 run_test "1656_lbc_moved_head_token" "local-ai-reviewer:needs_fixes" \
-  "$(printf '%s\n' "${platform_result_tokens[@]}")"
+  "$(printf '%s\n' ${platform_result_tokens[@]+"${platform_result_tokens[@]}"})"
 run_test "1656_lbc_moved_head_output_result" "needs_fixes" \
-  "$(printf '%s\n' "${platform_blocking_outputs[@]}" | cut -d$'\036' -f2- | awk -F= '/^RESULT=/{print $2; exit}')"
+  "$(printf '%s\n' ${platform_blocking_outputs[@]+"${platform_blocking_outputs[@]}"} | cut -d$'\036' -f2- | awk -F= '/^RESULT=/{print $2; exit}')"
 
 _1656_reset_guard_globals
 compare_mode=1
@@ -1736,11 +1736,11 @@ run_test "1656_s4_guard_proceed" "0" "$_st"
 run_test "1656_s4_guard_no_dispatch" "0" "$_1656_run_platform_review_calls"
 run_test "1656_s4_guard_reason" "not_required" "$local_second_pass_reason"
 run_test "1656_s4_guard_retains_head" "local-ai-reviewer:${_1656_guard_head}" \
-  "$(printf '%s\n' "${platform_reviewed_heads[@]:-}")"
+  "$(printf '%s\n' ${platform_reviewed_heads[@]+"${platform_reviewed_heads[@]}"})"
 run_test "1656_s4_guard_retains_peer" "clean|retained_history" \
   "$(expensive_gate_lookup_peer_evidence local-ai-reviewer)"
 run_test "1656_s4_guard_retains_result" "clean" \
-  "$(printf '%s\n' "${platform_result_records[@]:-}" | jq -sr 'map(select(.platform == "local-ai-reviewer")) | last | .result // ""')"
+  "$(printf '%s\n' ${platform_result_records[@]+"${platform_result_records[@]}"} | jq -sr 'map(select(.platform == "local-ai-reviewer")) | last | .result // ""')"
 
 # not_required must still re-read the live head before proceeding to ready-phase
 _1656_moved_head="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -1867,7 +1867,7 @@ run_test "1789_T2.9_second_pass_waiting_pending_reviewer" "local-ai-reviewer" \
 run_test "1789_T2.9_second_pass_waiting_no_failed_head" "" "$local_second_pass_failed_head_record"
 run_test "1789_T2.9_second_pass_waiting_label_not_required" "0" "$reviewer_failed_required"
 run_test "1789_T2.9_second_pass_waiting_ledger_no_verdict_yet" "no_verdict_yet" \
-  "$(printf '%s\n' "${platform_result_records[@]:-}" | jq -sr 'map(select(.platform == "local-ai-reviewer")) | last | .result // ""')"
+  "$(printf '%s\n' ${platform_result_records[@]+"${platform_result_records[@]}"} | jq -sr 'map(select(.platform == "local-ai-reviewer")) | last | .result // ""')"
 run_test "1789_T2.9_second_pass_waiting_phase_not_started" "0" "$phase_after_clean_started"
 run_test "1789_T2.9_gate_result_waiting" "waiting_on_reviewer|reviewer-no-verdict-yet" \
   "$(reviewer_loop_second_local_pass_gate_result waiting_on_reviewer reviewer-no-verdict-yet | tr '\t' '|')"
@@ -2255,16 +2255,16 @@ reviewer_loop_process_platform_output "local-ai-reviewer" 1 "$_1692_skip_out" 0 
 run_test "1692_sF_replayed_aggregate" "clean" "$aggregate_result"
 run_test "1692_sF_replayed_no_break" "0" "$reviewer_loop_platform_loop_should_break"
 run_test "1692_sF_replayed_reviewed_head" "local-ai-reviewer:${_1692_head}" \
-  "$(printf '%s\n' "${platform_reviewed_heads[@]}")"
+  "$(printf '%s\n' ${platform_reviewed_heads[@]+"${platform_reviewed_heads[@]}"})"
 run_test "1692_sF_replayed_peer_evidence" "clean|already_clean_current_head" \
   "$(expensive_gate_lookup_peer_evidence local-ai-reviewer)"
 run_test "1692_sF_replayed_peer_acceptable" "acceptable" \
   "$(expensive_gate_peer_evidence_acceptable clean already_clean_current_head && echo acceptable || echo refused)"
 run_test "1692_sF_replayed_ledger_record" "clean" \
-  "$(printf '%s\n' "${platform_result_records[@]}" | jq -r 'select(.platform == "local-ai-reviewer") | .result')"
+  "$(printf '%s\n' ${platform_result_records[@]+"${platform_result_records[@]}"} | jq -r 'select(.platform == "local-ai-reviewer") | .result')"
 run_test "1692_sF_replayed_no_reviewer_failed" "0" "$reviewer_failed_required"
 run_test "1692_sF_replayed_token" "local-ai-reviewer:clean (already clean on head)" \
-  "$(printf '%s\n' "${platform_result_tokens[@]}")"
+  "$(printf '%s\n' ${platform_result_tokens[@]+"${platform_result_tokens[@]}"})"
 run_test "1692_sF_replayed_head_current" "1" \
   "$(expensive_gate_local_ai_head_current "$_1692_head")"
 
@@ -2273,7 +2273,7 @@ run_test "1692_sF_replayed_head_current" "1" \
 # that refuses readiness.
 _1692_saved_platforms=()
 if declare -p platforms >/dev/null 2>&1 && [ "${#platforms[@]}" -gt 0 ]; then
-  _1692_saved_platforms=("${platforms[@]}")
+  _1692_saved_platforms=(${platforms[@]+"${platforms[@]}"})
 fi
 platforms=(local-ai-reviewer)
 # shellcheck disable=SC2034  # read by functions sourced from pr-review-loop.sh
@@ -2462,7 +2462,7 @@ unset -f _1692_pv_plant_p1_deny_list _1692_pv_plant_p2_any_entry_head 2>/dev/nul
 unset _1692_composed _1692_local_ai_keys _1692_skip_out _1692_mixed _1692_regressed
 unset platforms repo_review_platforms
 if [ "${#_1692_saved_platforms[@]}" -gt 0 ]; then
-  platforms=("${_1692_saved_platforms[@]}")
+  platforms=(${_1692_saved_platforms[@]+"${_1692_saved_platforms[@]}"})
 fi
 unset _1692_saved_platforms
 unset total_comment_count total_blocking_count total_suggestion_count reviewer_failed_required
