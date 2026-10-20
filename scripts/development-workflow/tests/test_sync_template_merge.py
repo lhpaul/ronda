@@ -204,6 +204,106 @@ class SyncTests(unittest.TestCase):
         self.write(self.consumer, merge.STATE_PATH, json.dumps(original))
         self.preview(known=False); self.apply()
 
+    def test_directory_entries_are_durable_before_writes_and_recovery_cleanup(self):
+        self.write(self.template, "shared/a.md", TEXT + "upstream\n")
+        self.write(self.template, "shared/new/deep/file.md", "new\n")
+        (self.template / "shared/link.md").symlink_to("a.md")
+        self.incoming = self.save(self.template)
+        self.preview()
+        events = []
+        fsync, replace, mkdir, unlink = os.fsync, os.replace, os.mkdir, os.unlink
+        writer = merge.write_snapshot
+        lock = self.consumer / merge.LOCK_PATH
+
+        def fd_path(fd):
+            info = os.fstat(fd)
+            for candidate in [self.consumer, *self.consumer.rglob("*")]:
+                if candidate.is_symlink():
+                    continue
+                current = candidate.stat()
+                if (info.st_dev, info.st_ino) == (current.st_dev, current.st_ino):
+                    return candidate
+            self.fail("descriptor does not belong to fixture")
+
+        def synced(fd):
+            fsync(fd)
+            events.append(("sync", fd_path(fd)))
+
+        def replaced(src, dst, **kwargs):
+            parent = fd_path(kwargs["dst_dir_fd"])
+            replace(src, dst, **kwargs)
+            events.append(("entry", parent))
+
+        def made(path, *args, **kwargs):
+            if "dir_fd" not in kwargs:
+                return mkdir(path, *args, **kwargs)
+            parent = fd_path(kwargs["dir_fd"])
+            mkdir(path, *args, **kwargs)
+            events.append(("entry", parent))
+
+        def checked_write(*args):
+            # File bytes, recovery name, and lock name must be durable in order.
+            required = [lock / "recovery.json", lock, self.consumer]
+            positions = [events.index(("sync", path)) for path in required]
+            self.assertEqual(positions, sorted(positions))
+            return writer(*args)
+
+        def removed(path, *args, **kwargs):
+            if path == "recovery.json":
+                for index, (kind, parent) in enumerate(events):
+                    if kind == "entry":
+                        self.assertIn(("sync", parent), events[index + 1:])
+            return unlink(path, *args, **kwargs)
+
+        with patch.object(os, "fsync", synced), patch.object(os, "replace", replaced), \
+             patch.object(os, "mkdir", made), patch.object(os, "unlink", removed), \
+             patch.object(merge, "write_snapshot", checked_write):
+            self.apply()
+        self.assertFalse(lock.exists())
+        print("PROOF durability: recovery file/lock/parent precede writes; replaced file, symlink, state and new-directory entries precede journal deletion")
+
+    def test_deleted_snapshot_directory_is_persisted(self):
+        target = self.consumer / "shared/a.md"
+        parent = target.parent.stat()
+        synced = []
+        fsync = os.fsync
+
+        def observed(fd):
+            fsync(fd)
+            info = os.fstat(fd)
+            synced.append((info.st_dev, info.st_ino))
+
+        with patch.object(os, "fsync", observed):
+            merge.write_snapshot(self.consumer, "shared/a.md", None, [])
+        self.assertFalse(target.exists())
+        self.assertIn((parent.st_dev, parent.st_ino), synced)
+
+    def test_directory_fsync_failure_restores_or_preserves_recovery(self):
+        self.write(self.template, "shared/a.md", TEXT + "upstream\n")
+        self.incoming = self.save(self.template)
+        before = self.fingerprint()
+        self.preview()
+        fsync = os.fsync
+        parent = (self.consumer / "shared").stat()
+
+        def fail_parent(fd):
+            info = os.fstat(fd)
+            if (info.st_dev, info.st_ino) == (parent.st_dev, parent.st_ino):
+                raise OSError("planted directory persistence failure")
+            return fsync(fd)
+
+        with patch.object(os, "fsync", fail_parent):
+            self.apply(expected=2)
+        lock = self.consumer / merge.LOCK_PATH
+        self.assertTrue((lock / "recovery.json").is_file())
+        retained = self.fingerprint()
+        self.assertEqual({k: v for k, v in retained.items() if not k.startswith(merge.LOCK_PATH)}, before)
+        # Repair and remove only this isolated fixture's retained recovery.
+        (lock / "recovery.json").unlink(); lock.rmdir()
+        self.preview(); self.apply()
+        self.assertFalse(lock.exists())
+        print("PROOF durability failure: directory fsync error withholds applied verdict, restores bytes and retains recovery; repaired filesystem passes")
+
     def test_cleanup_failures_roll_back_and_preserve_recovery(self):
         self.write(self.template, "shared/a.md", TEXT + "upstream\n")
         self.incoming = self.save(self.template)
