@@ -3,7 +3,7 @@
 **Spec**: [Approved scope](../../specs/developments/20261021214305_miss-verdict-provenance/1_miss-verdict-provenance_specs.md)
 **Plan**: [Implementation contract](../../specs/developments/20261021214305_miss-verdict-provenance/2_miss-verdict-provenance_implementation-plan.md)
 **Created in**: Writing Plan
-**Updated in**: Implementation execution pending
+**Updated in**: Implementation execution, 2026-10-21 UTC
 
 ## Prerequisites
 
@@ -159,20 +159,61 @@ cases and retain useful test output as PR evidence.
 
 ## Assertions Checklist
 
-- [ ] AC1: Explicit selections persist through initial capture and adjudication.
-- [ ] AC2: Missing/invalid required selection refuses without evidence mutation.
-- [ ] AC3: Legacy absence resolves human; explicit invalid never does; unadjudicated stays unconfirmed.
-- [ ] AC4: Surviving cohort field-only backfill is proven with prior exclusions accounted for.
-- [ ] AC5: Human confirmed and accepted draft figures are separate, including empty groups and exclusions.
-- [ ] AC6: Recommendations/summaries identify accepted-draft contribution.
-- [ ] AC7: Human-required ledger rules reject drafts and preserve independent criteria.
-- [ ] AC8: Individual confirmation changes the current group and retains committed prior evidence.
-- [ ] AC9: No model call, GitHub publication or approval workflow is introduced.
+- [x] AC1: Explicit selections persist through initial capture and adjudication.
+- [x] AC2: Missing/invalid required selection refuses without evidence mutation.
+- [x] AC3: Legacy absence resolves human; explicit invalid never does; unadjudicated stays unconfirmed.
+- [x] AC4: Surviving cohort field-only backfill is proven with prior exclusions accounted for.
+- [x] AC5: Human confirmed and accepted draft figures are separate, including empty groups and exclusions.
+- [x] AC6: Recommendations/summaries identify accepted-draft contribution.
+- [x] AC7: Human-required ledger rules reject drafts and preserve independent criteria.
+- [x] AC8: Individual confirmation changes the current group and retains committed prior evidence.
+- [x] AC9: No model call, GitHub publication or approval workflow is introduced.
 
 ## Execution Record
 
-Pending implementation. Record implementation SHA, command PASS/FAIL outcomes,
-AC mapping, backfill residual proof and audit commit references here.
+Executed offline on the implementation tree committed as `6d13a6b` (followed
+only by this execution record and a spec wording clarification).
+
+| Verification | Result | Coverage |
+| --- | --- | --- |
+| Focused six-file smoke suite plus shared resolver tests | PASS, 87 tests | Steps 1–3, 5–6; AC1–AC3, AC5–AC9 |
+| Full `npm test` | PASS, 742 tests, no skipped tests | Step 7 regression |
+| `npm run typecheck` / `npm run lint` | PASS / PASS | Step 7 |
+| Markdown lint, ten changed documentation files | PASS, zero errors | Documentation |
+| Runtime validation proof | PASS: missing/invalid terminal selection refuses, valid selected counterpart succeeds; invalid explicit read/report/summary values fail before stale/unadjudicated exclusions | AC1–AC3 |
+| Ledger assertion plants | PASS: each of three rule omissions in each ledger failed its expected assertion in isolation; all six restored counterparts passed | AC7 |
+| Disposable git audit | PASS: two ordinary commits preserve the parent's draft provenance and identical verdict after individual confirmation | AC8 |
+| Backfill residual proof | PASS, all 170 selected survivors differ only by the new field; no unselected changes or recreated exclusions | AC4 |
+
+Concrete runtime proof cases are the `#139` tests in
+`tests/unit/cli/capture-external-review-misses.test.ts`,
+`tests/unit/quality/miss-capture-gate.test.ts`,
+`tests/unit/quality/miss-verdict-provenance.test.ts`,
+`tests/unit/quality/review-quality-report.test.ts`, and
+`tests/unit/cli/summarize-miss-records.test.ts`. They pair malformed or missing
+inputs with valid selections and check refusal without mutation. The ledger
+plants removed, separately, the draft exclusion statement, unchanged eligibility
+statement, and independent provisional trigger statement. Plant locations:
+`sweep-real-pr-evidence.md` lines 279, 286 and 288;
+`repository-context-effect-evidence-106.md` lines 143, 150 and 152. Each omission
+failed only its corresponding `#139` test in
+`tests/unit/testing/evidence-records.test.ts`; original statements were restored.
+
+Backfill commit: `e99bc22`. Against baseline
+`12e0b2e47a94c3795e9cab0d57203163f7c17f73`, enumerating every JSON path and its ID
+with the plan's exact marker yielded the same 170-member set. SHA-256 of the
+sorted `path + tab + id` lines (joined with newline, no trailing newline):
+`18df788801f5da86a01d323619e42f78f7f10dd983bc8545be86c9206043791e`.
+Every parsed before/after object was equal after removing only the new property,
+whose value was always `assistant_drafted_owner_accepted`. The backfill commit's
+changed-path set exactly matched the selected set. The two #118 identities named
+in Step 4 remain absent; their prior exclusion is recorded by `e1cfac7`.
+
+The scope-residual helper returned not-applicable on the original issue wording;
+verification using the explicit bounded scope "Update all 170 files in the
+delegated miss cohort" returned pass, numeric sweep target 170, zero residual
+groups and zero follow-ups. No live resolvability refresh, model call, product
+review publication or credential use occurred during this verification.
 
 ## Troubleshooting
 

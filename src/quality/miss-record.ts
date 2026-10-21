@@ -1,3 +1,4 @@
+import { resolveMissVerdictProvenance, type MissVerdictProvenance } from "./miss-verdict-provenance.js";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -81,6 +82,7 @@ export interface ExternalReviewMissRecord {
   text: string;
   textTruncated: boolean;
   verdict: MissVerdict;
+  verdictProvenance?: MissVerdictProvenance;
   affectedCategory: AffectedCategory;
   intendedFollowUp: IntendedFollowUp;
   captureSource: CaptureSource;
@@ -304,7 +306,9 @@ export function writeMissRecord(
 }
 
 export function readMissRecordFile(path: string): ExternalReviewMissRecord {
-  return JSON.parse(readFileSync(path, "utf8")) as ExternalReviewMissRecord;
+  const record = JSON.parse(readFileSync(path, "utf8")) as ExternalReviewMissRecord;
+  resolveMissVerdictProvenance(record);
+  return record;
 }
 
 export function deleteMissRecordFile(path: string): void {

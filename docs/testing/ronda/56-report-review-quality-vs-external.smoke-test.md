@@ -115,3 +115,19 @@ section; non-zero exit only if every file failed.
 **Fail**: Any confirmed TP/FP count includes stale or unadjudicated rows; report
 calls GitHub; sensitive fixture values appear in output; or filters silently
 no-op.
+
+## Provenance extension (#139)
+
+For new terminal judgments, select `--verdict-provenance human` for individual
+human review or `--verdict-provenance assistant_drafted_owner_accepted` for an
+owner-accepted draft. Missing or invalid selections refuse the affected write.
+Default recapture and follow-up-only adjudication preserve existing provenance.
+Legacy absence reads as human without a file rewrite; explicit invalid values
+never become human evidence.
+
+Verify separate human and accepted-draft report/summary groups, source-labelled
+recommendations, unchanged stale/unresolvable exclusions, and both ledgers'
+human-required eligibility. Commit draft evidence before a later provenance-only
+human confirmation with rationale so the prior evidence remains in git history.
+Use the [offline provenance runbook](miss-verdict-provenance.smoke-test.md) for
+deterministic checks without model calls or GitHub publication.

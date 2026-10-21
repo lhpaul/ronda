@@ -21,5 +21,6 @@
   "updatedAt": "2026-09-30T20:17:32.077Z",
   "mergeBaseSha": "5a5602ab9c895e5af60d9282a8013f1dfa4e9a13",
   "rationale": "Real defect: the flagged lines changed in 40baf55, the next commit. Ronda v0.2.0 posted no matching finding on this head. Plan PR counted in scope: Ronda reviews plan PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
-  "rationaleTruncated": false
+  "rationaleTruncated": false,
+  "verdictProvenance": "assistant_drafted_owner_accepted"
 }

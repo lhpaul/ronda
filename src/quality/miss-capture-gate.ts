@@ -1,3 +1,4 @@
+import { isMissVerdictProvenance, type MissVerdictProvenance } from "./miss-verdict-provenance.js";
 import {
   formatContentRefusal,
   validateCaptureFields,
@@ -49,6 +50,7 @@ export interface CaptureFindingInput {
   text: string;
   affectedCategory?: string;
   verdict?: string;
+  verdictProvenance?: string;
   intendedFollowUp?: string;
   reviewedHeadSha?: string;
   sourceId?: string | null;
@@ -74,6 +76,7 @@ export interface CaptureGateInput {
   automaticDefaults?: {
     affectedCategory?: string;
     verdict?: string;
+    verdictProvenance?: string;
     intendedFollowUp?: string;
   };
   /**
@@ -83,6 +86,7 @@ export interface CaptureGateInput {
   automaticPerFinding?: Array<{
     affectedCategory?: string;
     verdict?: string;
+    verdictProvenance?: string;
     intendedFollowUp?: string;
   }>;
   existingRecords: ExternalReviewMissRecord[];
@@ -119,10 +123,11 @@ function formatContentReason(reason: ContentRefusalReason): string {
 export function mergeJudgementFields(input: {
   existing: ExternalReviewMissRecord;
   suppliedVerdict?: MissVerdict;
+  suppliedProvenance?: MissVerdictProvenance;
   suppliedFollowUp?: IntendedFollowUp;
 }): Pick<
   ExternalReviewMissRecord,
-  "verdict" | "intendedFollowUp" | "rationale" | "rationaleTruncated"
+  "verdict" | "verdictProvenance" | "intendedFollowUp" | "rationale" | "rationaleTruncated"
 > {
   let verdict = input.existing.verdict;
   let intendedFollowUp = input.existing.intendedFollowUp;
@@ -153,7 +158,16 @@ export function mergeJudgementFields(input: {
     rationaleTruncated = undefined;
   }
 
-  return { verdict, intendedFollowUp, rationale, rationaleTruncated };
+  const verdictProvenance = input.suppliedVerdict &&
+    input.suppliedVerdict !== "unadjudicated" && input.suppliedProvenance
+    ? input.suppliedProvenance : input.existing.verdictProvenance;
+  return {
+    verdict,
+    ...(verdictProvenance !== undefined ? { verdictProvenance } : {}),
+    intendedFollowUp,
+    rationale,
+    rationaleTruncated,
+  };
 }
 
 function parseOptionalVerdict(
@@ -278,6 +292,7 @@ function validateFindingStage2(input: {
   text: string;
   category?: string;
   verdict?: string;
+  verdictProvenance?: string;
   followUp?: string;
   automaticFindingLabel?: string;
 }): CaptureFindingResult | null {
@@ -462,6 +477,14 @@ function processOneFinding(input: {
     return refuse(followUpParse.reason);
   }
 
+  const provenance = input.finding.verdictProvenance;
+  if (provenance !== undefined && !isMissVerdictProvenance(provenance)) {
+    return refuse("Capture refused: verdict provenance must be human or assistant_drafted_owner_accepted.");
+  }
+  if (verdictParse.value && verdictParse.value !== "unadjudicated" && provenance === undefined) {
+    return refuse("Capture refused: terminal verdict requires --verdict-provenance.");
+  }
+
   const now = (input.gate.now ?? new Date()).toISOString();
   const locationUnresolved =
     input.finding.locationUnresolved === true ||
@@ -501,6 +524,7 @@ function processOneFinding(input: {
         text: truncatedText.value,
         textTruncated: truncatedText.truncated,
         verdict: verdictParse.value ?? "unadjudicated",
+        ...(provenance !== undefined ? { verdictProvenance: provenance as MissVerdictProvenance } : {}),
         affectedCategory: category,
         intendedFollowUp: followUpParse.value ?? "undecided",
         captureSource: "automatic",
@@ -515,6 +539,7 @@ function processOneFinding(input: {
     const merged = mergeJudgementFields({
       existing,
       suppliedVerdict: verdictParse.value,
+      suppliedProvenance: provenance as MissVerdictProvenance | undefined,
       suppliedFollowUp: followUpParse.value,
     });
     const record: ExternalReviewMissRecord = {
@@ -529,10 +554,7 @@ function processOneFinding(input: {
       text: truncatedText.value,
       textTruncated: truncatedText.truncated,
       affectedCategory: category,
-      verdict: merged.verdict,
-      intendedFollowUp: merged.intendedFollowUp,
-      rationale: merged.rationale,
-      rationaleTruncated: merged.rationaleTruncated,
+      ...merged,
       updatedAt: now,
       mergeBaseSha,
       // Preserve identity fields
@@ -586,6 +608,7 @@ function processOneFinding(input: {
       text: truncatedText.value,
       textTruncated: truncatedText.truncated,
       verdict: verdictParse.value ?? "unadjudicated",
+        ...(provenance !== undefined ? { verdictProvenance: provenance as MissVerdictProvenance } : {}),
       affectedCategory: category,
       intendedFollowUp: followUpParse.value ?? "undecided",
       captureSource: "manual",
@@ -601,6 +624,7 @@ function processOneFinding(input: {
   const merged = mergeJudgementFields({
     existing,
     suppliedVerdict: verdictParse.value,
+      suppliedProvenance: provenance as MissVerdictProvenance | undefined,
     suppliedFollowUp: followUpParse.value,
   });
   const record: ExternalReviewMissRecord = {
@@ -615,10 +639,7 @@ function processOneFinding(input: {
     text: truncatedText.value,
     textTruncated: truncatedText.truncated,
     affectedCategory: category,
-    verdict: merged.verdict,
-    intendedFollowUp: merged.intendedFollowUp,
-    rationale: merged.rationale,
-    rationaleTruncated: merged.rationaleTruncated,
+    ...merged,
     updatedAt: now,
     mergeBaseSha,
     captureSource: "manual",
@@ -633,6 +654,7 @@ function processOneFinding(input: {
 type AutomaticFindingJudgement = {
   affectedCategory?: string;
   verdict?: string;
+  verdictProvenance?: string;
   intendedFollowUp?: string;
 };
 
@@ -694,6 +716,7 @@ export function runCaptureDecisionGate(
           text: candidate.text,
           affectedCategory: judgements[index]?.affectedCategory,
           verdict: judgements[index]?.verdict,
+          verdictProvenance: judgements[index]?.verdictProvenance,
           intendedFollowUp: judgements[index]?.intendedFollowUp,
           reviewedHeadSha: candidate.reviewedHeadSha || input.evidence.currentHeadSha,
           sourceId: candidate.sourceId,
@@ -730,6 +753,7 @@ export function runCaptureDecisionGate(
 export interface AdjudicateInput {
   record: ExternalReviewMissRecord;
   verdict?: string;
+  verdictProvenance?: string;
   intendedFollowUp?: string;
   rationale?: string;
   corpus?: SourceScanCorpus;
@@ -745,7 +769,9 @@ export function adjudicateMissRecord(
   const hasFollowUp =
     input.intendedFollowUp !== undefined && input.intendedFollowUp !== "";
 
-  if (!hasVerdict && !hasFollowUp) {
+  const hasProvenance = input.verdictProvenance !== undefined;
+
+  if (!hasVerdict && !hasFollowUp && !hasProvenance) {
     return {
       ok: false,
       reason:
@@ -759,6 +785,16 @@ export function adjudicateMissRecord(
       ok: false,
       reason: "Adjudication refused: a rationale is required.",
     };
+  }
+
+  if (hasProvenance && !isMissVerdictProvenance(input.verdictProvenance)) {
+    return { ok: false, reason: "Adjudication refused: verdict provenance must be human or assistant_drafted_owner_accepted." };
+  }
+  if (hasVerdict && !hasProvenance) {
+    return { ok: false, reason: "Adjudication refused: terminal verdict requires --verdict-provenance." };
+  }
+  if (hasProvenance && !hasVerdict && input.record.verdict === "unadjudicated") {
+    return { ok: false, reason: "Adjudication refused: provenance requires a terminal verdict to confirm." };
   }
 
   let nextVerdict = input.record.verdict;
@@ -846,6 +882,7 @@ export function adjudicateMissRecord(
     record: {
       ...input.record,
       verdict: nextVerdict,
+      ...(hasProvenance ? { verdictProvenance: input.verdictProvenance as MissVerdictProvenance } : {}),
       intendedFollowUp: nextFollowUp,
       rationale: truncated.value,
       rationaleTruncated: truncated.truncated,

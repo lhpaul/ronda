@@ -695,6 +695,7 @@ test("AC42 re-capture replaces category without rationale", () => {
   const first = runCaptureDecisionGate(
     baseManual({
       verdict: "true_positive",
+      verdictProvenance: "human",
       intendedFollowUp: "eval_record",
     }),
   );
@@ -726,6 +727,7 @@ test("AC47 / AC51 defaults do not wipe adjudicated fields; differing values clea
     text: "Missing idempotency key on retry.",
     textTruncated: false,
     verdict: "true_positive",
+      verdictProvenance: "human",
     affectedCategory: "idempotency",
     intendedFollowUp: "eval_record",
     captureSource: "manual",
@@ -801,6 +803,7 @@ test("AC5 / AC28 adjudication requires rationale and scans it", () => {
   const missing = adjudicateMissRecord({
     record,
     verdict: "true_positive",
+      verdictProvenance: "human",
   });
   assert.equal(missing.ok, false);
   if (!missing.ok) {
@@ -810,6 +813,7 @@ test("AC5 / AC28 adjudication requires rationale and scans it", () => {
   const credential = adjudicateMissRecord({
     record,
     verdict: "true_positive",
+      verdictProvenance: "human",
     rationale: 'password = "s3cret-value"',
     corpus: { changedFileContents: [], diffText: "" },
   });
@@ -821,6 +825,7 @@ test("AC5 / AC28 adjudication requires rationale and scans it", () => {
   const ok = adjudicateMissRecord({
     record,
     verdict: "true_positive",
+      verdictProvenance: "human",
     intendedFollowUp: "eval_record",
     rationale: "Confirmed miss on retry path.",
     corpus: { changedFileContents: [], diffText: "" },
@@ -834,6 +839,7 @@ test("AC5 / AC28 adjudication requires rationale and scans it", () => {
   const missingCorpus = adjudicateMissRecord({
     record,
     verdict: "true_positive",
+      verdictProvenance: "human",
     rationale: "Needs corpus",
   });
   assert.equal(missingCorpus.ok, false);
@@ -889,4 +895,38 @@ test("AC54 merge-base callback is invoked per capture reviewed head", () => {
   });
   assert.deepEqual(seen, [HEAD_A]);
   assert.notEqual(`mb-${HEAD_B.slice(0, 8)}`, `mb-${HEAD_A.slice(0, 8)}`);
+});
+
+for (const provenance of ["human", "assistant_drafted_owner_accepted"] as const) {
+  test(`#139 manual terminal capture and promotion: ${provenance}`, () => {
+    const selected = baseManual({ verdict: "true_positive", verdictProvenance: provenance });
+    const saved = runCaptureDecisionGate(selected).findings[0]!.record!;
+    assert.equal(saved.verdictProvenance, provenance);
+    const retained = runCaptureDecisionGate({ ...baseManual(), existingRecords: [saved] }).findings[0]!.record!;
+    assert.equal(retained.verdictProvenance, provenance);
+    const promoted = adjudicateMissRecord({ record: saved, verdictProvenance: "human", rationale: "Individually confirmed.", corpus: emptyCorpus() });
+    assert.equal(promoted.ok, true);
+    if (promoted.ok) {
+      assert.equal(promoted.record.verdictProvenance, "human");
+      assert.equal(promoted.record.verdict, saved.verdict);
+      assert.equal(promoted.record.id, saved.id);
+    }
+    const followed = adjudicateMissRecord({ record: saved, intendedFollowUp: "eval_record", rationale: "Keep evidence.", corpus: emptyCorpus() });
+    assert.equal(followed.ok, true);
+    if (followed.ok) assert.equal(followed.record.verdictProvenance, provenance);
+    const before = JSON.stringify(saved);
+    for (const invalid of [undefined, "", "robot"]) {
+      const refused = runCaptureDecisionGate({ ...baseManual({ verdict: "true_positive", verdictProvenance: invalid }), existingRecords: [saved] });
+      assert.equal(refused.findings[0]!.outcome, "capture_refused");
+      const adjudication = adjudicateMissRecord({ record: saved, verdict: "true_positive", verdictProvenance: invalid, rationale: "Individually checked.", corpus: emptyCorpus() });
+      assert.equal(adjudication.ok, false);
+      assert.equal(JSON.stringify(saved), before);
+    }
+  });
+}
+
+test("#139 provenance without terminal verdict refuses promotion; invalid default capture refuses", () => {
+  const saved = runCaptureDecisionGate(baseManual()).findings[0]!.record!;
+  assert.equal(adjudicateMissRecord({ record: saved, verdictProvenance: "human", rationale: "Not yet judged.", corpus: emptyCorpus() }).ok, false);
+  assert.equal(runCaptureDecisionGate(baseManual({ verdictProvenance: "robot" })).findings[0]!.outcome, "capture_refused");
 });

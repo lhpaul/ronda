@@ -21,5 +21,6 @@
   "updatedAt": "2026-09-30T19:04:56.120Z",
   "mergeBaseSha": "6dfa172685306529679c4d205b87ac4e955626c8",
   "rationale": "Author fixed it: Fixed in 155e78d. Ronda v0.2.0 posted no matching finding on this head. Spec PR counted in scope: Ronda reviews spec PRs and reports no findings. Verdict drafted by the assistant and accepted by LH without per-record review (delegated 2026-09-30).",
-  "rationaleTruncated": false
+  "rationaleTruncated": false,
+  "verdictProvenance": "assistant_drafted_owner_accepted"
 }

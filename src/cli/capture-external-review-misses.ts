@@ -50,6 +50,7 @@ interface AutomaticOptions extends CommonOptions {
   category?: string;
   categories?: string[];
   verdict?: string;
+  verdictProvenance?: string;
   verdicts?: string[];
   followUp?: string;
   followUps?: string[];
@@ -62,6 +63,7 @@ interface ManualOptions extends CommonOptions {
   text?: string;
   category?: string;
   verdict?: string;
+  verdictProvenance?: string;
   followUp?: string;
   reviewedHead?: string;
   locationUnresolved?: boolean;
@@ -76,6 +78,7 @@ interface AdjudicateOptions extends CommonOptions {
   command: "adjudicate";
   id: string;
   verdict?: string;
+  verdictProvenance?: string;
   followUp?: string;
   rationale?: string;
 }
@@ -134,6 +137,12 @@ Stage 1 refuses the whole capture; Stages 2–3 refuse only the affected finding
 
 Records are committed evidence under docs/testing/ronda/misses/. Capture never
 posts comments, reviews, labels, or state changes to GitHub.
+Terminal verdicts require --verdict-provenance human|assistant_drafted_owner_accepted.
+The option applies to every supplied terminal judgment in a multi-finding capture.
+Use adjudicate with the option and a rationale to individually confirm a terminal
+accepted draft. Follow-up-only and default recapture preserve provenance.
+Legacy records lacking the property are interpreted as human without rewriting them.
+Commit draft evidence before promotion: durable audit is ordinary git history.
 Adjudication and deletion rules are enforced by this tooling only.
 `;
 
@@ -179,6 +188,9 @@ function parseArgs(argv: string[]): CliOptions {
       index += 1;
     } else if (arg === "--categories" && next) {
       options.categories = next.split(",").map((value) => value.trim());
+      index += 1;
+    } else if (arg === "--verdict-provenance" && next) {
+      options.verdictProvenance = next;
       index += 1;
     } else if (arg === "--verdict" && next) {
       options.verdict = next;
@@ -233,6 +245,7 @@ function parseArgs(argv: string[]): CliOptions {
       category: options.category as string | undefined,
       categories: options.categories as string[] | undefined,
       verdict: options.verdict as string | undefined,
+      verdictProvenance: options.verdictProvenance as string | undefined,
       verdicts: options.verdicts as string[] | undefined,
       followUp: options.followUp as string | undefined,
       followUps: options.followUps as string[] | undefined,
@@ -251,6 +264,7 @@ function parseArgs(argv: string[]): CliOptions {
       text: options.text as string | undefined,
       category: options.category as string | undefined,
       verdict: options.verdict as string | undefined,
+      verdictProvenance: options.verdictProvenance as string | undefined,
       followUp: options.followUp as string | undefined,
       reviewedHead: options.reviewedHead as string | undefined,
       locationUnresolved: options.locationUnresolved === true,
@@ -277,6 +291,7 @@ function parseArgs(argv: string[]): CliOptions {
       command,
       id: String(options.id),
       verdict: options.verdict as string | undefined,
+      verdictProvenance: options.verdictProvenance as string | undefined,
       followUp: options.followUp as string | undefined,
       rationale: options.rationale as string | undefined,
       dir,
@@ -322,6 +337,7 @@ function requirePr(pr: number | undefined): number {
 function buildAutomaticPerFinding(options: AutomaticOptions): Array<{
   affectedCategory?: string;
   verdict?: string;
+  verdictProvenance?: string;
   intendedFollowUp?: string;
 }> | undefined {
   if (options.categories && options.categories.length > 0) {
@@ -335,11 +351,12 @@ function buildAutomaticPerFinding(options: AutomaticOptions): Array<{
     return options.categories.map((category, index) => ({
       affectedCategory: category,
       verdict: options.verdicts?.[index],
+      verdictProvenance: options.verdictProvenance,
       intendedFollowUp: options.followUps?.[index],
     }));
   }
   if (options.category) {
-    return [{ affectedCategory: options.category, verdict: options.verdict, intendedFollowUp: options.followUp }];
+    return [{ affectedCategory: options.category, verdict: options.verdict, verdictProvenance: options.verdictProvenance, intendedFollowUp: options.followUp }];
   }
   return undefined;
 }
@@ -598,7 +615,7 @@ export async function main(
 
     const result = adjudicateMissRecord({
       record: found.record,
-      verdict: options.verdict,
+      verdict: options.verdict, verdictProvenance: options.verdictProvenance,
       intendedFollowUp: options.followUp,
       rationale: options.rationale,
       corpus,
@@ -704,6 +721,7 @@ export async function main(
           ? {
               affectedCategory: perFinding[0]?.affectedCategory,
               verdict: perFinding[0]?.verdict,
+              verdictProvenance: perFinding[0]?.verdictProvenance,
               intendedFollowUp: perFinding[0]?.intendedFollowUp,
             }
           : undefined,
@@ -740,7 +758,7 @@ export async function main(
       title: options.title,
       text: options.text ?? "",
       affectedCategory: options.category,
-      verdict: options.verdict,
+      verdict: options.verdict, verdictProvenance: options.verdictProvenance,
       intendedFollowUp: options.followUp,
       reviewedHeadSha: options.reviewedHead,
       sourceId: null,

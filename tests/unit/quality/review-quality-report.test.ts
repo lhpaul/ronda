@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -343,3 +343,61 @@ test("AC48 report excludes unresolvable miss records from verdict outcomes", () 
   assert.equal(action?.recordIds.length, 1);
   assert.deepEqual(action?.recordIds, ["resolvable-tp"]);
 });
+
+function provenanceMiss(overrides: Partial<CapturedMissRecord> = {}): CapturedMissRecord {
+  return { id: "legacy", repository: "example/repo", pullNumber: 1,
+    reviewedHeadSha: "a".repeat(40), rondaResultHeadSha: "a".repeat(40),
+    externalReviewer: "reviewer", verdict: "true_positive", affectedCategory: "retries",
+    intendedFollowUp: "eval_record", ...overrides };
+}
+function provenanceReport(records: CapturedMissRecord[], filters = {}) {
+  return buildReviewQualityReport({ comparisonRecords: [baseRecord], missRecords: records,
+    comparisonFiles: [], missFiles: [], comparisonDirectory: "comparisons", missDirectory: "misses",
+    skippedFiles: [], filters, isResolvable: (row) => row.id !== "gone" });
+}
+
+test("#139 report partitions legacy, human and draft evidence with source-attributed recommendations", () => {
+  const records = [provenanceMiss(), provenanceMiss({ id: "human", verdictProvenance: "human" }),
+    provenanceMiss({ id: "draft", verdictProvenance: "assistant_drafted_owner_accepted" }),
+    provenanceMiss({ id: "gone", verdictProvenance: "assistant_drafted_owner_accepted" }),
+    provenanceMiss({ id: "stale", reviewedHeadSha: "b".repeat(40), verdictProvenance: "assistant_drafted_owner_accepted" }),
+    provenanceMiss({ id: "filtered", repository: "other/repo", verdictProvenance: "assistant_drafted_owner_accepted" })];
+  const report = provenanceReport(records, { repository: "example/repo" });
+  assert.equal(report.primaryOutcomes.true_positive.count, 2);
+  assert.equal(report.acceptedAssistantDrafts.primaryOutcomes.true_positive.count, 1);
+  assert.equal(report.primaryOutcomes.stale_head.count, 1);
+  assert.equal(report.supplementary.unresolvableEvidence, 1);
+  assert.equal(report.improvement.topMissedCategories[0]!.confirmedMissCount, 2);
+  assert.equal(report.improvement.followUpCounts.eval_record, 2);
+  assert.equal(report.acceptedAssistantDrafts.followUpCounts.eval_record, 1);
+  assert.deepEqual(report.acceptedAssistantDrafts.breakdowns.byCategory.retries, { true_positive: 1, false_positive: 0, false_clean: 0, stale_head: 0, unadjudicated: 0 });
+  const actions = report.improvement.suggestedActions;
+  assert.deepEqual(actions.find((a) => a.provenance === "assistant_drafted_owner_accepted")!.recordIds, ["draft"]);
+  assert.match(actions.find((a) => a.provenance === "assistant_drafted_owner_accepted")!.action, /Accepted assistant draft evidence/);
+  assert.doesNotMatch(actions.find((a) => a.provenance === "assistant_drafted_owner_accepted")!.action, /human.reviewed|comparison evidence|confirmed/i);
+  assert.ok(actions.every((a) => !a.recordIds.some((id) => ["filtered", "gone", "stale"].includes(id))));
+  assert.match(formatMarkdownSummary(report), /Human reviewed/);
+  assert.match(formatMarkdownSummary(report), /Accepted assistant drafts/);
+  assert.equal(JSON.parse(JSON.stringify(report)).acceptedAssistantDrafts.primaryOutcomes.true_positive.count, 1);
+  assert.equal(provenanceReport([]).acceptedAssistantDrafts.primaryOutcomes.true_positive.count, 0);
+  assert.equal(provenanceReport([records[2]!]).primaryOutcomes.true_positive.count, 0);
+  assert.equal(provenanceReport([records[0]!]).acceptedAssistantDrafts.primaryOutcomes.true_positive.count, 0);
+  assert.ok(!Object.hasOwn(records[0]!, "verdictProvenance"));
+});
+
+for (const invalid of ["", null, 7, "robot"]) {
+  test(`#139 malformed provenance ${JSON.stringify(invalid)} rejected before exclusions and file reads`, () => {
+    const record = { ...provenanceMiss({ verdict: "unadjudicated", staleEvidence: true }), verdictProvenance: invalid } as unknown as CapturedMissRecord;
+    assert.throws(() => provenanceReport([record]), /Invalid verdictProvenance/);
+    assert.doesNotThrow(() => provenanceReport([{ ...record, verdictProvenance: "human" }]));
+    const dir = mkdtempSync(join(tmpdir(), "ronda-139-invalid-"));
+    const path = join(dir, "record.json");
+    writeFileSync(path, JSON.stringify(record));
+    const loaded = loadEvidenceFiles({ comparisonFiles: [], missFiles: [path], comparisonDirectory: dir, missDirectory: dir });
+    assert.equal(loaded.missRecords.length, 0);
+    assert.match(loaded.skippedFiles[0]!.reason, /Invalid verdictProvenance/);
+    writeFileSync(path, JSON.stringify({ ...record, verdictProvenance: "human" }));
+    assert.equal(loadEvidenceFiles({ comparisonFiles: [], missFiles: [path], comparisonDirectory: dir, missDirectory: dir }).missRecords.length, 1);
+    rmSync(dir, { recursive: true, force: true });
+  });
+}

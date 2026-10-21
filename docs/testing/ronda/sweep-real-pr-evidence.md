@@ -273,3 +273,18 @@ figures **reported as not applicable** rather than reported as zero.
   judgment.** The rule zeroes the count. Whether the prior list's evidence was
   any good is a separate question this record does not answer and does not
   need to — the count accrues under one version at a time.
+
+## Miss verdict provenance eligibility (#139)
+
+Accepted assistant drafts cannot satisfy human-adjudication requirements for
+counted pull requests or measured-tier promotion. Owner batch acceptance is not
+individual human review. A miss record with `verdictProvenance` equal to
+`assistant_drafted_owner_accepted` remains draft evidence even with a terminal
+verdict. An absent legacy property is interpreted as `human`; an explicit invalid
+value is not human evidence.
+
+Individual human confirmation makes the record eligible for the unchanged
+head, cohort, configuration and count requirements; it does not automatically
+promote a tier. Independent provisional promotion triggers that do not require
+adjudication remain unchanged. Record current adjudication and preserve committed
+prior draft history before any promotion is claimed.
