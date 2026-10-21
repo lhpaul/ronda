@@ -108,7 +108,8 @@ auditable without rewriting verdict history.
 - BR4: The original 172-record #136/#138 cohort must be accounted for: backfill
   all 170 surviving records identified by their existing delegation statement;
   retain the prior exclusion of the two head-unresolvable records from commit
-  `e1cfac7` without recreating them. This cohort must be backfilled as Accepted assistant draft. This one-time
+  `e1cfac7` without recreating them. The surviving records must be marked
+  Accepted assistant draft. This one-time
   correction preserves their verdicts, rationale, identities, and history and
   does not classify unrelated records by prose.
 - BR5: Accepted assistant drafts are excluded from confirmed miss counts.
