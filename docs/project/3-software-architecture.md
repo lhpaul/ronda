@@ -48,6 +48,13 @@ smoke runbook as the second tier — see
   marker when they differ, and closed verdict/follow-up/category enums.
   Summary and report readers resolve Ronda review resolvability fresh at read
   time and exclude stale or unresolvable records from verdict outcomes.
+  Verdict provenance is explicitly selected for new terminal judgments:
+  individual human review or assistant draft accepted by the owner. Legacy
+  absence reads as human; explicit invalid values fail validation before evidence
+  exclusions. Report and summary consumers partition accepted drafts from human
+  confirmed counts, attribute recommendations and exclude drafts from human-only
+  ledger eligibility. Individual confirmation preserves prior committed evidence
+  through ordinary git history, with no new approval workflow.
   Sensitive-content, diff-marker, and consecutive-line source scans refuse
   unsafe free-text before any derivation, truncation, or write. Unit tests use
   injectable `gh` seams and fixtures under

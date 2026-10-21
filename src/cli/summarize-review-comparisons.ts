@@ -39,7 +39,7 @@ export {
 
 export interface MissQualityRollup {
   totalMissRecords: number;
-  acceptedAssistantDrafts: Omit<MissQualityRollup, "acceptedAssistantDrafts">;
+  acceptedAssistantDrafts: Omit<MissQualityRollup, "acceptedAssistantDrafts" | "confirmedMisses"> & { acceptedDraftMisses: number };
   confirmedMisses: number;
   reviewerNoise: number;
   outOfScope: number;
@@ -70,7 +70,9 @@ export function summarizeMissRecords(
     (resolveMissVerdictProvenance(record) === "human" ? human : drafts).push(record);
   }
   const report = summarizeMissGroup(human, options);
-  const acceptedAssistantDrafts = summarizeMissGroup(drafts, options);
+  const draftGroup = summarizeMissGroup(drafts, options);
+  const { confirmedMisses: acceptedDraftMisses, ...draftCounts } = draftGroup;
+  const acceptedAssistantDrafts = { ...draftCounts, acceptedDraftMisses };
   return { ...report, totalMissRecords: records.length,
     staleEvidence: report.staleEvidence + acceptedAssistantDrafts.staleEvidence,
     unresolvableEvidence: report.unresolvableEvidence + acceptedAssistantDrafts.unresolvableEvidence,

@@ -374,6 +374,7 @@ test("#139 report partitions legacy, human and draft evidence with source-attrib
   const actions = report.improvement.suggestedActions;
   assert.deepEqual(actions.find((a) => a.provenance === "assistant_drafted_owner_accepted")!.recordIds, ["draft"]);
   assert.match(actions.find((a) => a.provenance === "assistant_drafted_owner_accepted")!.action, /Accepted assistant draft evidence/);
+  assert.doesNotMatch(actions.find((a) => a.provenance === "assistant_drafted_owner_accepted")!.action, /human.reviewed|comparison evidence|confirmed/i);
   assert.ok(actions.every((a) => !a.recordIds.some((id) => ["filtered", "gone", "stale"].includes(id))));
   assert.match(formatMarkdownSummary(report), /Human reviewed/);
   assert.match(formatMarkdownSummary(report), /Accepted assistant drafts/);

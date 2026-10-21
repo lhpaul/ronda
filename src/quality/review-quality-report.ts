@@ -570,7 +570,7 @@ export function buildReviewQualityReport(input: BuildReportInput): ReviewQuality
     supplementary: { ...report.supplementary,
       unresolvableEvidence: report.supplementary.unresolvableEvidence + draftReport.supplementary.unresolvableEvidence },
     improvement: { ...report.improvement,
-      suggestedActions: [...report.improvement.suggestedActions, ...draftActions] },
+      suggestedActions: [...report.improvement.suggestedActions.map((entry) => ({ ...entry, action: `Human reviewed / comparison evidence: ${entry.action}` })), ...draftActions] },
     acceptedAssistantDrafts: {
       primaryOutcomes: draftReport.primaryOutcomes,
       supplementary: draftReport.supplementary,
@@ -705,7 +705,7 @@ function buildReportForGroup(input: BuildReportInput): GroupReport {
         )
         .map((row) => row.id);
       suggestedActions.push({
-        action: `Human-reviewed / comparison evidence: Seed eval or prompt work for category ${category} (${count} confirmed miss${count === 1 ? "" : "es"})`,
+        action: `Seed eval or prompt work for category ${category} (${count} confirmed miss${count === 1 ? "" : "es"})`,
         recordIds: ids,
         provenance: ids.some((id) => input.missRecords.some((record) => record.id === id)) ? "human" : "comparison",
       });

@@ -452,3 +452,14 @@ test("the effect record states no recall target and no variance ceiling", () => 
     );
   }
 });
+
+for (const name of ["sweep-real-pr-evidence.md", "repository-context-effect-evidence-106.md"]) {
+  test(`#139 ${name} excludes accepted drafts from human-required eligibility`, () => {
+    states(readEvidence(name), "Accepted assistant drafts cannot satisfy human-adjudication requirements", "accepted drafts must not promote human-required evidence tiers");
+  });
+  test(`#139 ${name} preserves independent tier requirements`, () => {
+    const policy = readEvidence(name);
+    states(policy, "Individual human confirmation makes the record eligible for the unchanged", "confirmation must not waive other tier requirements");
+    states(policy, "Independent provisional promotion triggers that do not require adjudication remain unchanged", "provisional promotion must retain its independent trigger");
+  });
+}

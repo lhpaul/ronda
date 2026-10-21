@@ -148,3 +148,19 @@ deletion is allowed only for untouched records.
   timing; fixture tests provide deterministic coverage when it is unavailable.
 - Workflow tooling enforces adjudication and deletion gates; bypassing the CLI
   by editing committed miss files directly is possible and out of band.
+
+## Provenance extension (#139)
+
+For new terminal judgments, select `--verdict-provenance human` for individual
+human review or `--verdict-provenance assistant_drafted_owner_accepted` for an
+owner-accepted draft. Missing or invalid selections refuse the affected write.
+Default recapture and follow-up-only adjudication preserve existing provenance.
+Legacy absence reads as human without a file rewrite; explicit invalid values
+never become human evidence.
+
+Verify separate human and accepted-draft report/summary groups, source-labelled
+recommendations, unchanged stale/unresolvable exclusions, and both ledgers'
+human-required eligibility. Commit draft evidence before a later provenance-only
+human confirmation with rationale so the prior evidence remains in git history.
+Use the [offline provenance runbook](miss-verdict-provenance.smoke-test.md) for
+deterministic checks without model calls or GitHub publication.

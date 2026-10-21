@@ -87,7 +87,7 @@ npm run quality:misses -- capture-manual --pr <n> --reviewer <name> \
 # Read, adjudicate, or guarded-delete records
 npm run quality:misses -- read
 npm run quality:misses -- adjudicate --id <id> --verdict true_positive \
-  --follow-up eval_record --rationale 'Confirmed miss'
+  --verdict-provenance human --follow-up eval_record --rationale 'Confirmed miss'
 npm run quality:misses -- delete --id <id>
 
 npm run quality:misses -- help
@@ -98,3 +98,28 @@ Operator smoke runbook:
 Adjudication and deletion rules are enforced by `quality:misses` only;
 committed JSON under `docs/testing/ronda/misses/` can still be edited outside
 the tooling.
+
+### Miss verdict provenance
+
+Every newly submitted terminal miss verdict requires `--verdict-provenance`
+with `human` (individual human review) or
+`assistant_drafted_owner_accepted` (assistant draft accepted in batch by the
+owner). This option applies to capture, capture-manual and adjudicate, including
+all terminal judgments in a multi-finding capture. Missing or invalid selections
+refuse the affected write. A legacy record lacking the property is interpreted
+as human; loading it does not rewrite the file. Explicit malformed values are
+errors, including on stale or unadjudicated evidence.
+
+Reports and summaries keep human-confirmed figures separate from accepted
+assistant drafts. Draft recommendations identify their provenance and record
+IDs; draft evidence cannot satisfy human-required evidence-tier conditions.
+Summary JSON uses `acceptedAssistantDrafts.acceptedDraftMisses` for draft
+true positives. Existing outer counters remain human-only; global stale and
+unresolvable diagnostics include both groups.
+
+To individually confirm a terminal draft, adjudicate with
+`--verdict-provenance human` and a rationale; the existing verdict and follow-up
+remain. Follow-up-only adjudication and recapture without a terminal judgment
+preserve provenance. Commit accepted-draft evidence before individual promotion,
+then commit the confirmation separately: ordinary git history preserves the
+prior verdict and provenance. An uncommitted sequence is not durable audit.

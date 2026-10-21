@@ -143,15 +143,15 @@ test("#139 summary partitions drafts and promotion without double counting", () 
   const options = { isResolvable: (record: CapturedMissRecord) => record.id !== "gone" };
   const before = summarizeMissRecords(records, options);
   assert.equal(before.confirmedMisses, 1);
-  assert.equal(before.acceptedAssistantDrafts.confirmedMisses, 1);
+  assert.equal(before.acceptedAssistantDrafts.acceptedDraftMisses, 1);
   assert.equal(before.acceptedAssistantDrafts.verdictOutcomeCounts.ronda_miss, 1);
   assert.equal(before.categoryBreakdown.correctness, 1);
   assert.equal(before.staleEvidence, 1);
   assert.equal(before.unresolvableEvidence, 1);
   const promoted = summarizeMissRecords(records.map((r) => r.id === draft.id ? { ...r, verdictProvenance: "human" } : r), options);
   assert.equal(promoted.confirmedMisses, 2);
-  assert.equal(promoted.acceptedAssistantDrafts.confirmedMisses, 0);
-  assert.equal(summarizeMissRecords([]).acceptedAssistantDrafts.confirmedMisses, 0);
+  assert.equal(promoted.acceptedAssistantDrafts.acceptedDraftMisses, 0);
+  assert.equal(summarizeMissRecords([]).acceptedAssistantDrafts.acceptedDraftMisses, 0);
   for (const value of [null, "", "robot", 42]) {
     const invalid = { ...draft, verdict: "unadjudicated", staleEvidence: true, verdictProvenance: value } as unknown as CapturedMissRecord;
     assert.throws(() => summarizeMissRecords([invalid]), /Invalid verdictProvenance/);

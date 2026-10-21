@@ -265,3 +265,19 @@ external reviewers raised.
 - v0.2.0 baseline only: no sweep, no repository context.
 - Own-repository evidence; not independent of the reviewer's development.
 - Miss counts have no denominator; no recall figure is claimed.
+
+## Provenance correction — 2026-10-21 (#139)
+
+The historical cohort contained 172 records. Two head-unresolvable #118 records
+were already excluded by `e1cfac7acce30939f93e42df3ad7d5366d5ddade`:
+`lhpaul-ronda-pr-118-auto-2cbd9dba3787` and
+`lhpaul-ronda-pr-118-auto-ef4f04586a01`. The 170 surviving delegation-marked
+records now explicitly carry `assistant_drafted_owner_accepted` provenance.
+Only that property was added; prior verdicts, rationale, identity and timestamps
+remain. Those two excluded records were not recreated.
+
+This is a provenance correction to historical evidence, not a regenerated report
+or new live resolvability check. All historical figures called confirmed above
+remain accepted-draft figures. The updated quality report presents them separately
+from human-confirmed evidence and labels their recommendation contribution;
+accepted drafts do not satisfy human-required evidence-tier conditions.
