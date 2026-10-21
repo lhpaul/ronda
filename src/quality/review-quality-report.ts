@@ -1,3 +1,4 @@
+import { resolveMissVerdictProvenance, type MissVerdictProvenance } from "./miss-verdict-provenance.js";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -55,6 +56,7 @@ export interface CapturedMissRecord {
   textTruncated?: boolean;
   affectedCategory?: string;
   verdict: MissVerdict;
+  verdictProvenance?: MissVerdictProvenance;
   intendedFollowUp?: IntendedFollowUp;
   captureSource?: "automatic" | "manual";
   sourceId?: string | null;
@@ -71,6 +73,7 @@ export interface EvidenceReference {
   pullNumber: number;
   reviewer: string;
   category: string;
+  verdictProvenance?: MissVerdictProvenance;
 }
 
 export interface ClassifiedEvidenceRow extends EvidenceReference {
@@ -170,7 +173,13 @@ export interface ReviewQualityReport {
       unclearFalseCleanCount: number;
     }>;
     followUpCounts: Record<IntendedFollowUp, number>;
-    suggestedActions: Array<{ action: string; recordIds: string[] }>;
+    suggestedActions: Array<{ action: string; recordIds: string[]; provenance: "human" | "assistant_drafted_owner_accepted" | "comparison" }>;
+  };
+  acceptedAssistantDrafts: {
+    primaryOutcomes: Record<PrimaryOutcome, OutcomeBucket>;
+    supplementary: ReviewQualityReport["supplementary"];
+    breakdowns: ReviewQualityReport["breakdowns"];
+    followUpCounts: Record<IntendedFollowUp, number>;
   };
   comparisonRollup: QualityComparisonRollup;
 }
@@ -208,7 +217,9 @@ export function readMissRecords(paths: string[]): CapturedMissRecord[] {
     const records = JSON.parse(readFileSync(path, "utf8")) as
       | CapturedMissRecord
       | CapturedMissRecord[];
-    return Array.isArray(records) ? records : [records];
+    const rows = Array.isArray(records) ? records : [records];
+    rows.forEach(resolveMissVerdictProvenance);
+    return rows;
   });
 }
 
@@ -465,6 +476,7 @@ function missRows(
     {
       id: record.id,
       source: "miss",
+      verdictProvenance: resolveMissVerdictProvenance(record),
       repository: record.repository,
       pullNumber: record.pullNumber,
       reviewer: record.externalReviewer,
@@ -532,7 +544,43 @@ function incrementBreakdown(
   target[key][outcome] += 1;
 }
 
+type GroupReport = Omit<ReviewQualityReport, "acceptedAssistantDrafts">;
+
 export function buildReviewQualityReport(input: BuildReportInput): ReviewQualityReport {
+  const human: CapturedMissRecord[] = [];
+  const drafts: CapturedMissRecord[] = [];
+  for (const record of input.missRecords) {
+    (resolveMissVerdictProvenance(record) === "human" ? human : drafts).push(record);
+  }
+  const report = buildReportForGroup({ ...input, missRecords: human });
+  const draftReport = buildReportForGroup({ ...input, comparisonRecords: [], missRecords: drafts });
+  report.primaryOutcomes.stale_head = {
+    count: report.primaryOutcomes.stale_head.count + draftReport.primaryOutcomes.stale_head.count,
+    drillDown: [...report.primaryOutcomes.stale_head.drillDown, ...draftReport.primaryOutcomes.stale_head.drillDown],
+  };
+  const draftActions = draftReport.improvement.suggestedActions.map((entry) => ({
+    ...entry,
+    action: `Accepted assistant draft evidence: ${entry.action.replace(/confirmed miss/g, "accepted draft miss")}`,
+    provenance: "assistant_drafted_owner_accepted" as const,
+  }));
+  return {
+    ...report,
+    scope: { ...report.scope, missRecordCount: input.missRecords.length,
+      missRecordsInScope: report.scope.missRecordsInScope + draftReport.scope.missRecordsInScope },
+    supplementary: { ...report.supplementary,
+      unresolvableEvidence: report.supplementary.unresolvableEvidence + draftReport.supplementary.unresolvableEvidence },
+    improvement: { ...report.improvement,
+      suggestedActions: [...report.improvement.suggestedActions, ...draftActions] },
+    acceptedAssistantDrafts: {
+      primaryOutcomes: draftReport.primaryOutcomes,
+      supplementary: draftReport.supplementary,
+      breakdowns: draftReport.breakdowns,
+      followUpCounts: draftReport.improvement.followUpCounts,
+    },
+  };
+}
+
+function buildReportForGroup(input: BuildReportInput): GroupReport {
   const comparisonRowsFlat = input.comparisonRecords.flatMap(comparisonRows);
   const missRowsFlat = input.missRecords.flatMap((record) =>
     missRows(record, input.isResolvable),
@@ -637,12 +685,15 @@ export function buildReviewQualityReport(input: BuildReportInput): ReviewQuality
     backlog_item: 0,
     no_action: 0,
   };
-  for (const record of input.missRecords) {
+  const eligibleMissIds = new Set(allRows.filter((row) =>
+    row.source === "miss" && !row.unresolvableEvidence && row.primaryOutcome !== "stale_head"
+  ).map((row) => row.id));
+  for (const record of input.missRecords.filter((row) => eligibleMissIds.has(row.id))) {
     const followUp = record.intendedFollowUp ?? "undecided";
     followUpCounts[followUp] += 1;
   }
 
-  const suggestedActions: Array<{ action: string; recordIds: string[] }> = [];
+  const suggestedActions: Array<{ action: string; recordIds: string[]; provenance: "human" | "assistant_drafted_owner_accepted" | "comparison" }> = [];
   for (const [category, count] of confirmedMissesByCategory.entries()) {
     if (count > 0) {
       const ids = allRows
@@ -654,8 +705,9 @@ export function buildReviewQualityReport(input: BuildReportInput): ReviewQuality
         )
         .map((row) => row.id);
       suggestedActions.push({
-        action: `Seed eval or prompt work for category ${category} (${count} confirmed miss${count === 1 ? "" : "es"})`,
+        action: `Human-reviewed / comparison evidence: Seed eval or prompt work for category ${category} (${count} confirmed miss${count === 1 ? "" : "es"})`,
         recordIds: ids,
+        provenance: ids.some((id) => input.missRecords.some((record) => record.id === id)) ? "human" : "comparison",
       });
     }
   }
@@ -667,6 +719,7 @@ export function buildReviewQualityReport(input: BuildReportInput): ReviewQuality
     suggestedActions.push({
       action: `Review unclear false-clean candidate on PR ${row.pullNumber} (${row.id})`,
       recordIds: [row.id],
+      provenance: row.source === "miss" ? "human" : "comparison",
     });
   }
 
@@ -728,7 +781,7 @@ export function formatMarkdownSummary(report: ReviewQualityReport): string {
     lines.push(`- Skipped files: ${report.skippedFiles.length}`);
   }
 
-  lines.push("", "## Primary outcomes");
+  lines.push("", "## Primary outcomes — Human reviewed / comparison evidence");
   for (const outcome of [
     "true_positive",
     "false_positive",
@@ -745,6 +798,15 @@ export function formatMarkdownSummary(report: ReviewQualityReport): string {
     }
   }
 
+  lines.push("", "## Accepted assistant drafts — excluded from confirmed misses");
+  for (const [outcome, bucket] of Object.entries(report.acceptedAssistantDrafts.primaryOutcomes)) {
+    lines.push(`- ${outcome}: ${bucket.count}`);
+    for (const ref of bucket.drillDown) lines.push(`  - ${ref.id} (${ref.repository}#${ref.pullNumber}, ${ref.reviewer}, ${ref.category})`);
+  }
+  lines.push(`- duplicate: ${report.acceptedAssistantDrafts.supplementary.duplicate}`,
+    `- out_of_scope: ${report.acceptedAssistantDrafts.supplementary.outOfScope}`,
+    `- Human reviewed requested follow-ups: ${JSON.stringify(report.improvement.followUpCounts)}`,
+    `- Accepted assistant draft requested follow-ups: ${JSON.stringify(report.acceptedAssistantDrafts.followUpCounts)}`);
   lines.push("", "## Clean agreement", `- count: ${report.cleanAgreement.count}`);
   lines.push("", "## False-clean candidates", `- count: ${report.falseCleanCandidates.length}`);
   lines.push(
@@ -761,7 +823,7 @@ export function formatMarkdownSummary(report: ReviewQualityReport): string {
       `- Top missed category: ${entry.category} (${entry.confirmedMissCount})`,
     );
   }
-  for (const action of report.improvement.suggestedActions.slice(0, 5)) {
+  for (const action of report.improvement.suggestedActions) {
     lines.push(`- ${action.action} [${action.recordIds.join(", ")}]`);
   }
 
@@ -776,6 +838,7 @@ function toReference(row: ClassifiedEvidenceRow): EvidenceReference {
     pullNumber: row.pullNumber,
     reviewer: row.reviewer,
     category: row.category,
+    ...(row.verdictProvenance ? { verdictProvenance: row.verdictProvenance } : {}),
   };
 }
 

@@ -134,3 +134,27 @@ test("AC48 summary-time fresh resolvability excludes unresolvable from verdicts"
   assert.equal(rollup.unresolvableEvidence, 1);
   assert.equal(rollup.verdictOutcomeCounts.ronda_miss, 1);
 });
+
+test("#139 summary partitions drafts and promotion without double counting", () => {
+  const draft = miss({ id: "draft", verdict: "true_positive", verdictProvenance: "assistant_drafted_owner_accepted" });
+  const records = [miss({ id: "legacy", verdict: "true_positive" }), draft,
+    miss({ id: "stale", verdict: "true_positive", staleEvidence: true, verdictProvenance: "assistant_drafted_owner_accepted" }),
+    miss({ id: "gone", verdict: "true_positive", verdictProvenance: "assistant_drafted_owner_accepted" })];
+  const options = { isResolvable: (record: CapturedMissRecord) => record.id !== "gone" };
+  const before = summarizeMissRecords(records, options);
+  assert.equal(before.confirmedMisses, 1);
+  assert.equal(before.acceptedAssistantDrafts.confirmedMisses, 1);
+  assert.equal(before.acceptedAssistantDrafts.verdictOutcomeCounts.ronda_miss, 1);
+  assert.equal(before.categoryBreakdown.correctness, 1);
+  assert.equal(before.staleEvidence, 1);
+  assert.equal(before.unresolvableEvidence, 1);
+  const promoted = summarizeMissRecords(records.map((r) => r.id === draft.id ? { ...r, verdictProvenance: "human" } : r), options);
+  assert.equal(promoted.confirmedMisses, 2);
+  assert.equal(promoted.acceptedAssistantDrafts.confirmedMisses, 0);
+  assert.equal(summarizeMissRecords([]).acceptedAssistantDrafts.confirmedMisses, 0);
+  for (const value of [null, "", "robot", 42]) {
+    const invalid = { ...draft, verdict: "unadjudicated", staleEvidence: true, verdictProvenance: value } as unknown as CapturedMissRecord;
+    assert.throws(() => summarizeMissRecords([invalid]), /Invalid verdictProvenance/);
+    assert.doesNotThrow(() => summarizeMissRecords([{ ...invalid, verdictProvenance: "human" }]));
+  }
+});

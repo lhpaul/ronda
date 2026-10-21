@@ -1,3 +1,4 @@
+import { resolveMissVerdictProvenance } from "../quality/miss-verdict-provenance.js";
 import {
   readComparisonRecords,
   readMissRecords,
@@ -38,6 +39,7 @@ export {
 
 export interface MissQualityRollup {
   totalMissRecords: number;
+  acceptedAssistantDrafts: Omit<MissQualityRollup, "acceptedAssistantDrafts">;
   confirmedMisses: number;
   reviewerNoise: number;
   outOfScope: number;
@@ -62,6 +64,20 @@ export function summarizeMissRecords(
     isResolvable?: (record: CapturedMissRecord) => boolean;
   } = {},
 ): MissQualityRollup {
+  const human: CapturedMissRecord[] = [];
+  const drafts: CapturedMissRecord[] = [];
+  for (const record of records) {
+    (resolveMissVerdictProvenance(record) === "human" ? human : drafts).push(record);
+  }
+  const report = summarizeMissGroup(human, options);
+  const acceptedAssistantDrafts = summarizeMissGroup(drafts, options);
+  return { ...report, totalMissRecords: records.length,
+    staleEvidence: report.staleEvidence + acceptedAssistantDrafts.staleEvidence,
+    unresolvableEvidence: report.unresolvableEvidence + acceptedAssistantDrafts.unresolvableEvidence,
+    acceptedAssistantDrafts };
+}
+
+function summarizeMissGroup(records: CapturedMissRecord[], options: { isResolvable?: (record: CapturedMissRecord) => boolean }): Omit<MissQualityRollup, "acceptedAssistantDrafts"> {
   const categoryBreakdown: Record<string, number> = {};
   const verdictOutcomeCounts = {
     ronda_miss: 0,
