@@ -392,6 +392,8 @@ test("adjudicate and guarded delete lifecycle (AC44–AC45)", async () => {
         record2.id,
         "--verdict",
         "true_positive",
+        "--verdict-provenance",
+        "human",
         "--follow-up",
         "eval_record",
         "--rationale",
@@ -832,6 +834,8 @@ test("delete/adjudicate --id refuses paths outside the miss directory", async ()
         outsidePath,
         "--verdict",
         "true_positive",
+        "--verdict-provenance",
+        "human",
         "--rationale",
         "must not touch outside path",
         "--dir",
@@ -845,5 +849,43 @@ test("delete/adjudicate --id refuses paths outside the miss directory", async ()
   } finally {
     rmSync(dir, { recursive: true, force: true });
     rmSync(outsideDir, { recursive: true, force: true });
+  }
+});
+
+for (const provenance of ["human", "assistant_drafted_owner_accepted"]) {
+  test(`#139 CLI terminal manual capture, refusal and provenance-only confirmation ${provenance}`, async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ronda-139-command-"));
+    try {
+      const runGh = createGhFixture({});
+      const args = ["capture-manual", "--pr", "53", "--repository", "lhpaul/ronda", "--reviewer", "human", "--location", "src/x.ts:1", "--text", "Missing retry protection.", "--category", "retries", "--verdict", "true_positive", "--dir", dir];
+      assert.equal(await main(args, { runGh }), 1);
+      assert.equal(await main([...args, "--verdict-provenance", provenance], { runGh }), 0);
+      const files = (await import("node:fs")).readdirSync(dir);
+      const path = join(dir, files[0]!);
+      const before = readFileSync(path, "utf8");
+      const record = JSON.parse(before);
+      assert.equal(record.verdictProvenance, provenance);
+      assert.equal(await main([...args, "--verdict-provenance", "invalid"], { runGh }), 1);
+      assert.equal(readFileSync(path, "utf8"), before);
+      assert.equal(await main(["adjudicate", "--id", record.id, "--rationale", "Individually confirmed.", "--verdict-provenance", "human", "--dir", dir], { runGh }), 0);
+      assert.equal(JSON.parse(readFileSync(path, "utf8")).verdictProvenance, "human");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}
+
+test("#139 automatic CLI multi-finding terminal provenance propagation", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ronda-139-automatic-"));
+  try {
+    const runGh = createGhFixture({ comments: [1, 2].map((id) => ({ id, user: { login: "chatgpt-codex-connector[bot]" }, body: `Missing retry protection ${id}.`, path: "src/x.ts", line: id, commit_id: HEAD_A })) });
+    const args = ["capture", "--pr", "53", "--reviewer", "codex", "--categories", "retries,retries", "--verdicts", "true_positive,false_positive", "--dir", dir];
+    assert.equal(await main(args, { runGh }), 1);
+    assert.equal(await main([...args, "--verdict-provenance", "assistant_drafted_owner_accepted"], { runGh }), 0);
+    const files = (await import("node:fs")).readdirSync(dir);
+    assert.equal(files.length, 2);
+    for (const file of files) assert.equal(JSON.parse(readFileSync(join(dir, file), "utf8")).verdictProvenance, "assistant_drafted_owner_accepted");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });

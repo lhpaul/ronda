@@ -105,8 +105,10 @@ auditable without rewriting verdict history.
   pre-#136 verdicts were entered by people. This compatibility rule applies to
   stored legacy evidence, never to omission on a new adjudication. Explicitly
   invalid provenance is an error, not legacy human evidence.
-- BR4: The 172 #136/#138 records identified by their existing delegation
-  statement must be backfilled as Accepted assistant draft. This one-time
+- BR4: The original 172-record #136/#138 cohort must be accounted for: backfill
+  all 170 surviving records identified by their existing delegation statement;
+  retain the prior exclusion of the two head-unresolvable records from commit
+  `e1cfac7` without recreating them. This cohort must be backfilled as Accepted assistant draft. This one-time
   correction preserves their verdicts, rationale, identities, and history and
   does not classify unrelated records by prose.
 - BR5: Accepted assistant drafts are excluded from confirmed miss counts.
@@ -142,8 +144,9 @@ auditable without rewriting verdict history.
 - [ ] AC3: A legacy stored record without provenance is interpreted as Human
   reviewed. A stored record with an invalid explicit value is rejected rather
   than counted as human-confirmed; unadjudicated records never count as misses.
-- [ ] AC4: The 172 delegation-marked #136/#138 records all carry Accepted
-  assistant draft after backfill. Their existing verdicts, rationale, identities,
+- [ ] AC4: The 170 surviving delegation-marked #136/#138 records all carry Accepted
+  assistant draft after backfill; the two previously excluded identities remain
+  excluded and are accounted for in git history. Their existing verdicts, rationale, identities,
   and history remain unchanged, and unrelated records are not backfilled.
 - [ ] AC5: A report over otherwise eligible human-reviewed and accepted-draft
   true-positive records counts only the human-reviewed records as confirmed
