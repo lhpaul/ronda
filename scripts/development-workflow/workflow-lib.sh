@@ -971,7 +971,7 @@ is_bugbot_explicit_skip_message() {
 is_bugbot_usage_limit_message() {
   local body="$1"
 
-  printf '%s\n' "$body" | grep -Eiq 'usage or spend limit|usage[/-]spend[ -]?limit|usage[ -]?limit|spend[ -]?limit'
+  grep -Eiq 'usage or spend limit|usage[/-]spend[ -]?limit|usage[ -]?limit|spend[ -]?limit' <<< "$body"
 }
 
 open_pr_number_for_branch() {
@@ -4544,7 +4544,7 @@ extract_github_issue_number() {
   for f in "${doc_files[@]}"; do
     while IFS= read -r line; do
       # Match: **Issue**: #123  or  **Issue**: [#123](url)
-      if printf '%s\n' "$line" | grep -qE '^\*\*Issue\*\*:[[:space:]]*\[?#[0-9]+'; then
+      if grep -qE '^\*\*Issue\*\*:[[:space:]]*\[?#[0-9]+' <<< "$line"; then
         issue_number="$(printf '%s\n' "$line" | grep -oE '#[0-9]+' | head -1 | tr -d '#')"
         break 2
       fi
@@ -4555,7 +4555,7 @@ extract_github_issue_number() {
   if [ -z "$issue_number" ]; then
     local slug
     slug="$(basename "$dev_path" | sed 's/^[0-9]\{14\}_//')"
-    if printf '%s\n' "$slug" | grep -qE '^[0-9]+-'; then
+    if grep -qE '^[0-9]+-' <<< "$slug"; then
       issue_number="$(printf '%s\n' "$slug" | grep -oE '^[0-9]+')"
     fi
   fi
@@ -4610,7 +4610,7 @@ workflow_branch_ref_evidence() {
   for prefix in spec implementation-plan feature fix refactor hotfix; do
     while IFS= read -r ref; do
       [ -z "$ref" ] && continue
-      if printf '%s\n' "$ref" | grep -qE "^([A-Za-z][A-Za-z0-9]{0,7}-)?${issue_number}(-|\$)"; then
+      if grep -qE "^([A-Za-z][A-Za-z0-9]{0,7}-)?${issue_number}(-|\$)" <<< "$ref"; then
         printf 'present\n'
         return 0
       fi

@@ -2011,7 +2011,7 @@ expensive_gate_deferral_count() {
 
   json="$(printf '%s\n' "$body" | reviewer_loop_history_extract_latest_json)"
   if [ -z "$json" ]; then
-    if printf '%s\n' "$body" | grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER"; then
+    if grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER" <<< "$body"; then
       printf '%s\n' '-1'
     else
       printf '0\n'
@@ -4572,7 +4572,7 @@ run_bugbot_review() {
             if [ "$_rv_state" = "COMMENTED" ]; then
               if [ "$inline_count" -gt 0 ]; then
                 : # umbrella COMMENTED for inline findings — blocking
-              elif printf '%s\n' "$body" | grep -q "BUGBOT_REVIEW\|BUGBOT_BUG_ID\|LOCATIONS"; then
+              elif grep -q "BUGBOT_REVIEW\|BUGBOT_BUG_ID\|LOCATIONS" <<< "$body"; then
                 : # body carries Bugbot finding markers — blocking
               else
                 suggestion_count=$((suggestion_count + 1))
@@ -4747,7 +4747,7 @@ run_bugbot_review() {
             if [ "$_nrv_state" = "COMMENTED" ]; then
               if [ "$neutral_inline_count" -gt 0 ]; then
                 : # umbrella COMMENTED for inline findings — blocking
-              elif printf '%s\n' "$body" | grep -q "BUGBOT_REVIEW\|BUGBOT_BUG_ID\|LOCATIONS"; then
+              elif grep -q "BUGBOT_REVIEW\|BUGBOT_BUG_ID\|LOCATIONS" <<< "$body"; then
                 : # body carries Bugbot finding markers — blocking
               else
                 suggestion_count=$((suggestion_count + 1))
@@ -5677,8 +5677,8 @@ run_devin_review() {
     [ -z "${comment_json:-}" ] && continue
     body="$(printf '%s\n' "$comment_json" | jq -r '.body')"
     [ -z "$body" ] && continue
-    if printf '%s\n' "$body" | grep -qi "No Issues Found"; then continue; fi
-    if printf '%s\n' "$body" | grep -q "^✅"; then continue; fi
+    if grep -qi "No Issues Found" <<< "$body"; then continue; fi
+    if grep -q "^✅" <<< "$body"; then continue; fi
     existing_blocking_count=$((existing_blocking_count + 1))
     printf '%s\n' "$comment_json" >> "$existing_blocking_file"
   done <<< "$existing_comments"
@@ -5690,8 +5690,8 @@ run_devin_review() {
     body="$(printf '%s\n' "$review_json" | jq -r '.body')"
     review_state="$(printf '%s\n' "$review_json" | jq -r '.state // ""')"
     [ -z "$body" ] && continue
-    if printf '%s\n' "$body" | grep -qi "No Issues Found"; then continue; fi
-    if printf '%s\n' "$body" | grep -q "^✅"; then continue; fi
+    if grep -qi "No Issues Found" <<< "$body"; then continue; fi
+    if grep -q "^✅" <<< "$body"; then continue; fi
     # For COMMENTED reviews, only treat as blocking when:
     # (a) the body starts with "**Devin Review**" (Devin uses COMMENTED instead of
     #     CHANGES_REQUESTED regardless of finding severity), OR
@@ -5699,7 +5699,7 @@ run_devin_review() {
     #     umbrella review object that accompanies those inline findings).
     # COMMENTED reviews with no inline findings are informational and not blocking.
     if [ "$review_state" = "COMMENTED" ]; then
-      if printf '%s\n' "$body" | grep -qi "^\\*\\*Devin Review\\*\\*"; then
+      if grep -qi "^\\*\\*Devin Review\\*\\*" <<< "$body"; then
         : # falls through to blocking logic below
       elif [ "$existing_inline_blocking_count" -gt 0 ]; then
         : # COMMENTED review with inline findings — treat as blocking
@@ -6037,8 +6037,8 @@ run_devin_review() {
     [ -z "${comment_json:-}" ] && continue
     body="$(printf '%s\n' "$comment_json" | jq -r '.body')"
     [ -z "$body" ] && continue
-    if printf '%s\n' "$body" | grep -qi "No Issues Found"; then continue; fi
-    if printf '%s\n' "$body" | grep -q "^✅"; then continue; fi
+    if grep -qi "No Issues Found" <<< "$body"; then continue; fi
+    if grep -q "^✅" <<< "$body"; then continue; fi
     comment_count=$((comment_count + 1))
     blocking_count=$((blocking_count + 1))
     inline_comment_count=$((inline_comment_count + 1))
@@ -6050,8 +6050,8 @@ run_devin_review() {
     body="$(printf '%s\n' "$review_json" | jq -r '.body')"
     review_state="$(printf '%s\n' "$review_json" | jq -r '.state // ""')"
     [ -z "$body" ] && continue
-    if printf '%s\n' "$body" | grep -qi "No Issues Found"; then continue; fi
-    if printf '%s\n' "$body" | grep -q "^✅"; then continue; fi
+    if grep -qi "No Issues Found" <<< "$body"; then continue; fi
+    if grep -q "^✅" <<< "$body"; then continue; fi
     # For COMMENTED reviews, only treat as blocking when:
     # (a) the body starts with "**Devin Review**" (Devin uses COMMENTED instead of
     #     CHANGES_REQUESTED regardless of finding severity), OR
@@ -6060,7 +6060,7 @@ run_devin_review() {
     # Non-matching COMMENTED reviews with no inline comments are informational and
     # not blocking.
     if [ "$review_state" = "COMMENTED" ]; then
-      if printf '%s\n' "$body" | grep -qi "^\\*\\*Devin Review\\*\\*"; then
+      if grep -qi "^\\*\\*Devin Review\\*\\*" <<< "$body"; then
         : # falls through to blocking logic below
       elif [ "$inline_comment_count" -gt 0 ]; then
         : # COMMENTED review with inline findings — treat as blocking
@@ -7175,9 +7175,9 @@ is_coderabbit_blocking() {
   # comment body when the finding has been fixed in a subsequent commit. These
   # resolved findings are NOT blocking even if they still contain 🔴/🟠 markers.
   local body="$1"
-  if printf '%s\n' "$body" | grep -q "✅ Addressed"; then return 1; fi
-  if printf '%s\n' "$body" | grep -q "🔴"; then return 0; fi
-  if printf '%s\n' "$body" | grep -q "🟠"; then return 0; fi
+  if grep -q "✅ Addressed" <<< "$body"; then return 1; fi
+  if grep -q "🔴" <<< "$body"; then return 0; fi
+  if grep -q "🟠" <<< "$body"; then return 0; fi
   return 1
 }
 
@@ -7186,7 +7186,7 @@ is_coderabbit_blocking() {
 # emits a WARN on stderr and returns the default (3).
 thread_audit_max_retries_value() {
   local value="${THREAD_AUDIT_MAX_RETRIES:-3}"
-  if ! printf '%s' "$value" | grep -qE '^[0-9]+$' || [ "$value" -le 0 ] 2>/dev/null; then
+  if ! grep -qE '^[0-9]+$' <<< "$value" || [ "$value" -le 0 ] 2>/dev/null; then
     echo "WARN: THREAD_AUDIT_MAX_RETRIES must be a positive integer; defaulting to 3" >&2
     value=3
   fi
@@ -8191,7 +8191,7 @@ run_coderabbit_review() {
           | .body // ""
         '
   )"
-  if printf '%s\n' "$phase0_most_recent_body" | grep -qi "reviews\? paused"; then
+  if grep -qi "reviews\? paused" <<< "$phase0_most_recent_body"; then
     echo "INFO: CodeRabbit is in auto-pause state (most recent CR comment is a pause banner) — posting @coderabbitai resume before entering poll loop" >&2
     local phase0_resume_since_iso
     # Capture the timestamp BEFORE posting so any same-second CodeRabbit response
@@ -8892,8 +8892,7 @@ run_coderabbit_review() {
               '
         )"
         local timeout_skip_banner_count=0
-        if printf '%s\n' "$timeout_latest_cr_body" \
-             | grep -qiE "$CODERABBIT_SKIP_BANNER_RE"; then
+        if grep -qiE "$CODERABBIT_SKIP_BANNER_RE" <<< "$timeout_latest_cr_body"; then
           timeout_skip_banner_count=1
         fi
         if [ "${timeout_skip_banner_count:-0}" -gt 0 ]; then
@@ -9284,7 +9283,7 @@ check_unresolved_threads() {
       # Thread is resolved if isResolved=true, isOutdated=true, or body contains "✅ Addressed"
       if [ "$is_resolved" = "true" ]; then continue; fi
       if [ "$is_outdated" = "true" ]; then continue; fi
-      if printf '%s\n' "$body" | grep -q "✅ Addressed"; then continue; fi
+      if grep -q "✅ Addressed" <<< "$body"; then continue; fi
 
       if [ "$mode" = "provisional" ] && [ -n "$head_committed_date" ]; then
         local last_author last_created_at last_is_bot
@@ -9951,7 +9950,7 @@ pr_has_reviewer_failed_label() {
     return 2
   fi
 
-  printf '%s\n' "$labels" | grep -Fxq "$REVIEWER_FAILED_LABEL"
+  grep -Fxq "$REVIEWER_FAILED_LABEL" <<< "$labels"
 }
 
 sync_reviewer_failed_label() {
@@ -10780,8 +10779,7 @@ reviewer_loop_finding_touches_contract_surface() {
   for entry in "${REVIEWER_LOOP_CONTRACT_SURFACES[@]}"; do
     identity="${entry%%|*}"
     pattern="${entry#*|}"
-    if printf '%s' "$body" \
-      | grep -Eqi "(^|[^[:alnum:]_])(${pattern})([^[:alnum:]_]|\$)"; then
+    if grep -Eqi "(^|[^[:alnum:]_])(${pattern})([^[:alnum:]_]|\$)" <<< "$body"; then
       printf '%s\n' "$identity"
       return 0
     fi
@@ -11356,7 +11354,7 @@ reviewer_loop_prior_history_payload_from_pr() {
     printf '%s\n' "$payload"
     return 0
   fi
-  if printf '%s' "$body" | grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER"; then
+  if grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER" <<< "$body"; then
     jq -nc --arg schema "$REVIEWER_LOOP_HISTORY_SCHEMA" \
       '{schema: $schema, history_status: "unavailable", history_unavailable_reason: "prior_unavailable", entries: []}'
     return 0
@@ -13820,7 +13818,7 @@ reviewer_loop_history_payload_from_existing() {
       unavailable_reason="$(printf '%s\n' "$payload" | jq -r '.history_unavailable_reason // "prior_unavailable"')"
       append_safe=0
     fi
-  elif printf '%s\n' "$existing_body" | grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER"; then
+  elif grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER" <<< "$existing_body"; then
     history_status="unavailable"
     unavailable_reason="missing_history_json"
     append_safe=0
@@ -13869,7 +13867,7 @@ reviewer_loop_history_payload_from_existing() {
   # Expose append decision to the summary renderer (#1651).
   reviewer_loop_history_last_append_safe="$append_safe"
   reviewer_loop_history_last_unavailable_reason="$unavailable_reason"
-  if printf '%s\n' "$existing_body" | grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER"; then
+  if grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER" <<< "$existing_body"; then
     reviewer_loop_history_had_prior_block=1
   else
     reviewer_loop_history_had_prior_block=0
@@ -13991,7 +13989,7 @@ reviewer_loop_history_extract_preserved_section() {
     return 0
   fi
 
-  if ! printf '%s\n' "$existing_body" | grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER"; then
+  if ! grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER" <<< "$existing_body"; then
     return 1
   fi
 
@@ -14025,7 +14023,7 @@ reviewer_loop_history_append_to_summary() {
   if ! reviewer_loop_history_payload_from_existing "$existing_body" "$@" >"$_payload_tmp" 2>/dev/null; then
     reviewer_loop_history_last_append_safe=0
     reviewer_loop_history_last_unavailable_reason="history_render_failed"
-    if printf '%s\n' "$existing_body" | grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER"; then
+    if grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER" <<< "$existing_body"; then
       reviewer_loop_history_had_prior_block=1
     fi
     jq -n \
@@ -14240,7 +14238,7 @@ reviewer_loop_history_entries_count() {
 
   json="$(printf '%s\n' "$body" | reviewer_loop_history_extract_latest_json)"
   if [ -z "$json" ]; then
-    if printf '%s\n' "$body" | grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER"; then
+    if grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER" <<< "$body"; then
       # Marker present but no parseable ```json block — history is present
       # but unreadable; do not silently treat it as zero cycles.
       printf '%s %s %s\n' -1 -1 unavailable
@@ -15992,7 +15990,7 @@ set -e
 _pr_base=""
 if [ "$_pr_base_exit" -eq 0 ]; then
   _pr_base="$_pr_base_raw"
-elif ! printf '%s\n' "$_pr_base_raw" | grep -qi "Could not resolve\|not found"; then
+elif ! grep -qi "Could not resolve\|not found" <<< "$_pr_base_raw"; then
   printf 'WARNING: failed to resolve PR base branch (exit %d): %s — falling back to working-tree config\n' \
     "$_pr_base_exit" "$_pr_base_raw" >&2
 fi
@@ -16889,7 +16887,7 @@ $(reviewer_loop_head_evidence_render "${loop_head_sha:-}" "${platform_reviewed_h
   _mf_prior_payload="$_prior_payload"
   if [ "$(printf '%s\n' "$_prior_payload" | jq -r '.history_status // "available"')" = "unavailable" ] \
       || { [ -z "$_prior_history_json" ] \
-           && printf '%s\n' "$_existing_comment_body" | grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER"; }; then
+           && grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER" <<< "$_existing_comment_body"; }; then
     local _mf_fallback_record="" _mf_fallback_body="" _mf_fallback_json=""
     if [ -n "$_repo" ]; then
       _mf_fallback_record="$(
@@ -16957,7 +16955,7 @@ ${_attr_line}"
       _hist_append_safe=0
       _hist_unavail_reason="$(printf '%s\n' "$_prior_payload" | jq -r '.history_unavailable_reason // "prior_unavailable"')"
     fi
-  elif printf '%s\n' "$_existing_comment_body" | grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER"; then
+  elif grep -Fq "$REVIEWER_LOOP_HISTORY_MARKER" <<< "$_existing_comment_body"; then
     _hist_append_safe=0
     _hist_unavail_reason="missing_history_json"
   fi

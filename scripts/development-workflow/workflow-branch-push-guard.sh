@@ -311,7 +311,7 @@ case "$auth_source_kind" in
       */issues/"$pr_number") ;;
       *) block "untrusted_authorization_source" ;;
     esac
-    printf '%s\n' "$comment_body" | grep -Fq "$authorization_id" || block "untrusted_authorization_source"
+    grep -Fq "$authorization_id" <<< "$comment_body" || block "untrusted_authorization_source"
     [ "$(body_field "$comment_body" authorization_id)" = "$authorization_id" ] || block "untrusted_authorization_source"
     [ "$(body_field "$comment_body" canonical_repo)" = "$canonical_repo" ] || block "untrusted_authorization_source"
     [ "$(body_field "$comment_body" pr_number)" = "$pr_number" ] || block "untrusted_authorization_source"
@@ -375,7 +375,7 @@ lock_output="$(gh api -X POST "repos/${canonical_repo}/git/refs" -f "ref=${lock_
 lock_status=$?
 set -e
 if [ "$lock_status" -ne 0 ]; then
-  printf '%s\n' "$lock_output" | grep -Eiq 'Reference already exists|already_exists|already exists' && block "authorization_already_claimed"
+  grep -Eiq 'Reference already exists|already_exists|already exists' <<< "$lock_output" && block "authorization_already_claimed"
   die "lock_claim_failed"
 fi
 

@@ -419,12 +419,12 @@ BRANCH_OWNS_ISSUE_PATTERN_PREFIX="${IMPLEMENTATION_BRANCH_PREFIXES}([A-Za-z][A-Z
 # question with a stricter pattern; this is only "is this the kind of pull
 # request the feature is about".
 is_implementation_branch() {
-  printf '%s' "$1" | grep -qE "$IMPLEMENTATION_BRANCH_PREFIXES"
+  grep -qE "$IMPLEMENTATION_BRANCH_PREFIXES" <<< "$1"
 }
 
 branch_owns_issue() {
   local branch="$1" issue="$2"
-  printf '%s' "$branch" | grep -qE "${BRANCH_OWNS_ISSUE_PATTERN_PREFIX}${issue}(-|$)"
+  grep -qE "${BRANCH_OWNS_ISSUE_PATTERN_PREFIX}${issue}(-|$)" <<< "$branch"
 }
 
 # owners_of_issue <issue>
@@ -483,7 +483,7 @@ decide() {
     return 0
   fi
 
-  if printf '%s' "$PR_LABELS" | grep -Fxq "$OPT_OUT_LABEL"; then
+  if grep -Fxq "$OPT_OUT_LABEL" <<< "$PR_LABELS"; then
     VERDICT="silent"
     return 0
   fi

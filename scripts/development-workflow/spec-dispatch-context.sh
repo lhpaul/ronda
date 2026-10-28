@@ -49,7 +49,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-if ! printf '%s\n' "$selected" | grep -Eq '^[1-9][0-9]*$'; then
+if ! grep -Eq '^[1-9][0-9]*$' <<< "$selected"; then
   echo "--selected must be a positive issue number" >&2
   exit 64
 fi
@@ -75,7 +75,7 @@ if ! grep -qx "$selected" "$items_file"; then
 fi
 
 while IFS= read -r issue; do
-  if ! printf '%s\n' "$issue" | grep -Eq '^[1-9][0-9]*$'; then
+  if ! grep -Eq '^[1-9][0-9]*$' <<< "$issue"; then
     echo "Invalid issue in --items: $issue" >&2
     exit 64
   fi
@@ -139,8 +139,7 @@ text_contains_without_dependency() {
   lower="$(printf '%s\n' "$text" | tr '[:upper:]' '[:lower:]')"
   compact="$(printf '%s\n' "$lower" | tr '\n' ' ')"
   issue_pattern="$(issue_ref_pattern "$issue")"
-  printf '%s\n' "$compact" \
-    | grep -Eiq "(cannot|can not|can't)[^.!?]{0,80}without[^.!?]{0,80}(${issue_pattern})"
+  grep -Eiq "(cannot|can not|can't)[^.!?]{0,80}without[^.!?]{0,80}(${issue_pattern})" <<< "$compact"
 }
 
 text_contains_dependency() {
@@ -183,8 +182,7 @@ text_contains_negated_dependency() {
   lower="$(printf '%s\n' "$text" | tr '[:upper:]' '[:lower:]')"
   compact="$(printf '%s\n' "$lower" | tr '\n' ' ')"
   issue_pattern="$(issue_ref_pattern "$issue")"
-  printf '%s\n' "$compact" \
-    | grep -Eiq "(^|[^a-z])(not|without)[^.!?]{0,120}(${issue_pattern})"
+  grep -Eiq "(^|[^a-z])(not|without)[^.!?]{0,120}(${issue_pattern})" <<< "$compact"
 }
 
 has_coupling_language() {

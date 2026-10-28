@@ -91,7 +91,7 @@ normalized_text="$(printf '%s\n' "$combined_text" | tr '[:upper:]' '[:lower:]')"
 
 matches_regex() {
   local pattern="$1"
-  printf '%s\n' "$normalized_text" | grep -Eq -- "$pattern"
+  grep -Eq -- "$pattern" <<< "$normalized_text"
 }
 
 extract_numeric_target() {

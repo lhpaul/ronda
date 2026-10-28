@@ -178,11 +178,11 @@ verify_claude_code_action_run_log() {
 # Always returns 0.
 claude_code_action_classify_poll_error() {
   local err="${1:-}"
-  if printf '%s' "$err" | grep -qiE 'rate limit|abuse detection|retry-after'; then
+  if grep -qiE 'rate limit|abuse detection|retry-after' <<< "$err"; then
     echo transient
-  elif printf '%s' "$err" | grep -qiE 'HTTP 40[13]|forbidden|unauthorized|bad credentials|resource not accessible|requires authentication'; then
+  elif grep -qiE 'HTTP 40[13]|forbidden|unauthorized|bad credentials|resource not accessible|requires authentication' <<< "$err"; then
     echo denied
-  elif printf '%s' "$err" | grep -qiE 'HTTP 404|not found'; then
+  elif grep -qiE 'HTTP 404|not found' <<< "$err"; then
     echo gone
   else
     echo transient
@@ -473,7 +473,7 @@ if [ "$DISPATCH_STATUS" -ne 0 ]; then
   rm -f "$DISPATCH_STDERR" "$DISPATCH_RESPONSE"
   echo "ERROR: workflow dispatch failed (exit $DISPATCH_STATUS): $DISPATCH_ERR" >&2
   # Distinguish 404 (workflow file absent / not found) from other errors
-  if echo "$DISPATCH_ERR" | grep -qi "not found\|404\|workflow was not found"; then
+  if grep -qi "not found\|404\|workflow was not found" <<< "$DISPATCH_ERR"; then
     echo "DISPATCH_RESULT=workflow_not_found"
     echo "VERDICT: UNAVAILABLE — workflow file '$WORKFLOW_FILE' not found on ref '$DISPATCH_REF'"
   else
@@ -667,7 +667,7 @@ REVIEW_OUTPUT=$(cat "$REVIEW_TMPFILE")
 rm -f "$REVIEW_TMPFILE"
 
 # Check whether any review has state CHANGES_REQUESTED
-if echo "$REVIEW_OUTPUT" | grep -qi "CHANGES_REQUESTED"; then
+if grep -qi "CHANGES_REQUESTED" <<< "$REVIEW_OUTPUT"; then
   echo "VERDICT: NEEDS_REVISION — bot posted a review with state=CHANGES_REQUESTED after dispatch"
   exit 1
 fi

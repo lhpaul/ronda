@@ -215,6 +215,19 @@ printf 'permissions: contents: write' > "$tmp_diff_hunk_file"
 run_test "diff_hunk_file_input" "true" \
   "$("$CLASSIFIER" classify --finding-text "this job grants broader access than it needs and bypasses the least-privilege check" --file-path ".github/workflows/deploy.yml" --diff-hunk-file "$tmp_diff_hunk_file" | jq -r '.securitySensitive')"
 
+# Large inputs keep the same category and location decisions (#116).
+# File input avoids argv limits; the match sits before more than 1 MiB.
+for finding in 'auth bypass' 'ordinary formatting observation'; do
+  {
+    printf '%s\n' "$finding"
+    awk 'BEGIN { for (i=0; i<16384; i++) print "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }'
+  } > "$tmp_file"
+  expected=false
+  [ "$finding" != 'auth bypass' ] || expected=true
+  run_test "large_finding_${expected}" "$expected" \
+    "$("$CLASSIFIER" classify --finding-text-file "$tmp_file" --file-path "scripts/development-workflow/workflow-branch-push-guard.sh" | jq -r '.securitySensitive')"
+done
+
 # CRITICAL planted-violation proof: --finding-text/--diff-hunk must always
 # be literal, never treated as a file reference. A real unified-diff hunk
 # header starts with "@@" (before this fix, "@@" was misread as an "@file"

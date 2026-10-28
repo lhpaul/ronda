@@ -451,7 +451,7 @@ open_implementation_pr_metadata() {
         ;;
     esac
     if [ -n "$issue_number" ] \
-      && printf '%s\n' "$head" | grep -qE "^(feature|fix|refactor|hotfix)/([A-Z][A-Z0-9]*-)?${issue_number}-${slug_core_ere}$"; then
+      && grep -qE "^(feature|fix|refactor|hotfix)/([A-Z][A-Z0-9]*-)?${issue_number}-${slug_core_ere}$" <<< "$head"; then
       print_kv PR_NUMBER "$number"
       print_kv PR_BRANCH "$head"
       print_kv PR_LABELS "$labels"

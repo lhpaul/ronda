@@ -72,7 +72,7 @@ match_re() {
   local text="$1" pattern="$2" status normalized
   normalized="${text//$'\n'/ }"
   set +e
-  printf '%s' "$normalized" | grep -qiE "$pattern"
+  grep -qiE "$pattern" <<< "$normalized"
   status=$?
   set -e
   if [ "$status" -ge 2 ]; then

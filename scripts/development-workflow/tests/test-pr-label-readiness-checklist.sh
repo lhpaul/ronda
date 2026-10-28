@@ -86,6 +86,14 @@ case "$*" in
     emit_jq '{"nameWithOwner":"owner/repo"}'
     exit 0
     ;;
+  *"pr view"*"--json labels,headRefOid"*)
+    labels='[{"name":"ready-for-regression"}]'
+    if [ -n "${MOCK_EDIT_LOG:-}" ] && grep -Fq -- '--add-label ready-for-human-review' "$MOCK_EDIT_LOG"; then
+      labels='[{"name":"ready-for-regression"},{"name":"ready-for-human-review"}]'
+    fi
+    jq -nc --arg head "$MOCK_HEAD_SHA" --argjson labels "$labels" '{headRefOid:$head,labels:$labels}'
+    exit 0
+    ;;
   *"pr view"*"headRefOid"*)
     emit_jq "{\"headRefOid\":\"${MOCK_HEAD_SHA:?MOCK_HEAD_SHA is not set}\"}"
     exit 0
@@ -103,8 +111,12 @@ case "$*" in
 **Verdict**: APPROVED
 **Gate-approved commit**: \`${MOCK_GATE_SHA:-$MOCK_HEAD_SHA}\`"
     elif [ -n "$jq_filter" ]; then
-      printf '%s\n' "Automated Reviewer Loop Summary
+      if [ -n "${MOCK_SUMMARY_FILE:-}" ]; then
+        cat "$MOCK_SUMMARY_FILE"
+      else
+        printf '%s\n' "Automated Reviewer Loop Summary
 Result: clean"
+      fi
     else
       emit_jq "${MOCK_COMMENTS_JSON:-{\"comments\":[]}}"
     fi
@@ -164,7 +176,11 @@ Result: clean"
     printf '%s\n' '[{"state":"success","statuses":[]}]'
     exit 0
     ;;
-  *"pr edit"*) exit 0 ;;
+  *"pr edit"*)
+    if [ -n "${MOCK_EDIT_LOG:-}" ]; then
+      printf '%s\n' "$*" >> "$MOCK_EDIT_LOG"
+    fi
+    exit 0 ;;
   *"pr comment"*) exit 0 ;;
   *"api -X PATCH"*) exit 0 ;;
 esac
@@ -200,6 +216,50 @@ run_expect_status "success_path_exit_0" 0 \
   env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_CHECK_RUN_PAGES="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
   bash "$HELPER" 42 --branch feature/test --repo owner/repo --evidence-file "$SUCCESS_EVIDENCE" --no-label-mutation --repo-root "$REPO_ROOT" >/dev/null
 run_test "success_emits_readiness_head_sha" "READINESS_HEAD_SHA=$HEAD_SHA" "$(grep '^READINESS_HEAD_SHA=' <<<"$LAST_RUN_OUTPUT" || true)"
+
+# File-backed 1 MiB summaries avoid OS environment/argument size limits (#116).
+# Put the verdict first so an early grep exit exercises the SIGPIPE hazard.
+# CI checks out a detached head. Use a local fixture branch so ownership
+# verification and label mutation exercise the same path on CI and locally.
+fixture_repo="$TMP_ROOT/large-summary-repo"
+git clone --quiet --shared --no-checkout "$REPO_ROOT" "$fixture_repo"
+git -C "$fixture_repo" checkout --quiet -b feature/test "$HEAD_SHA"
+cp -R "$REPO_ROOT/scripts/development-workflow" "$fixture_repo/scripts/"
+HELPER="$fixture_repo/scripts/development-workflow/pr-label-readiness-checklist.sh"
+fixture_branch=feature/test
+cd "$fixture_repo"
+for verdict in clean skipped needs_fixes; do
+  summary_file="$TMP_ROOT/large-$verdict.txt"
+  {
+    printf 'Automated Reviewer Loop Summary\nResult: %s\n' "$verdict"
+    awk 'BEGIN { for (i=0; i<16384; i++) print "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }'
+  } > "$summary_file"
+  edit_log="$TMP_ROOT/edits-$verdict.txt"
+  : > "$edit_log"
+  expected_status=0
+  [ "$verdict" != needs_fixes ] || expected_status=7
+  run_expect_status "large_${verdict}_status" "$expected_status" \
+    env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_HEAD_BRANCH="$fixture_branch" MOCK_CHECK_RUN_PAGES="$GREEN_CHECKS_PAGE" \
+    MOCK_SUMMARY_FILE="$summary_file" MOCK_EDIT_LOG="$edit_log" \
+    MOCK_LABELS="ready-for-regression" \
+    bash "$HELPER" 42 --branch "$fixture_branch" --repo owner/repo --evidence-file "$SUCCESS_EVIDENCE" --repo-root "$fixture_repo" >/dev/null
+  label_applied=false
+  if grep -Fq -- '--add-label ready-for-human-review' "$edit_log"; then
+    label_applied=true
+  fi
+  expected_label=true
+  [ "$verdict" != needs_fixes ] || expected_label=false
+  run_test "large_${verdict}_readiness_label" "$expected_label" "$label_applied"
+
+  if [ "$verdict" = skipped ]; then
+    run_expect_status "large_skipped_needs_no_settle_evidence" 0 \
+      env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_HEAD_BRANCH="$fixture_branch" MOCK_CHECK_RUN_PAGES="$GREEN_CHECKS_PAGE" \
+      LOCAL_AI_CONFIGURED=0 MOCK_SUMMARY_FILE="$summary_file" MOCK_LABELS="ready-for-regression" \
+      bash "$HELPER" 42 --branch "$fixture_branch" --repo owner/repo --no-label-mutation --repo-root "$fixture_repo" >/dev/null
+  fi
+done
+cd "$REPO_ROOT"
+HELPER="$REPO_ROOT/scripts/development-workflow/pr-label-readiness-checklist.sh"
 
 run_expect_status "draft_pr_exit_1" 1 \
   env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_IS_DRAFT=true MOCK_CHECK_RUN_PAGES="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \

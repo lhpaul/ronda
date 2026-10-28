@@ -104,7 +104,7 @@ collect_entries() {
 validate_body() {
   local path="$1" normalized first_non_blank top_bullets
   normalized="$(tr -d '\r' < "$path")"
-  if ! printf '%s' "$normalized" | grep -q '[^[:space:]]'; then
+  if ! grep -q '[^[:space:]]' <<< "$normalized"; then
     printf 'empty or whitespace-only file'
     return 1
   fi
@@ -116,11 +116,11 @@ validate_body() {
       return 1
       ;;
   esac
-  if printf '%s\n' "$normalized" | grep -Eq '^(## |### )'; then
+  if grep -Eq '^(## |### )' <<< "$normalized"; then
     printf 'body must not contain level-2 or level-3 markdown headings'
     return 1
   fi
-  if printf '%s\n' "$normalized" | grep -Eq '[[:blank:]]$'; then
+  if grep -Eq '[[:blank:]]$' <<< "$normalized"; then
     printf 'body contains trailing whitespace'
     return 1
   fi

@@ -166,8 +166,8 @@ is_devin_status_stale() {
     [ -z "${comment_json:-}" ] && continue
     body="$(printf '%s\n' "$comment_json" | jq -r '.body')"
     [ -z "$body" ] && continue
-    if printf '%s\n' "$body" | grep -qi "No Issues Found"; then continue; fi
-    if printf '%s\n' "$body" | grep -q "^✅"; then continue; fi
+    if grep -qi "No Issues Found" <<< "$body"; then continue; fi
+    if grep -q "^✅" <<< "$body"; then continue; fi
     inline_count=$((inline_count + 1))
     blocking_count=$((blocking_count + 1))
   done <<< "$raw_comments"
@@ -195,12 +195,12 @@ is_devin_status_stale() {
     body="$(printf '%s\n' "$review_json" | jq -r '.body // ""')"
     review_state="$(printf '%s\n' "$review_json" | jq -r '.state // ""')"
     [ -z "$body" ] && continue
-    if printf '%s\n' "$body" | grep -qi "No Issues Found"; then continue; fi
-    if printf '%s\n' "$body" | grep -q "^✅"; then continue; fi
+    if grep -qi "No Issues Found" <<< "$body"; then continue; fi
+    if grep -q "^✅" <<< "$body"; then continue; fi
     # COMMENTED reviews are only blocking when the body starts with "**Devin Review**"
     # OR when there are unresolved inline comments (mirrors pr-review-loop.sh logic).
     if [ "$review_state" = "COMMENTED" ]; then
-      if printf '%s\n' "$body" | grep -qi "^\\*\\*Devin Review\\*\\*"; then
+      if grep -qi "^\\*\\*Devin Review\\*\\*" <<< "$body"; then
         : # blocking
       elif [ "$inline_count" -gt 0 ]; then
         : # COMMENTED review with inline findings — blocking
@@ -545,7 +545,7 @@ while :; do
       else
         while IFS= read -r prev_name; do
           [ -n "$prev_name" ] || continue
-          if ! printf '%s\n' "$current_names" | grep -Fxq "$prev_name"; then
+          if ! grep -Fxq "$prev_name" <<< "$current_names"; then
             missing_checks="${missing_checks:+$missing_checks,}$prev_name"
           fi
         done <<< "$prev_names"

@@ -307,7 +307,7 @@ if [ -z "$LOOP_SUMMARY_BODY" ]; then
     exit 7  # Exit code 7 = "reviewer-loop summary missing or non-clean"
   fi
 fi
-if [ -n "$LOOP_SUMMARY_BODY" ] && echo "$LOOP_SUMMARY_BODY" | grep -Eiq '(^|[ *[:space:]])Result:([ *[:space:]])*(clean|skipped)([ [:space:]—.,;:)]|$)|No blocking PR feedback'; then
+if [ -n "$LOOP_SUMMARY_BODY" ] && grep -Eiq '(^|[ *[:space:]])Result:([ *[:space:]])*(clean|skipped)([ [:space:]—.,;:)]|$)|No blocking PR feedback' <<< "$LOOP_SUMMARY_BODY"; then
   echo "✅ Automated reviewer-loop summary result is clean/skipped."
 elif [ -n "$LOOP_SUMMARY_BODY" ]; then
   echo "ERROR: Latest automated reviewer-loop summary is not clean/skipped."
@@ -342,7 +342,7 @@ settle_head_ok() {
 # never settled, or whose platform never submitted a review for this HEAD, is
 # refused here rather than re-checked with a wait of this script's own.
 SETTLE_APPLIES=1
-if [ "${REVIEWER_LOOP_SKIPPED_NO_PLATFORMS:-false}" = "true" ]   || { [ -n "$LOOP_SUMMARY_BODY" ] && echo "$LOOP_SUMMARY_BODY" | grep -Eiq '(^|[ *[:space:]])Result:([ *[:space:]])*skipped([ [:space:]—.,;:)]|$)'; }; then
+if [ "${REVIEWER_LOOP_SKIPPED_NO_PLATFORMS:-false}" = "true" ]   || { [ -n "$LOOP_SUMMARY_BODY" ] && grep -Eiq '(^|[ *[:space:]])Result:([ *[:space:]])*skipped([ [:space:]—.,;:)]|$)' <<< "$LOOP_SUMMARY_BODY"; }; then
   SETTLE_APPLIES=0
   echo "✅ Settle-state check not applicable: Step 7 was skipped."
 elif [ -z "${POST_CLEAN_RECHECK:-}" ]; then
@@ -491,13 +491,12 @@ if [ "${COMPLEX_GATE_MATRIX_REQUIRED:-false}" = "true" ]; then
     echo "ERROR: Cannot verify complex workflow decision-gate matrix evidence - gh pr view failed."
     exit 11
   fi
-  if ! printf '%s\n' "$PR_BODY" |
-    grep -Eiq 'consistency matrix|gate inputs|allowed outcomes|required next actions|mirror surfaces'; then
+  if ! grep -Eiq 'consistency matrix|gate inputs|allowed outcomes|required next actions|mirror surfaces' <<< "$PR_BODY"; then
     echo "ERROR: Complex workflow decision-gate matrix evidence is missing from the PR body."
     workflow_pr_edit "$PR_NUMBER" --add-label "needs-fixes"
     exit 11
   fi
-  if printf '%s\n' "$PR_BODY" | grep -Eiq 'complex workflow decision-gate matrix:[ [:space:]]*not applicable|complex gate matrix[ [:space:]-]+not applicable'; then
+  if grep -Eiq 'complex workflow decision-gate matrix:[ [:space:]]*not applicable|complex gate matrix[ [:space:]-]+not applicable' <<< "$PR_BODY"; then
     echo "ERROR: Complex workflow decision-gate matrix was required, but the PR body says not applicable."
     workflow_pr_edit "$PR_NUMBER" --add-label "needs-fixes"
     exit 11

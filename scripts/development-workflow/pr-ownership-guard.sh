@@ -282,8 +282,8 @@ lowercase() {
 # Ownership is branch AND head repository, so an absent or malformed head
 # repository cannot be owned: fail closed instead of treating it as a match.
 if [ -z "$PR_HEAD_REPO" ] \
-    || ! printf '%s\n' "$PR_HEAD_OWNER" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$' \
-    || ! printf '%s\n' "$PR_HEAD_NAME" | grep -Eq '^[A-Za-z0-9._-]+$'; then
+    || ! grep -Eq '^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$' <<< "$PR_HEAD_OWNER" \
+    || ! grep -Eq '^[A-Za-z0-9._-]+$' <<< "$PR_HEAD_NAME"; then
   refuse 3 pr_unresolved "gh pr view returned no valid head repository (owner '${PR_HEAD_OWNER}', name '${PR_HEAD_NAME}')" \
     "Confirm the PR still has a head repository, then re-run the guard before mutating the PR."
 fi
