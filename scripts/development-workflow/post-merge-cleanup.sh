@@ -594,7 +594,7 @@ cleanup_remote_implementation_branch() {
     return 0
   fi
 
-  if printf '%s\n' "$push_err" | grep -Eiq "remote ref does not exist|unable to delete .* remote ref does not exist"; then
+  if grep -Eiq "remote ref does not exist|unable to delete .* remote ref does not exist" <<< "$push_err"; then
     print_kv REMOTE_DELETE_RESULT "not_found"
     print_kv REMOTE_DELETE_STATUS "already_absent"
     echo "Remote implementation branch '$branch' already absent after merged PR #${merged_pr}."
@@ -825,7 +825,7 @@ elif [ -n "$WORKTREE_PATH" ]; then
   git worktree unlock "$WORKTREE_PATH" 2>/dev/null || true
   # Capture stderr so we can detect the locked-worktree condition.
   REMOVE_ERR=$(git worktree remove "$WORKTREE_PATH" --force 2>&1) && REMOVE_RC=0 || REMOVE_RC=$?
-  if [ "$REMOVE_RC" -ne 0 ] && echo "$REMOVE_ERR" | grep -q "locked working tree"; then
+  if [ "$REMOVE_RC" -ne 0 ] && grep -q "locked working tree" <<< "$REMOVE_ERR"; then
     # Detect lock reason from git worktree list --porcelain (the "locked" field).
     LOCK_REASON=$(git worktree list --porcelain | grep -A5 "^worktree $WORKTREE_PATH$" | grep "^locked" | sed 's/^locked //' || echo "unknown")
     echo "WARNING: Worktree '$WORKTREE_PATH' is locked (reason: $LOCK_REASON). Force-overriding — if this worktree belongs to an active agent, data may be lost."
@@ -1152,8 +1152,7 @@ warn_unprocessed_title_refs() {
   [ -n "$refs" ] || return 0
   while IFS= read -r ref; do
     [ -z "$ref" ] && continue
-    if ! printf '%s
-' "$processed" | grep -qx "$ref"; then
+    if ! grep -qx "$ref" <<< "$processed"; then
       unprocessed="${unprocessed} #${ref}"
     fi
   done <<< "$refs"

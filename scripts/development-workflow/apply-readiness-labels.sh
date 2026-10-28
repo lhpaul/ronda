@@ -1480,7 +1480,7 @@ commented_review_body_blocks() {
       # Devin's findings summary — blocking regardless of severity (Devin
       # uses COMMENTED instead of CHANGES_REQUESTED). Any other COMMENTED
       # body (completion text, "No Issues Found") is informational.
-      if printf '%s\n' "$body_arg" | grep -qi '^\*\*Devin Review\*\*'; then
+      if grep -qi '^\*\*Devin Review\*\*' <<< "$body_arg"; then
         return 0
       fi
       return 1
@@ -1510,7 +1510,7 @@ commented_review_body_blocks() {
       # (the pre-round-15 rule, unchanged for the check-run-bearing
       # platforms); haystack/ronda publish findings inline, counted by the
       # inline loop.
-      if printf '%s\n' "$body_arg" | grep -q "BUGBOT_REVIEW\|BUGBOT_BUG_ID\|LOCATIONS"; then
+      if grep -q "BUGBOT_REVIEW\|BUGBOT_BUG_ID\|LOCATIONS" <<< "$body_arg"; then
         return 0
       fi
       return 1
@@ -1580,8 +1580,7 @@ annotate_needs_fixes_best_effort() {
     applied_notified=1
     applied_labels="$(printf '%s
 ' "$pr_json" | jq -r '.labels[]?.name' 2>/dev/null)" || applied_labels=""
-    if ! printf '%s
-' "$applied_labels" | grep -qx 'needs-fixes'; then
+    if ! grep -qx 'needs-fixes' <<< "$applied_labels"; then
       gh pr edit "$pr_number" --repo "$repo" --add-label 'needs-fixes' >/dev/null 2>&1 || true  # workflow-shell-guard: allow SH001 - best-effort annotation; a failure here must not mask the blocking verdict about to be emitted.
     fi
   fi
@@ -1775,7 +1774,7 @@ count_reviewer_blocking_findings() {
     if is_soft_suggestion "$body" || is_bugbot_clean_review "$body" || is_bugbot_explicit_skip_message "$body"; then
       continue
     fi
-    if printf '%s\n' "$body" | grep -q "✅ Addressed"; then
+    if grep -q "✅ Addressed" <<< "$body"; then
       continue
     fi
     if [ "$state" = "COMMENTED" ]; then
@@ -1803,7 +1802,7 @@ count_reviewer_blocking_findings() {
     if is_soft_suggestion "$body" || is_bugbot_clean_review "$body" || is_bugbot_explicit_skip_message "$body"; then
       continue
     fi
-    if printf '%s\n' "$body" | grep -q "✅ Addressed"; then
+    if grep -q "✅ Addressed" <<< "$body"; then
       continue
     fi
     scan_blocking_count=$((scan_blocking_count + 1))
@@ -2481,7 +2480,7 @@ applied_labels="$(printf '%s\n' "$post_apply_json" | jq -r '.labels[].name' 2>/d
   remove_readiness_label_best_effort "$label"
   escalate label-verify-failed
 }
-if ! printf '%s\n' "$applied_labels" | grep -qx "$label"; then
+if ! grep -qx "$label" <<< "$applied_labels"; then
   remove_readiness_label_best_effort "$label"
   escalate label-not-applied
 fi

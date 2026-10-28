@@ -628,7 +628,7 @@ if [ -n "$slug" ]; then
     # Anchor to end: branch must end with the slug (no extra suffixes like -v2 or -phase-2).
     while IFS= read -r ref; do
       [ -z "$ref" ] && continue
-      if [ "$ref" = "$slug" ] || echo "$ref" | grep -qE "^([A-Z]+-)?[0-9]+-${slug_ere}$"; then
+      if [ "$ref" = "$slug" ] || grep -qE "^([A-Z]+-)?[0-9]+-${slug_ere}$" <<< "$ref"; then
         feature_branch_exists=1
         break
       fi

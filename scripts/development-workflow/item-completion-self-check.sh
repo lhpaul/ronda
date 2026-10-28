@@ -605,7 +605,7 @@ else
 fi
 
 if [ "$worktree_list_available" = "true" ]; then
-  if printf '%s\n' "$worktree_list" | grep -Fq "branch refs/heads/$expected_branch"; then
+  if grep -Fq "branch refs/heads/$expected_branch" <<< "$worktree_list"; then
     add_row "workspace.worktrees" "verified" "expected branch present; path=$resolved_worktree_path" "git worktree list --porcelain"
   elif is_true "$returned_to_expected_base"; then
     add_row "workspace.worktrees" "verified" "local checkout returned to expected base; PR head check verifies item branch" "git worktree list --porcelain"
@@ -665,7 +665,7 @@ if [ -n "$pr_number" ]; then
 
       if [ "${#expected_labels[@]}" -gt 0 ]; then
         for label in "${expected_labels[@]}"; do
-          if printf ',%s,' "$pr_labels" | grep -Fq ",$label,"; then
+          if grep -Fq ",$label," <<< ",$pr_labels,"; then
             add_row "pull_request.label.$label" "verified" "present" "gh pr view $pr_number --json labels"
           else
             add_row "pull_request.label.$label" "discrepancy" "missing; observed=$pr_labels" "gh pr view $pr_number --json labels"
@@ -675,7 +675,7 @@ if [ -n "$pr_number" ]; then
 
       if [ "${#forbidden_labels[@]}" -gt 0 ]; then
         for label in "${forbidden_labels[@]}"; do
-          if printf ',%s,' "$pr_labels" | grep -Fq ",$label,"; then
+          if grep -Fq ",$label," <<< ",$pr_labels,"; then
             add_row "pull_request.label.$label" "discrepancy" "forbidden label present; observed=$pr_labels" "gh pr view $pr_number --json labels"
           else
             add_row "pull_request.label.$label" "verified" "absent" "gh pr view $pr_number --json labels"
@@ -880,7 +880,7 @@ if [ -n "$issue" ]; then
     set -e
   fi
 
-  if printf '%s\n' "$tracker_status" | grep -q '^TRACKER_ACTION_REQUIRED='; then
+  if grep -q '^TRACKER_ACTION_REQUIRED=' <<< "$tracker_status"; then
     if is_true "$tracker_required"; then
       add_row "tracker.status" "unavailable_required" "$tracker_status" "get_tracker_status_for_issue $issue"
     else

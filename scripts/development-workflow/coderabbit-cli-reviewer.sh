@@ -377,9 +377,9 @@ fi
 
 if [ -z "$(printf '%s' "$cli_stdout" | tr -d '[:space:]')" ]; then
   echo "WARN: CodeRabbit CLI produced no JSON output (exit $cli_exit)" >&2
-  if printf '%s\n' "$combined_output" | grep -Eiq 'rate[ -]?limit|too many requests|HTTP[[:space:]]*429'; then
+  if grep -Eiq 'rate[ -]?limit|too many requests|HTTP[[:space:]]*429' <<< "$combined_output"; then
     emit_rate_limited_result
-  elif printf '%s\n' "$cli_stderr" | grep -Eiq "$AUTH_PATTERN"; then
+  elif grep -Eiq "$AUTH_PATTERN" <<< "$cli_stderr"; then
     print_result skipped 0 0 0 unauthorized "unavailable"
   else
     print_result skipped 0 0 0 no_output "skipped"
@@ -506,11 +506,11 @@ blocking_findings_json="$(
 
 parse_status="$(printf '%s\n' "$parse_result" | awk -F= '$1 == "PARSE_STATUS" { print $2; exit }')"
 rate_limit_output=false
-if printf '%s\n' "$combined_output" | grep -Eiq 'rate[ -]?limit|too many requests|HTTP[[:space:]]*429'; then
+if grep -Eiq 'rate[ -]?limit|too many requests|HTTP[[:space:]]*429' <<< "$combined_output"; then
   rate_limit_output=true
 fi
 auth_output=false
-if printf '%s\n' "$cli_stderr" | grep -Eiq "$AUTH_PATTERN"; then
+if grep -Eiq "$AUTH_PATTERN" <<< "$cli_stderr"; then
   auth_output=true
 elif [ -n "$normalized_stdout_json" ] && printf '%s\n' "$normalized_stdout_json" | jq -e '
   def auth_text:

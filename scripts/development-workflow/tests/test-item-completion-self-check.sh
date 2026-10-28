@@ -145,6 +145,9 @@ JSON
 {"body":"Automated Reviewer Loop Summary\n\nResult: needs_fixes","created_at":"2026-01-01T00:01:00Z","updated_at":"2026-01-01T00:01:00Z"}
 JSON
       ;;
+    large_summary)
+      cat "${MOCK_GH_SUMMARY_FILE:?MOCK_GH_SUMMARY_FILE is required}"
+      ;;
     bold_clean_summary)
       _history_json="$(jq -nc --arg headOid "${MOCK_GH_HEAD_OID:?MOCK_GH_HEAD_OID must be set for bold_clean_summary}" \
         '{schema:"reviewer_loop_history.v1",entries:[{iteration:1,result:"clean",platform_results:[{platform:"local-ai-reviewer",result:"clean",raw_result:"clean",raw_reason:""}],reviewed_heads:[{platform:"local-ai-reviewer",reviewed_head:$headOid,state:"current",reason:""}]}]}')"
@@ -865,6 +868,41 @@ out="$(self_check_output \
 unset MOCK_GH_SUMMARY_MODE MOCK_GH_PR_MODE MOCK_GH_HEAD_OID
 run_test "bold_clean_summary_exit_zero" "0" "$(status_code "$out")"
 run_contains "bold_clean_summary_verified" "| pull_request.review_summary | verified | clean_or_skipped |" "$(body "$out")"
+
+# Keep the early verdict and current-head ledger while growing the summary
+# beyond a pipe buffer; both clean and non-clean decisions must survive (#116).
+repo="$(make_repo large-summary)"
+bind_local_head_fixture "$repo"
+export MOCK_GH_SUMMARY_MODE=large_summary
+export MOCK_GH_SUMMARY_FILE="$TMP_ROOT/large-summary.json"
+for verdict in clean skipped needs_fixes; do
+  python3 - "$verdict" "$MOCK_GH_HEAD_OID" > "$MOCK_GH_SUMMARY_FILE" <<'PY_SUMMARY'
+import json
+import sys
+verdict, head = sys.argv[1:]
+ledger = {"schema": "reviewer_loop_history.v1", "entries": [{
+    "iteration": 1, "result": "clean",
+    "platform_results": [{"platform": "local-ai-reviewer", "result": "clean", "raw_result": "clean", "raw_reason": ""}],
+    "reviewed_heads": [{"platform": "local-ai-reviewer", "reviewed_head": head, "state": "current", "reason": ""}]
+}]}
+body = "Automated Reviewer Loop Summary\nResult: " + verdict + "\n" + ("x" * 64 + "\n") * 16384
+body += "<!-- reviewer-loop-history:v1 -->\n```json\n" + json.dumps(ledger) + "\n```"
+print(json.dumps({"body": body, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"}))
+PY_SUMMARY
+  out="$(self_check_output \
+    --repo-root "$repo" --issue 1202 --branch feature/1202-self-check \
+    --stage implementation --worktree-path "$repo" --pr 17 \
+    --expected-base develop --require-review-summary true)"
+  expected_status=0
+  expected_row="| pull_request.review_summary | verified | clean_or_skipped |"
+  if [ "$verdict" = needs_fixes ]; then
+    expected_status=1
+    expected_row="| pull_request.review_summary | discrepancy | summary present but not clean/skipped |"
+  fi
+  run_test "large_${verdict}_summary_exit" "$expected_status" "$(status_code "$out")"
+  run_contains "large_${verdict}_summary_row" "$expected_row" "$(body "$out")"
+done
+unset MOCK_GH_SUMMARY_MODE MOCK_GH_SUMMARY_FILE MOCK_GH_PR_MODE MOCK_GH_HEAD_OID
 
 repo="$(make_repo optional-summary-fetch-failed)"
 export MOCK_GH_SUMMARY_MODE=fetch_failed

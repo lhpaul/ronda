@@ -125,17 +125,17 @@ if [ "$scope_flag_count" -gt 1 ]; then
   exit 64
 fi
 
-if ! printf '%s\n' "$base" | grep -Eq '^develop(-[A-Za-z0-9][A-Za-z0-9._-]*)?$'; then
+if ! grep -Eq '^develop(-[A-Za-z0-9][A-Za-z0-9._-]*)?$' <<< "$base"; then
   echo "Disallowed base '$base'. Allowed: develop or develop-<slug>." >&2
   exit 64
 fi
 
-if [ -n "$epic" ] && ! printf '%s\n' "$epic" | grep -Eq '^[1-9][0-9]*$'; then
+if [ -n "$epic" ] && ! grep -Eq '^[1-9][0-9]*$' <<< "$epic"; then
   echo "--epic must be a positive issue number" >&2
   exit 64
 fi
 
-if ! printf '%s\n' "$recent_merged" | grep -Eq '^[0-9]+$'; then
+if ! grep -Eq '^[0-9]+$' <<< "$recent_merged"; then
   echo "--recent-merged-prs must be a non-negative integer" >&2
   exit 64
 fi
@@ -246,7 +246,7 @@ if [ -n "$issues_arg" ]; then
     exit 64
   fi
   while IFS= read -r issue; do
-    if ! printf '%s\n' "$issue" | grep -Eq '^[1-9][0-9]*$'; then
+    if ! grep -Eq '^[1-9][0-9]*$' <<< "$issue"; then
       echo "Invalid issue in --issues: $issue" >&2
       exit 64
     fi
@@ -271,7 +271,7 @@ if [ -n "$tracker_items_arg" ]; then
     exit 64
   fi
   while IFS= read -r tracker_item; do
-    if ! printf '%s\n' "$tracker_item" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._:-]*$'; then
+    if ! grep -Eq '^[A-Za-z0-9][A-Za-z0-9._:-]*$' <<< "$tracker_item"; then
       echo "Invalid tracker item in --tracker-items: $tracker_item" >&2
       exit 64
     fi
