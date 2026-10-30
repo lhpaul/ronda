@@ -2751,6 +2751,10 @@ printf 'PROBE=%s\\n' "$settle_review_probe"
             self.f.private.write_text('review:\n  on_draft:\n    github: []\n  on_ready:\n    github: []\n')
         return ('HARNESS_MODE=1 source ' + shlex.quote(str(self.f.runtime / 'pr-review-loop.sh')) + '\n'
                 'unset repo_review_platforms platforms\nconfig_file=' + shlex.quote(str(self.f.shared)) + '\n'
+                # Ronda requires a rationale for forced-review controls. Keep
+                # its publication mocked while testing private-source precedence.
+                'PR_REVIEW_LOOP_EXPENSIVE_OVERRIDE_JUSTIFICATION=synthetic-diagnostic-control\n'
+                'reviewer_loop_post_expensive_override_justification() { :; }\n'
                 'loop_head_sha=' + 'a' * 40 + '\n')
 
     def test_D90_configured_platform_success_and_real_source_failures(self):
@@ -2892,7 +2896,10 @@ pre_after_clean_only=0; advisory_checks_section=
                             self.assertEqual(summary.exists(), boundary != 'renderer')
                             self.assertIn('LOCAL_AI_CONFIGURED=' + ('1' if state == 'configured' else '0') + '\n', result.stdout)
                             self.assertIn('LOCAL_AI_HEAD_CURRENT=' + ('1' if state == 'configured' else '') + '\n', result.stdout)
-                            if boundary == 'renderer': self.assertEqual(len(result.stdout.splitlines()), 3)
+                            if boundary == 'renderer':
+                                self.assertEqual(len(result.stdout.splitlines()), 4 if state == 'configured' else 3)
+                                if state == 'configured':
+                                    self.assertIn('LOCAL_OUTCOME_CLASS=not_attempted\n', result.stdout)
                             else: self.assertIn('RESULT=' + ('skipped' if boundary == 'skipped' else 'clean') + '\n', result.stdout)
 
     def test_D94_cached_expensive_gate_preserves_baseline_source_errors(self):
@@ -3063,7 +3070,7 @@ issue=1993; stage=fixture; expected_branch=feature/1993-fake; resolved_worktree_
     def test_D96_actual_local_root_native_failure_and_success(self):
         import shutil
         (self.f.checkout / 'REVIEW.md').write_text('# Synthetic contract\n')
-        self.gh_script('case "$*" in "pr diff"*) echo REVIEW.md;; "repo view"*) echo fixture/repo;; "pr view"*) cat "$SYNTHETIC_PR";; "auth status"*) exit 0;; *) exit 99;; esac\n')
+        self.gh_script('case "$*" in "pr diff"*) echo REVIEW.md;; "api repos/fixture/repo/pulls/1993/files"*) echo \'[{"filename":"REVIEW.md","status":"modified"}]\';; "repo view"*) echo fixture/repo;; "pr view"*) cat "$SYNTHETIC_PR";; "auth status"*) exit 0;; *) exit 99;; esac\n')
         capture = self.f.root / 'root-review-capture.json'
         command = self.f.bin / 'root-review-command'
         command.write_text('#!/usr/bin/env python3\nimport json,os,sys\nopen(os.environ["ROOT_CAPTURE"],"w").write(json.dumps({"cwd":os.getcwd(),"args":sys.argv[1:]}))\nprint(json.dumps({"result":"clean","comments":[]}))\n')
@@ -3229,7 +3236,7 @@ gh() { printf 'fixture/repo\n'; }
                     result = self.safe(self.run_command([shell, '-c', body]), 0)
                     self.assertEqual(result.stdout, 'BACKEND_RESOLVED\n')
                     self.assertIn('defaulted to bundled', result.stderr)
-            self.gh_script('case "$*" in "pr diff"*) echo REVIEW.md;; "repo view"*) echo fixture/repo;; "pr view"*) cat "$SYNTHETIC_PR";; "auth status"*) exit 0;; *) exit 99;; esac\n')
+            self.gh_script('case "$*" in "pr diff"*) echo REVIEW.md;; "api repos/fixture/repo/pulls/1993/files"*) echo \'[{"filename":"REVIEW.md","status":"modified"}]\';; "repo view"*) echo fixture/repo;; "pr view"*) cat "$SYNTHETIC_PR";; "auth status"*) exit 0;; *) exit 99;; esac\n')
             (self.f.checkout / 'REVIEW.md').write_text('# Synthetic contract\n')
             command = self.f.bin / 'never-review'
             command.write_text('#!/bin/sh\nexit 99\n'); command.chmod(0o755)

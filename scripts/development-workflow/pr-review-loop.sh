@@ -1445,14 +1445,14 @@ reviewer_loop_local_platform_record_for_head() {
   if ! declare -p platform_result_records >/dev/null 2>&1; then
     return 1
   fi
-  for record in "${platform_result_records[@]}"; do
+  for record in ${platform_result_records[@]+"${platform_result_records[@]}"}; do
     platform="$(printf '%s' "$record" | jq -r '.platform // ""' 2>/dev/null)" || platform=""
     [ "$platform" = "local-ai-reviewer" ] || continue
     result="$(printf '%s' "$record" | jq -r '.result // ""' 2>/dev/null)" || result=""
     reason="$(printf '%s' "$record" | jq -r '.reason // ""' 2>/dev/null)" || reason=""
     reviewed_head=""
     if declare -p platform_reviewed_heads >/dev/null 2>&1; then
-      for entry in "${platform_reviewed_heads[@]}"; do
+      for entry in ${platform_reviewed_heads[@]+"${platform_reviewed_heads[@]}"}; do
         if [ "${entry%%:*}" = "local-ai-reviewer" ]; then
           reviewed_head="${entry#*:}"
           break
