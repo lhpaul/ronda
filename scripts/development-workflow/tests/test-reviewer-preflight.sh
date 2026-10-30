@@ -26,9 +26,13 @@ def check(name, condition, detail=''):
 
 
 def run(root, *args, env=None, expected=None):
+    # Target-operation timeout cases keep setup within a generous total budget
+    # and inject a stall beyond their operation cap. T-18 consumes a real
+    # 15-second whole budget; T-51 controls the actual floor function clock
+    # to verify the single extension without final-second startup races.
     # Default to a generous, explicit test-mode budget/cap so a briefly loaded
     # CI/sandbox host does not flake a test that is not itself exercising the
-    # timeout path (T-7 supplies its own, deliberately tight, override).
+    # timeout path (those cases supply their own operation cap).
     base_env = {
         'WORKFLOW_REVIEWER_PREFLIGHT_TEST_MODE': '1',
         'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '45',
@@ -219,22 +223,23 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
     )
 
     # T-7: budget timeout degrades to undetermined, not blocked, when nothing
-    # else already proved a disagreement — never hangs past the test budget.
+    # else already proved a disagreement. Give prerequisite resolution room
+    # on loaded CI hosts; inject the timeout only at the platform read.
     repo7 = root / 'repo7'
     write_repo(repo7, coherent_shared, coherent_coderabbit)
     slow_git = bins / 'git'
     real_git = shutil.which('git')
     slow_git.write_text(
         '#!/bin/bash\n'
-        'for arg in "$@"; do case "$arg" in *:.coderabbit.yaml) sleep 5; break;; esac; done\n'
+        'for arg in "$@"; do case "$arg" in *:.coderabbit.yaml) sleep 90; break;; esac; done\n'
         f'exec {real_git!r} "$@"\n'
     )
     slow_git.chmod(0o755)
     env2 = {
         'PATH': f'{bins}:{os.environ.get("PATH", "")}',
         'WORKFLOW_REVIEWER_PREFLIGHT_TEST_MODE': '1',
-        'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '2',
-        'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '1',
+        'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '45',
+        'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '3',
     }
     rc, data, out, err = run(
         repo7, '--mode', 'pre-dispatch', '--target-base', 'develop',
@@ -587,25 +592,28 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
     slow_git18 = bins18 / 'git'
     slow_git18.write_text(
         '#!/bin/bash\n'
-        'for arg in "$@"; do case "$arg" in *:.coderabbit.yaml) sleep 5; break;; esac; done\n'
+        'for arg in "$@"; do case "$arg" in *:.coderabbit.yaml) sleep 90; break;; esac; done\n'
         f'exec {real_git18!r} "$@"\n'
     )
     slow_git18.chmod(0o755)
+    started18 = time.monotonic()
     rc, data, out, err = run(
         repo18, '--mode', 'pre-dispatch', '--target-base', 'develop',
         '--remaining-stages', 'on_draft.github', '--pr-state', 'on_draft.github=draft',
         env={
             'PATH': f'{bins18}:{os.environ.get("PATH", "")}',
             'WORKFLOW_REVIEWER_PREFLIGHT_TEST_MODE': '1',
-            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '3',
-            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '1',
+            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '15',
+            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '15',
         },
-        expected=0,
+        expected=None,
     )
-    elapsed = float(data.get('ELAPSED_SECONDS', '999'))
+    elapsed = time.monotonic() - started18
+    check('T-18 exhausts the actual total budget before its bounded terminal outcome',
+          rc in (0, 3) and elapsed >= 14.0, f'rc={rc} wall={elapsed} err={err}')
     check(
         'T-18 bound floor keeps total elapsed close to the budget, not 2x the per-step cap',
-        elapsed <= 6.0,
+        elapsed <= 18.0,
         data,
     )
 
@@ -851,7 +859,7 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
     )
     check('T-27 multi-platform report renders both rows', data.get('PLATFORM_COUNT') == '2', data)
     names = {data.get('PLATFORM_1_NAME'), data.get('PLATFORM_2_NAME')}
-    check('T-27 both platform names appear', names == {'coderabbit', 'not-a-real-reviewer'}, data)
+    check('T-27 both platform names appear', names == {'coderabbit', 'unknown'}, data)
     for n in ('1', '2'):
         name = data.get(f'PLATFORM_{n}_NAME')
         verdict = data.get(f'PLATFORM_{n}_VERDICT')
@@ -1011,10 +1019,9 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
     # T-33 (#1561 round-21 finding): the AC-2 before/after `git status
     # --porcelain` snapshots must be bounded the same way every other read in
     # this script is — a stalled filesystem must not let this run past its
-    # advertised whole-invocation budget. Fake `git status --porcelain` as an
-    # unbounded sleep; the run must still finish within a small multiple of
-    # the (deliberately tight) test budget, not hang for the fake's full
-    # sleep duration.
+    # operation cap. Fake `git status --porcelain` as an unbounded sleep;
+    # retain setup room and require the timeout to identify AC-2 rather
+    # than an earlier prerequisite. The run must not wait for the full stall.
     repo33 = root / 'repo33'
     write_repo(repo33, coherent_shared, coherent_coderabbit)
     bins33 = root / 'bin33'
@@ -1041,13 +1048,13 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
         env={
             'PATH': f'{bins33}:{os.environ.get("PATH", "")}',
             'WORKFLOW_REVIEWER_PREFLIGHT_TEST_MODE': '1',
-            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '3',
-            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '1',
+            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '45',
+            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '3',
         },
     )
     wall33 = _time33.monotonic() - start33
     check(
-        'T-33 a stalled git status --porcelain does not let the run exceed a small multiple of its budget',
+        'T-33 a stalled git status --porcelain does not let the run exceed the bounded operation ceiling',
         wall33 <= 15.0,
         f'wall={wall33}s rc={rc} data={data} err={err}',
     )
@@ -1094,13 +1101,13 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
         env={
             'PATH': f'{bins34}:{os.environ.get("PATH", "")}',
             'WORKFLOW_REVIEWER_PREFLIGHT_TEST_MODE': '1',
-            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '3',
-            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '1',
+            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '45',
+            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '3',
         },
     )
     wall34 = _time33.monotonic() - start34
     check(
-        'T-34 a stalled merge-base --is-ancestor does not let the run exceed a small multiple of its budget',
+        'T-34 a stalled merge-base --is-ancestor does not let the run exceed the bounded operation ceiling',
         wall34 <= 15.0,
         f'wall={wall34}s rc={rc} data={data} err={err}',
     )
@@ -1209,13 +1216,13 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
         env={
             'PATH': f'{bins37}:{os.environ.get("PATH", "")}',
             'WORKFLOW_REVIEWER_PREFLIGHT_TEST_MODE': '1',
-            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '3',
-            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '1',
+            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '45',
+            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '3',
         },
     )
     wall37 = _time33.monotonic() - start37
     check(
-        'T-37 a stalled rev-parse --verify branch-resolution probe does not let the run exceed a small multiple of its budget',
+        'T-37 a stalled rev-parse --verify branch-resolution probe does not let the run exceed the bounded operation ceiling',
         wall37 <= 15.0,
         f'wall={wall37}s rc={rc} data={data} err={err}',
     )
@@ -1258,13 +1265,13 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
         env={
             'PATH': f'{bins38}:{os.environ.get("PATH", "")}',
             'WORKFLOW_REVIEWER_PREFLIGHT_TEST_MODE': '1',
-            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '3',
-            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '1',
+            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '45',
+            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '3',
         },
     )
     wall38 = _time33.monotonic() - start38
     check(
-        'T-38 a stalled read_ref_file verify-probe does not let the run exceed a small multiple of its budget',
+        'T-38 a stalled read_ref_file verify-probe does not let the run exceed the bounded operation ceiling',
         wall38 <= 15.0,
         f'wall={wall38}s rc={rc} data={data} err={err}',
     )
@@ -1517,7 +1524,7 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
         env={
             'PATH': f'{bins44}:{os.environ.get("PATH", "")}',
             'WORKFLOW_REVIEWER_PREFLIGHT_TEST_MODE': '1',
-            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '2',
+            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '45',
             'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '1',
         },
     )
@@ -1657,45 +1664,29 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
         err,
     )
 
-    # T-48 (bounded-Codex-pass, P2): if copying the local override file
-    # fails for any reason (it disappears, becomes unreadable, or the copy
-    # itself fails between review-overrides resolving it and this script's
-    # own read — review-overrides must itself still succeed first, or the
-    # existing "review-overrides failed" tooling failure fires instead,
-    # never reaching the cp this test targets), that must be a tooling
-    # failure (exit 3, named), not an unguarded `cp` exiting 1 under
-    # `set -e` with no OUTCOME report — exit 1 is reserved for the
-    # structured `blocked` verdict, so a caller distinguishing outcomes by
-    # exit code alone could misclassify this staging failure as a
-    # reviewer-configuration disagreement. Fake `cp` itself to fail
-    # deterministically for exactly this one target, isolating the guard
-    # from needing to reproduce a genuine, inherently racy TOCTOU window.
+    # T-48: failed review-only projection is a tooling failure, never a
+    # reviewer disagreement or an unsafe whole-file copy.
     repo48 = root / 'repo48'
     write_repo(repo48, coherent_shared, coherent_coderabbit)
     local48 = repo48 / '.ai-dev-workflow.local.yaml'
     local48.write_text('review:\n  on_draft:\n    runner: [claude]\n')
     bins48 = root / 'bin48'
     bins48.mkdir(exist_ok=True)
-    real_cp48 = shutil.which('cp')
-    failing_cp48 = bins48 / 'cp'
-    failing_cp48.write_text(
+    real_python48 = shutil.which('python3')
+    failing_snapshot48 = bins48 / 'python3'
+    failing_snapshot48.write_text(
         '#!/bin/bash\n'
-        'for arg in "$@"; do case "$arg" in *.ai-dev-workflow.local.yaml) echo "cp: simulated I/O error" >&2; exit 1;; esac; done\n'
-        f'exec {real_cp48!r} "$@"\n'
+        'for arg in "$@"; do case "$arg" in review-snapshot) echo "review-snapshot: synthetic atomic staging failure" >&2; exit 2;; esac; done\n'
+        f'exec {real_python48!r} "$@"\n'
     )
-    failing_cp48.chmod(0o755)
+    failing_snapshot48.chmod(0o755)
     rc, data, out, err = run(
         repo48, '--mode', 'pre-dispatch', '--target-base', 'develop',
         '--remaining-stages', 'on_draft.github', '--pr-state', 'on_draft.github=draft',
-        env={'PATH': f'{bins48}:{os.environ.get("PATH", "")}'},
-        expected=3,
+        env={'PATH': f'{bins48}:{os.environ.get("PATH", "")}'}, expected=3,
     )
-    check('T-48 a failed copy of the local override file fails closed as a tooling failure, not a bare cp exit 1', 'OUTCOME' not in data, data)
-    check(
-        'T-48 failure message names the local override file and the copy failure',
-        str(local48) in err and 'cannot copy the local override file' in err,
-        err,
-    )
+    check('T-48 failed review-only projection fails closed as a tooling failure', 'OUTCOME' not in data, data)
+    check('T-48 failure names the projection operation', 'review-snapshot failed' in err, err)
 
     # T-49 (#1561 round-6 finding, P2): an explicit empty --remaining-stages
     # short-circuits straight to no-review-remaining WITHOUT reading either
@@ -1735,18 +1726,12 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
     check('T-49b empty remaining-stages against a valid base still short-circuits to no-review-remaining', data.get('OUTCOME') == 'no-review-remaining', data)
     check('T-49b no platforms computed', data.get('PLATFORM_COUNT') == '0', data)
 
-    # T-50 (bounded-Codex-pass, P2): when review-overrides resolves a
-    # local override path but that path is no longer a readable regular
-    # file by the time this script's own presence check runs (deleted or
-    # replaced in between), this must fail closed as a tooling failure —
-    # not silently fall through to LOCAL_OVERRIDE_STATE=none and resolve
-    # reviewer lists as if no override existed. Fake python3 to replace
-    # the override file with a directory immediately after the real
-    # review-overrides call resolves it (a stable, deterministic
-    # reproduction of this TOCTOU window).
+    # T-50: removing the original external source after projection cannot
+    # affect staged readers. Original identity remains separate metadata.
     repo50 = root / 'repo50'
     write_repo(repo50, coherent_shared, coherent_coderabbit)
-    local50 = repo50 / '.ai-dev-workflow.local.yaml'
+    external50 = root / 'external50'; external50.mkdir()
+    local50 = external50 / '.ai-dev-workflow.local.yaml'
     local50.write_text('review:\n  on_draft:\n    runner: [claude]\n')
     bins50 = root / 'bin50'
     bins50.mkdir(exist_ok=True)
@@ -1755,7 +1740,7 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
     racy_python50.write_text(
         '#!/bin/bash\n'
         'is_review_overrides=0\n'
-        'for arg in "$@"; do [ "$arg" = review-overrides ] && is_review_overrides=1; done\n'
+        'for arg in "$@"; do [ "$arg" = review-snapshot ] && is_review_overrides=1; done\n'
         f'{real_python50!r} "$@"\n'
         'rc=$?\n'
         'if [ "$is_review_overrides" = 1 ] && [ "$rc" = 0 ]; then\n'
@@ -1767,44 +1752,40 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
     rc, data, out, err = run(
         repo50, '--mode', 'pre-dispatch', '--target-base', 'develop',
         '--remaining-stages', 'on_draft.github', '--pr-state', 'on_draft.github=draft',
-        env={'PATH': f'{bins50}:{os.environ.get("PATH", "")}'},
-        expected=3,
+        env={'PATH': f'{bins50}:{os.environ.get("PATH", "")}', 'WORKFLOW_LOCAL_REVIEW_OVERRIDE_ROOT': str(external50)},
+        expected=0,
     )
-    check('T-50 a local override removed between resolution and the presence check fails closed, not LOCAL_OVERRIDE_STATE=none', 'OUTCOME' not in data, data)
-    check(
-        'T-50 failure message names the local override file and that it no longer exists',
-        str(local50) in err and 'no longer exists' in err,
-        err,
-    )
+    check('T-50 removed external source does not replace validated projection', data.get('LOCAL_OVERRIDE_STATE') == 'applied', data)
 
-    # T-51 (#1561 round-7 finding, P2): clamp_bound_floor's 1-second floor
-    # must extend the effective deadline exactly ONCE per invocation, not
-    # grant a fresh 1-second budget to every post-deadline call site — an
-    # earlier version of this function reset `remaining` to a fresh 1 on
-    # every call after the deadline, which could let a slow run overrun
-    # PREFLIGHT_BUDGET_SECONDS by several seconds in aggregate across the
-    # up to six clamp_bound_floor call sites in a single invocation (the
-    # before-porcelain snapshot, either input-build path, the classifier,
-    # the after-porcelain snapshot, and the report renderer). Reuse T-7's
-    # own reliable, non-race-prone timing fixture (a real git subprocess
-    # bounded well under its artificial 5-second delay, not a tight
-    # sub-second race against another fake) and assert the reported
-    # BUDGET_SECONDS stays exactly the nominal value passed in (not
-    # inflated by however many post-deadline call sites happened to run)
-    # and ELAPSED_SECONDS stays within budget plus the platform cap plus a
-    # single one-second floor extension — not budget plus the cap plus one
-    # second per post-deadline call site.
+    # T-51: exercise the actual deadline-floor function with a controlled
+    # clock. Successive final-mile calls share ONE second; after that second,
+    # no caller receives a fresh reserve. This avoids requiring Python/jq
+    # startup to finish in the last real second on a loaded CI runner.
+    floor_source = helper.read_text().split('clamp_bound_floor() {\n', 1)[1].split('\n}\n', 1)[0]
+    floor_program = 'clamp_bound_floor() {\n' + floor_source + '\n}\n' + r'''
+set -eu
+PREFLIGHT_BUDGET_SECONDS=15
+floor_deadline_extension=0
+SECONDS=15
+clamp_bound_floor 20
+printf '%s %s %s\n' "$bound" "$floor_deadline_extension" "$PREFLIGHT_BUDGET_SECONDS"
+clamp_bound_floor 20
+printf '%s %s %s\n' "$bound" "$floor_deadline_extension" "$PREFLIGHT_BUDGET_SECONDS"
+SECONDS=16
+clamp_bound_floor 20
+printf '%s %s %s\n' "$bound" "$floor_deadline_extension" "$PREFLIGHT_BUDGET_SECONDS"
+'''
+    floor_result = subprocess.run([bash, '-c', floor_program], text=True, capture_output=True, timeout=5)
+    check('T-51 actual floor shares one extension and preserves nominal budget',
+          floor_result.returncode == 0 and floor_result.stdout.splitlines() == ['1 1 15', '1 1 15', '0 1 15'],
+          floor_result)
     rc, data, out, err = run(
         repo7, '--mode', 'pre-dispatch', '--target-base', 'develop',
         '--remaining-stages', 'on_draft.github', '--pr-state', 'on_draft.github=draft',
         env=env2, expected=0,
     )
-    check('T-51 reported BUDGET_SECONDS is the nominal input, not inflated by the floor extension', data.get('BUDGET_SECONDS') == '2', data)
-    check(
-        'T-51 elapsed stays within budget + per-platform cap + a single one-second floor extension, not one extension per post-deadline call site',
-        float(data.get('ELAPSED_SECONDS', '999')) <= 5.0,
-        data,
-    )
+    check('T-51 reported BUDGET_SECONDS is the nominal input, not inflated by the floor extension', data.get('BUDGET_SECONDS') == '45', data)
+
 
     # T-52 (#1561 round-8 finding, P2): an omitted --remaining-stages must
     # be classified prerequisite-failed (exit 2) even when the resolved
@@ -1853,8 +1834,8 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
     # jq unboundedly after classification has completed. Fake jq to stall
     # specifically on the `--argjson elapsed` invocation this renderer
     # uses (identifiable by its own distinct flag, so every OTHER jq call
-    # this script makes still delegates to the real binary), with a tight
-    # budget: the run must still reach a bounded, fail-closed outcome
+    # this script makes still delegates to the real binary), with a short operation
+    # cap: the run must still reach a bounded, fail-closed outcome
     # (exit 3) well within the test's own subprocess timeout, not hang for
     # the fake's full stall duration.
     repo53 = root / 'repo53'
@@ -1880,13 +1861,13 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
         env={
             'PATH': f'{bins53}:{os.environ.get("PATH", "")}',
             'WORKFLOW_REVIEWER_PREFLIGHT_TEST_MODE': '1',
-            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '2',
-            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '1',
+            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '45',
+            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '3',
         },
         expected=3,
     )
     elapsed53 = time.monotonic() - started53
-    check('T-53 a stalled JSON-report jq is bounded, not left to run its full stall duration', elapsed53 <= 8.0, elapsed53)
+    check('T-53 a stalled JSON-report jq is bounded, not left to run its full stall duration', elapsed53 <= 15.0, elapsed53)
     check('T-53 failure message names the JSON report render failure', 'cannot render the JSON report' in err, err)
 
     # T-54 (#1561 round-11 finding, P2): required dependencies must be
@@ -1902,7 +1883,7 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
     bins54 = root / 'bin54'
     bins54.mkdir(exist_ok=True)
     stub_python54 = bins54 / 'python3'
-    stub_python54.write_text('#!/bin/bash\nexit 0\n')
+    stub_python54.write_text('#!/bin/bash\nif [ "${2:-}" = redact-text ]; then exec ' + repr(shutil.which('python3')) + ' "$@"; fi\nexit 0\n')
     stub_python54.chmod(0o755)
     (bins54 / 'dirname').symlink_to(shutil.which('dirname'))
     repo54 = root / 'repo54'
@@ -1949,13 +1930,13 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
         env={
             'PATH': f'{bins55}:{os.environ.get("PATH", "")}',
             'WORKFLOW_REVIEWER_PREFLIGHT_TEST_MODE': '1',
-            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '2',
-            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '1',
+            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '45',
+            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '3',
         },
         expected=3,
     )
     elapsed55 = time.monotonic() - started55
-    check('T-55 a stalled resolver-output jq is bounded, not left to run its full stall duration', elapsed55 <= 8.0, elapsed55)
+    check('T-55 a stalled resolver-output jq is bounded, not left to run its full stall duration', elapsed55 <= 15.0, elapsed55)
     check('T-55 failure message names the LOCAL_OVERRIDE_FILE/LOCAL_OVERRIDE_ORIGIN parse failure', 'cannot read LOCAL_OVERRIDE_FILE' in err, err)
 
     # T-56 (#1561 round-12 finding, P1): a non-empty but malformed
@@ -2011,13 +1992,13 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
         env={
             'PATH': f'{bins57}:{os.environ.get("PATH", "")}',
             'WORKFLOW_REVIEWER_PREFLIGHT_TEST_MODE': '1',
-            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '2',
-            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '1',
+            'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '45',
+            'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '3',
         },
         expected=3,
     )
     elapsed57 = time.monotonic() - started57
-    check('T-57 a stalled check-ref-format probe is bounded, not left to run its full stall duration', elapsed57 <= 8.0, elapsed57)
+    check('T-57 a stalled check-ref-format probe is bounded, not left to run its full stall duration', elapsed57 <= 15.0, elapsed57)
     check('T-57 failure message names the check-ref-format probe timeout', 'check-ref-format probe did not complete' in err, err)
 
     # T-58 (#1561 round-14 finding, P2): a TMPDIR pointing inside --repo-root

@@ -1,0 +1,11 @@
+{
+  "source": "scripts/development-workflow/workflow-merge-budget.py",
+  "line": 1217,
+  "revision": "2bff206214957e5074915a3c519d56d8d1b948b2",
+  "fixtureOnly": true,
+  "predicate": "if sample[\"remaining\"] < state[\"estimate\"][\"projectedCost\"] + state[\"reserve\"]:",
+  "sourceDigest": "649e71a9d0cdeafe91ac65c02f5ea301b9635688f722d17cb18083a9053ae494",
+  "baseline": "green, zero merge dispatch",
+  "planted": "red, forbidden fixture merge detected",
+  "restored": "green, zero merge dispatch"
+}

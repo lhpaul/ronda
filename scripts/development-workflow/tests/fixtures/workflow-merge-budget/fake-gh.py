@@ -77,6 +77,9 @@ if args[:2] == ['api', 'graphql']:
         state.setdefault('trackerMutationRepos',[]).append(os.environ.get('GH_REPO',state['repo']))
         state.setdefault('trackerMutationProjectIds',[]).append(next(a[10:] for a in args if a.startswith('projectId=')))
         state['trackerMutationCount'] = state.get('trackerMutationCount',0)+1
+        if ('quotaAfterTrackerMutation' in state
+                and state['trackerMutationCount'] >= state.get('quotaAfterTrackerMutationCount', 1)):
+            state['quota']['remaining'] = state['quotaAfterTrackerMutation']
         selected = next((a[9:] for a in args if a.startswith('optionId=')), 'merged')
         selected_status = 'Released' if selected == 'released' else 'Merged'
         if state.get('releaseMode'):
@@ -88,6 +91,10 @@ if args[:2] == ['api', 'graphql']:
         emit({'data': {'updateProjectV2ItemFieldValue': {'projectV2Item': {'id': 'item'}}}})
     if 'projectItems(' in query:
         number = int(next(a.split('=', 1)[1] for a in args if a.startswith('issueNumber=')))
+        if 'ReleaseBudgetTracker' in query:
+            reads = state.setdefault('releaseTrackerReads', {})
+            reads[str(number)] = reads.get(str(number), 0) + 1
+            state['quota']['remaining'] = max(0, state['quota']['remaining'] - state.get('releaseTrackerReadCost', 0))
         owner = next((a[6:] for a in args if a.startswith('owner=')),state['repo'].split('/')[0])
         name = next((a[5:] for a in args if a.startswith('repo=')),state['repo'].split('/')[1])
         issue_repo = owner+'/'+name
@@ -110,8 +117,14 @@ if args[:2] == ['api', 'graphql']:
         emit({'data': {'user': {'projectV2': {'id': project_id}}, 'organization': {'projectV2': {'id': project_id}}}})
     sys.exit(1)
 if args[:2] == ['pr', 'view']:
+    if str(args[2]) not in state.get('prs', {}):
+        sys.exit(1)
     value = dict(state['prs'][str(args[2])])
-    value.update(body=state.get('body', ''), title=state.get('title', ''), commits=[],
+    value.setdefault('title', state.get('title', value.get('title', '')))
+    value.setdefault('mergedAt', value.get('mergedAt') or value.get('merged_at'))
+    value.setdefault('baseRefName', value.get('baseRefName', 'develop'))
+    value.setdefault('headRefName', value.get('headRefName', ''))
+    value.update(body=state.get('body', value.get('body', '')), commits=[],
                  isCrossRepository=state.get('fork', False), labels=[], isDraft=False)
     emit(value)
 if args[:2] == ['pr', 'merge']:
@@ -211,6 +224,17 @@ if args[:1] == ['api']:
             sys.exit(1)
         emit({'number': int(match[2]), 'title': 'Fixture issue #'+match[2], 'state': 'closed',
               'milestone': state.get('issueMilestones', {}).get(match[2])})
+    # Path and query separately: production uses pulls?per_page=100 with
+    # --paginate --slurp (array of page arrays). Flat body for non-slurp callers.
+    api_path = endpoint.split('?', 1)[0]
+    commit_pulls = re.fullmatch(
+        r'repos/([^/]+/[^/]+)/commits/([0-9a-f]{40})/pulls', api_path
+    )
+    if commit_pulls:
+        if state.get('commitPullsOutage'):
+            sys.exit(1)
+        pulls = state.get('commitPulls', {}).get(commit_pulls[2], [])
+        emit([pulls] if '--slurp' in args else pulls)
     commit = re.fullmatch(r'repos/([^/]+/[^/]+)/git/commits/([0-9a-f]{40})', endpoint)
     if commit and commit[2] in state.get('gitCommits', {}):
         emit(state['gitCommits'][commit[2]])

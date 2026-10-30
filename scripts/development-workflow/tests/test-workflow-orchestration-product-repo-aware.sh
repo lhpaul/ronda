@@ -211,8 +211,19 @@ run_contains "workflow_hub_product_owner" "ACTION_REPOSITORY_KIND=product_repo_o
 run_contains "workflow_hub_product_repo_name" "ACTION_REPOSITORY=mobile-app" "$selected_output"
 run_contains "workflow_hub_product_github_repo" "ACTION_GITHUB_REPO=example/mobile-app" "$selected_output"
 
+missing_selection_bin="$TMP_ROOT/missing-selection-bin"
+mkdir -p "$missing_selection_bin"
+cat > "$missing_selection_bin/gh" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  "pr list "*) printf 'unexpected merged-PR probe\n' >> "$ROUTING_PROBE_LOG" ;;
+esac
+exit 1
+SH
+chmod +x "$missing_selection_bin/gh"
 missing_selection_output="$(
-  env WORKFLOW_SKIP_FETCH=1 "$REPO_ROOT/scripts/development-workflow/workflow-next-action.sh" \
+  env PATH="$missing_selection_bin:$PATH" ROUTING_PROBE_LOG="$TMP_ROOT/missing-selection-probes" \
+    WORKFLOW_SKIP_FETCH=1 "$REPO_ROOT/scripts/development-workflow/workflow-next-action.sh" \
     --repo-root "$hub_dir" \
     --development "$hub_dev"
 )"
@@ -223,6 +234,8 @@ run_contains \
 run_contains "workflow_hub_missing_target_outcome" "ROUTING_OUTCOME_CODE=missing_target" "$missing_selection_output"
 run_contains "workflow_hub_missing_target_stops" "ROUTING_CONTINUE_ALLOWED=false" "$missing_selection_output"
 run_contains "workflow_hub_missing_target_evidence" "ROUTING_STOP_REASON=product-owned work has no selected product repository key" "$missing_selection_output"
+run_equals "workflow_hub_missing_target_never_queries_hub_prs" "absent" \
+  "$(if [ -e "$TMP_ROOT/missing-selection-probes" ]; then echo present; else echo absent; fi)"
 
 branch_resolution_output="$(
   WORKFLOW_SKIP_FETCH=1 "$REPO_ROOT/scripts/development-workflow/workflow-next-action.sh" \
@@ -491,19 +504,23 @@ mkdir -p "$provider_fail_bin"
 cat > "$provider_fail_bin/awk" <<SH
 #!/usr/bin/env bash
 if [ "\${1:-}" = "-v" ] && [ "\${2:-}" = "section=issue_tracker" ]; then
-  echo "simulated provider resolver failure" >&2
+  printf '%s\n' "fabricatedOpaqueProviderStdout"
+  printf '%s\n' "fabricatedOpaqueProviderStderr" >&2
   exit 2
 fi
 exec "$real_awk" "\$@"
 SH
 chmod +x "$provider_fail_bin/awk"
-run_fails_contains \
-  "workflow_provider_resolution_failure_fails_closed" \
-  "ERROR: could not resolve issue tracker provider" \
-  env PATH="$provider_fail_bin:$stub_bin:$PATH" WORKFLOW_SKIP_FETCH=1 "$REPO_ROOT/scripts/development-workflow/workflow-next-action.sh" \
-    --repo-root "$typed_hub_dir" \
-    --repo mobile-app \
-    --development "$workflow_dev"
+provider_failure_status=0
+env PATH="$provider_fail_bin:$stub_bin:$PATH" WORKFLOW_SKIP_FETCH=1 "$REPO_ROOT/scripts/development-workflow/workflow-next-action.sh" \
+  --repo-root "$typed_hub_dir" \
+  --repo mobile-app \
+  --development "$workflow_dev" >"$TMP_ROOT/provider.stdout" 2>"$TMP_ROOT/provider.stderr" || provider_failure_status=$?
+run_equals "workflow_provider_resolution_failure_fails_closed" "2" "$provider_failure_status"
+run_equals "workflow_provider_resolution_failure_stdout_empty" "" "$(cat "$TMP_ROOT/provider.stdout")"
+run_equals "workflow_provider_resolution_failure_metadata_only" \
+  "configuration: configuration validation error; key=issue_tracker.provider" "$(cat "$TMP_ROOT/provider.stderr")"
+
 
 discover_output="$(
   PATH="$stub_bin:$PATH" "$REPO_ROOT/scripts/development-workflow/discover-workflow-state.sh" \
