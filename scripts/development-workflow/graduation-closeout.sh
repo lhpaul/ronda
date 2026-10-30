@@ -472,7 +472,7 @@ discover_closing_keyword_refs() {
   # visible text outside <pre>/<code>, then scan with shared
   # closing_keyword_live_refs. Title and body stay independent documents.
   # Fail closed per PR: any render/extract failure contributes no text-derived
-  # refs for that PR (never fall back to raw markdown). Cross-repo
+  # refs for that PR and holds epic closeout (never fall back to raw markdown). Cross-repo
   # owner/repo#N never matches the shared keyword pattern. Linear must not
   # call this — see discover_linear_merged_pr_issue_refs.
   local prs_json context
@@ -519,6 +519,7 @@ for pr in prs or []:
     if [ "$need_title" -eq 1 ]; then
       if ! title_refs="$(printf '%s' "$title" | graduation_closeout_github_live_refs_from_markdown "$context")"; then
         echo "CLOSEOUT_TEXT_REFS_UNAVAILABLE pr=${pr_number} reason=gfm_render_or_extract_failed" >&2
+        record_result "$FAILED_FILE" "discovery" "Candidate discovery" "pr:${pr_number}" "gfm_render_or_extract_failed"
         continue
       fi
     else
@@ -527,6 +528,7 @@ for pr in prs or []:
     if [ "$need_body" -eq 1 ]; then
       if ! body_refs="$(printf '%s' "$body" | graduation_closeout_github_live_refs_from_markdown "$context")"; then
         echo "CLOSEOUT_TEXT_REFS_UNAVAILABLE pr=${pr_number} reason=gfm_render_or_extract_failed" >&2
+        record_result "$FAILED_FILE" "discovery" "Candidate discovery" "pr:${pr_number}" "gfm_render_or_extract_failed"
         continue
       fi
     else

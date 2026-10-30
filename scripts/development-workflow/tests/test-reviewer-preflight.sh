@@ -219,22 +219,23 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
     )
 
     # T-7: budget timeout degrades to undetermined, not blocked, when nothing
-    # else already proved a disagreement — never hangs past the test budget.
+    # else already proved a disagreement. Give prerequisite resolution room
+    # on loaded CI hosts; inject the timeout only at the platform read.
     repo7 = root / 'repo7'
     write_repo(repo7, coherent_shared, coherent_coderabbit)
     slow_git = bins / 'git'
     real_git = shutil.which('git')
     slow_git.write_text(
         '#!/bin/bash\n'
-        'for arg in "$@"; do case "$arg" in *:.coderabbit.yaml) sleep 5; break;; esac; done\n'
+        'for arg in "$@"; do case "$arg" in *:.coderabbit.yaml) sleep 10; break;; esac; done\n'
         f'exec {real_git!r} "$@"\n'
     )
     slow_git.chmod(0o755)
     env2 = {
         'PATH': f'{bins}:{os.environ.get("PATH", "")}',
         'WORKFLOW_REVIEWER_PREFLIGHT_TEST_MODE': '1',
-        'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '2',
-        'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '1',
+        'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '45',
+        'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '3',
     }
     rc, data, out, err = run(
         repo7, '--mode', 'pre-dispatch', '--target-base', 'develop',
@@ -1760,7 +1761,7 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
     # before-porcelain snapshot, either input-build path, the classifier,
     # the after-porcelain snapshot, and the report renderer). Reuse T-7's
     # own reliable, non-race-prone timing fixture (a real git subprocess
-    # bounded well under its artificial 5-second delay, not a tight
+    # bounded well under its artificial 10-second delay, not a tight
     # sub-second race against another fake) and assert the reported
     # BUDGET_SECONDS stays exactly the nominal value passed in (not
     # inflated by however many post-deadline call sites happened to run)
@@ -1770,7 +1771,8 @@ with tempfile.TemporaryDirectory(prefix='reviewer-preflight-tests-') as tmp:
     rc, data, out, err = run(
         repo7, '--mode', 'pre-dispatch', '--target-base', 'develop',
         '--remaining-stages', 'on_draft.github', '--pr-state', 'on_draft.github=draft',
-        env=env2, expected=0,
+        env={**env2, 'WORKFLOW_REVIEWER_PREFLIGHT_BUDGET_SECONDS': '2',
+             'WORKFLOW_REVIEWER_PREFLIGHT_PER_PLATFORM_CAP_SECONDS': '1'}, expected=0,
     )
     check('T-51 reported BUDGET_SECONDS is the nominal input, not inflated by the floor extension', data.get('BUDGET_SECONDS') == '2', data)
     check(

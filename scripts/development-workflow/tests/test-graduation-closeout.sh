@@ -1749,8 +1749,13 @@ for provider in github_projects github_issues; do
   result="$(run_closeout)"
   body="$(last_output_body "$result")"
   unset MOCK_MARKDOWN_FAIL
-  run_test "${provider}_md_fail_exit_zero" "0" "$(last_output_status "$result")"
+  run_test "${provider}_md_fail_exit_one" "1" "$(last_output_status "$result")"
   run_contains "${provider}_md_fail_unavailable" "CLOSEOUT_TEXT_REFS_UNAVAILABLE pr=11" "$body"
+  run_contains "${provider}_md_fail_epic_held" "EPIC_RESULT=held" "$body"
+  run_contains "${provider}_md_fail_reason" "gfm_render_or_extract_failed" "$body"
+  run_test "${provider}_md_fail_known_child_processed" "CLOSED" "$(python3 -c 'import json; print(json.load(open("'"$MOCK_STATE_DIR"'/101.json"))["state"])')"
+  run_test "${provider}_md_fail_epic_open" "OPEN" "$(python3 -c 'import json; print(json.load(open("'"$MOCK_STATE_DIR"'/900.json"))["state"])')"
+  run_not_contains "${provider}_md_fail_no_epic_close" "issue close 900" "$(cat "$MOCK_GH_LOG")"
   run_test "${provider}_md_fail_326_untouched" "OPEN" "$(python3 -c 'import json; print(json.load(open("'"$MOCK_STATE_DIR"'/326.json"))["state"])')"
   run_not_contains "${provider}_md_fail_no_close_326" "issue close 326" "$(cat "$MOCK_GH_LOG")"
 done

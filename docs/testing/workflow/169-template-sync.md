@@ -116,3 +116,45 @@ The full selector ran all 142 suites. The initial run had 138 passing suites and
 The fourth failure also reproduces in the pristine pinned v0.48.9 template: `test-workflow-orchestration-product-repo-aware.sh` exits 2 for a multi-product hub with no selection, before its expected structured `missing_target` result. At `workflow-next-action.sh`'s optional merged-PR enrichment, preflight routing first when no target is selected. A valid selection-required result skips enrichment and reaches the existing final handler (`ROUTING_OUTCOME_CODE=missing_target`, `ROUTING_CONTINUE_ALLOWED=false`, `NEXT_ACTION=resolve-repository-selection`); malformed/failed routing remains fatal. Successful selected or hub-owned routing retains its existing scoped lookup. No empty-argument fallback queries the hub as a product repository.
 
 The existing missing-selection fixture fails before this correction and passes afterward. An additional GH stub logs any premature merged-PR query; the new `workflow_hub_missing_target_never_queries_hub_prs` assertion observes no query. This is a direct gate-input plant/control in the real executable, with the original selection, unknown-repo, integration-base and cleanup assertions retained.
+
+## Maintainer follow-up: size limitation and confirmed local finding
+
+LH selected a documented, PR-specific size exception: retain the atomic sync,
+keep the existing policy and limits, and leave merge to human review. This is
+not a successful dogfood review, a green check, or permission to merge.
+The GitHub files response for head `4ab19c9a4722d606b61429a8609c2a9e762c3167`
+contains 255 files. Reconstructing `buildReviewPrompt` patch sections yields
+1,483,543 JavaScript UTF-16 units against the unchanged 400,000-character limit
+(including placeholders for eight absent patches). The normal dogfood run
+therefore fails before model invocation. Splitting the manifest-driven sync
+would separate the required migration and its framework contracts; LH explicitly
+requested keeping them together. Compensating evidence is the complete local
+suite ledger, current-head CI and independent native review. The red size check
+remains visible; no check result or readiness policy is overridden.
+
+The exact transient local finding on that head was recovered from the reviewer's
+final structured verdict: `graduation-closeout.sh` logged GFM render/extraction
+failure and continued without recording discovery failure. Independent code
+review confirmed that known native/label children could succeed, leaving
+`FAILED_FILE` empty and allowing the parent epic to close while an undiscovered
+text-only child remained open. The existing mocked API-failure fixture already
+reproduced this combination but incorrectly expected successful completion.
+The fix records a discovery failure for either title or body, still processes
+independently known children, and holds the epic. The fixture now asserts the
+nonzero result, held/open epic, known-child processing and untouched text-only
+child. This finding is confirmed and fixed, rather than dismissed because the
+loop's confirmation pass was clean.
+
+CI exposed a separate jq-version issue: the previous conclusion expression
+reports SUCCESS as failure with jq 1.8.1, while jq 1.6 and Apple jq 1.7.1 accept
+it. Binding the conclusion string before boolean comparisons removes the
+precedence ambiguity. The real baseline tests retain green, failure and pending
+controls. A preflight timeout fixture now gives prerequisite resolution its
+normal setup budget and injects delay at the platform read; the separate
+whole-invocation deadline fixture retains its tight budget and assertions.
+
+Follow-up validation: graduation closeout 785 assertions passed; staged gates
+530 assertions passed independently with jq 1.6, Apple jq 1.7.1 and jq 1.8.1;
+D94 diagnostic boundary test passed with each of those versions; reviewer
+preflight 143 assertions passed. Changed shell files pass warning-level
+ShellCheck and the evidence document passes Markdown lint.
