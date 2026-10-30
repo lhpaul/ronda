@@ -158,3 +158,22 @@ Follow-up validation: graduation closeout 785 assertions passed; staged gates
 D94 diagnostic boundary test passed with each of those versions; reviewer
 preflight 143 assertions passed. Changed shell files pass warning-level
 ShellCheck and the evidence document passes Markdown lint.
+
+The subsequent CI run passed the staged-gate shard but exposed the same setup
+race in preflight T33: its three-second total budget expired at `ls-remote`,
+before the injected `git status` stall, so it could not prove its stated target.
+Target-operation cases now retain a normal setup budget and short operation
+caps, with the same timeout/error-source assertions. T18 exhausts an actual
+15-second whole-invocation budget with a 90-second platform stall, requiring
+14–18 seconds of wall time and a bounded terminal outcome. It permits a tooling
+failure when the final one-second reserve cannot finish startup on a loaded
+host; normal degraded success remains required by T7 and T51's real integration
+control. T51 separately executes the actual deadline-floor function with a
+controlled clock: two calls at the deadline share one second, a call after it
+gets zero, and the nominal budget remains unchanged. Its integration control
+still requires the nominal budget in the report. This proves the one-time floor
+without depending on several Python/jq processes starting in the last second.
+Production timeout logic and policy are unchanged.
+
+Stabilized preflight suite: 144 assertions passed; warning-level ShellCheck,
+Markdown lint and whitespace validation passed for the follow-up delta.
