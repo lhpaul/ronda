@@ -19,7 +19,7 @@
 - Preserve the repository `review:` configuration and the Agent merge policy in `AGENTS.md`.
 - Keep `pr-agent.yml`: upstream would remove Ronda's missing-model-credential failure guard. Trusted-base exclusions remain unchanged.
 - Keep `markdown-lint.yml`: upstream would remove Ronda's durability-mode lint.
-- Keep `update-tracker-on-merge.yml`: only punctuation differs. No other special-handling files changed.
+- Adopt the one-character `update-tracker-on-merge.yml` message correction: remove sentence punctuation from the emitted helper filename so the new reference-verification gate resolves an actual file. No tracker behavior, permissions, or triggers change. No other special-handling files changed.
 - Skip optional project-file additions; update only the required template version/commit metadata and add this evidence plus a changelog fragment.
 
 ## v0.48.5 migration
@@ -106,3 +106,13 @@ The diagnostic suite's `local_entry` GitHub stub originally returned exit 99 for
 Additional integration controls preserve the retained Ronda contracts: the two other direct local-entry stubs also return complete rename metadata; forced-review fixture controls provide the required synthetic rationale and mock its publication; the renderer asserts the additional `LOCAL_OUTCOME_CLASS=not_attempted` record instead of assuming three lines. D91, D93, D94, D96 and D99 passed together (5 tests). No production force-policy or source-error precedence was relaxed.
 
 The D94 empty-record control additionally exposed Bash 3.2 `nounset` errors in two retained local outcome-record array loops. Use the established `${array[@]+"${array[@]}"}` expansion so empty arrays perform zero iterations while populated records keep their argument boundaries. Before correction the control emitted `platform_result_records[@]: unbound variable`; after correction the focused gate/source/force matrix passed in both installed Bash versions. This portability correction changes no gate decision or product behavior. Earlier in-flight diagnostic processes loaded the pre-correction fixtures and are superseded by the final complete diagnostic rerun.
+
+The full framework pass also exposed the same missing REST metadata in `test_runner_secret_prevention.py`'s composed local-review fixture. Adding the complete non-rename response preserves every security assertion; the focused composed security test passes. `test-tracker-mapping-reference.sh` deliberately plants a trailing period in the emitted filename and rejects it; the existing consumer message had exactly that defect. The adopted one-character workflow correction makes both the planted negative and real-repository positive controls pass. No validation test was weakened to accept the invalid reference.
+
+## Complete workflow selection and imported routing correction
+
+The full selector ran all 142 suites. The initial run had 138 passing suites and four import/integration failures; all four were corrected and rerun successfully. The [suite result ledger](169-workflow-suite-results.json) records each initial result and the corrected effective result rather than concealing the first failures. Final diagnostic suite: 100 tests passed. Configuration resolver: 798 shell assertions plus 53 security tests passed (2 existing platform-specific skips). Tracker-reference controls passed, including the planted trailing-period rejection. Product-routing suite: 75 assertions passed.
+
+The fourth failure also reproduces in the pristine pinned v0.48.9 template: `test-workflow-orchestration-product-repo-aware.sh` exits 2 for a multi-product hub with no selection, before its expected structured `missing_target` result. At `workflow-next-action.sh`'s optional merged-PR enrichment, preflight routing first when no target is selected. A valid selection-required result skips enrichment and reaches the existing final handler (`ROUTING_OUTCOME_CODE=missing_target`, `ROUTING_CONTINUE_ALLOWED=false`, `NEXT_ACTION=resolve-repository-selection`); malformed/failed routing remains fatal. Successful selected or hub-owned routing retains its existing scoped lookup. No empty-argument fallback queries the hub as a product repository.
+
+The existing missing-selection fixture fails before this correction and passes afterward. An additional GH stub logs any premature merged-PR query; the new `workflow_hub_missing_target_never_queries_hub_prs` assertion observes no query. This is a direct gate-input plant/control in the real executable, with the original selection, unknown-repo, integration-base and cleanup assertions retained.

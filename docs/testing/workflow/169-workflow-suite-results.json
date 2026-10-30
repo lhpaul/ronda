@@ -1,0 +1,883 @@
+{
+  "schema_version": 1,
+  "selection": "select-test-suites.sh --all",
+  "selected_count": 142,
+  "initial_passed": 138,
+  "initial_failed": 4,
+  "effective_passed_after_corrections": 142,
+  "effective_failed_after_corrections": 0,
+  "corrected_suite_reruns": {
+    "test-runner-diagnostic-emitters.sh": {
+      "result": "pass",
+      "tests": 100
+    },
+    "test-tracker-mapping-reference.sh": {
+      "result": "pass",
+      "negative_control": "planted trailing period rejected"
+    },
+    "test-workflow-config-resolver.sh": {
+      "result": "pass",
+      "shell_assertions": 798,
+      "security_tests": 53,
+      "platform_skips": 2
+    },
+    "test-workflow-orchestration-product-repo-aware.sh": {
+      "result": "pass",
+      "assertions": 75
+    }
+  },
+  "suites": [
+    {
+      "path": "scripts/development-workflow/tests/test-actions-cost-audit.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-add-backlog-item.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-apply-readiness-labels.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-batch-merge-changelog-race.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-batch-merge-checkpoints.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-batch-merge-recheck-remaining.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-changelog-fragments.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-check-documentation-stage-alignment.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-check-sync-manifest-coverage.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-check-tracker-merge-mapping.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-checkpoint-resume-gate.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-claude-code-action-reviewer.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-coderabbit-cli-pr-review-loop-dispatch.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-coderabbit-cli-reviewer.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-component-milestone-reconciliation.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-component-release-evidence.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-component-release-target.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-config-error-diagnostics.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-consumer-readiness-matrix-part-1.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-consumer-readiness-matrix-part-2.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-consumer-readiness-matrix-part-3.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-consumer-readiness-matrix-part-4.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-consumer-tree-test-gating.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-cross-cutting-plan-assumption-contract.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-cursor-dispatch-profile-pointers.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-cursor-model-pin-guidance.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-delivery-bundle-manifest.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-diagnostic-kv-batch.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-dsh-model-routing.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-durability-mode-lint.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-expensive-reviewer-gate.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-framework-mode-type-routing.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-github-app-token.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-graduation-closeout-from-merged-pr.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-graduation-closeout.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-haystack-commit-msg-hook.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-haystack-reviewer.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-hub-preflight-product-repos.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-install-codex-skills.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-internal-review-gate-freshness-guard.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-item-completion-self-check.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-local-ai-reviewer-findings.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-local-ai-reviewer-pr-review-loop-dispatch.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-local-ai-reviewer.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-local-codex-review-command.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-local-http-review-command.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-may-merge-terminal-contract.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-multi-repo-release-assurance.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-placeholder-workflows-opt-in.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-plan-authoring-rigor-mirror.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-post-merge-cleanup.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-post-merge-qa-scope.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-agent-runtime.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-ci-loop.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-label-readiness-checklist.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-ownership-guard.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-review-loop-cycles-labels.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-review-loop-failure-paths-1.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-review-loop-failure-paths-2.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-review-loop-failure-paths-3.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-review-loop-failure-paths-4.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-review-loop-no-verdict-yet.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-review-loop-pr-agent-coderabbit.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-review-loop-release-bugbot.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-review-loop-staged-gates.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-pr-review-loop.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-prepare-release-tracker-cleanup.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-private-source-authority.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-private-source-consumers.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-protocol-02-portable-parser-guidance.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-protocol-91-readiness-checklist.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-readiness-label-matrix-part-1.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-readiness-label-matrix-part-2.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-readiness-label-matrix-part-3.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-readiness-label-matrix-part-4.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-readiness-partition-coverage.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-resolve-reviewer-availability.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-review-doctrine-lint.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-review-effective-yaml-parser.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-reviewer-effectiveness-report.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-reviewer-loop-commit-ancestry.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-reviewer-loop-guard-workflow.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-reviewer-loop-pr-policy-dispatch.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-reviewer-preflight-surfaces.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-reviewer-preflight.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-ronda-pr-review-loop-dispatch.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-run-bounded-prelude.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-run-epic-audit-trail.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-run-epic-checkpoint-lifecycle.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-run-epic-delegated-gate.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-run-epic-policy-recommender.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-run-epic-risk-classifier.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-run-epic-scope-resolver.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-run-item-scope-resolver.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-run-nested-artifact-guard.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-run-work-router.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-runner-diagnostic-emitters.sh",
+      "initial_exit": 1,
+      "final_exit": 0,
+      "rerun": true
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-scope-residual-gate.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-security-advisory-classifier.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-security-advisory-tracker.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-select-test-suites.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-selected-private-yaml.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-small-finding-terminal-policy.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-spec-dispatch-context.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-status-check-rollup-dedupe.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-step7a-surface-consistency.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-sync-template-apply-modes.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-sync-template-merge.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-sync-template-mode-scopes.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-tracker-mapping-reference.sh",
+      "initial_exit": 1,
+      "final_exit": 0,
+      "rerun": true
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-tracker-status-mapping.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-validate-branch-reuse.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-validate-closing-keyword-scope.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-validate-workflow-branch-name.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-work-item-repository-routing.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-agent-product-repo-guidance.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-batch-lanes.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-batch-overlap.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-branch-filters.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-branch-push-guard.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-config-resolver.sh",
+      "initial_exit": 1,
+      "final_exit": 0,
+      "rerun": true
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-hub-docs.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-hub-pr-auth.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-hub-product-repo-commands.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-hub-skeletons.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-hub-smoke-fixtures.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-lib-github-projects.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-lib-repo-root-sourcing.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-merge-budget-part-2.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-merge-budget-part-3.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-merge-budget-part-4.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-merge-budget-part-5.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-merge-budget-part-6.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-merge-budget-part-7.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-merge-budget-part-8.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-merge-budget.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-orchestration-product-repo-aware.sh",
+      "initial_exit": 2,
+      "final_exit": 0,
+      "rerun": true
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-portfolio-scan.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-risk-paths.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-workflow-tests-nightly-gate.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-worktree-recipe.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    },
+    {
+      "path": "scripts/development-workflow/tests/test-worktree-resume-preflight.sh",
+      "initial_exit": 0,
+      "final_exit": 0,
+      "rerun": false
+    }
+  ]
+}

@@ -873,7 +873,7 @@ sys.exit(rc)
             shutil.copyfile(SCRIPTS / name, scripts / name)
         bindir = self.root / 'bin'; bindir.mkdir()
         gh = bindir / 'gh'
-        gh.write_text('''#!/bin/sh\ncase "$*" in\n*"pr view"*) printf '%s\\n' '{"baseRefName":"develop","headRefName":"feature/1993-fixture","headRefOid":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","body":"token=fakePersistentContext"}' ;;\n*"pr diff"*) echo README.md ;;\n*) echo "token=fakeCapturedError" >&2; exit 1 ;;\nesac\n''')
+        gh.write_text('''#!/bin/sh\ncase "$*" in\n*"pr view"*) printf '%s\\n' '{"baseRefName":"develop","headRefName":"feature/1993-fixture","headRefOid":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","body":"token=fakePersistentContext"}' ;;\n*"pr diff"*) echo README.md ;;\n*"api repos/fixture/repo/pulls/1993/files"*) echo \'[{"filename":"README.md","status":"modified"}]\' ;;\n*) echo "token=fakeCapturedError" >&2; exit 1 ;;\nesac\n''')
         gh.chmod(0o755)
         (bindir / 'codex').write_text('#!/bin/sh\nexit 1\n'); (bindir / 'codex').chmod(0o755)
         env = dict(self.env, PATH=str(bindir) + os.pathsep + self.env['PATH'])

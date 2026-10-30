@@ -659,7 +659,24 @@ fi
 # Disambiguate with a VCS-level merged-PR check — no issue tracker required.
 # Falls back gracefully to "Plan Ready" when gh is unavailable (non-GitHub VCS).
 feature_branch_merged=0
-if [ "$feature_branch_exists" -eq 0 ] && [ -n "$plan_file" ] && gh_available; then
+merged_probe_allowed=1
+if [ "$feature_branch_exists" -eq 0 ] && [ -n "$plan_file" ] \
+    && [ "$workflow_mode" = "workflow_hub" ] && [ -z "$target_repo" ]; then
+  # A valid selection-required routing decision belongs to the final structured
+  # handler below. Do not turn optional merged-PR enrichment into a fatal lookup
+  # or accidentally query the hub as though it owned product implementation.
+  if (repository_context_for_action implementation) >/dev/null 2>&1; then
+    :
+  else
+    merged_route_status=$?
+    case "$merged_route_status" in
+      2) merged_probe_allowed=0 ;;
+      *) printf 'configuration: configuration validation error\n' >&2; exit 2 ;;
+    esac
+  fi
+fi
+if [ "$feature_branch_exists" -eq 0 ] && [ -n "$plan_file" ] \
+    && [ "$merged_probe_allowed" -eq 1 ] && gh_available; then
   # Use the same scoped dev_prefix determined above (feature or refactor).
   # Try exact branch name first: [prefix]/<slug>
   merged_pr_args=()
