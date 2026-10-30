@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
-"""#1890 durable admission proofs; no remote requests or user-resource cleanup."""
+"""#1890 durable admission proofs; no remote requests or user-resource cleanup.
+
+covers: scripts/development-workflow/workflow-merge-budget.py
+covers: scripts/development-workflow/tests/fixtures/workflow-merge-budget.develop-baseline.py
+"""
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -52,6 +57,61 @@ class Admission(unittest.TestCase):
         value = budget.begin(self.args)
         self.args.session = value['session']
         return value
+
+    def test_staged_recovery_retains_partial_batch_proofs_after_read_failure(self):
+        keys = ['tracker:%s:pre' % n for n in range(12, 16)]
+        state = {'recoveryGeneration': 7, 'reserve': 1000,
+                 'releasePair': {'projection': {'scopeReadCost': 1}},
+                 'prs': [{'pr': 13, 'steps': {key: {'phase': 'tracker', 'status': 'completed'} for key in keys}}],
+                 'releaseAdmission': {'stages': [{'id': 'tracker-1',
+                    'steps': [{'pr': 13, 'step': key} for key in keys]}]}}
+        reads = []
+        fail = True
+
+        def recover(target, key, entry):
+            reads.append(key)
+            if fail and key == keys[1]:
+                raise budget.Stop('synthetic read outage')
+            entry['verifiedAt'] = budget.now()
+
+        with self.assertRaisesRegex(budget.Stop, 'synthetic read outage'):
+            budget.recover_release_batches(state, recover)
+        self.assertEqual(state['prs'][0]['steps'][keys[0]]['recoveryVerifiedGeneration'], 7)
+        self.assertNotIn('recoveryVerifiedGeneration', state['prs'][0]['steps'][keys[1]])
+        self.assertIn('recoveryEstimate', state)
+        fail = False
+        budget.recover_release_batches(state, recover)
+        self.assertEqual(reads, [keys[0], keys[1], *keys[1:]])
+        self.assertNotIn('recoveryEstimate', state)
+        self.assertTrue(all(e['recoveryVerifiedGeneration'] == 7 for e in state['prs'][0]['steps'].values()))
+
+    def test_staged_recovery_keeps_proofs_when_following_admission_defers(self):
+        self.begin()
+        with budget.journal(self.args.session) as state:
+            target = state['prs'][0]
+            target['steps']['tracker:12:pre'] = {'phase': 'tracker', 'status': 'completed',
+                                              'verifiedAt': budget.now(), 'issue': '12'}
+            state['releasePair'] = {'projection': {'scopeReadCost': 1}}
+            state['releaseAdmission'] = {'stages': [{'id': 'production',
+                'steps': [{'pr': 12, 'step': key} for key in target['steps']]}]}
+
+        def read_back(image, target, entry):
+            self.sample['remaining'] = 1100  # Recovery fits; the next stage does not.
+            return True
+
+        with patch.object(budget, 'verify', side_effect=read_back) as reads:
+            first = budget.resume(self.args)
+            self.assertEqual(first['outcome'], 'Deferred')
+            self.assertTrue(first['stagedRecoveryPending'])
+            self.assertNotIn('recoveryEstimate', first)  # All recovery reads finished.
+            generation = first['recoveryGeneration']
+            self.sample['remaining'] = 5000
+            self.sample['reset'] += 3600
+            second = budget.resume(self.args)
+            self.assertEqual(second['outcome'], 'Admitted', second)
+            self.assertFalse(second['stagedRecoveryPending'])
+            self.assertEqual(second['recoveryGeneration'], generation)
+            self.assertEqual(reads.call_count, 1)
 
     def test_release_tracker_fallback_never_masks_primary_evidence(self):
         state={'releasePair':{'projection':{'projectId':'frozen-project'}}}
@@ -1673,6 +1733,67 @@ class ReleaseScope(unittest.TestCase):
                 self.assertEqual(json.loads(self.fixture.read_text())['events'],[['auth','status']])
                 self.assertEqual(self.command(['git','show-ref']).stdout,before)
 
+    def test_linear_release_projection_missing_changelog_digest(self):
+        shutil.copyfile(self.source / 'workflow-merge-budget.py', self.scripts / 'workflow-merge-budget.py')
+        (self.repo / '.ai-dev-workflow.yaml').write_text('issue_tracker:\n  provider: linear\n')
+        self.command(['git', 'add', '.ai-dev-workflow.yaml'])
+        self.command(['git', 'commit', '-qm', 'linear release without changelog'])
+        self.release_head = self.command(['git', 'rev-parse', 'HEAD']).stdout.strip()
+        result = subprocess.run(
+            ['bash', str(self.scripts / 'prepare-release-post-merge-cleanup.sh'), 'v1.2.3',
+             '--inspect-targets', '--release-head', self.release_head, '--issue', 'LEA-12'],
+            cwd=self.repo, env=self.env, text=True, capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        projection = json.loads(result.stdout)
+        self.assertEqual(
+            projection['changelogDigest'],
+            hashlib.sha256(b'').hexdigest(),
+        )
+        self.assertEqual(projection['issues'][0]['id'], 'LEA-12')
+
+    def test_project_release_accepts_component_prefixed_semver(self):
+        # REAL workflow-merge-budget.py project-release path (not the inspect stub).
+        shutil.copyfile(self.source / 'workflow-merge-budget.py', self.scripts / 'workflow-merge-budget.py')
+        (self.repo / '.ai-dev-workflow.yaml').write_text('issue_tracker:\n  provider: linear\n')
+        (self.repo / 'CHANGELOG.md').write_text(
+            '# Changes\n\n## [mobile-v1.1.0] - 2026-10-10\n- LEA-12\n\n## [1.2.3] - 2026-10-09\n- LEA-12\n'
+        )
+        self.command(['git', 'add', '.ai-dev-workflow.yaml', 'CHANGELOG.md'])
+        self.command(['git', 'commit', '-qm', 'component-prefixed release projection'])
+        head = self.command(['git', 'rev-parse', 'HEAD']).stdout.strip()
+        digest = hashlib.sha256(
+            self.command(['git', 'show', head + ':CHANGELOG.md']).stdout.encode()
+        ).hexdigest()
+        helper = str(self.scripts / 'workflow-merge-budget.py')
+        cases = (
+            ('mobile-v1.1.0', 'release/mobile-v1.1.0', 'mobile-v1.1.0'),
+            ('v1.2.3', 'release/v1.2.3', 'v1.2.3'),
+            ('1.2.3', 'release/v1.2.3', '1.2.3'),
+        )
+        for version, branch, expected_version in cases:
+            with self.subTest(version=version):
+                result = subprocess.run(
+                    [sys.executable, helper, 'project-release',
+                     '--repo', 'org/repo', '--repo-root', str(self.repo),
+                     '--target-root', str(self.repo), '--version', version,
+                     '--branch', branch, '--head', head, '--base', 'develop',
+                     '--provider', 'linear', '--issue-repo', 'org/repo',
+                     '--scope-issue', 'LEA-12'],
+                    cwd=self.repo, env=self.env, text=True, capture_output=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                projection = json.loads(result.stdout)
+                self.assertEqual(projection['version'], expected_version)
+                self.assertEqual(projection['branch'], branch)
+                self.assertEqual(projection['head'], head)
+                self.assertEqual(projection['changelogDigest'], digest)
+                self.assertEqual(projection['issues'][0]['id'], 'LEA-12')
+                self.assertEqual(
+                    projection['linearMarker'],
+                    {'kind': 'label', 'name': 'release/' + expected_version},
+                )
+
     def test_release_scope_boundary_references(self):
         self.assertEqual([i['id'] for i in self.scope('(#12), #13.\n')['issues']],['12','13'])
 
@@ -1781,6 +1902,152 @@ class ReleaseScope(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout),projection)
 
 
+class DevelopGithubParity(unittest.TestCase):
+    """#1982: GitHub project_release surfaces stay byte-identical to frozen develop."""
+
+    BASELINE = (
+        Path(__file__).resolve().parents[1]
+        / 'tests/fixtures/workflow-merge-budget.develop-baseline.py'
+    )
+    HEAD = Path(__file__).resolve().parents[1] / 'workflow-merge-budget.py'
+
+    @staticmethod
+    def _load(path, name):
+        spec = importlib.util.spec_from_file_location(name, path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def setUp(self):
+        self.assertTrue(self.BASELINE.is_file(), 'missing frozen develop baseline: %s' % self.BASELINE)
+        self.head_mod = self._load(self.HEAD, 'merge_budget_head_parity')
+        self.base_mod = self._load(self.BASELINE, 'merge_budget_develop_baseline')
+        self.temp = tempfile.TemporaryDirectory(prefix='1982-github-parity-')
+        self.addCleanup(self.temp.cleanup)
+        self.repo = Path(self.temp.name).resolve() / 'repo'
+        self.repo.mkdir()
+        subprocess.run(['git', 'init', '-q', '-b', 'develop'], cwd=self.repo, check=True)
+        subprocess.run(['git', 'config', 'user.name', 'Fixture'], cwd=self.repo, check=True)
+        subprocess.run(['git', 'config', 'user.email', 'fixture@example.invalid'], cwd=self.repo, check=True)
+
+    def _commit_changelog(self, body):
+        (self.repo / 'CHANGELOG.md').write_text(body)
+        subprocess.run(['git', 'add', 'CHANGELOG.md'], cwd=self.repo, check=True)
+        subprocess.run(['git', 'commit', '-qm', 'changelog'], cwd=self.repo, check=True)
+        return subprocess.run(
+            ['git', 'rev-parse', 'HEAD'], cwd=self.repo, text=True, capture_output=True, check=True,
+        ).stdout.strip()
+
+    def _run_project_release(self, mod, provider, version, head, *, branch=None):
+        if branch is None:
+            branch = 'release/v1.2.3' if not str(version).startswith('mobile') else 'release/vmobile-v1.1.0'
+            if str(version).startswith('vmobile'):
+                branch = 'release/vmobile-v1.1.0'
+            if 'rc' in str(version):
+                branch = 'release/' + (version if str(version).startswith('v') else 'v' + version)
+        args = argparse.Namespace(
+            target_root=str(self.repo),
+            repo_root=str(self.repo),
+            version=version,
+            branch=branch,
+            base='develop',
+            head=head,
+            provider=provider,
+            issue_repo='org/repo',
+            repo='org/repo',
+            scope_issue=['12'],
+            project_id='PVT_test000001' if provider == 'github_projects' else None,
+            merged_status='Merged',
+            released_status='Released',
+            evidence=None,
+            release_field=None,
+            release_label_prefix=None,
+        )
+        patches = [
+            patch.object(mod, 'gh', lambda *a, **k: {'number': 12, 'state': 'closed'}),
+        ]
+        if provider == 'github_projects' and hasattr(mod, 'release_omitted'):
+            patches.append(patch.object(mod, 'release_omitted', lambda *a, **k: ([], 0)))
+        for mock in patches:
+            mock.start()
+        try:
+            try:
+                return ('ok', mod.project_release(args))
+            except Exception as exc:  # noqa: BLE001 — compare Stop message across modules
+                return ('err', type(exc).__name__, str(exc))
+        finally:
+            for mock in patches:
+                mock.stop()
+
+    def test_github_project_release_matches_develop_baseline(self):
+        versions = (
+            '1.2.3',
+            'v1.2.3',
+            'vmobile-v1.1.0',
+            'mobile-v1.1.0',
+            'v1.2.3-rc.1',
+            'v1.2.3-rc.01',
+            'not-a-version',
+        )
+        changelogs = (
+            ('trailing_nl', '# Changes\n\n## [1.2.3] - 2026-10-10\n- Fixed (#12).\n'),
+            ('no_trailing_nl', '# Changes\n\n## [1.2.3] - 2026-10-10\n- Fixed (#12).'),
+            ('missing_section', '# Changes\n\n## [9.9.9] - 2026-01-01\n- Other (#99).\n'),
+        )
+        parity_cases = 0
+        for provider in ('github_projects', 'github_issues'):
+            for cl_name, body in changelogs:
+                # Fresh commit per changelog shape so digests stay independent.
+                head = self._commit_changelog(body)
+                for version in versions:
+                    with self.subTest(provider=provider, changelog=cl_name, version=version):
+                        head_result = self._run_project_release(self.head_mod, provider, version, head)
+                        base_result = self._run_project_release(self.base_mod, provider, version, head)
+                        self.assertEqual(head_result[0], base_result[0], head_result)
+                        if head_result[0] == 'err':
+                            self.assertEqual(head_result[1], base_result[1])
+                            self.assertEqual(head_result[2], base_result[2])
+                        else:
+                            self.assertEqual(
+                                head_result[1]['changelogDigest'],
+                                base_result[1]['changelogDigest'],
+                            )
+                            self.assertEqual(head_result[1]['version'], base_result[1]['version'])
+                            self.assertEqual(head_result[1]['markerProvider'], provider)
+                            # GitHub must use call()-stripped digest, not raw stdout.
+                            raw = subprocess.run(
+                                ['git', '-C', str(self.repo), 'show', head + ':CHANGELOG.md'],
+                                text=True, capture_output=True, check=True,
+                            ).stdout
+                            stripped = raw.strip()
+                            expected = hashlib.sha256(stripped.encode()).hexdigest()
+                            self.assertEqual(head_result[1]['changelogDigest'], expected)
+                            if raw != stripped:
+                                self.assertNotEqual(
+                                    head_result[1]['changelogDigest'],
+                                    hashlib.sha256(raw.encode()).hexdigest(),
+                                )
+                        parity_cases += 1
+        # 2 providers × 3 changelog shapes × 7 versions
+        self.assertEqual(parity_cases, 42)
+
+    def test_github_missing_changelog_file_matches_develop(self):
+        # Commit something else so HEAD exists, then remove CHANGELOG from that tree
+        # by never adding it — fingerprint raises via call() on both modules.
+        (self.repo / 'note.txt').write_text('x\n')
+        subprocess.run(['git', 'add', 'note.txt'], cwd=self.repo, check=True)
+        subprocess.run(['git', 'commit', '-qm', 'no changelog'], cwd=self.repo, check=True)
+        head = subprocess.run(
+            ['git', 'rev-parse', 'HEAD'], cwd=self.repo, text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        for provider in ('github_projects', 'github_issues'):
+            with self.subTest(provider=provider):
+                head_result = self._run_project_release(self.head_mod, provider, 'v1.2.3', head)
+                base_result = self._run_project_release(self.base_mod, provider, 'v1.2.3', head)
+                self.assertEqual(head_result[0], 'err')
+                self.assertEqual(head_result, base_result)
+
+
 class ReleasePair(unittest.TestCase):
     command = Composed.command
     helper = Composed.helper
@@ -1791,8 +2058,26 @@ class ReleasePair(unittest.TestCase):
         self.command(['git','branch','-m','release/v1.2.3'])
         (self.repo/'CHANGELOG.md').write_text('# Changes\n\n## [1.2.3] - 2026-10-10\n- Shipped #12, #13 (ENG-12, ENG-13).\n')
         self.command(['git','add','CHANGELOG.md','.ai-dev-workflow.yaml'])
-        self.command(['git','commit','-qm','reviewed release'])
-        self.head = self.command(['git','rev-parse','HEAD']).stdout.strip()
+        # Linear --from-changelog (#1982) resolves IDs only via commits/<sha>/pulls
+        # associations (not subject PR numbers). Populate commitPulls for eng12/eng13.
+        self.command(['git','commit','-qm','Merge pull request #112 from org/fix/ENG-12-item'])
+        eng12 = self.command(['git','rev-parse','HEAD']).stdout.strip()
+        self.command(['git','commit','--allow-empty','-qm','Merge pull request #113 from org/fix/ENG-13-item'])
+        eng13 = self.command(['git','rev-parse','HEAD']).stdout.strip()
+        self.head = eng13
+        self.eng12 = eng12
+        self.eng13 = eng13
+        pr112 = dict(
+            number=112, state='MERGED', headRefName='fix/ENG-12-item',
+            title='fix: ENG-12', mergedAt='2026-10-10T12:00:00Z', baseRefName='develop',
+            headRefOid=eng12, mergeCommitOid=eng12, isInMergeQueue=False, autoMergeRequest=None)
+        pr113 = dict(
+            number=113, state='MERGED', headRefName='fix/ENG-13-item',
+            title='fix: ENG-13', mergedAt='2026-10-10T12:00:00Z', baseRefName='develop',
+            headRefOid=eng13, mergeCommitOid=eng13, isInMergeQueue=False, autoMergeRequest=None)
+        self.data.setdefault('prs', {})['112'] = pr112
+        self.data['prs']['113'] = pr113
+        self.data['commitPulls'] = {eng12: [pr112], eng13: [pr113]}
         self.command(['git','push','-q','origin','release/v1.2.3'])
         base = self.command(['git','rev-parse','develop']).stdout.strip()
         tree = self.command(['git','rev-parse','HEAD^{tree}']).stdout.strip()
@@ -1937,6 +2222,213 @@ class ReleasePair(unittest.TestCase):
         self.assertEqual(self.begin()['outcome'],'Deferred')
         self.merge(12,success=False)
         self.assertNotIn(['pr','merge'],json.loads(self.fixture.read_text())['events'])
+
+    def test_staged_release_freezes_twelve_items_and_affordable_batches(self):
+        for number in range(14, 24):
+            self.candidate(number, self.head)
+        self.save()
+        legacy = self.begin()
+        self.assertEqual(legacy['outcome'], 'Deferred')
+        staged = self.begin(releaseAdmission={'mode': 'staged'})
+        self.assertEqual(staged['outcome'], 'Admitted', staged)
+        state = json.loads(Path(self.session).read_text())
+        self.assertEqual(len(state['prs'][1]['issues']), 12)
+        batches = [s for s in state['releaseAdmission']['stages'] if s['id'].startswith('tracker-')]
+        self.assertEqual(len(batches), 12)
+        refs = [tuple(sorted(r.items())) for s in state['releaseAdmission']['stages'] for r in s['steps']]
+        self.assertEqual(len(refs), len(set(refs)))
+        self.assertEqual(len(refs), sum(len(p['steps']) for p in state['prs']))
+        for stage in state['releaseAdmission']['stages']:
+            estimate = budget.estimate(state)
+            self.assertEqual(estimate['stage'], stage['id'])
+            self.assertLessEqual(estimate['projectedCost'] + state['reserve'], 5000)
+            for _, _, entry in budget.stage_entries(state, stage):
+                entry.update(status='completed', verifiedAt=budget.now())
+        self.assertEqual(budget.estimate(state)['projectedCost'], 0)
+
+    def test_staged_release_defers_next_window_without_replaying_production(self):
+        self.assertEqual(self.begin(releaseAdmission={'mode': 'staged'})['outcome'], 'Admitted')
+        self.merge(12)
+        self.step(12, 'merge_verify')
+        self.published()
+        self.data['quota']['remaining'] = 0
+        self.save()
+        self.step(12, 'publication', success=False)
+        state = json.loads(Path(self.session).read_text())
+        self.assertEqual(state['outcome'], 'Deferred')
+        self.assertEqual(state['prs'][0]['verifiedState'], 'merged')
+        self.assertEqual(state['prs'][0]['steps']['merge_api']['status'], 'completed')
+        self.assertEqual(state['prs'][0]['steps']['publication']['status'], 'pending')
+        self.reload()
+        self.assertEqual(len(self.data['mergeArgv']), 1)
+        self.data['quota']['remaining'] = 5000
+        self.save()
+        self.helper('resume', '--session', self.session)
+        self.step(12, 'publication')
+        self.merge(13)
+        self.step(13, 'merge_verify')
+        self.reload()
+        self.data['trackerStatuses'] = {'12': 'Merged', '13': 'Merged'}
+        self.save()
+        self.cleanup()
+        report = json.loads(self.helper('report', '--session', self.session).stdout)
+        self.assertEqual(report['outcome'], 'Completed', report)
+        self.reload()
+        self.assertEqual(len(self.data['mergeArgv']), 2)
+        self.assertEqual(self.data['trackerMutationCount'], 2)
+        self.assertEqual(self.data['stampMutationCount'], {'12': 1, '13': 1})
+
+    def test_staged_release_refuses_out_of_order_and_oversized_batch(self):
+        self.assertEqual(self.begin(releaseAdmission={'mode': 'staged'})['outcome'], 'Admitted')
+        self.merge(13, success=False)
+        self.step(12, 'publication', success=False)
+        self.reload()
+        self.assertNotIn('mergeArgv', self.data)
+        for policy in ({'mode': 'staged', 'trackerBatchSize': 0},
+                       {'mode': 'staged', 'trackerBatchSize': True},
+                       {'mode': 'staged', 'trackerBatchSize': 101},
+                       {'mode': 'unknown'}, {'mode': 'staged', 'untrusted': True}):
+            with self.subTest(policy=policy):
+                self.assertEqual(self.begin(releaseAdmission=policy)['outcome'], 'Deferred')
+        for number in range(14, 24):
+            self.candidate(number, self.head)
+        self.save()
+        impossible = self.begin(releaseAdmission={'mode': 'staged', 'trackerBatchSize': 12})
+        self.assertEqual(impossible['outcome'], 'Deferred')
+        self.assertIn('cannot fit', impossible['reason'])
+        self.reload()
+        self.assertNotIn('mergeArgv', self.data)
+
+    def test_staged_release_recovers_uncertain_batch_without_duplicate_stamp(self):
+        self.begin(releaseAdmission={'mode': 'staged'})
+        self.merge(12); self.step(12, 'merge_verify')
+        self.published(); self.step(12, 'publication')
+        self.merge(13); self.step(13, 'merge_verify')
+        self.reload()
+        self.data.update(trackerStatuses={'12': 'Merged', '13': 'Merged'}, stampPostReadOutage='13')
+        self.save()
+        self.cleanup(success=False)
+        state = json.loads(Path(self.session).read_text())
+        self.assertEqual(state['outcome'], 'Interrupted')
+        self.assertEqual(state['prs'][1]['steps']['tracker:12:pre']['status'], 'completed')
+        self.assertEqual(state['prs'][1]['steps']['release_stamp:13']['status'], 'uncertain')
+        self.reload()
+        self.data.pop('stampReadOutage'); self.data.pop('stampPostReadOutage')
+        self.save()
+        self.helper('resume', '--session', self.session)
+        self.cleanup()
+        self.reload()
+        self.assertEqual(self.data['stampMutationCount'], {'12': 1, '13': 1})
+        self.assertEqual(self.data['trackerMutationCount'], 2)
+
+    def test_staged_final_barrier_requires_individual_readback(self):
+        self.begin(releaseAdmission={'mode': 'staged'})
+        state = json.loads(Path(self.session).read_text())
+        target = state['prs'][1]
+        cleanup = next(e for e in target['steps'].values() if e['phase'] == 'cleanup')
+        with patch.object(budget, 'proof_root', return_value=str(self.repo)), \
+                patch.object(budget, 'pr_read', return_value={'state': 'MERGED'}), \
+                patch.object(budget, 'publication_read'), patch.object(budget, 'regular_release_merge'):
+            with self.assertRaisesRegex(budget.Stop, 'lack independent verification'):
+                budget.verify(state, target, cleanup)
+
+    def test_staged_tracker_batches_defer_and_resume_across_windows(self):
+        self.begin(releaseAdmission={'mode': 'staged'})
+        self.merge(12); self.step(12, 'merge_verify')
+        self.published(); self.step(12, 'publication')
+        self.merge(13); self.step(13, 'merge_verify')
+        self.reload()
+        self.data.update(trackerStatuses={'12': 'Merged', '13': 'Merged'}, quotaAfterTrackerMutation=0)
+        self.save()
+        self.cleanup(success=False)
+        state = json.loads(Path(self.session).read_text())
+        self.assertEqual(state['outcome'], 'Deferred')
+        self.assertEqual(state['prs'][1]['steps']['tracker:12:pre']['status'], 'completed')
+        self.assertEqual(state['prs'][1]['steps']['release_stamp:13']['status'], 'pending')
+        self.assertEqual(state['prs'][1]['steps']['cleanup']['status'], 'pending')
+        report = json.loads(self.helper('report', '--session', self.session).stdout)
+        self.assertEqual(report['pendingStage'], 'tracker-2')
+        self.reload()
+        self.assertEqual(self.data['trackerMutationCount'], 1)
+        self.data.pop('quotaAfterTrackerMutation')
+        self.data['quota']['remaining'] = 5000
+        self.data['quota']['reset'] += 3600
+        self.save()
+        self.helper('resume', '--session', self.session)
+        self.cleanup()
+        self.reload()
+        self.assertEqual(self.data['trackerMutationCount'], 2)
+        self.assertEqual(self.data['stampMutationCount'], {'12': 1, '13': 1})
+        self.assertEqual(len(self.data['mergeArgv']), 2)
+
+    def test_staged_many_batch_recovery_budgets_reads_and_never_repeats_prefix(self):
+        # Twelve batches, eleven already mutated and independently verified.
+        # Expensive synthetic read-backs force recovery itself across windows.
+        ids = [str(n) for n in range(12, 24)]
+        for number in range(14, 24):
+            self.candidate(number, self.head)
+        self.save()
+        self.assertEqual(self.begin(releaseAdmission={'mode': 'staged'})['outcome'], 'Admitted')
+        self.merge(12); self.step(12, 'merge_verify')
+        self.published(); self.step(12, 'publication')
+        self.merge(13); self.step(13, 'merge_verify')
+        self.reload()
+        self.data.update(trackerStatuses=dict.fromkeys(ids, 'Merged'),
+                         quotaAfterTrackerMutation=0, quotaAfterTrackerMutationCount=11)
+        self.save()
+        self.cleanup(success=False)
+        self.reload()
+        self.assertEqual(self.data['trackerMutationCount'], 11)
+        self.data.pop('quotaAfterTrackerMutation')
+        self.data.pop('quotaAfterTrackerMutationCount')
+        self.data.update(releaseTrackerReadCost=1000, releaseTrackerReads={})
+        self.save()
+        generation = None
+        windows = 0
+        for _ in range(12):
+            self.reload()
+            self.data['quota']['remaining'] = 5000
+            self.data['quota']['reset'] += 3600
+            self.save()
+            result = self.helper('resume', '--session', self.session, success=False)
+            report = json.loads(result.stdout)
+            windows += 1
+            if generation is None:
+                generation = report['recoveryGeneration']
+            self.assertEqual(report['recoveryGeneration'], generation)
+            self.reload()
+            self.assertTrue(all(count == 1 for count in self.data['releaseTrackerReads'].values()))
+            self.assertGreaterEqual(self.data['quota']['remaining'], 1000)
+            if report['outcome'] == 'Admitted':
+                self.assertFalse(report['stagedRecoveryPending'])
+                break
+            self.assertEqual(report['outcome'], 'Deferred', report)
+            self.assertTrue(report['stagedRecoveryPending'])
+            self.assertIn('recovery batch', report['reason'])
+            self.assertIn('projectedCost', report['recoveryEstimate'])
+            self.assertLess(report['recoverySample']['remaining'],
+                            report['recoveryEstimate']['projectedCost'] + report['reserve'])
+            # Deferral forbids reaching any pending mutation via cleanup.
+            before = dict(self.data['releaseTrackerReads'])
+            self.cleanup(success=False)
+            self.reload()
+            self.assertEqual(self.data['releaseTrackerReads'], before)
+            self.assertEqual(self.data['trackerMutationCount'], 11)
+        else:
+            self.fail('bounded recovery did not make progress across windows')
+        self.assertGreater(windows, 1)
+        self.assertEqual(self.data['releaseTrackerReads'], dict.fromkeys(ids[:-1], 1))
+        self.cleanup()
+        self.reload()
+        self.assertEqual(self.data['releaseTrackerReads'], dict.fromkeys(ids, 1))
+        self.assertEqual(self.data['trackerMutationCount'], 12)
+        self.assertEqual(self.data['stampMutationCount'], dict.fromkeys(ids, 1))
+        self.assertEqual(len(self.data['mergeArgv']), 2)
+        # A repeated successful cleanup reuses the same durable proofs too.
+        self.cleanup()
+        self.reload()
+        self.assertEqual(self.data['releaseTrackerReads'], dict.fromkeys(ids, 1))
+        self.assertEqual(json.loads(self.helper('report', '--session', self.session).stdout)['outcome'], 'Completed')
 
     def test_release_pair_extra_shipped_issue_increases_complete_projection(self):
         first=self.begin()['estimate']['projectedCost']
@@ -2609,6 +3101,10 @@ class ReleasePair(unittest.TestCase):
         config=self.repo/'.ai-dev-workflow.yaml'
         original='issue_tracker:\n  provider: linear\n  custom_fields:\n    release_field: Release\n'
         config.write_text(original);self.both()
+        state=json.loads(Path(self.session).read_text())
+        self.assertEqual([i['id'] for i in state['prs'][1]['issues']],['ENG-12','ENG-13'])
+        self.assertIn('release_stamp:ENG-12',state['prs'][1]['steps'])
+        self.assertIn('release_stamp:ENG-13',state['prs'][1]['steps'])
         for phase in ('remote_delete','local_cleanup'):
             self.step(13,'policy_skip',key=phase)
         config.write_text(original.replace('release_field: Release','release_field: Other'))
@@ -2657,6 +3153,10 @@ class ReleasePair(unittest.TestCase):
     def test_release_pair_linear_stamp_bridge_preserves_deferred_work(self):
         (self.repo/'.ai-dev-workflow.yaml').write_text('issue_tracker:\n  provider: linear\n  custom_fields:\n    release_field: Release\n')
         self.both()
+        state=json.loads(Path(self.session).read_text())
+        self.assertEqual([i['id'] for i in state['prs'][1]['issues']],['ENG-12','ENG-13'])
+        self.assertIn('release_stamp:ENG-12',state['prs'][1]['steps'])
+        self.assertIn('release_stamp:ENG-13',state['prs'][1]['steps'])
         self.cleanup(success=False)
         state=json.loads(Path(self.session).read_text())
         stamp=state['prs'][1]['steps']['release_stamp:ENG-12']
