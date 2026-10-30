@@ -338,7 +338,10 @@ esac
 
     def local_entry(self, payload, stderr=None, status=0, context_capture=None, **env):
         (self.f.checkout / 'REVIEW.md').write_text('# Synthetic reviewer contract\n')
-        self.gh_script('case "$*" in "pr diff"*) echo README.md;; "repo view"*) echo fixture/repo;; "pr view"*) cat "$SYNTHETIC_PR";; "auth status"*) exit 0;; *) exit 99;; esac\n')
+        # Ronda requires the REST rename metadata before invoking the reviewer.
+        # Supply a complete non-rename result so these diagnostic scenarios reach
+        # their intended sinks without weakening the production fail-closed gate.
+        self.gh_script('case "$*" in "pr diff"*) echo README.md;; "api repos/fixture/repo/pulls/1993/files"*) echo \'[{"filename":"README.md","status":"modified"}]\';; "repo view"*) echo fixture/repo;; "pr view"*) cat "$SYNTHETIC_PR";; "auth status"*) exit 0;; *) exit 99;; esac\n')
         command = self.f.bin / 'synthetic-review'
         command.write_text('#!/bin/sh\n' + (('cp "$CONTEXT_BUNDLE_PATH" ' + shlex.quote(str(context_capture)) + '\n') if context_capture else '') + 'printf "%s\\n" ' + shlex.quote(json.dumps(payload) if isinstance(payload, dict) else payload) + '\n' +
                            'printf "%s\\n" ' + shlex.quote(stderr or 'token=' + self.secret) + ' >&2\nexit ' + str(status) + '\n')

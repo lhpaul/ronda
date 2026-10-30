@@ -98,3 +98,7 @@ Executed proof results at runtime commit `2bff206214957e5074915a3c519d56d8d1b948
 - `test_private_source_authority.py -v`: 31 tests passed; diagnostic controls `test_D01_sanitizer_failure_in_real_local_entry` and `test_D03_structured_diagnostic_keys_and_failure` passed in the full diagnostic run.
 
 These proof results cover gate-input rejection and restored acceptance. Only the separately identified admission test is claimed as a source-mutation proof. All mutations were confined to disposable, mocked fixtures.
+
+## Consumer fixture compatibility
+
+The diagnostic suite's `local_entry` GitHub stub originally returned exit 99 for the REST pull-files endpoint. Ronda's retained rename-metadata guard correctly stopped at `rename_metadata_unavailable`, preventing the diagnostic scenarios from reaching their intended sinks. Supply the complete synthetic non-rename metadata for the same `README.md` already named by the diff stub. Production code and every diagnostic assertion remain unchanged. Before the fixture correction, D82 failed with `2 != 0` and `REASON=rename_metadata_unavailable`; after correction, focused D82, D17 and D56 all passed (3 tests). The full diagnostic suite is rerun after this adaptation.
