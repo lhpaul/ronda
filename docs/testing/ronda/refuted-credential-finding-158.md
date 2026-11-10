@@ -8,8 +8,13 @@ One deterministic post-filter runs on parsed findings, after the model call
 and before classification and publication. It does not touch the prompt or the
 default model, and it fails open.
 
-**Named-credential filter** — drops a "credential exposed in a
-   message/log/output" finding only when the cited added/context line is
+**Named-credential filter** — considers only findings that positively
+   assert credential exposure: an exposure verb (`exposes`, `leaks`, `logs`,
+   `prints`, `discloses`, `reveals`, `includes`, `interpolates`, `echoes`)
+   tied to a credential word, in a message/log/output context. Any negation
+   or disclaimer (`no`, `not`, `without`, `never`, `n't`, ...) or HTTP
+   status wording (`401`, `500`, `status`, `returns`) keeps the finding, so
+   keyword co-occurrence alone never suppresses. Such a claim is dropped only when the cited added/context line is
    positively recognised as harmless: an error constructor, `throw`, or
    log/print call whose sole argument is one fixed string literal that is a
    credential-name-only message: every word comes from a closed vocabulary of

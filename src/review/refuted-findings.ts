@@ -20,15 +20,32 @@ export interface FilterResult {
   suppressed: SuppressedFinding[];
 }
 
-const CREDENTIAL_WORDS = /\b(credentials?|api[ _-]?keys?|secrets?|tokens?|passwords?|passphrases?)\b|_API_KEY\b/i;
-const EXPOSURE_WORDS =
-  /\b(expos\w*|leak\w*|disclos\w*|reveal\w*|print\w*|logg?(?:ed|ing)?|includ\w*|interpolat\w*|echo\w*|surfac\w*|contain\w*)\b/i;
+const EXPOSURE_VERB =
+  "(?:expos\\w*|leak\\w*|disclos\\w*|reveal\\w*|print\\w*|logs|logged|logging|includ\\w*|interpolat\\w*|echo\\w*)";
+const CREDENTIAL_PATTERN =
+  "(?:credentials?|api[ _-]?keys?|secrets?|tokens?|passwords?|passphrases?|\\w*_API_KEY)";
+/** Exposure verb acting on a credential (`includes the model credential`) ... */
+const VERB_THEN_CREDENTIAL = new RegExp(`\\b${EXPOSURE_VERB}\\b(?:\\W+\\w+){0,5}?\\W+${CREDENTIAL_PATTERN}\\b`, "i");
+/** ... or a credential that is the subject of a passive exposure (`credential exposed`). */
+const CREDENTIAL_THEN_VERB = new RegExp(`\\b${CREDENTIAL_PATTERN}\\b(?:\\W+\\w+){0,4}?\\W+${EXPOSURE_VERB}\\b`, "i");
 const MESSAGE_WORDS = /\b(error|errors|exception|message|messages|output|log|logs|stack ?trace|response)\b/i;
+/**
+ * Conditions that make a finding ambiguous or about something other than
+ * exposure: negations/disclaimers and HTTP status wording. Any hit keeps it.
+ */
+const KEEP_CONDITIONS =
+  /\b(?:no|not|none|without|never|nor|cannot|[1-5]\d\d|status|returns?|returned|returning)\b|n't\b/i;
 
-/** True when a finding claims a credential is exposed through a message/log/output. */
+/**
+ * True only when a finding positively asserts that a credential is exposed
+ * through a message/log/output: an exposure verb tied to a credential word,
+ * a message-like subject, and no negation or status wording (#158). Keyword
+ * co-occurrence alone is not a claim; mixed or ambiguous findings are kept.
+ */
 export function isCredentialInMessageClaim(finding: Finding): boolean {
   const text = `${finding.title}\n${finding.body}`;
-  return CREDENTIAL_WORDS.test(text) && EXPOSURE_WORDS.test(text) && MESSAGE_WORDS.test(text);
+  if (KEEP_CONDITIONS.test(text)) return false;
+  return (VERB_THEN_CREDENTIAL.test(text) || CREDENTIAL_THEN_VERB.test(text)) && MESSAGE_WORDS.test(text);
 }
 
 /**
