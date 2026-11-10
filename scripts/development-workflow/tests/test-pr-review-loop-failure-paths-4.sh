@@ -1629,6 +1629,8 @@ export MOCK_GH_EXIT
 _post_review_summary "escalate" "thread-check-failed" "codex-github" "0" "0" 2>/dev/null || true
 _body_file="$(awk '/api --method POST repos\/owner\/repo\/issues\/42\/comments --input / {print $NF}' "$_summary_call_log" | tail -n 1)"
 run_test "post_summary_read_failure_does_not_write" "" "$_body_file"
+_completion_guard_status_calls="$(grep_count_or_zero 'api --method POST repos/owner/repo/statuses/abc123' "$_summary_call_log")"
+run_test "post_summary_does_not_refresh_completion_guard_on_persist_failure" "0" "$_completion_guard_status_calls"
 rm -f "$_summary_call_log"
 
 MOCK_GH_EXIT=0
