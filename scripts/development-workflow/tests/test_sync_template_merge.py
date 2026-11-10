@@ -47,6 +47,9 @@ categories:
       mode_scope: hub_only
 '''
 TEXT = "".join(f"line {i}\n" for i in range(16))
+# These names describe files created only under the disposable consumer root;
+# they are fixture data, never reads of the template repository configuration.
+SYNTHETIC_CONSUMER_FILES = {"pr_agent_config": ".pr_agent.toml"}
 
 
 def git(repo, *args):
@@ -83,6 +86,80 @@ class SyncTests(unittest.TestCase):
         git(root, "add", ".")
         git(root, "commit", "-qm", "fixture", "--allow-empty")
         return git(root, "rev-parse", "HEAD")
+
+    def test_ticket_setting_semantics_and_safe_diagnostics(self):
+        sentinel = "fabricated-credential-2064"
+        cases = (
+            ("[pr_reviewer]\nrequire_ticket_analysis_review = false\n", False),
+            ("pr_reviewer.require_ticket_analysis_review = false\n", False),
+            ("[pr_reviewer]\nrequire_ticket_analysis_review = true\n", True),
+            ("[pr_reviewer]\n", True),
+            ("[pr_reviewer]\n# require_ticket_analysis_review = false\n", True),
+            ("[other]\nrequire_ticket_analysis_review = false\n", True),
+            ('[pr_reviewer]\nrequire_ticket_analysis_review = "false"\n', True),
+            ('[pr_reviewer]\nrequire_ticket_analysis_review = ""\n', True),
+            ("[pr_reviewer]\nrequire_ticket_analysis_review =\n", True),
+            ("[pr_reviewer]\nrequire_ticket_analysis_review = false\nrequire_ticket_analysis_review = true\n", True),
+            ("[pr_reviewer]\nvalue = " + "[" * 1100 + "0" + "]" * 1100, True),
+        )
+        for text, warned in cases:
+            with self.subTest(text=text):
+                config = self.write(self.consumer, SYNTHETIC_CONSUMER_FILES["pr_agent_config"], text + '\n# ' + sentinel)
+                before = config.read_bytes()
+                warning = merge.ticket_analysis_warning(self.consumer)
+                self.assertEqual(bool(warning), warned)
+                self.assertEqual(config.read_bytes(), before)
+                self.assertNotIn(sentinel, warning)
+                self.assertNotIn(str(self.consumer), warning)
+        config.unlink()
+        self.assertTrue(merge.ticket_analysis_warning(self.consumer))
+        config.symlink_to(self.template / "sync-manifest.yaml")
+        self.assertIn("non-symlink", merge.ticket_analysis_warning(self.consumer))
+        config.unlink()
+        config.mkdir()
+        self.assertIn("regular", merge.ticket_analysis_warning(self.consumer))
+        config.rmdir()
+        self.write(self.consumer, SYNTHETIC_CONSUMER_FILES["pr_agent_config"], b"\xff")
+        self.assertIn("repair", merge.ticket_analysis_warning(self.consumer))
+        with patch.object(merge.os, "open", side_effect=PermissionError(sentinel)):
+            self.assertIn("repair", merge.ticket_analysis_warning(self.consumer))
+            self.assertNotIn(sentinel, merge.ticket_analysis_warning(self.consumer))
+        with patch.object(merge.os, "O_NOFOLLOW", create=True):
+            # Missing platform primitives must not become a runtime requirement.
+            del merge.os.O_NOFOLLOW
+            self.assertIn("inspection unavailable", merge.ticket_analysis_warning(self.consumer))
+        with patch.object(merge, "tomllib", None):
+            self.assertIn("parser unavailable", merge.ticket_analysis_warning(self.consumer))
+
+    def test_ticket_warning_is_delivered_by_normal_preview_without_plan_leak(self):
+        config = self.write(self.consumer, SYNTHETIC_CONSUMER_FILES["pr_agent_config"],
+                            '[pr_reviewer]\nrequire_ticket_analysis_review = true\nmodel = "fabricated-model-2064"\n')
+        before = config.read_bytes()
+        args = ["preview", "--template-root", str(self.template),
+                "--consumer-root", str(self.consumer), "--template-ref", self.incoming,
+                "--template-id", "fixture/template", "--role", "single_repo",
+                "--base-ref", self.base, "--base-source", "template", "--plan", str(self.plan)]
+        for blocked in (False, True):
+            with self.subTest(blocked=blocked):
+                if blocked:
+                    self.write(self.template, "shared/a.md", "incoming conflict\n")
+                    self.incoming = self.save(self.template)
+                    self.write(self.consumer, "shared/a.md", "consumer conflict\n")
+                    args[args.index("--template-ref") + 1] = self.incoming
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    status = merge.main(args)
+                self.assertEqual(status, 1 if blocked else 0)
+                self.assertIn("WARNING=PR-Agent", output.getvalue())
+                self.assertNotIn("fabricated-model-2064", output.getvalue())
+                self.assertNotIn("fabricated-model-2064", self.plan.read_text())
+                self.assertEqual(config.read_bytes(), before)
+        # Explicit false removes the advisory on the ordinary preview path.
+        self.write(self.consumer, SYNTHETIC_CONSUMER_FILES["pr_agent_config"], "[pr_reviewer]\nrequire_ticket_analysis_review = false\n")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(merge.main(args), 1)
+        self.assertNotIn("WARNING=PR-Agent", output.getvalue())
 
     def preview(self, known=True, role="single_repo", declines=(), source="template", **kwargs):
         inputs = dict(template_root=str(self.template), consumer_root=str(self.consumer),
@@ -304,6 +381,163 @@ class SyncTests(unittest.TestCase):
         self.assertFalse(lock.exists())
         print("PROOF durability failure: directory fsync error withholds applied verdict, restores bytes and retains recovery; repaired filesystem passes")
 
+    def test_recovery_cleanup_syncs_both_directory_entries(self):
+        lock = self.consumer / merge.LOCK_PATH
+        lock.mkdir(mode=0o700)
+        merge.write_recovery(lock, b'{"fixture":true}\n')
+        events = []
+        fsync, unlink, rmdir = os.fsync, os.unlink, os.rmdir
+        lock_info, parent_info = lock.stat(), self.consumer.stat()
+
+        def synced(fd):
+            info = os.fstat(fd)
+            fsync(fd)
+            identity = (info.st_dev, info.st_ino)
+            if identity == (lock_info.st_dev, lock_info.st_ino):
+                events.append("lock-sync")
+            elif identity == (parent_info.st_dev, parent_info.st_ino):
+                events.append("parent-sync")
+
+        def removed(path, *args, **kwargs):
+            unlink(path, *args, **kwargs)
+            events.append("unlink")
+
+        def removed_directory(path, *args, **kwargs):
+            rmdir(path, *args, **kwargs)
+            events.append("rmdir")
+
+        with patch.object(os, "fsync", synced), patch.object(os, "unlink", removed), \
+             patch.object(os, "rmdir", removed_directory):
+            merge.release_lock(lock, b'{"fixture":true}\n')
+        self.assertEqual(events, ["unlink", "lock-sync", "rmdir", "parent-sync"])
+        self.assertFalse(lock.exists())
+
+    def test_cleanup_fsync_failure_restores_recovery_after_unlink_or_rmdir(self):
+        fsync, rmdir = os.fsync, os.rmdir
+        lock = self.consumer / merge.LOCK_PATH
+        data = b'{"fixture":true}\n'
+        for failure in ("lock", "parent"):
+            with self.subTest(failure=failure):
+                lock.mkdir(mode=0o700)
+                merge.write_recovery(lock, data)
+                target = (lock if failure == "lock" else self.consumer).stat()
+                failed = False
+                removed = False
+
+                def removed_directory(path, *args, **kwargs):
+                    nonlocal removed
+                    rmdir(path, *args, **kwargs)
+                    removed = True
+
+                def fail_once(fd):
+                    nonlocal failed
+                    info = os.fstat(fd)
+                    if not failed and (info.st_dev, info.st_ino) == (target.st_dev, target.st_ino):
+                        failed = True
+                        raise OSError("planted cleanup fsync failure")
+                    fsync(fd)
+
+                with patch.object(os, "fsync", fail_once), patch.object(os, "rmdir", removed_directory):
+                    with self.assertRaisesRegex(merge.SyncError, "cleanup failed"):
+                        merge.release_lock(lock, data)
+                self.assertTrue(failed)
+                self.assertEqual(removed, failure == "parent")
+                self.assertEqual((lock / "recovery.json").read_bytes(), data)
+                merge.release_lock(lock, data)
+
+    def test_cleanup_reacquisition_race_leaves_other_transaction_untouched(self):
+        self.write(self.template, "shared/a.md", TEXT + "upstream\n")
+        self.write(self.template, "shared/new/deep/file.md", "new file\n")
+        self.incoming = self.save(self.template)
+        self.preview()
+        lock = self.consumer / merge.LOCK_PATH
+        parent = self.consumer.stat()
+        fsync, rmdir = os.fsync, os.rmdir
+        acquired = False
+        competing_snapshot = None
+
+        def acquire_after_release(path, *args, **kwargs):
+            nonlocal acquired, competing_snapshot
+            rmdir(path, *args, **kwargs)
+            if path == lock.name:
+                lock.mkdir(mode=0o700)
+                (lock / "recovery.json").write_bytes(b'{"owner":"second transaction"}\n')
+                self.write(self.consumer, "shared/a.md", "second transaction bytes\n")
+                self.write(self.consumer, "shared/new/deep/file.md", "second transaction new bytes\n")
+                acquired = True
+                competing_snapshot = self.fingerprint()
+
+        def fail_after_release(fd):
+            info = os.fstat(fd)
+            if acquired and (info.st_dev, info.st_ino) == (parent.st_dev, parent.st_ino):
+                raise OSError("planted parent fsync failure after competing acquisition")
+            fsync(fd)
+
+        stderr = io.StringIO()
+        with patch.object(os, "rmdir", acquire_after_release), patch.object(os, "fsync", fail_after_release), \
+             patch.object(merge, "write_snapshot", wraps=merge.write_snapshot) as writer, \
+             patch.object(merge, "write_recovery", wraps=merge.write_recovery) as recovery, \
+             patch("sys.stderr", stderr):
+            output = self.apply(expected=2)
+        self.assertTrue(acquired, "the competing acquisition must actually be planted")
+        self.assertEqual(self.fingerprint(), competing_snapshot)
+        self.assertEqual(recovery.call_count, 1, "never restore recovery into another owner's lock")
+        self.assertEqual(writer.call_count, 3, "only the two planned writes and state; no rollback writes")
+        self.assertIn("exclusive ownership could not be reacquired; rollback skipped", stderr.getvalue())
+        self.assertNotIn("RESULT=applied", output)
+        print("PROOF cleanup ownership race: competing lock, journal, and consumer bytes unchanged; rollback skipped with explicit diagnostic")
+
+    def test_completed_competing_transaction_prevents_rollback_after_reacquisition(self):
+        self.write(self.template, "shared/a.md", TEXT + "upstream\n")
+        self.write(self.template, "shared/new/deep/file.md", "new file\n")
+        self.incoming = self.save(self.template)
+        self.preview()
+        lock = self.consumer / merge.LOCK_PATH
+        parent = self.consumer.stat()
+        fsync, rmdir = os.fsync, os.rmdir
+        completed = False
+        failed = False
+        competing_files = None
+
+        def complete_after_release(path, *args, **kwargs):
+            nonlocal completed, competing_files
+            rmdir(path, *args, **kwargs)
+            if path == lock.name:
+                lock.mkdir(mode=0o700)
+                journal = lock / "recovery.json"
+                journal.write_bytes(b'{"owner":"completed second transaction"}\n')
+                self.write(self.consumer, "shared/a.md", "completed second transaction bytes\n")
+                self.write(self.consumer, "shared/new/deep/file.md", "completed second transaction new bytes\n")
+                self.write(self.consumer, merge.STATE_PATH, '{"owner":"completed second transaction"}\n')
+                journal.unlink()
+                rmdir(lock)
+                completed = True
+                competing_files = self.fingerprint()
+
+        def fail_once_after_completion(fd):
+            nonlocal failed
+            info = os.fstat(fd)
+            if completed and not failed and (info.st_dev, info.st_ino) == (parent.st_dev, parent.st_ino):
+                failed = True
+                raise OSError("planted parent fsync failure after competing completion")
+            fsync(fd)
+
+        stderr = io.StringIO()
+        with patch.object(os, "rmdir", complete_after_release), patch.object(os, "fsync", fail_once_after_completion), \
+             patch.object(merge, "write_snapshot", wraps=merge.write_snapshot) as writer, \
+             patch.object(merge, "write_recovery", wraps=merge.write_recovery) as recovery, \
+             patch("sys.stderr", stderr):
+            output = self.apply(expected=2)
+        self.assertTrue(completed and failed, "plant both competing completion and parent sync failure")
+        actual = {key: value for key, value in self.fingerprint().items() if not key.startswith(merge.LOCK_PATH)}
+        self.assertEqual(actual, competing_files)
+        self.assertEqual(recovery.call_count, 2, "reacquisition and journal restoration actually succeeded")
+        self.assertTrue((lock / "recovery.json").is_file())
+        self.assertEqual(writer.call_count, 3, "no rollback of completed competing writes or state")
+        self.assertIn("ownership continuity cannot be verified; rollback skipped", stderr.getvalue())
+        self.assertNotIn("RESULT=applied", output)
+        print("PROOF ownership continuity: completed competitor bytes/state unchanged after successful reacquisition; rollback skipped")
+
     def test_cleanup_failures_roll_back_and_preserve_recovery(self):
         self.write(self.template, "shared/a.md", TEXT + "upstream\n")
         self.incoming = self.save(self.template)
@@ -515,6 +749,26 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(plan["counts"], {"no_change": 2}); self.apply()
         self.assertFalse((self.consumer / "shared/staged.md").exists())
         self.assertEqual((self.consumer / "shared/a.md").read_text(), TEXT)
+
+    def test_sync_metadata_is_private_and_payload_preserves_permissions(self):
+        payload = self.consumer / "shared/a.md"
+        payload.chmod(0o750)
+        state = self.consumer / merge.STATE_PATH
+        self.preview()
+        merge.write_private_plan(self.plan, self.plan.read_bytes(), (self.template, self.consumer))
+        self.apply()
+        self.assertEqual(state.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.plan.stat().st_mode & 0o777, 0o600)
+        state.chmod(0o640)
+        self.plan.chmod(0o640)
+        self.write(self.template, "shared/a.md", TEXT + "upstream\n")
+        self.incoming = self.save(self.template)
+        self.preview()
+        merge.write_private_plan(self.plan, self.plan.read_bytes(), (self.template, self.consumer))
+        self.apply()
+        self.assertEqual(state.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.plan.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(payload.stat().st_mode & 0o777, 0o750)
 
     def test_modes_binary_and_independent_exec_change(self):
         (self.consumer / "shared/a.md").chmod(0o700)

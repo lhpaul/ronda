@@ -104,9 +104,9 @@ env:
   # let a hung harness suppress later suites — coverage the per-suite matrix
   # never lost — but it still needs to be large enough for several suites in one
   # shard to hit their own per-suite caps without starving the rest.
-  # 600s gives headroom for a genuinely slow suite and a tight bound on a stuck
+  # 800s gives headroom for a genuinely slow suite and a tight bound on a stuck
   # one.
-  SUITE_TIMEOUT_SECONDS: '600'
+  SUITE_TIMEOUT_SECONDS: '800'
   SUITE_TIMEOUT_KILL_AFTER_SECONDS: '30'
 
 jobs:

@@ -144,7 +144,7 @@ DEFAULT_SUITE_SECONDS=5
 # Mirrors workflow-tests.yml's per-suite timeout defaults. The workflow exports
 # these env vars before calling this selector, so matrix timeouts stay in step
 # with the per-suite guard without asking GitHub expressions to do arithmetic.
-SHARD_SUITE_TIMEOUT_SECONDS="${SUITE_TIMEOUT_SECONDS:-600}"
+SHARD_SUITE_TIMEOUT_SECONDS="${SUITE_TIMEOUT_SECONDS:-800}"
 case "$SHARD_SUITE_TIMEOUT_SECONDS" in
   '' | *[!0-9]*) die "SUITE_TIMEOUT_SECONDS must be a positive integer, got '$SHARD_SUITE_TIMEOUT_SECONDS'" ;;
 esac
