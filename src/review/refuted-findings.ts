@@ -78,32 +78,66 @@ function splitStringLiterals(line: string): { code: string; literals: string[] }
 const HARMLESS_CODE =
   /^\s*(?:(?:return|throw|raise)\s+)?(?:new\s+)?(?:(?:[A-Za-z_]\w*)?Error|Exception|(?:console|logger|log|logging)\.(?:log|info|warn|warning|error|debug)|print|println)\s*\(\s*(["'`])\1\s*\)\s*[;,)}]*\s*$/;
 
-/** A literal that carries a secret-looking value rather than prose naming one. */
-function literalLooksLikeSecretValue(literal: string): boolean {
-  if (/-----BEGIN|\b(?:sk|pk|rk)[-_][A-Za-z0-9_-]{8,}|\bgh[pousr]_\w{8,}|\bgithub_pat_|\bxox[abpr]-|\bAKIA[0-9A-Z]{8,}|\bBearer\s+\S{8,}/i.test(literal)) {
-    return true;
-  }
-  // `password=hunter2` style assignment inside the message
-  if (/(?:api[_ -]?key|token|secret|password|passphrase|credentials?)\s*[=:]\s*\S{4,}/i.test(literal)) return true;
-  for (const word of literal.split(/\s+/)) {
-    if (/^[A-Za-z0-9+/=_-]{20,}$/.test(word) && (/\d/.test(word) || (/[a-z]/.test(word) && /[A-Z]/.test(word)))) {
-      return true;
+const CREDENTIAL_VOCAB = new Set([
+  "credential", "credentials", "secret", "secrets", "token", "tokens", "password", "passwords",
+  "passphrase", "passphrases", "key", "keys", "api", "auth", "authentication", "authorization",
+  "apikey",
+]);
+const META_VOCAB = new Set([
+  "missing", "not", "no", "set", "unset", "required", "invalid", "expired", "configured", "empty",
+  "failed", "failure", "rejected", "unavailable", "found", "provided", "supplied", "defined",
+  "specified", "present", "valid", "model", "see", "please", "set", "check", "your", "add", "use",
+  "the", "is", "are", "was", "be", "a", "an", "for", "in", "to", "from", "of", "on", "or", "and",
+  "with", "this", "that", "it", "has", "have", "been", "must", "cannot", "can", "need", "needed",
+  "error", "access", "login", "bearer", "env", "environment", "variable", "config", "configuration",
+  "value", "when", "if", "before", "after", "run",
+]);
+/** An environment-variable name that itself names a credential, e.g. RONDA_MODEL_API_KEY. */
+const CREDENTIAL_ENV_NAME = /^[A-Z]+(?:_[A-Z]+)*_(?:API_KEY|KEY|TOKEN|SECRET|PASSWORD|CREDENTIALS?)$/;
+/** A letters-only relative document path, e.g. docs/adoption/ronda-review-adoption.md. */
+const DOC_PATH = /^[a-z][a-z/-]*[a-z]\.(?:md|json|ya?ml)$/;
+const MAX_MESSAGE_LENGTH = 120;
+
+/**
+ * Positive recognition: the literal is prose whose every word comes from a
+ * closed vocabulary of credential-meta and neutral function words (plus a
+ * credential env-var name or a letters-only doc path), has no digits, no `=`,
+ * and only spaces and light punctuation, and names a credential at least once.
+ * Anything else (an unknown word such as a candidate value) is ambiguous.
+ */
+function literalIsCredentialNameOnlyMessage(literal: string): boolean {
+  if (literal.length === 0 || literal.length > MAX_MESSAGE_LENGTH) return false;
+  if (!/^[A-Za-z_/. ;:,!-]+$/.test(literal)) return false;
+  let namesCredential = false;
+  for (const raw of literal.split(/\s+/).filter((t) => t.length > 0)) {
+    const token = raw.replace(/[.,;:!]+$/, "");
+    if (token.length === 0) return false;
+    if (CREDENTIAL_ENV_NAME.test(token)) {
+      namesCredential = true;
+      continue;
+    }
+    if (DOC_PATH.test(token)) continue;
+    const word = token.toLowerCase();
+    if (CREDENTIAL_VOCAB.has(word)) {
+      namesCredential = true;
+    } else if (!META_VOCAB.has(word)) {
+      return false;
     }
   }
-  return false;
+  return namesCredential;
 }
 
 /**
  * True when the cited source line is positively recognised as a harmless
- * message: one fixed string literal naming a credential, passed as the sole
- * argument of an error constructor or log call, with no secret-looking value
- * in the literal. Every other expression is retained (fail closed).
+ * message: one fixed string literal that is a credential-name-only message
+ * (closed vocabulary, see above), passed as the sole argument of an error
+ * constructor or log call. Every other expression is retained (fail closed).
  */
 export function lineNamesCredentialWithoutValue(line: string): boolean {
   const split = splitStringLiterals(line);
   if (split === undefined || split.literals.length !== 1) return false;
   if (!HARMLESS_CODE.test(split.code)) return false;
-  return !literalLooksLikeSecretValue(split.literals[0] as string);
+  return literalIsCredentialNameOnlyMessage(split.literals[0] as string);
 }
 
 /**

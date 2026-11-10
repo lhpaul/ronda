@@ -11,9 +11,13 @@ default model, and both fail open.
 1. **Named-credential filter** — drops a "credential exposed in a
    message/log/output" finding only when the cited added/context line is
    positively recognised as harmless: an error constructor, `throw`, or
-   log/print call whose sole argument is one fixed string literal, with no
-   secret-looking value (token prefix, `key=value` assignment, long
-   high-entropy word) inside the literal. Any other expression (extra
+   log/print call whose sole argument is one fixed string literal that is a
+   credential-name-only message: every word comes from a closed vocabulary of
+   credential-meta and neutral function words (a credential env-var name or a
+   letters-only doc path is also allowed), with no digits, `=`, or other
+   punctuation beyond spaces and `. , ; : !`, and at least one credential
+   word. An unknown word (for example a candidate value, as in `"The password
+   is hunter2"`) keeps the finding. Any other expression (extra
    arguments, variables, calls, operators, interpolation) is ambiguous and
    keeps the finding. A missing line or unreadable patch also keeps it.
 2. **Resolved-thread dedupe** — drops a finding whose `(path, normalized
