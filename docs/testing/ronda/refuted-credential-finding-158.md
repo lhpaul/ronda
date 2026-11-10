@@ -31,8 +31,13 @@ default model, and both fail open.
    resolved, where that thread was opened by Ronda: the first comment's author
    must be a GitHub `Bot` and its pull-request review body must carry the
    `## Ronda review` heading (the marker `findExistingRondaReview` trusts).
-   Threads from humans, other bots, or unknown authors never suppress. Line numbers are ignored (they shift every push); the claim
-   matches on normalized title or ≥0.8 token overlap. The thread read is a
+   Threads from humans, other bots, or unknown authors never suppress. The claim
+   matches on normalized title or ≥0.8 token overlap, and the finding's cited
+   line content in the current diff must equal the trimmed code line the thread
+   was attached to (read from the thread's `diffHunk` at its `originalLine`/`line`).
+   Content, not line number, is compared (numbers shift every push). A finding on
+   different code, with no cited line, or a thread whose code cannot be read keeps
+   the finding. The thread read is a
    best-effort GraphQL call; if it is unavailable the pass publishes as before.
 
 Each suppression is logged as `findings_suppressed` with counts by reason
@@ -50,7 +55,7 @@ interpolates the key.
 | --- | --- | --- | --- |
 | Before (no filters) | 5 | 4 | yes |
 | After (named-credential filter) | 1 | 0 | yes |
-| After, next push (resolved-thread dedupe on the control's claim) | 0 | 0 | no — by design, a maintainer resolved it |
+| After, next push (resolved-thread dedupe on the refuted claim's line 42 code) | 1 | 0 | yes — the control is on different code (line 45), so the resolution does not cover it |
 
 Reproduce: `npm test` (`tests/unit/review/refuted-findings.test.ts`,
 `tests/unit/core/run-review-pass-refuted-findings.test.ts`).
@@ -59,6 +64,7 @@ Reproduce: `npm test` (`tests/unit/review/refuted-findings.test.ts`,
 
 - The fixture is a reproduction, not the live #156 thread set. A real-model
   confirmation needs a live pass and is left to a maintainer.
-- Dedupe trusts the maintainer's resolution: a resolved thread suppresses the
-  same claim on the same path for the rest of the PR, even if the code under it
-  later changes.
+- Dedupe trusts the maintainer's resolution only for the same claim on the same
+  code line: if the thread's line text changes or the finding cites different
+  code, the finding is kept. A resolution that meant "fixed" can still suppress
+  a regression that reproduces the identical line text with the same title.

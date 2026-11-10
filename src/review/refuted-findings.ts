@@ -14,6 +14,11 @@ export interface ResolvedRondaThread {
   path: string;
   /** Body of the thread's first comment, in Ronda's `**Label** — title` shape. */
   body: string;
+  /**
+   * Trimmed text of the code line the thread was attached to (from the thread's
+   * diff hunk). Absent when it cannot be read; such a thread never suppresses.
+   */
+  code?: string;
 }
 
 export type SuppressionReason = "names_credential_without_value" | "resolved_thread";
@@ -227,27 +232,46 @@ export function rondaCommentTitle(body: string): string | undefined {
 }
 
 /**
- * Drops a finding that repeats, on the same path, a claim a maintainer already
- * resolved. Line numbers are ignored on purpose: they shift on every push.
+ * Drops a finding that repeats a claim a maintainer already resolved, only when
+ * both hold: the normalized title matches a resolved thread on the same path
+ * (same rejected claim), AND the finding's cited line content in the current
+ * diff equals the code line the thread was attached to (same relevant code).
+ * Line numbers shift on push, so the content is compared, not the number. A
+ * finding with no line, an unreadable line, or a thread without code evidence
+ * is kept (fail open to keeping the finding).
  */
 export function filterResolvedThreadFindings(
   findings: Finding[],
   resolved: ResolvedRondaThread[],
+  changedFiles: ChangedFile[],
 ): FilterResult {
-  const claimsByPath = new Map<string, string[]>();
+  const claimsByPath = new Map<string, Array<{ claim: string; code: string }>>();
   for (const thread of resolved) {
     const title = rondaCommentTitle(thread.body);
-    if (title === undefined) continue;
+    const code = thread.code?.trim();
+    if (title === undefined || !code) continue;
     const list = claimsByPath.get(thread.path) ?? [];
-    list.push(normalizeClaim(title));
+    list.push({ claim: normalizeClaim(title), code });
     claimsByPath.set(thread.path, list);
   }
+  const linesByPath = new Map<string, Map<number, string>>();
   const kept: Finding[] = [];
   const suppressed: SuppressedFinding[] = [];
   for (const finding of findings) {
-    const claim = normalizeClaim(finding.title);
     const prior = claimsByPath.get(finding.path);
-    if (prior?.some((p) => sameClaim(p, claim))) {
+    if (finding.line === null || prior === undefined) {
+      kept.push(finding);
+      continue;
+    }
+    let lines = linesByPath.get(finding.path);
+    if (!lines) {
+      const file = changedFiles.find((f) => f.path === finding.path);
+      lines = parseDiffNewSideLines(file?.patch);
+      linesByPath.set(finding.path, lines);
+    }
+    const current = lines.get(finding.line)?.trim();
+    const claim = normalizeClaim(finding.title);
+    if (current && prior.some((p) => p.code === current && sameClaim(p.claim, claim))) {
       suppressed.push({ finding, reason: "resolved_thread" });
     } else {
       kept.push(finding);

@@ -926,7 +926,7 @@ async function suppressRefutedFindings(
         input.pullNumber,
         signal,
       );
-      const deduped = filterResolvedThreadFindings(kept, resolved);
+      const deduped = filterResolvedThreadFindings(kept, resolved, changedFiles);
       kept = deduped.kept;
       dropped = [...dropped, ...deduped.suppressed];
     } catch (error) {

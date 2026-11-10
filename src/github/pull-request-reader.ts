@@ -2,6 +2,8 @@ import type { Octokit } from "@octokit/rest";
 import { RONDA_REVIEW_HEADING } from "../core/summary.js";
 import { CHECK_RUN_NAME } from "../domain/review-pass.types.js";
 import type { ChangedFile, PullRequestMetadata } from "../domain/review-pass.types.js";
+import { parseDiffNewSideLines } from "../review/refuted-findings-diff.js";
+import type { ResolvedRondaThread } from "../review/refuted-findings.js";
 import { withAbortMapping, withRetry } from "./github-client.js";
 
 export interface ExistingRondaPullRequestReview {
@@ -168,9 +170,12 @@ query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
         nodes {
           isResolved
           path
+          line
+          originalLine
           comments(first: 1) {
             nodes {
               body
+              diffHunk
               author { __typename login }
               pullRequestReview { body }
             }
@@ -189,9 +194,12 @@ interface ReviewThreadsPage {
         nodes: Array<{
           isResolved: boolean;
           path: string;
+          line: number | null;
+          originalLine: number | null;
           comments: {
             nodes: Array<{
               body: string;
+              diffHunk: string | null;
               author: { __typename: string; login: string } | null;
               pullRequestReview: { body: string } | null;
             }>;
@@ -222,6 +230,17 @@ function isVerifiedRondaComment(comment: {
 }
 
 /**
+ * Trimmed text of the code line a thread was attached to, read from the
+ * thread's diff hunk at its line. Undefined (never a guess) when the hunk or
+ * line is absent, the line is not on the hunk's new side, or the text is blank.
+ */
+function threadCodeLine(diffHunk: string | null, line: number | null): string | undefined {
+  if (!diffHunk || line === null) return undefined;
+  const text = parseDiffNewSideLines(diffHunk).get(line)?.trim();
+  return text ? text : undefined;
+}
+
+/**
  * First-comment bodies of resolved review threads that Ronda itself opened
  * (#158). Threads started by humans or other bots are never returned.
  */
@@ -231,8 +250,8 @@ export async function readResolvedReviewThreads(
   repo: string,
   pullNumber: number,
   signal?: AbortSignal,
-): Promise<Array<{ path: string; body: string }>> {
-  const out: Array<{ path: string; body: string }> = [];
+): Promise<ResolvedRondaThread[]> {
+  const out: ResolvedRondaThread[] = [];
   let cursor: string | null = null;
   for (let page = 0; page < MAX_THREAD_PAGES; page += 1) {
     const data: ReviewThreadsPage = await withAbortMapping(
@@ -256,7 +275,11 @@ export async function readResolvedReviewThreads(
     for (const node of threads.nodes) {
       const first = node.comments.nodes[0];
       if (node.isResolved && first !== undefined && isVerifiedRondaComment(first)) {
-        out.push({ path: node.path, body: first.body });
+        out.push({
+          path: node.path,
+          body: first.body,
+          code: threadCodeLine(first.diffHunk, node.originalLine ?? node.line),
+        });
       }
     }
     if (!threads.pageInfo.hasNextPage) break;
