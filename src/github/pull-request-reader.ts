@@ -168,7 +168,13 @@ query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
         nodes {
           isResolved
           path
-          comments(first: 1) { nodes { body } }
+          comments(first: 1) {
+            nodes {
+              body
+              author { __typename login }
+              pullRequestReview { body }
+            }
+          }
         }
       }
     }
@@ -183,7 +189,13 @@ interface ReviewThreadsPage {
         nodes: Array<{
           isResolved: boolean;
           path: string;
-          comments: { nodes: Array<{ body: string }> };
+          comments: {
+            nodes: Array<{
+              body: string;
+              author: { __typename: string; login: string } | null;
+              pullRequestReview: { body: string } | null;
+            }>;
+          };
         }>;
       };
     } | null;
@@ -194,8 +206,24 @@ interface ReviewThreadsPage {
 const MAX_THREAD_PAGES = 5;
 
 /**
- * First-comment bodies of every resolved review thread (#158). Callers filter
- * to Ronda-shaped bodies; this reads only resolved threads' first comment.
+ * True only when the comment was verifiably posted by Ronda: its author is a
+ * GitHub bot account and it belongs to a pull-request review whose body carries
+ * the canonical Ronda summary heading (the same marker
+ * `findExistingRondaReview` trusts). Unknown or human authors never qualify.
+ */
+function isVerifiedRondaComment(comment: {
+  author: { __typename: string; login: string } | null;
+  pullRequestReview: { body: string } | null;
+}): boolean {
+  return (
+    comment.author?.__typename === "Bot" &&
+    (comment.pullRequestReview?.body ?? "").includes(RONDA_REVIEW_HEADING)
+  );
+}
+
+/**
+ * First-comment bodies of resolved review threads that Ronda itself opened
+ * (#158). Threads started by humans or other bots are never returned.
  */
 export async function readResolvedReviewThreads(
   octokit: Octokit,
@@ -226,8 +254,10 @@ export async function readResolvedReviewThreads(
     const threads = data.repository?.pullRequest?.reviewThreads;
     if (!threads) break;
     for (const node of threads.nodes) {
-      const body = node.comments.nodes[0]?.body;
-      if (node.isResolved && body !== undefined) out.push({ path: node.path, body });
+      const first = node.comments.nodes[0];
+      if (node.isResolved && first !== undefined && isVerifiedRondaComment(first)) {
+        out.push({ path: node.path, body: first.body });
+      }
     }
     if (!threads.pageInfo.hasNextPage) break;
     cursor = threads.pageInfo.endCursor;

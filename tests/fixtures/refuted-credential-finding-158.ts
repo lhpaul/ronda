@@ -46,3 +46,25 @@ export const REAL_LEAK: Finding = {
   title: "Model credential exposed in error message",
   body: "The error message includes the API key value and may leak it into logs.",
 };
+
+/** One GraphQL reviewThreads node as RESOLVED_THREADS_QUERY returns it. */
+export function threadNode(options: {
+  resolved?: boolean;
+  body?: string;
+  author: { __typename: string; login: string } | null;
+  reviewBody: string | null;
+}) {
+  return {
+    isResolved: options.resolved ?? true,
+    path: REAL_LEAK.path,
+    comments: {
+      nodes: [
+        {
+          body: options.body ?? `**Blocking** — ${REAL_LEAK.title}\n\nx`,
+          author: options.author,
+          pullRequestReview: options.reviewBody === null ? null : { body: options.reviewBody },
+        },
+      ],
+    },
+  };
+}

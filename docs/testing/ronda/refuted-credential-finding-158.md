@@ -9,14 +9,19 @@ and before classification and publication. Neither touches the prompt or the
 default model, and both fail open.
 
 1. **Named-credential filter** — drops a "credential exposed in a
-   message/log/output" finding when the cited added/context line is a fixed
-   string literal that only names a credential variable or config key: no
-   interpolation, no concatenation, no format placeholder, and no
-   credential-looking identifier outside the literal. A missing line, an
-   unreadable patch, or any doubt keeps the finding.
+   message/log/output" finding only when the cited added/context line is
+   positively recognised as harmless: an error constructor, `throw`, or
+   log/print call whose sole argument is one fixed string literal, with no
+   secret-looking value (token prefix, `key=value` assignment, long
+   high-entropy word) inside the literal. Any other expression (extra
+   arguments, variables, calls, operators, interpolation) is ambiguous and
+   keeps the finding. A missing line or unreadable patch also keeps it.
 2. **Resolved-thread dedupe** — drops a finding whose `(path, normalized
    claim)` matches the first comment of a review thread a maintainer already
-   resolved. Line numbers are ignored (they shift every push); the claim
+   resolved, where that thread was opened by Ronda: the first comment's author
+   must be a GitHub `Bot` and its pull-request review body must carry the
+   `## Ronda review` heading (the marker `findExistingRondaReview` trusts).
+   Threads from humans, other bots, or unknown authors never suppress. Line numbers are ignored (they shift every push); the claim
    matches on normalized title or ≥0.8 token overlap. The thread read is a
    best-effort GraphQL call; if it is unavailable the pass publishes as before.
 

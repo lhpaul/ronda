@@ -6,9 +6,11 @@ import {
   findExistingRondaReview,
   readChangedFiles,
   readPullRequest,
+  readResolvedReviewThreads,
 } from "../../../src/github/pull-request-reader.js";
 import { RONDA_REVIEW_HEADING } from "../../../src/core/summary.js";
 import { CHECK_RUN_NAME } from "../../../src/domain/review-pass.types.js";
+import { threadNode } from "../../fixtures/refuted-credential-finding-158.js";
 import { GithubClientError } from "../../../src/github/github-client.js";
 
 /**
@@ -494,4 +496,30 @@ test("findExistingRondaReview ignores reviews on other commits or without the Ro
 
   const result = await findExistingRondaReview(octokit, "lhpaul", "ronda", 4, headSha);
   assert.equal(result, null);
+});
+
+function graphqlOctokit(nodes: unknown[]): Octokit {
+  return {
+    graphql: async () => ({
+      repository: {
+        pullRequest: { reviewThreads: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } },
+      },
+    }),
+  } as unknown as Octokit;
+}
+
+test("readResolvedReviewThreads (#158): only resolved threads opened by a verified Ronda bot review are returned", async () => {
+  const rondaReview = `${RONDA_REVIEW_HEADING}\n\nsummary`;
+  const bot = { __typename: "Bot", login: "ronda[bot]" };
+  const nodes = [
+    threadNode({ author: bot, reviewBody: rondaReview }),
+    // Same Ronda-shaped title, wrong identity: must not be evidence.
+    threadNode({ author: { __typename: "User", login: "alice" }, reviewBody: rondaReview }),
+    threadNode({ author: bot, reviewBody: "## Some other bot review" }),
+    threadNode({ author: bot, reviewBody: null }),
+    threadNode({ author: null, reviewBody: rondaReview }),
+    threadNode({ author: bot, reviewBody: rondaReview, resolved: false }),
+  ];
+  const out = await readResolvedReviewThreads(graphqlOctokit(nodes), "o", "r", 1);
+  assert.equal(out.length, 1);
 });
