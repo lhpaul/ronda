@@ -78,20 +78,29 @@ function splitStringLiterals(line: string): { code: string; literals: string[] }
 const HARMLESS_CODE =
   /^\s*(?:(?:return|throw|raise)\s+)?(?:new\s+)?(?:(?:[A-Za-z_]\w*)?Error|Exception|(?:console|logger|log|logging)\.(?:log|info|warn|warning|error|debug)|print|println)\s*\(\s*(["'`])\1\s*\)\s*[;,)}]*\s*$/;
 
-const CREDENTIAL_VOCAB = new Set([
+/** Words that may only NAME a credential; never allowed in a value position. */
+const CREDENTIAL_NOUNS = new Set([
   "credential", "credentials", "secret", "secrets", "token", "tokens", "password", "passwords",
   "passphrase", "passphrases", "key", "keys", "api", "auth", "authentication", "authorization",
   "apikey",
 ]);
-const META_VOCAB = new Set([
+/** Credential nouns that may directly precede another one (`API key`, `auth token`). */
+const CREDENTIAL_MODIFIERS = new Set(["api", "auth", "authentication", "authorization"]);
+/** Closed status/predicate set: what a message may say about a credential. */
+const STATUS_WORDS = new Set([
   "missing", "not", "no", "set", "unset", "required", "invalid", "expired", "configured", "empty",
   "failed", "failure", "rejected", "unavailable", "found", "provided", "supplied", "defined",
-  "specified", "present", "valid", "model", "see", "please", "set", "check", "your", "add", "use",
-  "the", "is", "are", "was", "be", "a", "an", "for", "in", "to", "from", "of", "on", "or", "and",
-  "with", "this", "that", "it", "has", "have", "been", "must", "cannot", "can", "need", "needed",
-  "error", "access", "login", "bearer", "env", "environment", "variable", "config", "configuration",
-  "value", "when", "if", "before", "after", "run",
+  "specified", "present", "valid", "absent",
 ]);
+/** Neutral function words and message vocabulary. */
+const NEUTRAL_WORDS = new Set([
+  "model", "see", "please", "check", "your", "add", "use", "the", "a", "an", "for", "in", "to",
+  "from", "of", "on", "or", "and", "with", "this", "that", "it", "has", "have", "been", "must",
+  "cannot", "can", "need", "needed", "error", "access", "login", "bearer", "env", "environment",
+  "variable", "config", "configuration", "value", "when", "if", "before", "after", "run",
+]);
+/** Copulas: everything after one is the predicate, so it must be status words only. */
+const COPULAS = new Set(["is", "are", "was", "be"]);
 /** An environment-variable name that itself names a credential, e.g. RONDA_MODEL_API_KEY. */
 const CREDENTIAL_ENV_NAME = /^[A-Z]+(?:_[A-Z]+)*_(?:API_KEY|KEY|TOKEN|SECRET|PASSWORD|CREDENTIALS?)$/;
 /** A letters-only relative document path, e.g. docs/adoption/ronda-review-adoption.md. */
@@ -109,18 +118,30 @@ function literalIsCredentialNameOnlyMessage(literal: string): boolean {
   if (literal.length === 0 || literal.length > MAX_MESSAGE_LENGTH) return false;
   if (!/^[A-Za-z_/. ;:,!-]+$/.test(literal)) return false;
   let namesCredential = false;
+  let afterCopula = false;
+  let previousCredential: string | undefined;
   for (const raw of literal.split(/\s+/).filter((t) => t.length > 0)) {
     const token = raw.replace(/[.,;:!]+$/, "");
     if (token.length === 0) return false;
-    if (CREDENTIAL_ENV_NAME.test(token)) {
+    const isEnvName = CREDENTIAL_ENV_NAME.test(token);
+    const word = token.toLowerCase();
+    if (isEnvName || CREDENTIAL_NOUNS.has(word)) {
+      // A credential noun in the predicate (`is secret`) or directly after
+      // another one (`password: secret`) could be the value itself.
+      if (afterCopula) return false;
+      if (previousCredential !== undefined && !CREDENTIAL_MODIFIERS.has(previousCredential)) return false;
+      previousCredential = isEnvName ? token : word;
       namesCredential = true;
       continue;
     }
+    previousCredential = undefined;
     if (DOC_PATH.test(token)) continue;
-    const word = token.toLowerCase();
-    if (CREDENTIAL_VOCAB.has(word)) {
-      namesCredential = true;
-    } else if (!META_VOCAB.has(word)) {
+    if (COPULAS.has(word)) {
+      afterCopula = true;
+    } else if (afterCopula) {
+      if (!STATUS_WORDS.has(word) && word !== "been" && word !== "a" && word !== "an" && word !== "the") return false;
+      if (/[.;]$/.test(raw)) afterCopula = false; // clause boundary ends the predicate
+    } else if (!STATUS_WORDS.has(word) && !NEUTRAL_WORDS.has(word)) {
       return false;
     }
   }

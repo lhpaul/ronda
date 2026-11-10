@@ -17,7 +17,13 @@ default model, and both fail open.
    letters-only doc path is also allowed), with no digits, `=`, or other
    punctuation beyond spaces and `. , ; : !`, and at least one credential
    word. An unknown word (for example a candidate value, as in `"The password
-   is hunter2"`) keeps the finding. Any other expression (extra
+   is hunter2"`) keeps the finding. Credential nouns (`password`, `token`,
+   `secret`, `key`, ...) may only name the credential: after a copula
+   (`is`/`are`/`was`/`be`) only a closed status set (`missing`, `not`, `set`,
+   `unset`, `expired`, `configured`, `failed`, ...) is allowed, and a
+   credential noun may not directly follow another (except modifiers such as
+   `API`), so `"The password is secret"` and `"password: secret"` keep the
+   finding. Any other expression (extra
    arguments, variables, calls, operators, interpolation) is ambiguous and
    keeps the finding. A missing line or unreadable patch also keeps it.
 2. **Resolved-thread dedupe** — drops a finding whose `(path, normalized
