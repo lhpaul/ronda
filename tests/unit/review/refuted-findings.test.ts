@@ -2,16 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   filterNamedCredentialFindings,
-  filterResolvedThreadFindings,
   isCredentialInMessageClaim,
   lineNamesCredentialWithoutValue,
-  normalizeClaim,
 } from "../../../src/review/refuted-findings.js";
-import type { ChangedFile, Finding } from "../../../src/domain/review-pass.types.js";
 import {
   NO_CREDENTIAL_FILE,
   REAL_LEAK,
-  REFUTED_LINE_CODE,
   REFUTED_VARIANTS,
 } from "../../fixtures/refuted-credential-finding-158.js";
 
@@ -106,67 +102,4 @@ test("filterNamedCredentialFindings: fails open on null line, unknown file, or u
   for (const variant of [{ ...f, line: null }, { ...f, path: "other.ts" }, { ...f, line: 999 }]) {
     assert.deepEqual(filterNamedCredentialFindings([variant], [NO_CREDENTIAL_FILE]).kept, [variant]);
   }
-});
-
-const resolved = [
-  {
-    path: "src/cli/spec-plan-experiment.ts",
-    body: "**Blocking** — Model credential exposed in error message\n\nbody",
-    code: REFUTED_LINE_CODE,
-  },
-];
-
-test("filterResolvedThreadFindings: a same-claim repeat on the thread's code is dropped regardless of line or wording drift", () => {
-  const result = filterResolvedThreadFindings(REFUTED_VARIANTS, resolved, [NO_CREDENTIAL_FILE]);
-  assert.equal(result.kept.length, 0);
-  assert.equal(result.suppressed.every((s) => s.reason === "resolved_thread"), true);
-});
-
-test("filterResolvedThreadFindings: matches by line content, so a shifted line number still suppresses", () => {
-  const shifted: ChangedFile = {
-    ...NO_CREDENTIAL_FILE,
-    patch: NO_CREDENTIAL_FILE.patch!.replace("@@ -40,0 +41,6 @@", "@@ -50,0 +51,6 @@"),
-  };
-  const result = filterResolvedThreadFindings([{ ...REFUTED_VARIANTS[0], line: 52 }], resolved, [shifted]);
-  assert.equal(result.kept.length, 0);
-});
-
-test("filterResolvedThreadFindings: same title and path but different cited code (REAL_LEAK, line 45) is kept", () => {
-  const result = filterResolvedThreadFindings([REFUTED_VARIANTS[0], REAL_LEAK], resolved, [NO_CREDENTIAL_FILE]);
-  assert.deepEqual(result.kept, [REAL_LEAK]);
-  assert.equal(result.suppressed.length, 1);
-});
-
-test("filterResolvedThreadFindings: a thread without code evidence never suppresses", () => {
-  for (const code of [undefined, "", "   "]) {
-    const result = filterResolvedThreadFindings(
-      [REFUTED_VARIANTS[0]],
-      [{ ...resolved[0], code }],
-      [NO_CREDENTIAL_FILE],
-    );
-    assert.deepEqual(result.kept, [REFUTED_VARIANTS[0]]);
-  }
-});
-
-test("filterResolvedThreadFindings: no cited line, unknown file, or uncited line is kept", () => {
-  const f = REFUTED_VARIANTS[0];
-  for (const variant of [{ ...f, line: null }, { ...f, line: 999 }]) {
-    assert.deepEqual(filterResolvedThreadFindings([variant], resolved, [NO_CREDENTIAL_FILE]).kept, [variant]);
-  }
-  assert.deepEqual(filterResolvedThreadFindings([f], resolved, []).kept, [f]);
-});
-
-test("filterResolvedThreadFindings: a different path or a different claim is kept; non-Ronda bodies are ignored", () => {
-  const other: Finding = { ...REAL_LEAK, path: "src/other.ts" };
-  const different: Finding = { ...REFUTED_VARIANTS[0], title: "Off-by-one in pagination loop" };
-  const result = filterResolvedThreadFindings(
-    [other, different],
-    [...resolved, { path: "src/other.ts", body: "plain human comment", code: REFUTED_LINE_CODE }],
-    [NO_CREDENTIAL_FILE],
-  );
-  assert.deepEqual(result.kept, [other, different]);
-});
-
-test("normalizeClaim: punctuation, case and backticks do not matter", () => {
-  assert.equal(normalizeClaim("Model `credential` Exposed!"), "model credential exposed");
 });

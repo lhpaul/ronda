@@ -2,26 +2,13 @@ import { parseDiffNewSideLines } from "./refuted-findings-diff.js";
 import type { ChangedFile, Finding } from "../domain/review-pass.types.js";
 
 /**
- * Deterministic post-filters for findings a maintainer would only refute by
- * hand (#158). Neither filter changes the prompt or the model: both run on
- * parsed findings after the model call, and both fail open (an unreadable
- * line, an unrecognised shape, or an unavailable thread read keeps the
- * finding).
+ * Deterministic post-filter for a finding a maintainer would only refute by
+ * hand (#158). It does not change the prompt or the model: it runs on parsed
+ * findings after the model call and fails open (an unreadable line or an
+ * unrecognised shape keeps the finding).
  */
 
-/** A prior Ronda inline comment in a review thread a maintainer resolved. */
-export interface ResolvedRondaThread {
-  path: string;
-  /** Body of the thread's first comment, in Ronda's `**Label** — title` shape. */
-  body: string;
-  /**
-   * Trimmed text of the code line the thread was attached to (from the thread's
-   * diff hunk). Absent when it cannot be read; such a thread never suppresses.
-   */
-  code?: string;
-}
-
-export type SuppressionReason = "names_credential_without_value" | "resolved_thread";
+export type SuppressionReason = "names_credential_without_value";
 
 export interface SuppressedFinding {
   finding: Finding;
@@ -192,87 +179,6 @@ export function filterNamedCredentialFindings(
     const text = lines.get(finding.line);
     if (text !== undefined && lineNamesCredentialWithoutValue(text)) {
       suppressed.push({ finding, reason: "names_credential_without_value" });
-    } else {
-      kept.push(finding);
-    }
-  }
-  return { kept, suppressed };
-}
-
-const TITLE_FROM_BODY = /^\*\*[^*\n]+\*\*\s+—\s+([^\n]+)/;
-
-export function normalizeClaim(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/`/g, "")
-    .replace(/[^a-z0-9_ ]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function tokens(normalized: string): Set<string> {
-  return new Set(normalized.split(" ").filter((t) => t.length > 2));
-}
-
-const SIMILARITY_THRESHOLD = 0.8;
-
-function sameClaim(a: string, b: string): boolean {
-  if (a === b) return a.length > 0;
-  const ta = tokens(a);
-  const tb = tokens(b);
-  if (ta.size === 0 || tb.size === 0) return false;
-  let shared = 0;
-  for (const t of ta) if (tb.has(t)) shared += 1;
-  return shared / (ta.size + tb.size - shared) >= SIMILARITY_THRESHOLD;
-}
-
-/** The claim title of a Ronda-rendered comment body, or undefined for any other shape. */
-export function rondaCommentTitle(body: string): string | undefined {
-  return TITLE_FROM_BODY.exec(body.trim())?.[1];
-}
-
-/**
- * Drops a finding that repeats a claim a maintainer already resolved, only when
- * both hold: the normalized title matches a resolved thread on the same path
- * (same rejected claim), AND the finding's cited line content in the current
- * diff equals the code line the thread was attached to (same relevant code).
- * Line numbers shift on push, so the content is compared, not the number. A
- * finding with no line, an unreadable line, or a thread without code evidence
- * is kept (fail open to keeping the finding).
- */
-export function filterResolvedThreadFindings(
-  findings: Finding[],
-  resolved: ResolvedRondaThread[],
-  changedFiles: ChangedFile[],
-): FilterResult {
-  const claimsByPath = new Map<string, Array<{ claim: string; code: string }>>();
-  for (const thread of resolved) {
-    const title = rondaCommentTitle(thread.body);
-    const code = thread.code?.trim();
-    if (title === undefined || !code) continue;
-    const list = claimsByPath.get(thread.path) ?? [];
-    list.push({ claim: normalizeClaim(title), code });
-    claimsByPath.set(thread.path, list);
-  }
-  const linesByPath = new Map<string, Map<number, string>>();
-  const kept: Finding[] = [];
-  const suppressed: SuppressedFinding[] = [];
-  for (const finding of findings) {
-    const prior = claimsByPath.get(finding.path);
-    if (finding.line === null || prior === undefined) {
-      kept.push(finding);
-      continue;
-    }
-    let lines = linesByPath.get(finding.path);
-    if (!lines) {
-      const file = changedFiles.find((f) => f.path === finding.path);
-      lines = parseDiffNewSideLines(file?.patch);
-      linesByPath.set(finding.path, lines);
-    }
-    const current = lines.get(finding.line)?.trim();
-    const claim = normalizeClaim(finding.title);
-    if (current && prior.some((p) => p.code === current && sameClaim(p.claim, claim))) {
-      suppressed.push({ finding, reason: "resolved_thread" });
     } else {
       kept.push(finding);
     }

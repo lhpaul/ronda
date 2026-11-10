@@ -7,7 +7,6 @@ import { createGithubClient } from "../github/github-client.js";
 import {
   findExistingCheckRun,
   readChangedFiles,
-  readResolvedReviewThreads,
   readPullRequest,
 } from "../github/pull-request-reader.js";
 import { readRepositoryFileAtRef } from "../github/repo-content-reader.js";
@@ -72,7 +71,6 @@ export async function main(): Promise<number> {
     readFileAtRef: (o, r, path, ref, signal, options) =>
       readRepositoryFileAtRef(octokit, o, r, path, ref, signal, options),
     findExistingCheckRun: (o, r, sha, signal) => findExistingCheckRun(octokit, o, r, sha, signal),
-    readResolvedRondaThreads: (o, r, n, signal) => readResolvedReviewThreads(octokit, o, r, n, signal),
     publishReview: (reviewInput, signal) => publishReview(octokit, reviewInput, signal),
     publishCheckRun: (checkRunInput, signal) => publishCheckRun(octokit, checkRunInput, signal),
   };

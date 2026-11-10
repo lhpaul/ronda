@@ -1,7 +1,6 @@
 import type { RepositoryContextBudgetName, RondaConfig } from "../config/config.types.js";
 import type { DeadlineClock } from "../core/pass-deadline.js";
 import type { ModelClient } from "../inference/model-client.js";
-import type { ResolvedRondaThread } from "../review/refuted-findings.js";
 import type { SweepListResult } from "../review/sweep-categories.js";
 import type { Severity } from "./severity.js";
 
@@ -180,17 +179,6 @@ export interface GithubOperations {
     headSha: string,
     signal?: AbortSignal,
   ): Promise<number | null>;
-  /**
-   * Prior Ronda inline comments whose review thread a maintainer resolved
-   * (#158). Optional and best-effort: an absent method, or one that throws,
-   * disables the resolved-thread dedupe and never fails the pass.
-   */
-  readResolvedRondaThreads?(
-    owner: string,
-    repo: string,
-    pullNumber: number,
-    signal?: AbortSignal,
-  ): Promise<ResolvedRondaThread[]>;
   publishReview(input: PublishReviewInput, signal?: AbortSignal): Promise<void>;
   publishCheckRun(input: PublishCheckRunInput, signal?: AbortSignal): Promise<void>;
 }
