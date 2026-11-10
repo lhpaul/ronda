@@ -28,6 +28,32 @@
 
 Upstream #2005 (durable atomic writes and recovery fsync) is included in v0.50.0. `sync-template-merge.py` is now byte-identical to upstream, so Ronda's local fsync correction is superseded, and `test_sync_template_merge.py` and the new durability suites pass. This resolves the recovery-durability blocker tracked in #162.
 
+## Gate consistency and isolating violation proof
+
+The changed or new gates are upstream v0.50.0 code, identical to the pinned template except where noted. Each gate below has one isolating source mutation (a planted violation) applied to the working tree, the named suite run, the file restored byte-for-byte and the suite rerun. Mutations were confined to the disposable working tree at runtime commit `0e52d9e`; the proof record is [`172-planted-proof.json`](172-planted-proof.json).
+
+| Gate | Source line | Plant (predicate → mutation) | Planted result | Restored |
+| --- | --- | --- | --- | --- |
+| hotfix review enforcement | `.github/workflows/pr-policy.yml:286` | `[[ "${BRANCH:-}" == hotfix/* ]] && [ "$LATEST_SUMMARY_RESULT" = "skipp` → `[[ "${BRANCH:-}" == nohotfix/* ]] && [ "` | `test-reviewer-loop-guard-workflow.sh` exit 1: FAIL: hotfix_skipped_release_summary_fails - expected 'failure', got 'success' | exit 0 |
+| stage-role denial: no resume after repeated denial | `scripts/development-workflow/stage-role-denial-decision.py:46` | `and not event.get('denied_again', False))` → `and True)` | `test-stage-role-permission-denial.sh` exit 1: AssertionError | exit 0 |
+| evidence proof request binding | `scripts/development-workflow/review-evidence-context.py:181` | `or proof["request_id"] != request_id` → `or False` | `test-review-evidence-context.sh` exit 1: FAIL: test_unknown_self_empty_duplicate_or_malformed_proof_is_rejected (__main__.EvidenceT | exit 0 |
+| evidence freshness (snapshot currency) | `scripts/development-workflow/review-evidence-context.py:114` | `or current["snapshot_sha256"] != context.get("snapshot_sha256")):` → `or False):` | `test-review-evidence-context.sh` exit 1: FAIL: test_manifest_missing_malformed_and_wrong_binding_are_explicit (__main__.EvidenceTes | exit 0 |
+| hub worker product repository probe | `scripts/development-workflow/hub-worker-preflight.py:181` | `for product in products:
+        github_probe(product["repo"], product` → `pass` | `test-hub-worker-preflight.sh` exit 1: FAIL: test_auth_and_repository_failure (__main__.WorkerPreflightTests.test_auth_and_reposi | exit 0 |
+| retry attempt identity binding (history) | `scripts/development-workflow/reviewer-loop-history.py:68` | `if bindings.setdefault(attempt["id"], binding) != binding:` → `if False:` | `test-reviewer-loop-history.sh` exit 1: KeyError: 'history_status' | exit 0 |
+
+### Decision-gate consistency matrix
+
+| Gate | Inputs | Allowed outcomes | Next action | Mirrored surfaces | Executed example |
+| --- | --- | --- | --- | --- | --- |
+| Evidence verification and freshness | PR-Agent summary, published evidence snapshot hash, verification request id, proof schema and sources | `verified`/refused (`proof_missing`, `proof_mismatch`); context `changed`, `unchanged`, `context_unavailable`, `identity_mismatch`, `manifest_inconsistent` | Verified current proof → reviewer `clean`; unverified → `needs_fixes`; evidence changed while reviewing → `needs_rerun`; context unavailable → `escalate`; never cleared by the request itself or workflow bookkeeping | `review-evidence-context.py`, `local-ai-reviewer.sh`, `workflow_pr_agent_evidence_verdict` in `workflow-lib.sh`, `_pr_agent_classify` in `pr-review-loop.sh`, `apply-readiness-labels.sh --inspect-pr-agent` | `test-local-ai-reviewer.sh` 2061 cases (verified, missing, unverified, stale, code, bookkeeping source, drift, API failure); `test-review-evidence-context.sh` |
+| Reviewer retry accounting | Retry attempt id, reviewed/live head, run id, prior history entries | History `available`/`unavailable` | Each explicit retry reserves a unique attempt and spends one slot on both cycle axes; conflicting attempt bindings make history unavailable, which blocks the retry | `reviewer-loop-history.py`, `pr-review-loop.sh` (`reviewer_loop_local_retry_allowed`, `local_review_retry_attempt`), Protocol 93 | `test-reviewer-loop-history.sh`, `test-pr-review-loop*.sh` |
+| Stage-role denial | cause (`tool_path`, `credential`, `mixed`, `unknown`, `unreachable`, `generic`), read-only/handoff stops, correction, uncertainty, reconciliation, repeated denial, mode | `existing_error`, `blocked` with named stop, `resume_same_role` | Blocked → operator handoff and held dependents; `resume_same_role` only after correction without repeated denial; a fresh review gate when the review changed | `stage-role-denial-decision.py`, Protocol 91, guardrails stop `stage_role_tool_or_path_denied` (added to `.ai-dev-workflow.yaml`) | `test-stage-role-permission-denial.sh` |
+| Hub worker preflight | hub/worker checkouts, product repositories, GitHub auth | `pass` or a named failing check with guidance (`configuration`, `github_auth`, `github_access`) | Pass → orchestration may write; any failure stops before Remote Control writes | `hub-worker-preflight.py`, `cursor-my-machines.md` | `test-hub-worker-preflight.sh`, `test_hub_worker_preflight.py` |
+| Hotfix reviewer enforcement | head branch, latest summary result and head match | `failure` for a skipped hotfix summary; `success` for clean current-head review; release PRs keep the skip exemption | Hotfix needs completed reviewer evidence before readiness | `pr-policy.yml` (hotfix rule only), `reviewer-loop-guard` suite, `pr-review-loop.sh` wording | `test-reviewer-loop-guard-workflow.sh` (`hotfix_skipped_release_summary_fails`) |
+
+Capacity retry (bounded backoff, `needs_rerun` on exhaustion) and durable atomic writes (#2005) are covered by the upstream suites `test-local-ai-reviewer.sh`, `test-workflow-durability.sh`, `test_workflow_durability.py` and `test_sync_template_merge.py`; no Ronda change alters them.
+
 ## Validation
 
 - `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`: pass.

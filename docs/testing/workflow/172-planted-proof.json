@@ -1,0 +1,92 @@
+{
+ "revision": "0e52d9ee513def5bc69b1d3c07ed911cd67209fd",
+ "fixtureOnly": true,
+ "note": "Each mutation was applied to the working tree, the named suite run, then the file restored byte-for-byte and the suite rerun.",
+ "plants": [
+  {
+   "gate": "hotfix review enforcement",
+   "source": ".github/workflows/pr-policy.yml",
+   "line": 286,
+   "predicate": "[[ \"${BRANCH:-}\" == hotfix/* ]] && [ \"$LATEST_SUMMARY_RESULT\" = \"skipped\" ]",
+   "mutation": "[[ \"${BRANCH:-}\" == nohotfix/* ]] && [ \"$LATEST_SUMMARY_RESULT\" = \"skipped\" ]",
+   "suite": "scripts/development-workflow/tests/test-reviewer-loop-guard-workflow.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: hotfix_skipped_release_summary_fails - expected 'failure', got 'success'"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "stage-role denial: no resume after repeated denial",
+   "source": "scripts/development-workflow/stage-role-denial-decision.py",
+   "line": 46,
+   "predicate": "and not event.get('denied_again', False))",
+   "mutation": "and True)",
+   "suite": "scripts/development-workflow/tests/test-stage-role-permission-denial.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "AssertionError"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "evidence proof request binding",
+   "source": "scripts/development-workflow/review-evidence-context.py",
+   "line": 181,
+   "predicate": "or proof[\"request_id\"] != request_id",
+   "mutation": "or False",
+   "suite": "scripts/development-workflow/tests/test-review-evidence-context.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: test_unknown_self_empty_duplicate_or_malformed_proof_is_rejected (__main__.EvidenceTests.test_unknown_self_empty_duplicate_or_malformed_proof_is_rejected)",
+    "AssertionError: True is not false",
+    "FAILED (failures=1)"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "evidence freshness (snapshot currency)",
+   "source": "scripts/development-workflow/review-evidence-context.py",
+   "line": 114,
+   "predicate": "or current[\"snapshot_sha256\"] != context.get(\"snapshot_sha256\")):",
+   "mutation": "or False):",
+   "suite": "scripts/development-workflow/tests/test-review-evidence-context.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: test_manifest_missing_malformed_and_wrong_binding_are_explicit (__main__.EvidenceTests.test_manifest_missing_malformed_and_wrong_binding_are_explicit)",
+    "AssertionError: 'changed' != 'context_unavailable'",
+    "FAILED (failures=1)"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "hub worker product repository probe",
+   "source": "scripts/development-workflow/hub-worker-preflight.py",
+   "line": 181,
+   "predicate": "    for product in products:\n        github_probe(product[\"repo\"], product[\"ordinal\"])\n",
+   "mutation": "    pass\n",
+   "suite": "scripts/development-workflow/tests/test-hub-worker-preflight.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: test_auth_and_repository_failure (__main__.WorkerPreflightTests.test_auth_and_repository_failure)",
+    "AssertionError: 0 != 1",
+    "FAILED (failures=1)"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "retry attempt identity binding (history)",
+   "source": "scripts/development-workflow/reviewer-loop-history.py",
+   "line": 68,
+   "predicate": "if bindings.setdefault(attempt[\"id\"], binding) != binding:",
+   "mutation": "if False:",
+   "suite": "scripts/development-workflow/tests/test-reviewer-loop-history.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "KeyError: 'history_status'",
+    "FAILED (errors=1)"
+   ],
+   "restored_exit": 0
+  }
+ ]
+}
