@@ -14,24 +14,21 @@ default model, and it fails open.
    tied to a credential word, in a message/log/output context. Any negation
    or disclaimer (`no`, `not`, `without`, `never`, `n't`, ...) or HTTP
    status wording (`401`, `500`, `status`, `returns`) keeps the finding, so
-   keyword co-occurrence alone never suppresses. Such a claim is dropped only when the cited added/context line is
-   positively recognised as harmless: an error constructor, `throw`, or
-   log/print call whose sole argument is one fixed string literal that is a
-   credential-name-only message: every word comes from a closed vocabulary of
-   credential-meta and neutral function words (a credential env-var name or a
-   letters-only doc path is also allowed), with no digits, `=`, or other
-   punctuation beyond spaces and `. , ; : !`, and at least one credential
-   word. An unknown word (for example a candidate value, as in `"The password
-   is hunter2"`) keeps the finding. Credential nouns (`password`, `token`,
-   `secret`, `key`, ...) may only name the credential: after a copula
-   (`is`/`are`/`was`/`be`) or after a colon that follows a credential noun
-   (`password: missing`) only a closed status set (`missing`, `not`, `set`,
-   `unset`, `expired`, `configured`, `failed`, ...) is allowed, and a
-   credential noun may not directly follow another (except modifiers such as
-   `API`), so `"The password is secret"` and `"password: secret"` keep the
-   finding. Any other expression (extra
-   arguments, variables, calls, operators, interpolation) is ambiguous and
-   keeps the finding. A missing line or unreadable patch also keeps it.
+   keyword co-occurrence alone never suppresses. Such a claim is dropped only
+   when the cited added/context line is an error constructor, `throw`, or
+   log/print call whose sole argument is one fixed string literal that equals,
+   exactly, one of a closed set of two Ronda-owned templates (case-sensitive,
+   after trimming, no free slots): the "no model credential is configured"
+   message pointing to the adoption doc path, and the same message pointing
+   to the `RONDA_MODEL_API_KEY` variable name.
+
+   The suppression is intentionally narrow and covers only those enumerated
+   Ronda templates. There is no vocabulary, word list, or pattern matching:
+   any other literal (a near miss, a different wording, extra punctuation,
+   or a credential-looking word in any position) keeps the finding, as do
+   extra arguments, variables, calls, operators, interpolation, a missing
+   line, or an unreadable patch.
+
 Dedupe against resolved review threads is intentionally out of scope: GitHub
 thread data cannot tell a refuted claim from one that was fixed, so it could
 silently suppress a legitimate renewed finding. It is tracked in #174 with an

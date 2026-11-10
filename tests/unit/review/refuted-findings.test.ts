@@ -28,6 +28,8 @@ test("lineNamesCredentialWithoutValue: interpolation, concatenation, and value i
     'throw new Error("bad key", apiKey);',
     'throw new Error(`bad ${x}`);',
     'throw new Error("bad key %s".format(k));',
+    'throw new Error("No model credential is configured; see RONDA_MODEL_API_KEY.", cause);',
+    'throw new Error("No model credential is configured; see RONDA_MODEL_API_KEY." + x);',
     "throw new Error(message);",
     'throw new Error("unterminated',
   ]) {
@@ -47,47 +49,33 @@ test("lineNamesCredentialWithoutValue: a log call passing a variable beside a cr
   }
 });
 
-test("lineNamesCredentialWithoutValue: a hardcoded credential-looking value inside a literal is kept", () => {
+test("lineNamesCredentialWithoutValue: near-miss and hardcoded-value literals are kept", () => {
   for (const line of [
     'throw new Error("bad key sk-abcdef1234567890abcdef");',
     'console.log("token ghp_abcdefghijklmnop1234");',
     'throw new Error("password=hunter2222");',
     'console.error("Authorization: Bearer abcdefgh12345678");',
-    'throw new Error("secret Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5");',
     'console.log("The password is hunter2");',
-    'console.log("The password is hunter");',
-    'console.log("The password is secret");',
-    'console.log("The token is key");',
-    'console.log("password: secret");',
-    'console.log("The password is not secret");',
-    'throw new Error("token is swordfish");',
-    'throw new Error("the secret is correcthorsebattery");',
-    'console.log("password: hunter two");',
+    'console.log("password model");',
     'console.log("password: hunter2");',
-    'console.log("password: swordfish");',
-    'console.log("token: abc123");',
-    'console.log("password: correcthorse");',
     'console.log("password: model");',
-    'console.log("token: check");',
-    'console.log("API key: please");',
+    'console.log("API key missing!");',
+    'console.log("API key missing");',
+    'console.error("No API token is configured.");',
+    'throw new Error("Missing RONDA_MODEL_API_KEY; see docs/adoption/ronda-review-adoption.md.");',
+    'throw new Error("no model credential is configured; see RONDA_MODEL_API_KEY.");',
+    'throw new Error("No model credential is configured; see RONDA_MODEL_API_KEY");',
+    'throw new Error("No model credential is configured; see RONDA_MODEL_API_KEY. extra");',
   ]) {
     assert.equal(lineNamesCredentialWithoutValue(line), false, line);
   }
 });
 
-test("lineNamesCredentialWithoutValue: a sole fixed literal in a log call is suppressed", () => {
-  assert.equal(lineNamesCredentialWithoutValue('console.error("No API token is configured.");'), true);
-});
-
-test("lineNamesCredentialWithoutValue: positively recognised credential-name-only messages are suppressed", () => {
+test("lineNamesCredentialWithoutValue: only the enumerated Ronda templates are suppressed", () => {
   for (const line of [
-    'console.log("API key missing");',
-    'console.log("password: missing");',
-    'console.log("API key: missing");',
-    'console.log("token: not set");',
-    'throw new Error("Authentication failed: token expired.");',
-    'logger.warn("The password is not set")',
-    'throw new Error("Missing RONDA_MODEL_API_KEY; see docs/adoption/ronda-review-adoption.md.");',
+    'throw new Error("No model credential is configured; see docs/adoption/ronda-review-adoption.md.");',
+    "console.error('No model credential is configured; see RONDA_MODEL_API_KEY.');",
+    'console.error( " No model credential is configured; see RONDA_MODEL_API_KEY. " );',
   ]) {
     assert.equal(lineNamesCredentialWithoutValue(line), true, line);
   }

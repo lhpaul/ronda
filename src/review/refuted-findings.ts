@@ -87,91 +87,28 @@ function splitStringLiterals(line: string): { code: string; literals: string[] }
 const HARMLESS_CODE =
   /^\s*(?:(?:return|throw|raise)\s+)?(?:new\s+)?(?:(?:[A-Za-z_]\w*)?Error|Exception|(?:console|logger|log|logging)\.(?:log|info|warn|warning|error|debug)|print|println)\s*\(\s*(["'`])\1\s*\)\s*[;,)}]*\s*$/;
 
-/** Words that may only NAME a credential; never allowed in a value position. */
-const CREDENTIAL_NOUNS = new Set([
-  "credential", "credentials", "secret", "secrets", "token", "tokens", "password", "passwords",
-  "passphrase", "passphrases", "key", "keys", "api", "auth", "authentication", "authorization",
-  "apikey",
-]);
-/** Credential nouns that may directly precede another one (`API key`, `auth token`). */
-const CREDENTIAL_MODIFIERS = new Set(["api", "auth", "authentication", "authorization"]);
-/** Closed status/predicate set: what a message may say about a credential. */
-const STATUS_WORDS = new Set([
-  "missing", "not", "no", "set", "unset", "required", "invalid", "expired", "configured", "empty",
-  "failed", "failure", "rejected", "unavailable", "found", "provided", "supplied", "defined",
-  "specified", "present", "valid", "absent",
-]);
-/** Neutral function words and message vocabulary. */
-const NEUTRAL_WORDS = new Set([
-  "model", "see", "please", "check", "your", "add", "use", "the", "a", "an", "for", "in", "to",
-  "from", "of", "on", "or", "and", "with", "this", "that", "it", "has", "have", "been", "must",
-  "cannot", "can", "need", "needed", "error", "access", "login", "bearer", "env", "environment",
-  "variable", "config", "configuration", "value", "when", "if", "before", "after", "run",
-]);
-/** Copulas: everything after one is the predicate, so it must be status words only. */
-const COPULAS = new Set(["is", "are", "was", "be"]);
-/** An environment-variable name that itself names a credential, e.g. RONDA_MODEL_API_KEY. */
-const CREDENTIAL_ENV_NAME = /^[A-Z]+(?:_[A-Z]+)*_(?:API_KEY|KEY|TOKEN|SECRET|PASSWORD|CREDENTIALS?)$/;
-/** A letters-only relative document path, e.g. docs/adoption/ronda-review-adoption.md. */
-const DOC_PATH = /^[a-z][a-z/-]*[a-z]\.(?:md|json|ya?ml)$/;
-const MAX_MESSAGE_LENGTH = 120;
-
 /**
- * Positive recognition: the literal is prose whose every word comes from a
- * closed vocabulary of credential-meta and neutral function words (plus a
- * credential env-var name or a letters-only doc path), has no digits, no `=`,
- * and only spaces and light punctuation, and names a credential at least once.
- * Anything else (an unknown word such as a candidate value) is ambiguous.
+ * The closed set of Ronda-owned fixed messages that name a credential and
+ * point to configuration, with no value. A literal is suppressed only when it
+ * equals one of these exactly (case-sensitive, after trimming); there are no
+ * free slots, word lists, or patterns. Intentionally narrow: any other
+ * literal, however harmless it looks, is kept.
  */
-function literalIsCredentialNameOnlyMessage(literal: string): boolean {
-  if (literal.length === 0 || literal.length > MAX_MESSAGE_LENGTH) return false;
-  if (!/^[A-Za-z_/. ;:,!-]+$/.test(literal)) return false;
-  let namesCredential = false;
-  let afterCopula = false;
-  let previousCredential: string | undefined;
-  for (const raw of literal.split(/\s+/).filter((t) => t.length > 0)) {
-    const token = raw.replace(/[.,;:!]+$/, "");
-    if (token.length === 0) return false;
-    const isEnvName = CREDENTIAL_ENV_NAME.test(token);
-    const word = token.toLowerCase();
-    if (isEnvName || CREDENTIAL_NOUNS.has(word)) {
-      // A credential noun in the predicate (`is secret`) or directly after
-      // another one (`password: secret`) could be the value itself.
-      if (afterCopula) return false;
-      if (previousCredential !== undefined && !CREDENTIAL_MODIFIERS.has(previousCredential)) return false;
-      previousCredential = isEnvName ? token : word;
-      namesCredential = true;
-      // `password: <x>` and `password is <x>` alike: whatever follows is the
-      // predicate and must be status words only, never an ordinary word that
-      // could itself be the value.
-      if (/:$/.test(raw)) afterCopula = true;
-      continue;
-    }
-    previousCredential = undefined;
-    if (DOC_PATH.test(token)) continue;
-    if (COPULAS.has(word)) {
-      afterCopula = true;
-    } else if (afterCopula) {
-      if (!STATUS_WORDS.has(word) && word !== "been" && word !== "a" && word !== "an" && word !== "the") return false;
-      if (/[.;]$/.test(raw)) afterCopula = false; // clause boundary ends the predicate
-    } else if (!STATUS_WORDS.has(word) && !NEUTRAL_WORDS.has(word)) {
-      return false;
-    }
-  }
-  return namesCredential;
-}
+const NAMED_CREDENTIAL_TEMPLATES: ReadonlySet<string> = new Set([
+  "No model credential is configured; see docs/adoption/ronda-review-adoption.md.",
+  "No model credential is configured; see RONDA_MODEL_API_KEY.",
+]);
 
 /**
- * True when the cited source line is positively recognised as a harmless
- * message: one fixed string literal that is a credential-name-only message
- * (closed vocabulary, see above), passed as the sole argument of an error
- * constructor or log call. Every other expression is retained (fail closed).
+ * True when the cited source line is one fixed string literal that exactly
+ * equals an enumerated Ronda template, passed as the sole argument of an
+ * error constructor or log call. Every other expression is retained.
  */
 export function lineNamesCredentialWithoutValue(line: string): boolean {
   const split = splitStringLiterals(line);
   if (split === undefined || split.literals.length !== 1) return false;
   if (!HARMLESS_CODE.test(split.code)) return false;
-  return literalIsCredentialNameOnlyMessage(split.literals[0] as string);
+  return NAMED_CREDENTIAL_TEMPLATES.has((split.literals[0] as string).trim());
 }
 
 /**
