@@ -158,3 +158,79 @@ export async function findExistingRondaReview(
   }
   return null;
 }
+
+const RESOLVED_THREADS_QUERY = `
+query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          isResolved
+          path
+          comments(first: 1) { nodes { body } }
+        }
+      }
+    }
+  }
+}`;
+
+interface ReviewThreadsPage {
+  repository: {
+    pullRequest: {
+      reviewThreads: {
+        pageInfo: { hasNextPage: boolean; endCursor: string | null };
+        nodes: Array<{
+          isResolved: boolean;
+          path: string;
+          comments: { nodes: Array<{ body: string }> };
+        }>;
+      };
+    } | null;
+  } | null;
+}
+
+/** Hard page cap so a pathological thread count cannot stall a pass. */
+const MAX_THREAD_PAGES = 5;
+
+/**
+ * First-comment bodies of every resolved review thread (#158). Callers filter
+ * to Ronda-shaped bodies; this reads only resolved threads' first comment.
+ */
+export async function readResolvedReviewThreads(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  pullNumber: number,
+  signal?: AbortSignal,
+): Promise<Array<{ path: string; body: string }>> {
+  const out: Array<{ path: string; body: string }> = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < MAX_THREAD_PAGES; page += 1) {
+    const data: ReviewThreadsPage = await withAbortMapping(
+      () =>
+        withRetry(
+          () =>
+            octokit.graphql<ReviewThreadsPage>(RESOLVED_THREADS_QUERY, {
+              owner,
+              repo,
+              number: pullNumber,
+              cursor,
+              request: { signal },
+            }),
+          undefined,
+          signal,
+        ),
+      signal,
+    );
+    const threads = data.repository?.pullRequest?.reviewThreads;
+    if (!threads) break;
+    for (const node of threads.nodes) {
+      const body = node.comments.nodes[0]?.body;
+      if (node.isResolved && body !== undefined) out.push({ path: node.path, body });
+    }
+    if (!threads.pageInfo.hasNextPage) break;
+    cursor = threads.pageInfo.endCursor;
+  }
+  return out;
+}

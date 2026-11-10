@@ -52,6 +52,11 @@ import {
   resolveDurabilityMode,
   type DurabilityModeResolution,
 } from "../review/durability-mode.js";
+import {
+  filterNamedCredentialFindings,
+  filterResolvedThreadFindings,
+  type SuppressedFinding,
+} from "../review/refuted-findings.js";
 import { RepositoryFileUnusableError } from "../github/repo-content-reader.js";
 import {
   applyRepositoryContextBudgets,
@@ -579,6 +584,20 @@ export async function runReviewPass(
                 !isPathExcluded(finding.path, deps.config.excludePathGlobs),
             ),
     };
+    // #158: drop findings a maintainer would only refute by hand — a
+    // credential claim against a fixed string that merely names the
+    // credential, and a repeat of a claim already resolved on this path. Both
+    // are deterministic, fail open, and run before classification so the sweep
+    // record, summary, and counts describe only what is published.
+    const suppressed = await suppressRefutedFindings(parsed.findings, changedFiles, input, deps, deadline.signal);
+    parsed.findings = suppressed.kept;
+    if (suppressed.dropped.length > 0) {
+      deps.logger.event("findings_suppressed", {
+        headSha: pr.headSha,
+        count: suppressed.dropped.length,
+        byReason: countByReason(suppressed.dropped),
+      });
+    }
     if (sweepList) {
       // Set the moment this returns, independently of any GitHub call below.
       classification = classifyFindings(parsed.findings, sweepList);
@@ -881,6 +900,42 @@ function mapErrorToFailureReason(error: unknown, deadlineExpired: boolean): Fail
     return "timed_out";
   }
   return "unexpected_error";
+}
+
+function countByReason(dropped: SuppressedFinding[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const { reason } of dropped) counts[reason] = (counts[reason] ?? 0) + 1;
+  return counts;
+}
+
+async function suppressRefutedFindings(
+  findings: Finding[],
+  changedFiles: ChangedFile[],
+  input: ReviewPassInput,
+  deps: ReviewPassDeps,
+  signal: AbortSignal,
+): Promise<{ kept: Finding[]; dropped: SuppressedFinding[] }> {
+  const named = filterNamedCredentialFindings(findings, changedFiles);
+  let kept = named.kept;
+  let dropped = named.suppressed;
+  if (kept.length > 0 && deps.github.readResolvedRondaThreads) {
+    try {
+      const resolved = await deps.github.readResolvedRondaThreads(
+        input.owner,
+        input.repo,
+        input.pullNumber,
+        signal,
+      );
+      const deduped = filterResolvedThreadFindings(kept, resolved);
+      kept = deduped.kept;
+      dropped = [...dropped, ...deduped.suppressed];
+    } catch (error) {
+      // A timeout belongs to the pass deadline; anything else fails open.
+      if (error instanceof GithubClientError) throw error;
+      deps.logger.event("resolved_thread_dedupe_unavailable", {});
+    }
+  }
+  return { kept, dropped };
 }
 
 function renderFindingBody(finding: Finding): string {

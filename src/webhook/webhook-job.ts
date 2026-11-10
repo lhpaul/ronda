@@ -14,6 +14,7 @@ import { publishReview } from "../github/review-publisher.js";
 import {
   findExistingCheckRun,
   readChangedFiles,
+  readResolvedReviewThreads,
   readPullRequest,
 } from "../github/pull-request-reader.js";
 import { readRepositoryFileAtRef } from "../github/repo-content-reader.js";
@@ -204,6 +205,14 @@ export async function runWebhookReviewJob(
         findExistingCheckRun(installationClient.octokit, o, r, sha, combinedSignal, options),
       );
     },
+    readResolvedRondaThreads: (o, r, n, requestSignal) =>
+      readResolvedReviewThreads(
+        installationClient.octokit,
+        o,
+        r,
+        n,
+        combineAbortSignals(requestSignal, signal),
+      ),
     publishReview: (reviewInput, requestSignal) =>
       publishReview(
         installationClient.octokit,

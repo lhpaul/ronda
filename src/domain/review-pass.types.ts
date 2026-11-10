@@ -179,6 +179,17 @@ export interface GithubOperations {
     headSha: string,
     signal?: AbortSignal,
   ): Promise<number | null>;
+  /**
+   * Prior Ronda inline comments whose review thread a maintainer resolved
+   * (#158). Optional and best-effort: an absent method, or one that throws,
+   * disables the resolved-thread dedupe and never fails the pass.
+   */
+  readResolvedRondaThreads?(
+    owner: string,
+    repo: string,
+    pullNumber: number,
+    signal?: AbortSignal,
+  ): Promise<Array<{ path: string; body: string }>>;
   publishReview(input: PublishReviewInput, signal?: AbortSignal): Promise<void>;
   publishCheckRun(input: PublishCheckRunInput, signal?: AbortSignal): Promise<void>;
 }
