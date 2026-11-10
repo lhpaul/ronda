@@ -24,7 +24,8 @@ default model, and it fails open.
    word. An unknown word (for example a candidate value, as in `"The password
    is hunter2"`) keeps the finding. Credential nouns (`password`, `token`,
    `secret`, `key`, ...) may only name the credential: after a copula
-   (`is`/`are`/`was`/`be`) only a closed status set (`missing`, `not`, `set`,
+   (`is`/`are`/`was`/`be`) or after a colon that follows a credential noun
+   (`password: missing`) only a closed status set (`missing`, `not`, `set`,
    `unset`, `expired`, `configured`, `failed`, ...) is allowed, and a
    credential noun may not directly follow another (except modifiers such as
    `API`), so `"The password is secret"` and `"password: secret"` keep the

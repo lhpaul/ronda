@@ -141,6 +141,10 @@ function literalIsCredentialNameOnlyMessage(literal: string): boolean {
       if (previousCredential !== undefined && !CREDENTIAL_MODIFIERS.has(previousCredential)) return false;
       previousCredential = isEnvName ? token : word;
       namesCredential = true;
+      // `password: <x>` and `password is <x>` alike: whatever follows is the
+      // predicate and must be status words only, never an ordinary word that
+      // could itself be the value.
+      if (/:$/.test(raw)) afterCopula = true;
       continue;
     }
     previousCredential = undefined;

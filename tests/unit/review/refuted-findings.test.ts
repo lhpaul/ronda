@@ -63,6 +63,13 @@ test("lineNamesCredentialWithoutValue: a hardcoded credential-looking value insi
     'throw new Error("token is swordfish");',
     'throw new Error("the secret is correcthorsebattery");',
     'console.log("password: hunter two");',
+    'console.log("password: hunter2");',
+    'console.log("password: swordfish");',
+    'console.log("token: abc123");',
+    'console.log("password: correcthorse");',
+    'console.log("password: model");',
+    'console.log("token: check");',
+    'console.log("API key: please");',
   ]) {
     assert.equal(lineNamesCredentialWithoutValue(line), false, line);
   }
@@ -75,6 +82,9 @@ test("lineNamesCredentialWithoutValue: a sole fixed literal in a log call is sup
 test("lineNamesCredentialWithoutValue: positively recognised credential-name-only messages are suppressed", () => {
   for (const line of [
     'console.log("API key missing");',
+    'console.log("password: missing");',
+    'console.log("API key: missing");',
+    'console.log("token: not set");',
     'throw new Error("Authentication failed: token expired.");',
     'logger.warn("The password is not set")',
     'throw new Error("Missing RONDA_MODEL_API_KEY; see docs/adoption/ronda-review-adoption.md.");',
