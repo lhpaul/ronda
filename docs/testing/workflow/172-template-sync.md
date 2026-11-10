@@ -30,17 +30,31 @@ Upstream #2005 (durable atomic writes and recovery fsync) is included in v0.50.0
 
 ## Gate consistency and isolating violation proof
 
-The changed or new gates are upstream v0.50.0 code, identical to the pinned template except where noted. Each gate below has one isolating source mutation (a planted violation) applied to the working tree, the named suite run, the file restored byte-for-byte and the suite rerun. Mutations were confined to the disposable working tree at runtime commit `0e52d9e`; the proof record is [`172-planted-proof.json`](172-planted-proof.json).
+The changed or new gates are upstream v0.50.0 code, identical to the pinned template except where noted. Each listed assertion has one isolating source mutation (a planted violation) applied to the working tree, the named suite run, the file restored byte-for-byte and the suite rerun. Mutations were confined to the disposable working tree at runtime commit `0e52d9e`; the proof record is [`172-planted-proof.json`](172-planted-proof.json).
 
 | Gate | Source line | Plant (predicate → mutation) | Planted result | Restored |
 | --- | --- | --- | --- | --- |
-| hotfix review enforcement | `.github/workflows/pr-policy.yml:286` | `[[ "${BRANCH:-}" == hotfix/* ]] && [ "$LATEST_SUMMARY_RESULT" = "skipp` → `[[ "${BRANCH:-}" == nohotfix/* ]] && [ "` | `test-reviewer-loop-guard-workflow.sh` exit 1: FAIL: hotfix_skipped_release_summary_fails - expected 'failure', got 'success' | exit 0 |
-| stage-role denial: no resume after repeated denial | `scripts/development-workflow/stage-role-denial-decision.py:46` | `and not event.get('denied_again', False))` → `and True)` | `test-stage-role-permission-denial.sh` exit 1: AssertionError | exit 0 |
-| evidence proof request binding | `scripts/development-workflow/review-evidence-context.py:181` | `or proof["request_id"] != request_id` → `or False` | `test-review-evidence-context.sh` exit 1: FAIL: test_unknown_self_empty_duplicate_or_malformed_proof_is_rejected (__main__.EvidenceT | exit 0 |
-| evidence freshness (snapshot currency) | `scripts/development-workflow/review-evidence-context.py:114` | `or current["snapshot_sha256"] != context.get("snapshot_sha256")):` → `or False):` | `test-review-evidence-context.sh` exit 1: FAIL: test_manifest_missing_malformed_and_wrong_binding_are_explicit (__main__.EvidenceTes | exit 0 |
-| hub worker product repository probe | `scripts/development-workflow/hub-worker-preflight.py:181` | `for product in products:
-        github_probe(product["repo"], product` → `pass` | `test-hub-worker-preflight.sh` exit 1: FAIL: test_auth_and_repository_failure (__main__.WorkerPreflightTests.test_auth_and_reposi | exit 0 |
-| retry attempt identity binding (history) | `scripts/development-workflow/reviewer-loop-history.py:68` | `if bindings.setdefault(attempt["id"], binding) != binding:` → `if False:` | `test-reviewer-loop-history.sh` exit 1: KeyError: 'history_status' | exit 0 |
+| hotfix review enforcement | `pr-policy.yml:286` | `[[ "${BRANCH:-}" == hotfix/* ]] && [ "$LATEST_SUMMARY_RESULT` → `[[ "${BRANCH:-}" == nohotfix/*` | `test-reviewer-loop-guard-workflow.sh` exit 1 | exit 0 |
+| stage-role denial: no resume after repeated denial | `stage-role-denial-decision.py:46` | `and not event.get('denied_again', False))` → `and True)` | `test-stage-role-permission-denial.sh` exit 1 | exit 0 |
+| evidence proof request binding | `review-evidence-context.py:181` | `or proof["request_id"] != request_id` → `or False` | `test-review-evidence-context.sh` exit 1 | exit 0 |
+| evidence freshness (snapshot currency) | `review-evidence-context.py:114` | `or current["snapshot_sha256"] != context.get("snapshot_sha25` → `or False):` | `test-review-evidence-context.sh` exit 1 | exit 0 |
+| hub worker product repository probe | `hub-worker-preflight.py:181` | `for product in products:
+        github_probe(product["repo"` → `pass` | `test-hub-worker-preflight.sh` exit 1 | exit 0 |
+| retry attempt identity binding (history) | `reviewer-loop-history.py:68` | `if bindings.setdefault(attempt["id"], binding) != binding:` → `if False:` | `test-reviewer-loop-history.sh` exit 1 | exit 0 |
+| hub preflight: canonical run id | `hub-worker-preflight.py:159` | `if str(uuid.UUID(value)) != value:` → `if False:` | `test-hub-worker-preflight.sh` exit 1 | exit 0 |
+| hub preflight: timestamp ordering | `hub-worker-preflight.py:209` | `if not start <= selected <= invoked <= checked <= now:` → `if False:` | `test-hub-worker-preflight.sh` exit 1 | exit 0 |
+| hub preflight: result bound to run id | `hub-worker-preflight.py:212` | `or evidence["run_id"] != rid` → `or False` | `test-hub-worker-preflight.sh` exit 1 | exit 0 |
+| hub preflight: product set binding | `hub-worker-preflight.py:230` | `or sorted(actual) != sorted(expected)` → `or False` | `test-hub-worker-preflight.sh` exit 1 | exit 0 |
+| evidence proof: schema | `review-evidence-context.py:177` | `or proof.get("schema") != PROOF_SCHEMA` → `or False` | `test-review-evidence-context.sh` exit 1 | exit 0 |
+| evidence proof: status verified | `review-evidence-context.py:179` | `if (proof.get("status") != "verified"` → `if (False` | `test-review-evidence-context.sh` exit 1 | exit 0 |
+| evidence proof: snapshot binding | `review-evidence-context.py:182` | `or proof.get("snapshot_sha256") != canonical["snapshot_sha25` → `or False):` | `test-review-evidence-context.sh` exit 1 | exit 0 |
+| evidence proof: sources non-empty/unique | `review-evidence-context.py:187` | `or len(set(sources)) != len(sources)):` → `or False):` | `test-review-evidence-context.sh` exit 1 | exit 0 |
+| evidence proof: request cannot cite itself | `review-evidence-context.py:194` | `if ident == request_id or not comments.get(ident, "").strip(` → `if not comments.get(ident, "")` | `test-review-evidence-context.sh` exit 1 | exit 0 |
+| evidence freshness: repository/PR/head identity | `review-evidence-context.py:116` | `if any(previous.get(k) != current[k] for k in ("repository",` → `if False:` | `test-review-evidence-context.sh` exit 1 | exit 0 |
+| hub preflight: hub repository id binding | `hub-worker-preflight.py:229` | `if (evidence["hub_repo_id"] != digest(hub_slug) or` → `if (False or` | `test-hub-worker-preflight.sh` exit 1 | exit 0 |
+| hub preflight: hub checkout id binding | `hub-worker-preflight.py:229` | `or evidence["hub_checkout_id"] != digest(str(hub))` → `or False` | `test-hub-worker-preflight.sh` exit 1 | exit 0 |
+
+Not isolated by the upstream suites: the `config_id` binding (`hub-worker-preflight.py:230`) survives its mutation, so that one assertion has no isolating proof here. It is an upstream coverage gap in unmodified upstream code, reported rather than hidden. The remaining upstream assertions are byte-identical to the pinned template and are exercised by the upstream suites, which passed in full; this sync adds no Ronda change to them.
 
 ### Decision-gate consistency matrix
 

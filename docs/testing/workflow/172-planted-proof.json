@@ -87,6 +87,177 @@
     "FAILED (errors=1)"
    ],
    "restored_exit": 0
+  },
+  {
+   "gate": "hub preflight: canonical run id",
+   "source": "scripts/development-workflow/hub-worker-preflight.py",
+   "line": 159,
+   "predicate": "if str(uuid.UUID(value)) != value:",
+   "mutation": "if False:",
+   "suite": "scripts/development-workflow/tests/test-hub-worker-preflight.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: test_empty_and_whitespace_arguments_are_rejected_safely (__main__.WorkerPreflightTests.test_empty_and_whitespace_arguments_are_rejected_safely)",
+    "AssertionError: 0 == 0"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "hub preflight: timestamp ordering",
+   "source": "scripts/development-workflow/hub-worker-preflight.py",
+   "line": 209,
+   "predicate": "if not start <= selected <= invoked <= checked <= now:",
+   "mutation": "if False:",
+   "suite": "scripts/development-workflow/tests/test-hub-worker-preflight.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: test_result_completeness_freshness_and_origin (__main__.WorkerPreflightTests.test_result_completeness_freshness_and_origin)",
+    "AssertionError: 0 != 1"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "hub preflight: result bound to run id",
+   "source": "scripts/development-workflow/hub-worker-preflight.py",
+   "line": 212,
+   "predicate": "or evidence[\"run_id\"] != rid",
+   "mutation": "or False",
+   "suite": "scripts/development-workflow/tests/test-hub-worker-preflight.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: test_result_completeness_freshness_and_origin (__main__.WorkerPreflightTests.test_result_completeness_freshness_and_origin)",
+    "AssertionError: 0 != 1"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "hub preflight: product set binding",
+   "source": "scripts/development-workflow/hub-worker-preflight.py",
+   "line": 230,
+   "predicate": "or sorted(actual) != sorted(expected)",
+   "mutation": "or False",
+   "suite": "scripts/development-workflow/tests/test-hub-worker-preflight.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: test_result_completeness_freshness_and_origin (__main__.WorkerPreflightTests.test_result_completeness_freshness_and_origin)",
+    "AssertionError: 0 != 1"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "evidence proof: schema",
+   "source": "scripts/development-workflow/review-evidence-context.py",
+   "line": 177,
+   "predicate": "or proof.get(\"schema\") != PROOF_SCHEMA",
+   "mutation": "or False",
+   "suite": "scripts/development-workflow/tests/test-review-evidence-context.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: test_unknown_self_empty_duplicate_or_malformed_proof_is_rejected (__main__.EvidenceTests.test_unknown_self_empty_duplicate_or_malformed_proof_is_rejected)",
+    "AssertionError: True is not false"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "evidence proof: status verified",
+   "source": "scripts/development-workflow/review-evidence-context.py",
+   "line": 179,
+   "predicate": "if (proof.get(\"status\") != \"verified\"",
+   "mutation": "if (False",
+   "suite": "scripts/development-workflow/tests/test-review-evidence-context.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: test_unknown_self_empty_duplicate_or_malformed_proof_is_rejected (__main__.EvidenceTests.test_unknown_self_empty_duplicate_or_malformed_proof_is_rejected)",
+    "AssertionError: True is not false"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "evidence proof: snapshot binding",
+   "source": "scripts/development-workflow/review-evidence-context.py",
+   "line": 182,
+   "predicate": "or proof.get(\"snapshot_sha256\") != canonical[\"snapshot_sha256\"]):",
+   "mutation": "or False):",
+   "suite": "scripts/development-workflow/tests/test-review-evidence-context.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: test_evidence_edit_delete_and_identity_change_invalidate_proof (__main__.EvidenceTests.test_evidence_edit_delete_and_identity_change_invalidate_proof)",
+    "AssertionError: True is not false : body"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "evidence proof: sources non-empty/unique",
+   "source": "scripts/development-workflow/review-evidence-context.py",
+   "line": 187,
+   "predicate": "or len(set(sources)) != len(sources)):",
+   "mutation": "or False):",
+   "suite": "scripts/development-workflow/tests/test-review-evidence-context.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: test_unknown_self_empty_duplicate_or_malformed_proof_is_rejected (__main__.EvidenceTests.test_unknown_self_empty_duplicate_or_malformed_proof_is_rejected)",
+    "AssertionError: True is not false : ['comment:20', 'comment:20']"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "evidence proof: request cannot cite itself",
+   "source": "scripts/development-workflow/review-evidence-context.py",
+   "line": 194,
+   "predicate": "if ident == request_id or not comments.get(ident, \"\").strip():",
+   "mutation": "if not comments.get(ident, \"\").strip():",
+   "suite": "scripts/development-workflow/tests/test-review-evidence-context.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: test_unknown_self_empty_duplicate_or_malformed_proof_is_rejected (__main__.EvidenceTests.test_unknown_self_empty_duplicate_or_malformed_proof_is_rejected)",
+    "AssertionError: True is not false : ['comment:10']"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "evidence freshness: repository/PR/head identity",
+   "source": "scripts/development-workflow/review-evidence-context.py",
+   "line": 116,
+   "predicate": "if any(previous.get(k) != current[k] for k in (\"repository\", \"pr_number\", \"head_sha\")):",
+   "mutation": "if False:",
+   "suite": "scripts/development-workflow/tests/test-review-evidence-context.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "FAIL: test_manifest_missing_malformed_and_wrong_binding_are_explicit (__main__.EvidenceTests.test_manifest_missing_malformed_and_wrong_binding_are_explicit)",
+    "AssertionError: 'unchanged' != 'identity_mismatch'"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "gate": "hub preflight: hub repository id binding",
+   "source": "scripts/development-workflow/hub-worker-preflight.py",
+   "line": 229,
+   "predicate": "if (evidence[\"hub_repo_id\"] != digest(hub_slug) or",
+   "mutation": "if (False or",
+   "suite": "scripts/development-workflow/tests/test-hub-worker-preflight.sh",
+   "planted_exit": 1,
+   "planted_observed": [],
+   "restored_exit": 0
+  },
+  {
+   "gate": "hub preflight: hub checkout id binding",
+   "source": "scripts/development-workflow/hub-worker-preflight.py",
+   "line": 229,
+   "predicate": "or evidence[\"hub_checkout_id\"] != digest(str(hub))",
+   "mutation": "or False",
+   "suite": "scripts/development-workflow/tests/test-hub-worker-preflight.sh",
+   "planted_exit": 1,
+   "planted_observed": [],
+   "restored_exit": 0
+  }
+ ],
+ "not_isolated_by_existing_suites": [
+  {
+   "gate": "hub preflight: configuration binding",
+   "source": "scripts/development-workflow/hub-worker-preflight.py",
+   "line": 230,
+   "predicate": "or evidence[\"config_id\"] != config_id",
+   "note": "mutation not detected by the upstream suite; upstream coverage gap, not introduced by this sync"
   }
  ]
 }
