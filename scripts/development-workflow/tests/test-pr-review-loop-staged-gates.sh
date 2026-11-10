@@ -54,6 +54,14 @@ if [ ! -f "$_prl_harness" ]; then
 fi
 # shellcheck source=scripts/development-workflow/tests/lib/pr-review-loop-harness.sh
 source "$_prl_harness" "$@"
+# Synthetic current evidence for current-head staging. Legacy rows without a
+# fingerprint are tested separately and cannot establish current evidence.
+_2061_install_snapshot_stub() {
+  workflow_collect_review_evidence() {
+    printf '%s\n' '{"snapshot_sha256":"synthetic-current"}' >"$4"
+  }
+}
+_2061_install_snapshot_stub
 unset _prl_harness
 
 # Carried state. In the single-file harness, Area 13 exported this for every
@@ -318,6 +326,7 @@ run_test "1649_s10_empty" "deferred|baseline_checks_unobserved" "$(_1649_checks_
 # --- Scenario 10 real helper (no stub): parse rollup, exclude reviewer checks ---
 unset -f expensive_gate_baseline_checks_status
 HARNESS_MODE=1 source "$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh"
+_2061_install_snapshot_stub
 expensive_gate_unresolved_threads_status() { printf 'ok 0 %s\n' "$_1649_head"; }
 # Pin harness mock + clear command hash; earlier areas may leave a different gh
 # ahead on PATH or hashed from a temporary mock dir that was later removed.
@@ -721,6 +730,7 @@ echo "=== Area 1655 complete ==="
 echo "=== Area 1651: missed-finding telemetry ==="
 
 HARNESS_MODE=1 source "$REPO_ROOT/scripts/development-workflow/pr-review-loop.sh"
+_2061_install_snapshot_stub
 
 # Fixed 40-hex SHAs — harness git is mocked and rejects real rev-parse.
 # Ancestry relationships are stubbed below for evidence-state cases; real
@@ -1198,7 +1208,7 @@ _1656_hist_clean_same() {
     schema: "reviewer_loop_history.v1",
     entries: [{
       iteration: 1,
-      platform_results: [{platform: "local-ai-reviewer", result: "clean", raw_result: "clean", raw_reason: ""}],
+      platform_results: [{platform: "local-ai-reviewer", evidence_snapshot_sha256: "synthetic-current", result: "clean", raw_result: "clean", raw_reason: ""}],
       reviewed_heads: [{platform: "local-ai-reviewer", reviewed_head: $head, classification: "current"}]
     }]
   }'
@@ -1209,7 +1219,7 @@ _1656_hist_clean_ancestor() {
     schema: "reviewer_loop_history.v1",
     entries: [{
       iteration: 1,
-      platform_results: [{platform: "local-ai-reviewer", result: "clean", raw_result: "clean", raw_reason: ""}],
+      platform_results: [{platform: "local-ai-reviewer", evidence_snapshot_sha256: "synthetic-current", result: "clean", raw_result: "clean", raw_reason: ""}],
       reviewed_heads: [{platform: "local-ai-reviewer", reviewed_head: $head, classification: "current"}]
     }]
   }'
@@ -1450,7 +1460,7 @@ _1656_guard_hist_clean="$(jq -nc --arg head "$_1656_guard_head" '{
   schema: "reviewer_loop_history.v1",
   entries: [{
     iteration: 1,
-    platform_results: [{platform: "local-ai-reviewer", result: "clean", raw_result: "clean", raw_reason: ""}],
+    platform_results: [{platform: "local-ai-reviewer", evidence_snapshot_sha256: "synthetic-current", result: "clean", raw_result: "clean", raw_reason: ""}],
     reviewed_heads: [{platform: "local-ai-reviewer", reviewed_head: $head, classification: "current"}]
   }]
 }')"
@@ -1508,6 +1518,10 @@ gh() {
 _1656_reset_guard_globals() {
   retry_local_review_head=""
   local_review_retry_head_record=""
+  # shellcheck disable=SC2034 # Consumed by the production history writer.
+  local_review_retry_attempt_json=null
+  # shellcheck disable=SC2034 # Binds the synthetic reserved attempt metadata.
+  current_run_id="run-synthetic"
   phase_after_clean_enabled=1
   phase_after_clean_started=0
   local_second_pass=0
@@ -1793,12 +1807,27 @@ _2045_infra_hist="$(printf '%s' "$_1656_guard_hist_failed" | jq '.entries[0].rea
 _1656_reset_guard_globals
 _1656_guard_hist_payload="$_2045_infra_hist"
 retry_local_review_head="$_1656_guard_head"
+local_review_retry_head_record="$_1656_guard_head"
+local_review_retry_attempt_json="$(jq -cn --arg head "$_1656_guard_head" '{id:"00000000-0000-4000-8000-000000000001",head_sha:$head,run_id:"run-synthetic"}')"
 reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
 run_test "2045_retry_clean_proceeds" "0" "$_st"
 run_test "2045_retry_dispatches" "1" "$local_second_pass"
 run_test "2045_retry_consumed" "" "$retry_local_review_head"
 run_test "2045_retry_audit_head" "$_1656_guard_head" "$local_review_retry_head_record"
 run_test "2045_retry_does_not_erase_failure" "1" \
+  "$(reviewer_loop_local_second_pass_failed_for_head "$_1656_guard_hist_payload" "$_1656_guard_head")"
+
+# #2061: a persisted finding can be reviewed again on the identical SHA;
+# only the fresh reviewer result resolves it, and prior history remains.
+_1656_reset_guard_globals
+_1656_guard_hist_payload="$(printf '%s' "$_2045_infra_hist" | jq '.entries[0].result="needs_fixes"')"
+retry_local_review_head="$_1656_guard_head"
+local_review_retry_head_record="$_1656_guard_head"
+local_review_retry_attempt_json="$(jq -cn --arg head "$_1656_guard_head" '{id:"00000000-0000-4000-8000-000000000002",head_sha:$head,run_id:"run-synthetic"}')"
+reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
+run_test "2061_same_sha_findings_retry_fresh_review" 0 "$_st"
+run_test "2061_same_sha_findings_retry_dispatches" 1 "$local_second_pass"
+run_test "2061_same_sha_findings_retry_preserves_history" 1 \
   "$(reviewer_loop_local_second_pass_failed_for_head "$_1656_guard_hist_payload" "$_1656_guard_head")"
 
 # The consumed authorization cannot be reused, even within the same process.
@@ -1808,7 +1837,7 @@ reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
 run_test "2045_retry_one_use" "1" "$_st"
 run_test "2045_retry_one_use_reason" "failed_for_head" "$aggregate_reason"
 
-for _2045_case in wrong_head findings ambiguous unavailable moved unreadable failed skipped missing_reviewed_head; do
+for _2045_case in wrong_head ambiguous unavailable moved unreadable failed skipped missing_reviewed_head; do
   _1656_reset_guard_globals
   _1656_guard_hist_payload="$_2045_infra_hist"
   retry_local_review_head="$_1656_guard_head"
@@ -1823,6 +1852,13 @@ for _2045_case in wrong_head findings ambiguous unavailable moved unreadable fai
     skipped) _1656_stub_pass_result="skipped" ;;
     missing_reviewed_head) _1656_stub_pass_result="clean_no_head" ;;
   esac
+  local_review_retry_head_record=""
+  local_review_retry_attempt_json=null
+  if reviewer_loop_local_retry_allowed "$_1656_guard_hist_payload" "$_1656_guard_head"; then
+    local_review_retry_head_record="$_1656_guard_head"
+    # shellcheck disable=SC2034 # Read by the sourced production second-pass guard.
+    local_review_retry_attempt_json="$(jq -cn --arg head "$_1656_guard_head" '{id:"00000000-0000-4000-8000-000000000001",head_sha:$head,run_id:"run-synthetic"}')"
+  fi
   reviewer_loop_second_local_pass_before_ready_gate 1693 && _st=0 || _st=$?
   run_test "2045_${_2045_case}_blocked" "1" "$_st"
   run_test "2045_${_2045_case}_no_ready_phase" "0" "$phase_after_clean_started"
@@ -1834,6 +1870,44 @@ for _2045_case in wrong_head findings ambiguous unavailable moved unreadable fai
   esac
 done
 unset _2045_infra_hist _2045_case
+
+# #2093: recover a retained raw needs_rerun without rewriting legacy history.
+run_test "2093_normalize_needs_rerun" needs_rerun \
+  "$(reviewer_loop_normalize_platform_outcome needs_rerun evidence_changed_during_review)"
+_2093_history="$(jq -cn --arg head "$_1656_guard_head" '{
+  schema:"reviewer_loop_history.v1", entries:[{
+    head_sha:$head, classification_head:$head, result:"needs_rerun",
+    platform_results:[{platform:"local-ai-reviewer", result:"unknown",
+      raw_result:"needs_rerun", raw_reason:"evidence_changed_during_review"}]
+  }]
+}')"
+for _2093_case in legacy normalized unknown missing_raw whitespace_raw wrong_platform wrong_head no_flag unavailable empty malformed aggregate_unknown; do
+  _2093_payload="$_2093_history"
+  retry_local_review_head="$_1656_guard_head"
+  _2093_expected=1
+  case "$_2093_case" in
+    legacy) _2093_expected=0 ;;
+    normalized)
+      _2093_payload="$(printf '%s' "$_2093_payload" | jq '.entries[0].platform_results[0].result="needs_rerun"')"
+      _2093_expected=0 ;;
+    unknown) _2093_payload="$(printf '%s' "$_2093_payload" | jq '.entries[0].platform_results[0].raw_result="unrecognized"')" ;;
+    missing_raw) _2093_payload="$(printf '%s' "$_2093_payload" | jq 'del(.entries[0].platform_results[0].raw_result)')" ;;
+    whitespace_raw) _2093_payload="$(printf '%s' "$_2093_payload" | jq '.entries[0].platform_results[0].raw_result="  "')" ;;
+    wrong_platform) _2093_payload="$(printf '%s' "$_2093_payload" | jq '.entries[0].platform_results[0].platform="pr-agent"')" ;;
+    wrong_head) retry_local_review_head="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" ;;
+    no_flag) unset retry_local_review_head ;;
+    unavailable) _2093_payload="$(printf '%s' "$_2093_payload" | jq '.history_status="unavailable"')" ;;
+    empty) _2093_payload='{"schema":"reviewer_loop_history.v1","entries":[]}' ;;
+    malformed) _2093_payload='{' ;;
+    aggregate_unknown) _2093_payload="$(printf '%s' "$_2093_payload" | jq '.entries[0].result="unknown"')" ;;
+  esac
+  reviewer_loop_local_retry_allowed "$_2093_payload" "$_1656_guard_head" && _st=0 || _st=1
+  run_test "2093_retry_${_2093_case}" "$_2093_expected" "$_st"
+done
+retry_local_review_head=""
+run_test "2093_history_preserved" unknown \
+  "$(printf '%s' "$_2093_history" | jq -r '.entries[0].platform_results[0].result')"
+unset _2093_history _2093_payload _2093_case _2093_expected
 
 # Prior ledger unavailable — close gate before dispatch (P9 / cross-invocation)
 _1656_guard_hist_unavail='{"schema":"reviewer_loop_history.v1","history_status":"unavailable","history_unavailable_reason":"comment_read_failed","entries":[]}'
@@ -2194,7 +2268,7 @@ _1692_hist_one() {
     schema: "reviewer_loop_history.v1",
     entries: [{
       iteration: 1,
-      platform_results: [{platform: $platform, result: $result, raw_result: $result, raw_reason: ""}],
+      platform_results: [{platform: $platform, evidence_snapshot_sha256: "synthetic-current", result: $result, raw_result: $result, raw_reason: ""}],
       reviewed_heads: [{platform: $platform, reviewed_head: $head, state: "current", reason: ""}]
     }]
   }'
@@ -2238,7 +2312,7 @@ _1692_regressed="$(jq -nc --arg head "$_1692_head" '{
   schema: "reviewer_loop_history.v1",
   entries: [
     {iteration: 1,
-     platform_results: [{platform: "pr-agent", result: "clean", raw_result: "clean", raw_reason: ""}],
+     platform_results: [{platform: "pr-agent", evidence_snapshot_sha256: "synthetic-current", result: "clean", raw_result: "clean", raw_reason: ""}],
      reviewed_heads: [{platform: "pr-agent", reviewed_head: $head, state: "current", reason: ""}]},
     {iteration: 2,
      platform_results: [{platform: "pr-agent", result: "needs_fixes", raw_result: "needs_fixes", raw_reason: "blocking"}],
@@ -2266,7 +2340,8 @@ run_test "1692_sE_skipped_is_not_clean" "not_clean" \
   "$(reviewer_loop_platform_clean_for_head "$(_1692_hist_one pr-agent skipped "$_1692_head")" pr-agent "$_1692_head")"
 
 # The replayed verdict carries the same evidence a dispatch would have carried.
-_1692_skip_out="$(reviewer_loop_stage_skip_output "$_1692_head")"
+stage_skip_history_payload="$(_1692_hist_one local-ai-reviewer clean "$_1692_head")"
+_1692_skip_out="$(reviewer_loop_stage_skip_output "$_1692_head" local-ai-reviewer)"
 run_test "1692_sF_skip_output_result" "clean" \
   "$(printf '%s\n' "$_1692_skip_out" | awk -F= '/^RESULT=/{print $2; exit}')"
 run_test "1692_sF_skip_output_reason" "already_clean_current_head" \
@@ -2494,7 +2569,7 @@ _1692_pv_borrowed="$(jq -nc --arg old "$_1692_other" --arg new "$_1692_head" '{
   schema: "reviewer_loop_history.v1",
   entries: [
     {iteration: 1,
-     platform_results: [{platform: "pr-agent", result: "clean", raw_result: "clean", raw_reason: ""}],
+     platform_results: [{platform: "pr-agent", evidence_snapshot_sha256: "synthetic-current", result: "clean", raw_result: "clean", raw_reason: ""}],
      reviewed_heads: [{platform: "pr-agent", reviewed_head: $old, state: "current", reason: ""}]},
     {iteration: 2,
      platform_results: [],
@@ -2512,6 +2587,41 @@ run_test "1692_pv_P2_plant_differs" "different" \
 unset _1692_pv_borrowed
 unset -f _1692_pv_plant_p1_deny_list _1692_pv_plant_p2_any_entry_head 2>/dev/null || true
 
+# #2061: evidence-dependent clean replay must match the current fingerprint.
+run_test "2061_legacy_local_clean_needs_fresh_evidence" no_evidence \
+  "$(reviewer_loop_platform_clean_for_head "$(_1692_hist_one local-ai-reviewer clean "$_1692_head" | jq 'del(.entries[0].platform_results[0].evidence_snapshot_sha256)')" local-ai-reviewer "$_1692_head")"
+run_test "2061_changed_evidence_invalidates_replay" no_evidence \
+  "$(reviewer_loop_platform_clean_for_head "$(_1692_hist_one local-ai-reviewer clean "$_1692_head" | jq '.entries[0].platform_results[0].evidence_snapshot_sha256="old"')" local-ai-reviewer "$_1692_head")"
+run_test "2061_verification_replay_requires_live_trust_check" no_evidence "$(
+  workflow_collect_review_evidence() {
+    printf '%s\n' '{"snapshot_sha256":"synthetic-current","comments":[{"body":"Requires further human verification:"}]}' >"$4"
+  }
+  reviewer_loop_platform_clean_for_head "$(_1692_hist_one pr-agent clean "$_1692_head")" pr-agent "$_1692_head"
+)"
+run_test "2061_replayed_snapshot_persists" synthetic-current \
+  "$(printf '%s' "$_1692_composed" | jq -r '.entries[-1].platform_results[] | select(.platform=="local-ai-reviewer") | .evidence_snapshot_sha256')"
+# #2103: both fresh recording and current-head reuse must carry the original
+# manifest. Replacing it with the live snapshot would conceal post-review edits.
+_1692_reset_processing_globals
+_2103_manifest='{"schema":"review_evidence_manifest.v1","snapshot_sha256":"synthetic-current","comments":[{"id":20,"body_sha256":"baseline"}]}'
+reviewer_loop_process_platform_output local-ai-reviewer 1 "$(printf 'RESULT=clean\nREVIEWED_HEAD=%s\nEVIDENCE_SNAPSHOT_SHA256=synthetic-current\nEVIDENCE_MANIFEST_JSON=%s\n' "$_1692_head" "$_2103_manifest")" 0 1 >/dev/null 2>&1
+run_test "2103_fresh_manifest_recorded" "$_2103_manifest" \
+  "$(printf '%s' "${platform_result_records[0]}" | jq -c .evidence_manifest)"
+stage_skip_history_payload="$(jq -cn --argjson record "${platform_result_records[0]}" \
+  '{entries:[{platform_results:[$record]}]}')"
+_2103_skip="$(reviewer_loop_stage_skip_output "$_1692_head" local-ai-reviewer)"
+run_test "2103_skip_preserves_reviewed_manifest" "$_2103_manifest" \
+  "$(kv_value_default EVIDENCE_MANIFEST_JSON "$_2103_skip" '{}')"
+_1692_reset_processing_globals
+reviewer_loop_process_platform_output local-ai-reviewer 1 "$_2103_skip" 0 1 >/dev/null 2>&1
+run_test "2103_reused_manifest_recorded" "$_2103_manifest" \
+  "$(printf '%s' "${platform_result_records[0]}" | jq -c .evidence_manifest)"
+unset _2103_manifest _2103_skip
+_1692_reset_processing_globals
+local_second_pass_failed_head_record=""
+reviewer_loop_process_platform_output pr-agent 1 "$(printf 'RESULT=needs_fixes\nREASON=proof_pending\nEVIDENCE_REVIEW_FAILED_HEAD=%s\nREVIEWED_HEAD=%s\n' "$_1692_head" "$_1692_head")" 1 1 >/dev/null 2>&1
+run_test "2061_targeted_finding_records_failed_head" "$_1692_head" "$local_second_pass_failed_head_record"
+
 unset _1692_composed _1692_local_ai_keys _1692_skip_out _1692_mixed _1692_regressed
 unset platforms repo_review_platforms
 if [ "${#_1692_saved_platforms[@]}" -gt 0 ]; then
@@ -2528,6 +2638,126 @@ unset _1692_head _1692_other
 unset -f _1692_hist_one _1692_reset_processing_globals 2>/dev/null || true
 
 echo "=== Area 1692 complete ==="
+
+# ---------------------------------------------------------------------------
+# Area 2095: evidence freshness at final clean and bounded local drift retry
+# ---------------------------------------------------------------------------
+echo "=== Area 2095: evidence freshness ==="
+
+# Each scenario runs in its own subshell with fabricated evidence and no network.
+# A changed fingerprint represents either a late comment or an in-place edit;
+# both are included by the canonical collector. No shared fixture is mutated.
+_2095_final() (
+  local mode="$1" hash="$2" platform="${3:-local-ai-reviewer}"
+  aggregate_result=clean
+  aggregate_reason=""
+  # shellcheck disable=SC2034 # Consumed by the sourced production function.
+  compare_mode=0
+  # shellcheck disable=SC2034 # Consumed by the sourced production function.
+  pr_number=2095
+  loop_head_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  # shellcheck disable=SC2034 # Deliberately no thread-posting reviewer.
+  unresolved_bot_logins=()
+  platform_result_records=("$(jq -cn --arg hash "$hash" --arg p "$platform" \
+    '{platform:$p,result:"clean",evidence_snapshot_sha256:$hash}')")
+  repo_slug() { printf 'synthetic/repo\n'; }
+  workflow_collect_review_evidence() {
+    [ "$mode" != unavailable ] || return 1
+    if [ "$mode" = malformed ]; then
+      printf '{}\n' >"$4"
+    else
+      printf '{"snapshot_sha256":"current"}\n' >"$4"
+    fi
+  }
+  reviewer_loop_final_evidence_guard
+  printf '%s|%s\n' "$aggregate_result" "$aggregate_reason"
+)
+run_test "2095_unchanged_clean" 'clean|' "$(_2095_final available current)"
+run_test "2095_blank_fingerprint_requires_review" 'needs_rerun|evidence_changed_during_review' \
+  "$(_2095_final available '   ')"
+run_test "2095_late_comment_requires_review" 'needs_rerun|evidence_changed_during_review' \
+  "$(_2095_final available old)"
+run_test "2095_missing_fingerprint_requires_review" 'needs_rerun|evidence_changed_during_review' \
+  "$(_2095_final available '')"
+run_test "2095_pr_agent_stale_requires_review" 'needs_rerun|evidence_changed_during_review' \
+  "$(_2095_final available old pr-agent)"
+run_test "2095_unavailable_not_silence" 'escalate|evidence_context_unavailable' \
+  "$(_2095_final unavailable current)"
+run_test "2095_malformed_not_silence" 'escalate|evidence_context_unavailable' \
+  "$(_2095_final malformed current)"
+run_test "2095_other_platform_unchanged" 'clean|' "$(_2095_final unavailable '' bugbot)"
+run_test "2095_existing_finding_preserved" 'needs_fixes|finding' "$(
+  aggregate_result=needs_fixes; aggregate_reason=finding
+  reviewer_loop_final_evidence_guard
+  printf '%s|%s' "$aggregate_result" "$aggregate_reason"
+)"
+
+_2095_retry() (
+  local mode="$1" out rc=0
+  local fixture fixture_root
+  fixture_root="$(mktemp -d)"
+  fixture="$fixture_root/review fixture [2095]"
+  mkdir -p "$fixture"
+  trap 'rm -rf "$fixture_root"' EXIT
+  mkdir -p "$fixture/scripts/development-workflow"
+  export SYNTHETIC_REVIEW_MODE="$mode" SYNTHETIC_REVIEW_COUNT="$fixture/count"
+  cat >"$fixture/scripts/development-workflow/local-ai-reviewer.sh" <<'REVIEWER'
+#!/usr/bin/env bash
+set -eu
+count=0
+[ ! -f "$SYNTHETIC_REVIEW_COUNT" ] || count="$(cat "$SYNTHETIC_REVIEW_COUNT")"
+count=$((count + 1))
+printf '%s' "$count" >"$SYNTHETIC_REVIEW_COUNT"
+case "$SYNTHETIC_REVIEW_MODE" in
+  retry) [ "$count" -gt 1 ] && { printf 'RESULT=clean\nEVIDENCE_SNAPSHOT_SHA256=current\n'; exit 0; } ;;
+  clean) printf 'RESULT=clean\n'; exit 0 ;;
+  finding) printf 'RESULT=needs_fixes\nREASON=local_ai_review_findings\n'; exit 1 ;;
+  error) printf 'RESULT=escalate\nREASON=evidence_context_unavailable\n'; exit 2 ;;
+  pending) printf 'RESULT=waiting_on_reviewer\n'; exit 4 ;;
+esac
+printf 'RESULT=needs_rerun\nREASON=evidence_changed_during_review\n'
+exit 1
+REVIEWER
+  chmod +x "$fixture/scripts/development-workflow/local-ai-reviewer.sh"
+  workflow_repo_root() { printf '%s\n' "$fixture"; }
+  repo_slug() { printf 'synthetic/repo\n'; }
+  require_gh() { :; }
+  # Keep all configuration resolution synthetic; no private source is read.
+  # shellcheck disable=SC2034 # Consumed by the sourced production function.
+  repo_root="$fixture"
+  # shellcheck disable=SC2034 # Consumed by the sourced production function.
+  config_file=""
+  # shellcheck disable=SC2034 # Consumed by the sourced production function.
+  AI_DEV_WORKFLOW_CONFIG_FILE=""
+  if [ "$mode" = exhausted ]; then
+    date() {
+      if [ -f "$fixture/clock" ]; then printf '30\n'; else
+        touch "$fixture/clock"; printf '0\n'
+      fi
+    }
+  fi
+  out="$(run_local_ai_reviewer_review 2095 fix/2095-evidence 1 30)" || rc=$?
+  printf '%s|%s|%s' "$(kv_value_default RESULT "$out" missing)" "$rc" "$(cat "$fixture/count")"
+)
+run_test "2095_drift_retries_fresh_once" 'clean|0|2' "$(_2095_retry retry)"
+run_test "2095_continued_drift_bounded" 'needs_rerun|1|2' "$(_2095_retry drift)"
+run_test "2095_clean_runs_once" 'clean|0|1' "$(_2095_retry clean)"
+run_test "2095_findings_not_retried" 'needs_fixes|1|1' "$(_2095_retry finding)"
+run_test "2095_read_failure_not_retried" 'escalate|2|1' "$(_2095_retry error)"
+run_test "2095_exhausted_budget_not_retried" 'needs_rerun|1|1' "$(_2095_retry exhausted)"
+run_test "2095_inflight_not_retried" 'waiting_on_reviewer|4|1' "$(_2095_retry pending)"
+
+# Planted-violation proof: bypassing the production guard must make the stale
+# evidence assertion fail. Run the deliberate failure in a subshell so it cannot
+# alter this suite's counters or leave a modified production file behind.
+_2095_plant="$(
+  reviewer_loop_final_evidence_guard() { :; }
+  run_test "2095_planted_guard_bypass" 'needs_rerun|evidence_changed_during_review' \
+    "$(_2095_final available old)"
+)"
+run_contains "2095_guard_bypass_detected" 'FAIL: 2095_planted_guard_bypass' "$_2095_plant"
+unset _2095_plant
+unset -f _2095_final _2095_retry
 
 # ---------------------------------------------------------------------------
 # Summary

@@ -136,6 +136,18 @@ report, showing every named problem and baseline provenance; stop before any
 mutation or apply approval. Invalid input requires correction and a fresh
 preview first. Do not suppress the failure or treat it as approval.
 
+**PR-Agent ticket-setting guidance:** The preview helper inspects only the
+selected consumer root's `.pr_agent.toml` for
+`pr_reviewer.require_ticket_analysis_review`. Only explicit TOML boolean `false`
+suppresses its advisory; absent/enabled/invalid settings receive disabling or
+repair guidance. Missing TOML parser support produces an inspection-unavailable
+warning. Symlinks and non-regular files are not read. Show this advisory with the
+preview report, including dry-run and classified blocked batches; preserve the
+existing sync exit handling and approval gates. Never print configuration values,
+copy TOML into the sync plan, or overwrite project-owned settings. Valid ticket
+analysis remains informational for readiness even when maintainers keep it enabled;
+independent code, evidence, security and human blockers retain their gates.
+
 When the source manifest is absent, first enumerate the embedded fallback from
 the pinned Git tree, never `find` over the source filesystem. Provide a private
 `--selection-file` JSON with `role`, exact `paths`, and exact `project_specific`
@@ -266,7 +278,7 @@ Check for known CI/CD configuration mismatches between the template and the proj
    - `PROJECT_OWNED` lines — informational. A synced suite reads a project-owned file (for example `AGENTS.md` or `.ai-dev-workflow.yaml`); sync never overwrites it.
    - `REQUIRED_ADDITION_MISSING` lines — a project-owned file lacks an addition a synced test or protocol depends on (for example `push_verification_failed` in a declared `guardrails.stop_conditions` list). Carry each one into Step 3 under **Required additive updates**.
 
-   Exit `1` means at least one `UNCOVERED` or `REQUIRED_ADDITION_MISSING` line; it is a finding, not a reason to abort. Exit `2` means the check itself could not run — report it as a diagnostic gap. When the template does not ship the helper, report `Synced-test coverage: not checked (template predates #1874)`.
+   Exit `1` means at least one `UNCOVERED` or `REQUIRED_ADDITION_MISSING` line; it is a finding, not a reason to abort. Exit `2` means a diagnostic gap, including invalid or unreadable consumer configuration; report the gap and retain any `UNCOVERED` or `REQUIRED_ADDITION_MISSING` findings already printed. The opt-in `yaml_list_path` check matches the declared list, not comments or unrelated fields. When the template does not ship the helper, report `Synced-test coverage: not checked (template predates #1874)`.
 
 ### Category 3 — CHANGELOG structure issues
 

@@ -10,7 +10,7 @@ Scripts used by the staged AI development workflow. Referenced by `docs/workflow
 
 ## PR-Agent publication runtime
 
-`pr-agent-runtime.py` installs the pinned PR-Agent review-composer and final
+`pr-agent-runtime.py` installs the pinned PR-Agent finding-renderer, review-composer and final
 GitHub publication hooks before invoking the image's original action runner.
 `python3 scripts/development-workflow/pr-agent-runtime.py --image` prints the
 image reference without live work. The GitHub workflow supplies its context,
@@ -18,17 +18,26 @@ mounts and existing model configuration; do not invoke the live mode on the host
 
 Oversized review publications prioritize complete original summaries/verdicts
 over history, recognized ancillary content and omission notices. Unsafe or
-non-retainable content produces a manual-verification diagnostic. Within-limit
-reviews and non-review limiter behavior remain unchanged. Omission logs contain
+non-retainable content produces a manual-verification diagnostic. Before fitting,
+supported closing-tag literals in single- or double-backtick finding code are formatted as
+escaped HTML code with equivalent decoded text. Raw HTML outside supported spans
+preserves the whole source field. Ordinary within-limit reviews and non-review
+limiter behavior remain unchanged. Omission logs contain
 reasons/counts; absent state never claims complete history or resolution.
 
 <!-- workflow-shell-contract: bash-zsh -->
 ```bash
 bash scripts/development-workflow/tests/test-pr-agent-runtime.sh
 bash scripts/development-workflow/tests/test-pr-agent-runtime.sh --image-smoke
+bash scripts/development-workflow/tests/test-pr-agent-inline-code.sh
+bash scripts/development-workflow/tests/test-pr-agent-inline-code.sh --image-smoke
 ```
 
-The image smoke test has networking disabled and mocks final create/edit calls.
+The image smoke test has networking disabled and mocks final create/readback calls.
+It also runs the public predecessor runtime at `e0d16ef7e4ea48e351a071f872b1caf2bd0515cc`
+(available locally in Git) against the candidate double-aware guard, without
+activating candidate producer code on the trusted base. Ambiguous HTML remains
+fail-closed.
 It verifies compatibility before any live runner invocation. Consumer sync
 includes the launcher alongside the shared PR-Agent workflow. See the
 [integration guide](../../docs/workflow/development-workflow/integrations/pr-agent.md#publication-runtime-and-comment-limits)
@@ -1103,6 +1112,7 @@ What it does:
 - Prints `UNCOVERED`, `PROJECT_OWNED`, and `EXEMPT` lines (`--show-covered`
   adds `COVERED`). Exemptions come from the manifest's
   `sync_coverage_exemptions`, each with a reason.
+- A `required_additions` entry can opt into `yaml_list_path: guardrails.stop_conditions` for exact list membership. Missing files or undeclared lists are not applicable; malformed, unreadable, duplicate or wrong-type consumer YAML emits a sanitized diagnostic gap and exits 2. Retain any uncovered or missing findings printed before that error.
 - With `--consumer-root`, prints `REQUIRED_ADDITION_MISSING`, `_PRESENT`, or
   `_NOT_APPLICABLE` for each `required_additions` entry.
 - Exits `0` when clean, `1` on any uncovered path or missing required

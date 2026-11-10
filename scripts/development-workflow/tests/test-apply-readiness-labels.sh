@@ -855,25 +855,24 @@ MOCK_HEAD_CONFIG=''
 MOCK_BASE_CONFIG=''
 MOCK_LOCAL_OVERRIDE_ROOT=''
 
-# Finding 1 (P1): pr-review-loop.sh's _check_release_pr_guard skips the
-# reviewer loop for hotfix/* head branches exactly as it does for release/*,
-# so no ready-phase reviewer check run can ever exist on a hotfix. Requiring
-# one permanently refused both readiness labels reviewer-check-absent.
-# Planted failing case: a hotfix branch with the empty check-run set must NOT
-# refuse on the reviewer leg (it still runs the CI leg, so a failing check
-# still refuses — asserted right after).
+# #2077: new hotfix code requires reviewer evidence before either readiness
+# label. Missing reviewer evidence is a planted violation, not an exemption.
 MOCK_PR_JSON='{"headRefOid":"'"$HEAD"'","headRefName":"hotfix/v9.9.9","baseRefOid":"'"$BASE_SHA"'","labels":[],"statusCheckRollup":[]}'
 MOCK_CHECK_RUNS='{"check_runs":[]}'
 result="$(run_helper)"
-run_test "hotfix_branch_not_reviewer_gated_exit" "0" "${result%%|*}"
-run_test "hotfix_branch_not_reviewer_gated_result" "labeled" "$(field "$result" RESULT)"
-run_test "hotfix_branch_not_reviewer_gated_report" "none" "$(field "$result" REVIEWER_REPORT)"
+run_test "hotfix_branch_reviewer_gated_exit" "1" "${result%%|*}"
+run_test "hotfix_branch_reviewer_gated_result" "refused" "$(field "$result" RESULT)"
+run_test "hotfix_branch_reviewer_gated_report" "Cursor Bugbot" "$(field "$result" REVIEWER_REPORT)"
+MOCK_CHECK_RUNS="$_bugbot_ok"
+result="$(run_helper)"
+run_test "hotfix_clean_reviewer_allows_label" "labeled" "$(field "$result" RESULT)"
 # The CI leg still applies on hotfix branches (the same handling release
 # branches get): a failing non-reviewer check refuses.
 MOCK_PR_JSON='{"headRefOid":"'"$HEAD"'","headRefName":"hotfix/v9.9.9","baseRefOid":"'"$BASE_SHA"'","labels":[],"statusCheckRollup":[{"__typename":"CheckRun","name":"ShellCheck","workflowName":"ShellCheck","status":"COMPLETED","conclusion":"FAILURE"}]}'
 result="$(run_helper)"
 run_test "hotfix_branch_ci_leg_still_applies_reason" "ci-failing" "$(field "$result" REASON)"
 # backport/hotfix/* is an implementation branch and stays reviewer-gated.
+MOCK_CHECK_RUNS='{"check_runs":[]}'
 MOCK_PR_JSON='{"headRefOid":"'"$HEAD"'","headRefName":"backport/hotfix/v9.9.9","baseRefOid":"'"$BASE_SHA"'","labels":[],"statusCheckRollup":[]}'
 result="$(run_helper)"
 run_test "backport_hotfix_still_reviewer_gated_reason" "reviewer-check-absent" "$(field "$result" REASON)"
@@ -1820,7 +1819,7 @@ run_test "pr_agent_no_comment_refuses_reason" "reviewer-check-absent" "$(field "
 _ledger_platform='coderabbit-cli'
 _ledger_entry() {
   # _ledger_entry <result> <reviewed_head> <iteration>
-  printf '### Automated Reviewer Loop Summary\n\n*Posted automatically by `pr-review-loop.sh`.*\n\nIteration %s\n\n<!-- reviewer-loop-history:v1 -->\n```json\n{"schema":"reviewer_loop_history.v1","entries":[{"iteration":%s,"updated_at":"2026-01-09T00:00:00Z","platform_results":[{"platform":"%s","result":"%s"}],"reviewed_heads":[{"platform":"%s","reviewed_head":"%s","state":"complete"}]}]}\n```\n' "$3" "$3" "$_ledger_platform" "$1" "$_ledger_platform" "$2"
+  printf '### Automated Reviewer Loop Summary\n\n*Posted automatically by `pr-review-loop.sh`.*\n\nIteration %s\n\n<!-- reviewer-loop-history:v1 -->\n```json\n{"schema":"reviewer_loop_history.v1","entries":[{"iteration":%s,"updated_at":"2026-01-09T00:00:00Z","platform_results":[{"platform":"%s","result":"%s","evidence_snapshot_sha256":"%s"}],"reviewed_heads":[{"platform":"%s","reviewed_head":"%s","state":"complete"}]}]}\n```\n' "$3" "$3" "$_ledger_platform" "$1" "${_ledger_evidence_hash:-}" "$_ledger_platform" "$2"
 }
 MOCK_HEAD_CONFIG='review:
   on_ready:
@@ -1840,7 +1839,7 @@ MOCK_BASE_CONFIG='review:
 _ledger_comment() {
   # _ledger_comment <login> <association> <id> <body>
   printf '%s' "$4" | jq -Rs --arg login "$1" --arg assoc "$2" --argjson cid "$3" \
-    '[{user:{login:$login},author_association:$assoc,created_at:"2026-01-09T00:00:00Z",id:$cid,body:.}]'
+    '[{user:{login:$login},author_association:$assoc,created_at:"2026-01-09T00:00:00Z",updated_at:"2026-01-09T00:00:00Z",id:$cid,body:.}]'
 }
 # The loop's trusted poster: the invoker login the gh stub reports
 # (MOCK_GH_USER default loop-runner), OWNER association as GitHub reports it.
@@ -1918,6 +1917,12 @@ run_test "coderabbit_cli_no_ledger_refuses_reason" "reviewer-check-absent" "$(fi
 # current-head clean labels; the round-16 blanket refusal is gone), posted
 # by the trusted actor.
 _ledger_platform='local-ai-reviewer'
+_2061_saved_head="$HEAD"
+_2061_saved_pr="$MOCK_PR_JSON"
+HEAD=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+MOCK_PR_JSON="$(printf '%s' "$MOCK_PR_JSON" | jq --arg head "$HEAD" '.headRefOid=$head')"
+_ledger_evidence_hash="$(jq -cn --arg head "$HEAD" '{repository:"acme/widgets",pr_number:42,head_sha:$head,body:"",comments:[],available:true}' |
+  python3 "$REPO_ROOT/scripts/development-workflow/review-evidence-context.py" snapshot --input - | jq -r .snapshot_sha256)"
 MOCK_HEAD_CONFIG='review:
   on_ready:
     github:
@@ -1929,6 +1934,83 @@ MOCK_BASE_CONFIG='review:
 MOCK_ISSUE_COMMENTS="$(_ledger_comment loop-runner OWNER 933 "$(_ledger_entry clean "$HEAD" 3)")"
 result="$(run_helper_platform "$_codex_config")"
 run_test "local_ai_reviewer_current_head_ledger_labels_result" "labeled" "$(field "$result" RESULT)"
+# #2103: preserve a reviewed baseline and plant post-review changes. The real
+# snapshot helper and readiness adapter run together; no GitHub API is called.
+_2103_baseline="$(jq -cn --arg head "$HEAD" '{repository:"acme/widgets",pr_number:42,
+  head_sha:$head,body:"",available:true,comments:[{id:20,body:"Synthetic report",updated_at:"2026-01-09"}]}' |
+  python3 "$REPO_ROOT/scripts/development-workflow/review-evidence-context.py" snapshot --input -)"
+_2103_payload="$(jq -cn --arg head "$HEAD" --argjson baseline "$_2103_baseline" '
+  {schema:"reviewer_loop_history.v1",entries:[{iteration:3,
+   reviewed_heads:[{platform:"local-ai-reviewer",reviewed_head:$head}],
+   platform_results:[{platform:"local-ai-reviewer",result:"clean",
+     evidence_snapshot_sha256:$baseline.snapshot_sha256,evidence_manifest:$baseline.manifest}]}]}')"
+for _2103_case in unchanged edited revision added removed missing malformed shell_branch temp_failure; do
+  _2103_current_payload="$_2103_payload"
+  [ "$_2103_case" != missing ] || _2103_current_payload="$(printf '%s' "$_2103_payload" | jq 'del(.entries[0].platform_results[0].evidence_manifest)')"
+  [ "$_2103_case" != malformed ] || _2103_current_payload="$(printf '%s' "$_2103_payload" | jq '.entries[0].platform_results[0].evidence_manifest.comments="bad"')"
+  _2103_summary="$(printf '### Automated Reviewer Loop Summary\n*Posted automatically by `pr-review-loop.sh`.*\n<!-- reviewer-loop-history:v1 -->\n```json\n%s\n```\n' "$_2103_current_payload")"
+  MOCK_ISSUE_COMMENTS="$(jq -cn --argjson baseline "$_2103_baseline" \
+    --argjson summary "$(_ledger_comment loop-runner OWNER 933 "$_2103_summary")" '$baseline.comments + $summary')"
+  case "$_2103_case" in
+    edited|missing|malformed|shell_branch|temp_failure) MOCK_ISSUE_COMMENTS="$(printf '%s' "$MOCK_ISSUE_COMMENTS" | jq '.[0].body += " amended"')" ;;
+    revision) MOCK_ISSUE_COMMENTS="$(printf '%s' "$MOCK_ISSUE_COMMENTS" | jq '.[0].updated_at="2026-01-10"')" ;;
+    added) MOCK_ISSUE_COMMENTS="$(printf '%s' "$MOCK_ISSUE_COMMENTS" | jq '. + [{id:21,body:"New reviewer finding",updated_at:"2026-01-10"}]')" ;;
+    removed) MOCK_ISSUE_COMMENTS="$(printf '%s' "$MOCK_ISSUE_COMMENTS" | jq 'del(.[0])')" ;;
+  esac
+  _2103_saved_pr="$MOCK_PR_JSON"
+  if [ "$_2103_case" = shell_branch ]; then
+    MOCK_PR_JSON="$(printf '%s' "$MOCK_PR_JSON" | jq '.headRefName="fix/2103;id"')"
+  fi
+  if [ "$_2103_case" = temp_failure ]; then
+    # The collector's directory allocation succeeds; only the following
+    # manifest-file allocation fails. Existing evidence must still be refused.
+    [ ! -e "$_BIN/mktemp" ]
+    _2103_real_mktemp="$(command -v mktemp)"
+    printf '#!/usr/bin/env bash\nreal_mktemp=%q\n' "$_2103_real_mktemp" >"$_BIN/mktemp"
+    cat >>"$_BIN/mktemp" <<'SYNTHETIC_MKTEMP'
+if [ "$#" -eq 1 ] && [ "$1" = -d ]; then
+  : >"$MOCK_TMP_ROOT/2103-collector-seen"
+fi
+if [ "$#" -eq 0 ] && [ -f "$MOCK_TMP_ROOT/2103-collector-seen" ]; then
+  exit 1
+fi
+exec "$real_mktemp" "$@"
+SYNTHETIC_MKTEMP
+    chmod +x "$_BIN/mktemp"
+  fi
+  result="$(run_helper_platform "$_codex_config")"
+  if [ "$_2103_case" = temp_failure ]; then
+    rm -f "$_BIN/mktemp" "$TMP_ROOT/2103-collector-seen"
+  fi
+  MOCK_PR_JSON="$_2103_saved_pr"
+  if [ "$_2103_case" = unchanged ]; then
+    run_test "2103_removed_plant_labels" labeled "$(field "$result" RESULT)"
+    run_test "2103_unchanged_no_drift_message" '' "$(field "$result" EVIDENCE_DIFF_JSON)"
+  else
+    run_test "2103_${_2103_case}_refuses" reviewer-evidence-unreadable "$(field "$result" REASON)"
+    run_test "2103_${_2103_case}_no_label" 0 "$(grep -c 'add-label ready-for-human-review' "$_LABEL_LOG" || true)"
+    _2103_diff="$(field "$result" EVIDENCE_DIFF_JSON)"
+    case "$_2103_case" in
+      missing|malformed) run_test "2103_${_2103_case}_explicit" manifest_unavailable "$(printf '%s' "$_2103_diff" | jq -r .status)" ;;
+      temp_failure) run_test "2103_temp_failure_explicit" diagnostic_unavailable "$(printf '%s' "$_2103_diff" | jq -r .status)" ;;
+      *)
+        _2103_source=comment:20; _2103_kind=body_edited
+        [ "$_2103_case" != revision ] || _2103_kind=revision_changed
+        [ "$_2103_case" != added ] || { _2103_source=comment:21; _2103_kind=added; }
+        [ "$_2103_case" != removed ] || _2103_kind=removed
+        run_test "2103_${_2103_case}_names_comment" "$_2103_source|$_2103_kind" \
+          "$(printf '%s' "$_2103_diff" | jq -r '.changes[0] | .source + "|" + .kind')"
+        ;;
+    esac
+    run_test "2103_${_2103_case}_recovery" present \
+      "$(if grep -Fq 'standard ready review' <<<"$(field "$result" EVIDENCE_RECOVERY)"; then printf present; else printf absent; fi)"
+    if [ "$_2103_case" = shell_branch ]; then
+      run_test "2103_recovery_escapes_remote_branch" escaped \
+        "$(if grep -Fq 'fix/2103\;id' <<<"$(field "$result" EVIDENCE_RECOVERY)"; then printf escaped; else printf unsafe; fi)"
+    fi
+  fi
+done
+unset _2103_baseline _2103_payload _2103_current_payload _2103_case _2103_summary _2103_diff _2103_source _2103_kind _2103_saved_pr _2103_real_mktemp
 # #1789 (T2.10): a current-head no_verdict_yet record (the reviewer's wait ran
 # out with no verdict) is an absent verdict — refuses reviewer-check-absent,
 # never a label and never reviewer-evidence-unreadable.
@@ -1936,6 +2018,48 @@ MOCK_ISSUE_COMMENTS="$(_ledger_comment loop-runner OWNER 939 "$(_ledger_entry no
 result="$(run_helper_platform "$_codex_config")"
 run_test "1789_local_ai_reviewer_no_verdict_yet_ledger_refuses_reason" "reviewer-check-absent" "$(field "$result" REASON)"
 run_test "1789_local_ai_reviewer_no_verdict_yet_ledger_no_label" "0" "$(grep -c 'add-label ready-for-human-review' "$_LABEL_LOG" || true)"
+# #2064: ticket-only commentary needs no matched proof. Independent security
+# and outside verification still refuse actual readiness labels.
+MOCK_HEAD_CONFIG="$_pr_agent_platform_yaml"
+MOCK_BASE_CONFIG="$_pr_agent_platform_yaml"
+_2061_request=$'## PR Reviewer Guide\ncommit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n**Ticket compliance analysis**\n**[42](url) - PR Code Verified**\nCompliant requirements:\n- Code checked.\nRequires further human verification:\n- Verify the synthetic regression proof.\n### Recommended focus areas for review\n**No major issues detected**\n'
+for _2061_case in verified unverified edited forged security outside missing; do
+  _2061_body="$_2061_request"
+  [ "$_2061_case" != security ] || _2061_body="${_2061_body/No major issues detected/Security Concern}"
+  [ "$_2061_case" != outside ] || _2061_body="${_2061_body}"$'### Verification: pending\n'
+  _2061_comments="$(jq -cn --arg body "$_2061_body" '[{id:10,user:{login:"github-actions[bot]"},created_at:"2026-01-09T00:00:00Z",updated_at:"2026-01-09T00:00:00Z",body:$body},{id:20,user:{login:"synthetic-author"},created_at:"2026-01-09T00:00:00Z",updated_at:"2026-01-09T00:00:00Z",body:"Synthetic planted violation fails, removal passes"}]')"
+  _2061_hash="$(jq -cn --arg head "$HEAD" --argjson comments "$_2061_comments" '{repository:"acme/widgets",pr_number:42,head_sha:$head,body:"",comments:$comments,available:true}' |
+    python3 "$REPO_ROOT/scripts/development-workflow/review-evidence-context.py" snapshot --input - | jq -r .snapshot_sha256)"
+  _2061_status=verified
+  [ "$_2061_case" != unverified ] || _2061_status=unverified
+  _2061_payload="$(jq -cn --arg head "$HEAD" --arg hash "$_2061_hash" --arg status "$_2061_status" '{schema:"reviewer_loop_history.v1",entries:[{reviewed_heads:[{platform:"pr-agent",reviewed_head:$head}],platform_results:[{platform:"pr-agent",result:"clean",evidence_verifier:"local-ai-reviewer",evidence_verification:{schema:"review_evidence_verification.v1",status:$status,request_id:10,snapshot_sha256:$hash,sources:["comment:20"]}}]}]}')"
+  _2061_summary="$(printf '### Automated Reviewer Loop Summary\n*Posted automatically by `pr-review-loop.sh`.*\n<!-- reviewer-loop-history:v1 -->\n```json\n%s\n```\n' "$_2061_payload")"
+  _2061_login=loop-runner
+  [ "$_2061_case" != forged ] || _2061_login=outsider
+  MOCK_ISSUE_COMMENTS="$(jq -cn --argjson comments "$_2061_comments" --argjson summary "$(_ledger_comment "$_2061_login" NONE 30 "$_2061_summary")" '$comments + $summary')"
+  [ "$_2061_case" != edited ] || MOCK_ISSUE_COMMENTS="$(printf '%s' "$MOCK_ISSUE_COMMENTS" | jq '.[1].body += " amended"')"
+  if [ "$_2061_case" = missing ]; then
+    MOCK_ISSUE_COMMENTS="$_2061_comments"
+    run_test "2064_missing_input_has_no_ledger" 0 \
+      "$(printf '%s' "$MOCK_ISSUE_COMMENTS" | jq '[.[] | select(.body | contains("reviewer-loop-history:v1"))] | length')"
+  fi
+  result=""
+  result="$(run_helper_platform "$_codex_config")"
+  if [ "$_2061_case" = missing ]; then
+    run_test "2064_missing_fresh_comment_read" observed \
+      "$(if grep -Fq 'issues/42/comments' "$_CALL_LOG"; then printf observed; else printf absent; fi)"
+  fi
+  if [ "$_2061_case" != security ] && [ "$_2061_case" != outside ]; then
+    run_test "2064_${_2061_case}_ticket_labels" labeled "$(field "$result" RESULT)"
+  else
+    run_test "2061_${_2061_case}_proof_refuses_label" 0 "$(grep -c 'add-label ready-for-human-review' "$_LABEL_LOG" || true)"
+    run_test "2061_${_2061_case}_proof_refuses_exit" 1 "${result%%|*}"
+  fi
+done
+unset _2061_request _2061_case _2061_body _2061_comments _2061_hash _2061_status _2061_payload _2061_summary _2061_login
+HEAD="$_2061_saved_head"
+MOCK_PR_JSON="$_2061_saved_pr"
+unset _2061_saved_head _2061_saved_pr _ledger_evidence_hash
 _ledger_platform='coderabbit-cli'
 MOCK_HEAD_CONFIG='review:
   on_ready:
@@ -2182,7 +2306,7 @@ MOCK_REVALIDATE_HEAD=''
 MOCK_REVALIDATE_PR_JSON=''
 # shellcheck disable=SC2034 # Consumed by the sourced fixture.
 MOCK_LATE_CI_PR_JSON=''
-MOCK_LABEL=ready-for-human-review
+MOCK_LABEL="ready-for-human-review"
 _release_1970=$(jq --arg h "$HEAD" '{headRefOid:$h,headRefName:"release/v0.0.0",labels:[],statusCheckRollup:[{__typename:"CheckRun",name:"ShellCheck",status:"COMPLETED",conclusion:"SUCCESS"},{__typename:"CheckRun",name:"PR-Agent review",status:"COMPLETED",conclusion:"FAILURE"}]}' <<< '{}')
 MOCK_PR_JSON="$_release_1970"
 result="$(run_helper)"
@@ -2195,12 +2319,12 @@ for _ci_state in FAILURE PENDING; do
   result="$(run_helper)"
   run_test "release_live_ordinary_${_ci_state}_blocks_1970" "refused" "$(field "$result" RESULT)"
   run_test "release_live_ordinary_${_ci_state}_no_label_1970" "0" "$(edit_count)"
-  MOCK_LABEL=ready-for-regression
+  MOCK_LABEL="ready-for-regression"
   result="$(run_helper)"
   _regression_expected=refused
   [ "$_ci_state" != PENDING ] || _regression_expected=labeled
   run_test "release_regression_ordinary_${_ci_state}_1970" "$_regression_expected" "$(field "$result" RESULT)"
-  MOCK_LABEL=ready-for-human-review
+  MOCK_LABEL="ready-for-human-review"
 done
 MOCK_REVALIDATE_PR_JSON=''
 MOCK_FINAL_REVALIDATE_HEAD='bbbb222000000000000'

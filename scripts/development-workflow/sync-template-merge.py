@@ -22,6 +22,11 @@ import subprocess
 import sys
 import tempfile
 
+try:
+    import tomllib
+except ImportError:
+    tomllib = None
+
 STATE_PATH = ".ai-dev-workflow.sync-state.json"
 LOCK_PATH = ".ai-dev-workflow.sync-lock"
 MODES = {"100644", "100755", "120000"}
@@ -30,6 +35,10 @@ BLOCKING = {"conflict", "baseline_unavailable", "blocked"}
 
 class SyncError(Exception):
     """A named failure which cannot authorize a write."""
+
+
+class LockOwnershipLost(SyncError):
+    """Cleanup interrupted the transaction's exclusive ownership continuity."""
 
 
 class SyncConfigError(SyncError):
@@ -511,6 +520,39 @@ def build_preview(inputs: dict, lock_owned: bool = False):
             "error": error}
 
 
+def ticket_analysis_warning(consumer_root):
+    """Inspect only project-owned PR-Agent TOML; never render its contents."""
+    guidance = (
+        "PR-Agent ticket analysis: set "
+        "pr_reviewer.require_ticket_analysis_review = false in .pr_agent.toml "
+        "to disable noisy ticket commentary. Valid ticket analysis is "
+        "informational for readiness; project configuration is unchanged."
+    )
+    if tomllib is None:
+        return "PR-Agent ticket-setting inspection unavailable (TOML parser unavailable). " + guidance
+    try:
+        path = Path(consumer_root) / ".pr_agent.toml"
+        if not stat.S_ISREG(path.lstat().st_mode):
+            return "PR-Agent ticket-setting inspection requires a regular, non-symlink file. " + guidance
+        # NOFOLLOW closes the lstat/open symlink race; NONBLOCK prevents a
+        # replaced FIFO from hanging preview before fstat rejects its type.
+        if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_NONBLOCK"):
+            return "PR-Agent safe ticket-setting file inspection unavailable. " + guidance
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as config:
+            if not stat.S_ISREG(os.fstat(config.fileno()).st_mode):
+                return "PR-Agent ticket-setting inspection requires a regular, non-symlink file. " + guidance
+            settings = tomllib.load(config)
+        reviewer = settings.get("pr_reviewer", {})
+        if isinstance(reviewer, dict) and reviewer.get("require_ticket_analysis_review") is False:
+            return ""
+        return guidance
+    except FileNotFoundError:
+        return guidance
+    except (OSError, ValueError, UnicodeError, RecursionError):
+        return "PR-Agent ticket-setting inspection failed; repair .pr_agent.toml. " + guidance
+
+
 def show(preview, approved_digest: str = ""):
     print("RESULT=" + preview["result"])
     print("SELECTED_COUNT=" + str(preview["selected_count"]))
@@ -588,17 +630,33 @@ def write_recovery(lock: Path, data: bytes):
         os.fsync(parent_fd)  # Persist the lock directory before any consumer write.
 
 
-def release_lock(lock: Path, recovery_data):
+def release_lock(lock: Path, recovery_data, release_state=None):
     """Do not lose the recovery journal if releasing the lock fails."""
+    removed = False
     try:
         with directory_fd(lock.parent, lock.name) as lock_fd:
             try:
                 os.unlink("recovery.json", dir_fd=lock_fd)
             except FileNotFoundError:
                 pass
+            os.fsync(lock_fd)
         with directory_fd(lock.parent) as root_fd:
             os.rmdir(lock.name, dir_fd=root_fd)
+            removed = True
+            if release_state is not None:
+                release_state["released"] = True
+            os.fsync(root_fd)
     except OSError as exc:
+        if removed:
+            try:
+                with directory_fd(lock.parent) as root_fd:
+                    os.mkdir(lock.name, mode=0o700, dir_fd=root_fd)
+            except OSError as reacquire_error:
+                raise LockOwnershipLost(
+                    f"{LOCK_PATH}: cleanup failed after releasing lock; exclusive ownership "
+                    "could not be reacquired; rollback skipped; leave the active lock and "
+                    "consumer files untouched and inspect before retrying"
+                ) from reacquire_error
         if recovery_data is not None:
             try:
                 write_recovery(lock, recovery_data)
@@ -631,6 +689,7 @@ def apply_plan(path: Path, approved_digest: str):
     originals = {}
     recovery_data = None
     cleanup_failed = False
+    release_state = {"released": False}
     try:
         # Authority is separate from preview bytes; freshness is checked under lock.
         fresh = build_preview(inputs, lock_owned=True)
@@ -671,16 +730,24 @@ def apply_plan(path: Path, approved_digest: str):
             raise SyncError(f"{STATE_PATH}: baseline changed during apply")
         written.append(STATE_PATH)
         state_output = {"mode": "100644", "data": encoded(json_bytes(state)),
-                        "permissions": fresh["state_before"].get("permissions", 0o644) if fresh["state_before"] else 0o644}
+                        "permissions": 0o600}
         write_snapshot(root, STATE_PATH, state_output, created)
         if local_snapshot(root, STATE_PATH) != state_output:
             raise SyncError(f"{STATE_PATH}: persistence validation failed")
         try:
-            release_lock(lock, recovery_data)
+            release_lock(lock, recovery_data, release_state)
         except (OSError, SyncError):
             cleanup_failed = True
             raise
+    except LockOwnershipLost:
+        # A subsequent transaction may already be writing under its own lock.
+        raise
     except BaseException as exc:
+        if release_state["released"]:
+            raise LockOwnershipLost(
+                f"{LOCK_PATH}: lock was released; ownership continuity cannot be verified; "
+                "rollback skipped; preserve current consumer files and inspect recovery before retrying"
+            ) from exc
         failures = []
         for rel in reversed(written):
             try:
@@ -703,7 +770,7 @@ def apply_plan(path: Path, approved_digest: str):
             raise SyncError(f"rollback incomplete; preserve {LOCK_PATH}/recovery.json and repair named paths: " + "; ".join(failures)) from exc
         if cleanup_failed:
             raise SyncError(f"rollback complete after cleanup failure; preserve {LOCK_PATH}/recovery.json and inspect before retrying") from exc
-        release_lock(lock, recovery_data)
+        release_lock(lock, recovery_data, release_state)
         raise
     fresh["result"] = "applied"
     show(fresh)
@@ -745,6 +812,9 @@ def main(argv=None):
         if any(root == plan_path.resolve() or root in plan_path.resolve().parents for root in (Path(inputs["template_root"]), Path(inputs["consumer_root"]))):
             raise SyncError("preview plan must be private scratch outside both checkouts")
         result = build_preview(inputs)
+        warning = ticket_analysis_warning(inputs["consumer_root"])
+        if warning:
+            print("WARNING=" + warning)
         raw = json_bytes(result)
         write_private_plan(plan_path, raw, (Path(inputs["template_root"]), Path(inputs["consumer_root"])))
         show(result, digest(raw))

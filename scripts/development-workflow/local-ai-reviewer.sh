@@ -1476,6 +1476,17 @@ case "$graph_strategy" in
     ;;
 esac
 
+evidence_context_file="$(mktemp)"
+evidence_current_file="$(mktemp)"
+evidence_result_file="$(mktemp)"
+evidence_verification_json='{}'
+verification_request_id="${LOCAL_AI_REVIEWER_VERIFICATION_REQUEST_ID:-0}"
+case "$verification_request_id" in ''|*[!0-9]*) verification_request_id=0 ;; esac
+if ! workflow_collect_review_evidence "$OWNER/$REPO" "$PR_NUMBER" "$HEAD_SHA" "$evidence_context_file"; then
+  workflow_diagnostic 'INFO: published evidence context is unavailable; it cannot satisfy a finding' >&2
+fi
+evidence_snapshot_sha256="$(jq -r '.snapshot_sha256 // ""' "$evidence_context_file")"
+evidence_manifest_json="$(jq -c '.manifest // {}' "$evidence_context_file")"
 context_file="$(mktemp)"
 stdout_file="$(mktemp)"
 stderr_file="$(mktemp)"
@@ -1498,6 +1509,8 @@ jq -n \
   --argjson durability_supply "$durability_supply_json" \
   --argjson changed_files "$changed_files_json" \
   --argjson review_checklists "$review_checklists_json" \
+  --slurpfile evidence "$evidence_context_file" \
+  --arg verification_request_id "$verification_request_id" \
   '{
     schema_version: "local_ai_reviewer_context.v1",
     pr_number: ($pr_number | tonumber),
@@ -1507,7 +1520,9 @@ jq -n \
     head_branch: $head_branch,
     reviewed_head: $reviewed_head,
     changed_files: $changed_files,
-    pr_body: ($pr_body[0:20000]),
+    pr_body: (if $evidence[0].available then $evidence[0].body else $pr_body end),
+    evidence_context: $evidence[0],
+    verification_request_id: ($verification_request_id | tonumber),
     diff_name_status: $diff_name_status,
     diff_stat: $diff_stat,
     review_contract: "REVIEW.md",
@@ -1567,90 +1582,112 @@ strict_plan_sources_json="[]"
 
 cleanup() {
   rm -f "${context_file:-}" "${stdout_file:-}" "${stderr_file:-}"
+  rm -f "${evidence_context_file:-}" "${evidence_current_file:-}" "${evidence_result_file:-}"
 }
 trap cleanup EXIT
 
 round_start_epoch="$(date +%s)"
 
-set +e
-LOCAL_AI_REVIEWER_MODE=ordinary \
-CONTEXT_BUNDLE_PATH="$context_file" \
-PR_NUMBER="$PR_NUMBER" \
-OWNER="$OWNER" \
-REPO="$REPO" \
-BASE_BRANCH="$BASE_BRANCH" \
-HEAD_BRANCH="$HEAD_BRANCH" \
-REVIEWED_HEAD="$HEAD_SHA" \
-REVIEW_STAGE="$review_stage" \
-REVIEW_STAGE_SOURCE="$review_stage_source" \
-REVIEW_CHECKLISTS="$review_checklists_csv" \
-REVIEW_DOCTRINE_STATE="$review_doctrine_state" \
-REVIEW_DOCTRINE_PATTERN_COUNT="$review_doctrine_pattern_count" \
-REVIEW_DOCTRINE_VERSION="$review_doctrine_version" \
-REVIEW_DURABILITY_MODE_STATE="$review_durability_mode_state" \
-REVIEW_DURABILITY_ACTIVATION_REASON="$review_durability_activation_reason" \
-REVIEW_DURABILITY_UNAVAILABLE_REASON="$review_durability_unavailable_reason" \
-REVIEW_DURABILITY_FAMILIES_IN_SCOPE="$review_durability_families_in_scope" \
-REVIEW_DURABILITY_FAMILIES_NA="$review_durability_families_na" \
-LOCAL_AI_REVIEWER_TIMEOUT="$TIMEOUT" \
-  run_with_timeout "$TIMEOUT" "$stdout_file" "$stderr_file" sh -c "$LOCAL_AI_REVIEWER_COMMAND"
-command_exit=$?
-set -e
+quota_error_pattern='usage[[:space:]_-]*limit|quota[[:space:]_-]*(exhaust|exceed)|out of (quota|credits)|hit your usage'
+capacity_attempt=1
+while :; do
+  set +e
+  LOCAL_AI_REVIEWER_MODE=ordinary \
+  CONTEXT_BUNDLE_PATH="$context_file" \
+  PR_NUMBER="$PR_NUMBER" \
+  OWNER="$OWNER" \
+  REPO="$REPO" \
+  BASE_BRANCH="$BASE_BRANCH" \
+  HEAD_BRANCH="$HEAD_BRANCH" \
+  REVIEWED_HEAD="$HEAD_SHA" \
+  REVIEW_STAGE="$review_stage" \
+  REVIEW_STAGE_SOURCE="$review_stage_source" \
+  REVIEW_CHECKLISTS="$review_checklists_csv" \
+  REVIEW_DOCTRINE_STATE="$review_doctrine_state" \
+  REVIEW_DOCTRINE_PATTERN_COUNT="$review_doctrine_pattern_count" \
+  REVIEW_DOCTRINE_VERSION="$review_doctrine_version" \
+  REVIEW_DURABILITY_MODE_STATE="$review_durability_mode_state" \
+  REVIEW_DURABILITY_ACTIVATION_REASON="$review_durability_activation_reason" \
+  REVIEW_DURABILITY_UNAVAILABLE_REASON="$review_durability_unavailable_reason" \
+  REVIEW_DURABILITY_FAMILIES_IN_SCOPE="$review_durability_families_in_scope" \
+  REVIEW_DURABILITY_FAMILIES_NA="$review_durability_families_na" \
+  LOCAL_AI_REVIEWER_TIMEOUT="$TIMEOUT" \
+    run_with_timeout "$TIMEOUT" "$stdout_file" "$stderr_file" sh -c "$LOCAL_AI_REVIEWER_COMMAND"
+  command_exit=$?
+  set -e
 
-command_stdout="$(cat "$stdout_file" 2>/dev/null || true)"
-command_stderr="$(cat "$stderr_file" 2>/dev/null || true)"
+  command_stdout="$(cat "$stdout_file" 2>/dev/null || true)"
+  command_stderr="$(cat "$stderr_file" 2>/dev/null || true)"
 
-# #1789 (plan D4): only the watchdog flag means the budget ran out while the
-# reviewer was still running. That is No verdict yet, not a failure, and the
-# stopped process's partial output is not inspected. A command that itself
-# exited 124 or 137 before the budget leaves the flag at 0 and reaches the
-# ordinary non-zero handling below.
-if [ "${RUN_WITH_TIMEOUT_EXPIRED:-0}" = "1" ]; then
-  workflow_diagnostic "WARN: local AI reviewer had not returned a verdict after ${TIMEOUT}s; stopped at the wait budget (no verdict yet)" >&2
-  print_kv RESULT waiting_on_reviewer
-  print_kv REASON reviewer-no-verdict-yet
-  print_kv NO_VERDICT_YET 1
-  print_kv WAIT_EXPIRED_DETAIL stopped_at_budget
-  print_kv COMMENT_COUNT 0
-  print_kv BLOCKING_COUNT 0
-  print_kv SUGGESTION_COUNT 0
-  exit 4
-fi
+  # #1789 (plan D4): only the watchdog flag means the budget ran out while the
+  # reviewer was still running. That is No verdict yet, not a failure, and the
+  # stopped process's partial output is not inspected. A command that itself
+  # exited 124 or 137 before the budget leaves the flag at 0 and reaches the
+  # ordinary non-zero handling below.
+  if [ "${RUN_WITH_TIMEOUT_EXPIRED:-0}" = "1" ]; then
+    workflow_diagnostic "WARN: local AI reviewer had not returned a verdict after ${TIMEOUT}s; stopped at the wait budget (no verdict yet)" >&2
+    print_kv RESULT waiting_on_reviewer
+    print_kv REASON reviewer-no-verdict-yet
+    print_kv NO_VERDICT_YET 1
+    print_kv WAIT_EXPIRED_DETAIL stopped_at_budget
+    print_kv COMMENT_COUNT 0
+    print_kv BLOCKING_COUNT 0
+    print_kv SUGGESTION_COUNT 0
+    exit 4
+  fi
 
-combined_output="${command_stdout}
+  combined_output="${command_stdout}
 ${command_stderr}"
-# Only a stdout object that matches the downstream parser's accepted verdict shape outranks
-# the stderr heuristics or reaches the verdict parser. Anything else — non-JSON, empty stdout,
-# or schemaless/mistyped JSON such as "{}" or {"issues":"quota exceeded"} — keeps the probes
-# in force and is later rejected as malformed, so a provider failure is never downgraded to
-# an inferred clean verdict.
-stdout_is_verdict=0
-if printf '%s\n' "$command_stdout" | jq -s -e '
-    length == 1
-    and (
-      .[0]
-      | type == "object"
-        and (
-          if (.result? // "") != "" then
-            ((.result | type) == "string"
-             and ((.result | ascii_downcase | gsub("-"; "_")) as $r
-                  | ["clean","needs_fixes","needs_rerun","skipped","escalate"] | index($r)))
-          else
-            ((.findings? | type) == "array"
-             or (.comments? | type) == "array"
-             or (.issues? | type) == "array")
-          end
-        )
-    )
-  ' >/dev/null 2>&1; then
-  stdout_is_verdict=1
-fi
+  # Only a stdout object that matches the downstream parser's accepted verdict shape outranks
+  # the stderr heuristics or reaches the verdict parser. Anything else — non-JSON, empty stdout,
+  # or schemaless/mistyped JSON such as "{}" or {"issues":"quota exceeded"} — keeps the probes
+  # in force and is later rejected as malformed, so a provider failure is never downgraded to
+  # an inferred clean verdict.
+  stdout_is_verdict=0
+  if printf '%s\n' "$command_stdout" | jq -s -e '
+      length == 1
+      and (
+        .[0]
+        | type == "object"
+          and (
+            if (.result? // "") != "" then
+              ((.result | type) == "string"
+               and ((.result | ascii_downcase | gsub("-"; "_")) as $r
+                    | ["clean","needs_fixes","needs_rerun","skipped","escalate"] | index($r)))
+            else
+              ((.findings? | type) == "array"
+               or (.comments? | type) == "array"
+               or (.issues? | type) == "array")
+            end
+          )
+      )
+    ' >/dev/null 2>&1; then
+    stdout_is_verdict=1
+  fi
 
-if [ "$stdout_is_verdict" -eq 1 ]; then
-  setup_probe_output=""
-else
-  setup_probe_output="$combined_output"
-fi
+  if [ "$stdout_is_verdict" -eq 1 ]; then
+    setup_probe_output=""
+  else
+    setup_probe_output="$combined_output"
+  fi
+  # Capacity failures are provider availability signals, even when their
+  # diagnostics also say the selected model is unavailable. A valid verdict
+  # still wins over diagnostic prose, just as it does for the setup probes.
+  # Explicit quota exhaustion must keep its escalation/reset-time handling;
+  # providers also report exhausted quota with HTTP 429.
+  if [ -n "$setup_probe_output" ] && ! grep -Eiq "$quota_error_pattern" <<< "$setup_probe_output" && grep -Eiq 'server_overloaded|at[[:space:]_-]+capacity|(^|[^[:alnum:]_])overloaded([^[:alnum:]_]|$)|(^|[^[:alnum:]_])429([^[:alnum:]_]|$)' <<< "$setup_probe_output"; then
+    if [ "$capacity_attempt" -ge 3 ]; then
+      workflow_diagnostic "WARN: local AI reviewer provider capacity unavailable after 3 attempts" >&2
+      print_result needs_rerun 0 0 0 provider_overloaded
+      exit 1
+    fi
+    workflow_diagnostic "WARN: local AI reviewer provider overloaded; retrying after ${capacity_attempt}s" >&2
+    sleep "$capacity_attempt"
+    capacity_attempt=$((capacity_attempt + 1))
+    continue
+  fi
+  break
+done
 if [ -n "$setup_probe_output" ] && grep -Eiq 'missing[[:space:]_-]+model|model[[:space:]_-]+access|model.*unavailable' <<< "$setup_probe_output"; then
   print_result escalate 0 0 0 missing_model_access missing_model_access
   exit 2
@@ -1659,7 +1696,7 @@ if [ -n "$setup_probe_output" ] && grep -Eiq 'missing[[:space:]_-]+credentials|c
   print_result escalate 0 0 0 missing_credentials missing_credentials
   exit 2
 fi
-if [ -n "$setup_probe_output" ] && grep -Eiq 'usage[[:space:]_-]*limit|quota[[:space:]_-]*(exhaust|exceed)|out of (quota|credits)|hit your usage' <<< "$setup_probe_output"; then
+if [ -n "$setup_probe_output" ] && grep -Eiq "$quota_error_pattern" <<< "$setup_probe_output"; then
   quota_reset_at="$(
     printf '%s\n' "$setup_probe_output" \
       | workflow_redact_text \
@@ -1846,6 +1883,44 @@ fi
 # --- Strict registry passes (at most one dispatches; never merges into blocking) ---
 strict_run_all_registry_entries
 
+# A review can only discharge evidence it actually saw. Re-read complete remote
+# evidence after the backend returns; a body/comment edit need not move git HEAD.
+if [ "$result" = clean ] && [ "$command_exit" -eq 0 ]; then
+  if [ -n "$evidence_snapshot_sha256" ]; then
+    if ! workflow_collect_review_evidence "$OWNER/$REPO" "$PR_NUMBER" "$HEAD_SHA" "$evidence_current_file"; then
+      result=escalate
+      reason=evidence_context_unavailable
+    elif [ "$(jq -r '.snapshot_sha256' "$evidence_current_file")" != "$evidence_snapshot_sha256" ]; then
+      result=needs_rerun
+      reason=evidence_changed_during_review
+    fi
+  elif [ "${LOCAL_AI_REVIEWER_REQUIRE_EVIDENCE:-0}" = 1 ] || [ "$verification_request_id" != 0 ]; then
+    result=escalate
+    reason=evidence_context_unavailable
+  fi
+  if [ "$result" = clean ] && [ "$command_exit" -eq 0 ] \
+      && [ "$verification_request_id" != 0 ] \
+      && [ "$strict_spec_state" != unavailable ] && [ "$strict_plan_state" != unavailable ] \
+      && [ "${strict_spec_count:-0}" -eq 0 ] && [ "${strict_plan_count:-0}" -eq 0 ]; then
+    printf '%s\n' "$command_stdout" | jq --arg result "$result" '.result=$result' >"$evidence_result_file"
+    if proof_check="$(python3 "$SCRIPT_DIR/review-evidence-context.py" verify \
+        --context "$evidence_context_file" --result "$evidence_result_file" \
+        --request-id "$verification_request_id")"; then
+      if [ "$(printf '%s' "$proof_check" | jq -r '.verified')" = true ]; then
+        evidence_verification_json="$(printf '%s' "$proof_check" | jq -c '.evidence_verification')"
+      fi
+    fi
+  fi
+  if [ "$result" = clean ] && [ "$verification_request_id" != 0 ] \
+      && [ "$evidence_verification_json" = '{}' ]; then
+    result=needs_fixes
+    blocking_count=$((blocking_count + 1))
+    comment_count=$((comment_count + 1))
+    parse_result="${parse_result}
+BLOCKING_${blocking_count}_BODY=Verification evidence has not been verified for the current request."
+  fi
+fi
+
 strict_build_strict_evidence_json() {
   local state="$1"
   local count="$2"
@@ -1931,6 +2006,9 @@ write_evidence_file() {
     --arg base_branch "$BASE_BRANCH" \
     --arg head_branch "$HEAD_BRANCH" \
     --arg reviewed_head "$HEAD_SHA" \
+    --arg evidence_snapshot_sha256 "$evidence_snapshot_sha256" \
+    --argjson evidence_manifest "$evidence_manifest_json" \
+    --argjson evidence_verification "$evidence_verification_json" \
     --arg graph_context "$graph_context" \
     --arg pr_body "$PR_BODY" \
     --rawfile diff_name_status <(printf '%s' "${diff_name_status_full:-}") \
@@ -1962,6 +2040,9 @@ write_evidence_file() {
       base_branch: $base_branch,
       head_branch: $head_branch,
       reviewed_head: $reviewed_head,
+      evidence_snapshot_sha256: $evidence_snapshot_sha256,
+      evidence_manifest: $evidence_manifest,
+      evidence_verification: $evidence_verification,
       graph_context: $graph_context,
       counts: {
         comments: $comment_count,
@@ -2014,6 +2095,9 @@ emit_ordinary_and_strict() {
 
   print_result "$final_result" "$final_comment_count" "$final_blocking_count" \
     "$final_suggestion_count" "$final_reason" "$final_display"
+  print_kv EVIDENCE_SNAPSHOT_SHA256 "$evidence_snapshot_sha256"
+  print_kv EVIDENCE_MANIFEST_JSON "$evidence_manifest_json"
+  print_kv EVIDENCE_VERIFICATION_JSON "$evidence_verification_json"
   if [ "$final_result" = "needs_fixes" ]; then
     printf '%s\n' "$parse_result" | awk '/^BLOCKING_[0-9]+_(PATH|LINE|BODY)=/ { print }' | workflow_redact_text
   fi

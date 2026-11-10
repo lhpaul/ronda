@@ -3,7 +3,7 @@
 
 import argparse
 from dataclasses import dataclass, field
-from html import unescape
+from html import escape, unescape
 from html.parser import HTMLParser
 import inspect
 import json
@@ -70,8 +70,99 @@ def fence_spans(source):
     return spans
 
 
+def read_inline_code_span(source, start):
+    """Read matching one/two-backtick spans; mixed-width internal runs await #2078."""
+    if start > 0 and source[start - 1] == "\\":
+        raise ValueError("ambiguous escaped backtick")
+    width = len(re.match(r"`+", source[start:]).group())
+    if width not in (1, 2):
+        raise ValueError("unsupported inline delimiter")
+    for run in re.finditer(r"`+", source[start + width:]):
+        if len(run.group()) != width:
+            raise ValueError("mismatched inline delimiter")
+        closing = start + width + run.start()
+        content = source[start + width:closing]
+        if (not content or re.search(r"[\r\n\v\f\x85\u2028\u2029]", content)
+                or content.endswith("\\")):
+            raise ValueError("ambiguous inline span")
+        return closing + width, content
+    raise ValueError("unmatched inline delimiter")
+
+
+def inline_code_text(content):
+    """GFM single-line code strips one padding space at both ends, unless all spaces."""
+    if content.startswith(" ") and content.endswith(" ") and content.strip(" "):
+        return content[1:-1]
+    return content
+
+
+def normalize_finding_inline_code(source):
+    """Format supported source spans only after proving the whole field boundary.
+
+    Ambiguous delimiters keep the field unchanged. Raw markup anywhere outside
+    supported spans (including fenced examples) also vetoes all replacements.
+    This helper never receives a composed HTML review.
+    """
+    spans = []
+    fence = None
+    offset = 0
+    for line in source.splitlines(keepends=True):
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})([^\r\n]*)", line)
+        if fence is not None or marker:
+            if re.search(r"<\s*(?:/?\s*[A-Za-z]|!|\?|/?\s*$)", line):
+                return source
+            if fence is None:
+                fence = marker.group(1)
+                if fence[0] == "`" and "`" in marker.group(2):
+                    return source
+            elif (marker and marker.group(1)[0] == fence[0]
+                  and len(marker.group(1)) >= len(fence)
+                  and not marker.group(2).strip()):
+                fence = None
+            offset += len(line)
+            continue
+        index = 0
+        while index < len(line):
+            if line[index] == "`":
+                try:
+                    end, content = read_inline_code_span(line, index)
+                except ValueError:
+                    return source
+                if re.search(r"<\s*/", content):
+                    spans.append((offset + index, offset + end,
+                                  "<code>" + escape(inline_code_text(content)).replace("`", "&#96;") + "</code>"))
+                index = end
+                continue
+            if (line[index] == "<"
+                    and re.match(r"<\s*(?:/?\s*[A-Za-z]|!|\?|/?\s*$)", line[index:])):
+                return source
+            index += 1
+        offset += len(line)
+    if fence is not None:
+        return source
+    for start, end, replacement in reversed(spans):
+        source = source[:start] + replacement + source[end:]
+    return source
+
+
+def normalize_review_render_data(output_data):
+    """Copy only the recognized rendering path; state and caller data stay intact."""
+    if not isinstance(output_data, dict) or not isinstance(output_data.get("review"), dict):
+        return output_data
+    review = output_data["review"]
+    findings = review.get("key_issues_to_review")
+    if not isinstance(findings, list):
+        return output_data
+    copied = []
+    for finding in findings:
+        if isinstance(finding, dict) and isinstance(finding.get("issue_content"), str):
+            finding = dict(finding, issue_content=normalize_finding_inline_code(finding["issue_content"]))
+        copied.append(finding)
+    return dict(output_data, review=dict(review, key_issues_to_review=copied))
+
+
 def mask_review_code(source, preserve_offsets=True):
-    """Exclude simple single-line code and closed fences; reject ambiguity."""
+    """Exclude supported single-line code and closed fences; reject ambiguity."""
     parts = []
     index = 0
     html_depth = []
@@ -168,17 +259,7 @@ def mask_review_code(source, preserve_offsets=True):
                     or html_block not in inline_tags | {None}
                     or (in_html and "table" not in html_depth and not history_markdown)):
                 raise ValueError("ambiguous backticks in HTML")
-            if index > 0 and source[index - 1] == "\\":
-                raise ValueError("ambiguous escaped backtick")
-            if source.startswith("``", index):
-                raise ValueError("unsupported inline delimiter")
-            end = source.find("`", index + 1)
-            if end < 0:
-                raise ValueError("unmatched inline delimiter")
-            content = source[index + 1:end]
-            if (not content or re.search(r"[\r\n\v\f\x85\u2028\u2029]", content)
-                    or content.endswith("\\") or source.startswith("``", end)):
-                raise ValueError("ambiguous inline span")
+            end, content = read_inline_code_span(source, index)
             # Complete HTML-only code is literal, including tag fragments.
             # A quoted comment opener is literal too, even in an expression.
             # Mixed prose/HTML still cannot swallow closing tags, declarations
@@ -186,8 +267,8 @@ def mask_review_code(source, preserve_offsets=True):
             if (in_html and not history_markdown and not html_markup_only(content)
                     and re.search(r"<\s*/|<!(?!--)|<\?", content)):
                 raise ValueError("inline span crosses HTML markup")
-            parts.append(masked(index, end + 1))
-            index = end + 1
+            parts.append(masked(index, end))
+            index = end
             continue
         if html.match(source, index):
             end = index + 1
@@ -331,6 +412,109 @@ def plain_text(source):
     # Match the classifier: comments disappear without splitting status words.
     source = re.sub(r"<!--[\s\S]*?-->", "", source)
     return " ".join(unescape(re.sub(r"<[^>]*>", " ", source)).split())
+
+
+FINDING_MARKER = "data-pr-agent-finding"
+FINDING_FIELDS = {FINDING_MARKER, "data-category", "data-severity"}
+FINDING_LEVELS = {"advisory": {"low", "medium"}, "blocking": {"high", "critical"}}
+
+
+def finding_prompt_schema(template):
+    """Extend the pinned producer schema, never classify a free-text title."""
+    anchor = "class KeyIssuesComponentLink(BaseModel):\n"
+    fields = (
+        '    category: Literal["advisory", "blocking"] = Field(description="Explicit finding category: '
+        'blocking for an actionable defect requiring a fix before merge, advisory otherwise. Never encode this in issue_header.")\n'
+        '    severity: Literal["low", "medium", "high", "critical"] = Field(description="Explicit finding severity: '
+        'low or medium for advisory; high or critical for blocking. Use exactly these English literals.")\n'
+    )
+    if template.count(anchor + fields) == 1:
+        return template
+    if template.count(anchor) != 1:
+        raise RuntimeError("incompatible PR-Agent finding schema")
+    return template.replace(anchor, anchor + fields).replace(
+        "      issue_header: |", "      category: advisory\n      severity: low\n      issue_header: |")
+
+
+def focus_title_nodes(source):
+    """Find the producer focus cell and its visible emphasized fields."""
+    parsed = ReviewSpans(source)
+    headings = [n for n in parsed.nodes if n.tag == "strong"
+                and plain_text(source[n.open_end:n.close_start]) in
+                {"Recommended focus areas for review", "Key issues to review"}]
+    if len(headings) != 1 or headings[0].parent is None or headings[0].parent.tag != "td":
+        raise ValueError("unsupported finding cell")
+    heading = headings[0]
+    cell = heading.parent
+    return parsed, [n for n in parsed.nodes if n.tag == "strong"
+                    and heading.end <= n.start < cell.close_start]
+
+
+def annotate_finding_metadata(source, output_data):
+    """Bind explicit source fields to each rendered title; unknown stays unknown."""
+    if not isinstance(output_data, dict) or not isinstance(output_data.get("review"), dict):
+        return source
+    findings = output_data["review"].get("key_issues_to_review")
+    if not isinstance(findings, list) or not findings:
+        return source
+    try:
+        _, titles = focus_title_nodes(source)
+        if len(titles) != len(findings):
+            raise ValueError("finding count mismatch")
+        replacements = []
+        for node, finding in zip(titles, findings):
+            if not isinstance(finding, dict) or not isinstance(finding.get("issue_header"), str):
+                raise ValueError("invalid finding source")
+            title = finding["issue_header"].strip()
+            if title.lower() == "possible bug":
+                title = "Possible Issue"  # The pinned renderer normalizes this label.
+            if node.attrs or plain_text(source[node.open_end:node.close_start]) != title:
+                raise ValueError("finding title mismatch")
+            category, severity = finding.get("category"), finding.get("severity")
+            if (not isinstance(category, str) or not isinstance(severity, str)
+                    or severity not in FINDING_LEVELS.get(category, set())):
+                category = severity = "unknown"
+            opening = (f'<strong {FINDING_MARKER}="v1" data-category="{category}" '
+                       f'data-severity="{severity}">')
+            replacements.append((node.start, node.open_end, opening))
+        for start, end, opening in reversed(replacements):
+            source = source[:start] + opening + source[end:]
+        return source
+    except ValueError:
+        # A producer layout mismatch must not publish an unmarked clean finding.
+        return source + "\n\nVerification: required\nFinding metadata could not be bound.\n"
+
+
+def explicit_finding_labels(source):
+    """Validate the fixed per-title marker before returning category labels."""
+    if not re.search(r"data-(?:pr-agent-finding|category|severity)\b", source):
+        return None  # Existing closed-label reviews retain their separate grammar.
+    parsed, titles = focus_title_nodes(source)
+    tables = [n for n in parsed.nodes if n.tag == "table"]
+    markers = re.findall(r"^#### \(Review updated until commit https://[^\s()]+/commit/([0-9a-f]{40})\)$", source, re.M)
+    if len(tables) != 1 or len(markers) != 1 or not titles:
+        raise ValueError("unbound finding metadata")
+    for title in titles:
+        parent = title.parent
+        while parent is not None and parent.tag != "table":
+            parent = parent.parent
+        if parent is not tables[0]:
+            raise ValueError("finding outside review table")
+    marked = [n for n in parsed.nodes if any(k in FINDING_FIELDS for k, _ in n.attrs)]
+    if marked != titles:
+        raise ValueError("partial or misplaced finding metadata")
+    labels = []
+    for node in titles:
+        attrs = dict(node.attrs)
+        if len(attrs) != len(node.attrs) or set(attrs) != FINDING_FIELDS or attrs[FINDING_MARKER] != "v1":
+            raise ValueError("invalid finding metadata marker")
+        category, severity = attrs["data-category"], attrs["data-severity"]
+        if severity not in FINDING_LEVELS.get(category, set()):
+            raise ValueError("unknown or contradictory finding metadata")
+        if category == "blocking":
+            raise ValueError("explicit blocking finding requires escalation")
+        labels.append("Possible Issue")
+    return labels
 
 
 def remove_spans(source, spans):
@@ -488,14 +672,76 @@ def require_signature(function, names):
         raise RuntimeError("incompatible PR-Agent runtime hook: " + function.__qualname__)
 
 
+def is_review_body(body, headers):
+    if not isinstance(body, str):
+        return False
+    first_line = body.split("\n", 1)[0]
+    return any(first_line == header or first_line.startswith(header + " ") for header in headers)
+
+
+def bind_review_record(provider, body, state_api, headers):
+    """Bind newly generated output to the provider's reviewed commit, never a prior comment."""
+    head = getattr(getattr(provider, "last_commit_id", None), "sha", None)
+    repo = getattr(provider, "repo", None)
+    if not isinstance(head, str) or not re.fullmatch(r"[0-9a-f]{40}", head):
+        raise RuntimeError("review publication: reviewed SHA unavailable")
+    if not isinstance(repo, str) or not re.fullmatch(r"[^/\s]+/[^/\s]+", repo):
+        raise RuntimeError("review publication: repository identity unavailable")
+    url = provider.get_latest_commit_url()
+    if not isinstance(url, str) or not re.fullmatch(
+            r"https://[^/\s()]+/" + re.escape(repo) + "/commit/" + head, url):
+        raise RuntimeError("review publication: commit URL identity mismatch")
+    parsed = state_api.parse_review_state(body)
+    if not parsed.valid:
+        raise RuntimeError("review publication: review state unavailable")
+    if parsed.state is not None and parsed.state.get("last_run", {}).get("head_sha") != head:
+        raise RuntimeError("review publication: review state SHA mismatch")
+    # The provider's commit object is the reviewed context. Refresh the PR only
+    # as a drift check; never relabel an older review with the new live head.
+    if not provider.pr or provider.issue_main:
+        raise RuntimeError("review publication: PR context unavailable")
+    provider.pr.update()
+    if provider.pr.head.sha != head:
+        raise RuntimeError("review publication: head moved during review")
+    first_line, separator, remainder = body.partition("\n")
+    marker = f"#### (Review updated until commit {url})"
+    bound = first_line + "\n\n" + marker + "\n" + (remainder if separator else "")
+    fitted = fit_review(bound, provider.max_comment_chars, state_api, headers)
+    if marker not in fitted:
+        raise RuntimeError("review publication: head binding cannot fit")
+    return fitted
+
+
+def publish_review_record(provider, body, publisher, state_api, headers):
+    expected = bind_review_record(provider, body, state_api, headers)
+    # One create, then an independent read. Failure/uncertainty is terminal;
+    # never edit an old record or retry a possibly completed creation.
+    response = publisher(provider, expected, is_temporary=False)
+    comment_id = getattr(response, "id", None)
+    if isinstance(comment_id, bool) or not isinstance(comment_id, int) or comment_id <= 0:
+        raise RuntimeError("review publication: creation identity unavailable")
+    readback = provider.pr.get_issue_comment(comment_id)
+    if type(readback.id) is not int or readback.id != comment_id or readback.body != expected:
+        raise RuntimeError("review publication: readback mismatch")
+    return response
+
+
 def install_hooks():
     import pr_agent.algo.review_finding_state as state_api
+    import pr_agent.algo.utils as utils
     from pr_agent.algo.comment_identity import PRReviewHeader
     from pr_agent.git_providers.github_provider import GithubProvider
     import pr_agent.tools.pr_reviewer as reviewer
 
+    renderer = utils.convert_to_markdown_v2
     composer = state_api.append_review_state
     limiter = GithubProvider.limit_output_characters
+    publisher = GithubProvider.publish_comment
+    editor = GithubProvider.edit_comment
+    persistent = GithubProvider.publish_persistent_comment_full
+    require_signature(renderer, ["output_data", "gfm_supported", "incremental_review", "git_provider", "files"])
+    if reviewer.convert_to_markdown_v2 is not renderer:
+        raise RuntimeError("incompatible PR-Agent renderer alias")
     require_signature(composer, ["review_body", "state", "max_chars"])
     require_signature(limiter, ["self", "output", "max_chars"])
     require_signature(state_api.parse_review_state, ["comment_body"])
@@ -503,11 +749,43 @@ def install_hooks():
     require_signature(state_api._render_resolved_section, ["state"])
     require_signature(GithubProvider.publish_comment, ["self", "pr_comment", "is_temporary"])
     require_signature(GithubProvider.edit_comment, ["self", "comment", "body"])
+    require_signature(persistent, ["self", "pr_comment", "initial_header", "update_header", "name",
+                                   "final_update_message", "as_thread", "identity_marker",
+                                   "legacy_initial_header", "require_agent_authorship", "fallback_on_error"])
     if reviewer.append_review_state is not composer or not Path(RUNNER).is_file():
         raise RuntimeError("incompatible PR-Agent composer alias or action runner")
     headers = tuple(header.value for header in PRReviewHeader)
     if len(headers) != 2 or not all(isinstance(h, str) and h.startswith("## ") for h in headers):
         raise RuntimeError("incompatible PR-Agent review identities")
+    if getattr(GithubProvider, "_workflow_immutable_review_hook", False):
+        return
+
+    # The pinned model forbids extra fields. Extend the actual validation tree
+    # as well as the prompt, retaining all existing types and extra-field guards.
+    from pydantic import create_model
+    from typing import Literal
+    import pr_agent.algo.output_models as models
+    finding_model = create_model(
+        "WorkflowFinding", __base__=models.KeyIssuesComponentLink,
+        category=(Literal["advisory", "blocking"], ...),
+        severity=(Literal["low", "medium", "high", "critical"], ...),
+    )
+    review_model = create_model(
+        "WorkflowReview", __base__=models.Review,
+        key_issues_to_review=(list[finding_model], ...),
+    )
+    output_model = create_model(
+        "WorkflowPRReview", __base__=models.PRReview, review=(review_model, ...),
+    )
+    from pr_agent.config_loader import get_settings
+    settings = get_settings()
+    settings.set("pr_review_prompt.system", finding_prompt_schema(settings.pr_review_prompt.system))
+
+    def source_renderer(output_data, gfm_supported=True, incremental_review=None,
+                        git_provider=None, files=None):
+        rendering_data = normalize_review_render_data(output_data) if gfm_supported else output_data
+        rendered = renderer(rendering_data, gfm_supported, incremental_review, git_provider, files)
+        return annotate_finding_metadata(rendered, output_data) if gfm_supported else rendered
 
     def deferred_composer(review_body, state, max_chars=None):
         return composer(review_body, state, max_chars=None)
@@ -518,9 +796,42 @@ def install_hooks():
             return fit_review(output, max_chars, state_api, headers)
         return limiter(self, output, max_chars)
 
+    def immutable_publication(self, pr_comment, is_temporary=False):
+        if is_review_body(pr_comment, headers):
+            if is_temporary:
+                raise RuntimeError("review publication: temporary review unsupported")
+            return publish_review_record(self, pr_comment, publisher, state_api, headers)
+        return publisher(self, pr_comment, is_temporary)
+
+    def immutable_edit(self, comment, body):
+        if is_review_body(body, headers):
+            return publish_review_record(self, body, publisher, state_api, headers)
+        if is_review_body(getattr(comment, "body", None), headers):
+            raise RuntimeError("review publication: prior review cannot be overwritten")
+        return editor(self, comment, body)
+
+    def immutable_persistent(self, pr_comment, initial_header, update_header=True, name="review",
+                             final_update_message=True, as_thread=False, identity_marker=None,
+                             legacy_initial_header=None, require_agent_authorship=False,
+                             fallback_on_error=True):
+        if is_review_body(pr_comment, headers):
+            if as_thread:
+                raise RuntimeError("review publication: issue-comment record required")
+            return publish_review_record(self, pr_comment, publisher, state_api, headers)
+        return persistent(self, pr_comment, initial_header, update_header, name, final_update_message,
+                          as_thread, identity_marker, legacy_initial_header,
+                          require_agent_authorship, fallback_on_error)
+
+    utils.convert_to_markdown_v2 = source_renderer
+    reviewer.convert_to_markdown_v2 = source_renderer
+    reviewer.PRReview = output_model
     state_api.append_review_state = deferred_composer
     reviewer.append_review_state = deferred_composer
     GithubProvider.limit_output_characters = publication_limiter
+    GithubProvider.publish_comment = immutable_publication
+    GithubProvider.edit_comment = immutable_edit
+    GithubProvider.publish_persistent_comment_full = immutable_persistent
+    GithubProvider._workflow_immutable_review_hook = True
 
 
 def main():
