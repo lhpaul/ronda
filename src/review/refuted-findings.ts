@@ -39,9 +39,14 @@ export function isCredentialInMessageClaim(finding: Finding): boolean {
   return CREDENTIAL_WORDS.test(text) && EXPOSURE_WORDS.test(text) && MESSAGE_WORDS.test(text);
 }
 
-/** Code outside any string literal; literal contents are replaced by `""`. */
-function stripStringLiterals(line: string): string | undefined {
-  let out = "";
+/**
+ * Splits a line into code outside string literals (literal contents replaced
+ * by `""`) and the literal contents. Undefined when the line cannot be split
+ * safely (interpolation, unterminated literal).
+ */
+function splitStringLiterals(line: string): { code: string; literals: string[] } | undefined {
+  let code = "";
+  const literals: string[] = [];
   let i = 0;
   while (i < line.length) {
     const ch = line[i];
@@ -54,31 +59,51 @@ function stripStringLiterals(line: string): string | undefined {
         j += 1;
       }
       if (j >= line.length) return undefined; // unterminated: do not guess
-      out += `${quote}${quote}`;
+      literals.push(line.slice(i + 1, j));
+      code += `${quote}${quote}`;
       i = j + 1;
     } else {
-      out += ch;
+      code += ch;
       i += 1;
     }
   }
-  return out;
+  return { code, literals };
 }
 
-const VALUE_IDENTIFIER = /(api[_-]?key|apikey|token|secret|password|passphrase|credential|authorization|bearer)/i;
+/**
+ * The only code shapes recognised as harmless: an error constructor, throw, or
+ * log/print call whose single argument is one fixed string literal. Anything
+ * else (extra arguments, variables, calls, operators) is ambiguous and kept.
+ */
+const HARMLESS_CODE =
+  /^\s*(?:(?:return|throw|raise)\s+)?(?:new\s+)?(?:(?:[A-Za-z_]\w*)?Error|Exception|(?:console|logger|log|logging)\.(?:log|info|warn|warning|error|debug)|print|println)\s*\(\s*(["'`])\1\s*\)\s*[;,)}]*\s*$/;
+
+/** A literal that carries a secret-looking value rather than prose naming one. */
+function literalLooksLikeSecretValue(literal: string): boolean {
+  if (/-----BEGIN|\b(?:sk|pk|rk)[-_][A-Za-z0-9_-]{8,}|\bgh[pousr]_\w{8,}|\bgithub_pat_|\bxox[abpr]-|\bAKIA[0-9A-Z]{8,}|\bBearer\s+\S{8,}/i.test(literal)) {
+    return true;
+  }
+  // `password=hunter2` style assignment inside the message
+  if (/(?:api[_ -]?key|token|secret|password|passphrase|credentials?)\s*[=:]\s*\S{4,}/i.test(literal)) return true;
+  for (const word of literal.split(/\s+/)) {
+    if (/^[A-Za-z0-9+/=_-]{20,}$/.test(word) && (/\d/.test(word) || (/[a-z]/.test(word) && /[A-Z]/.test(word)))) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
- * True when the cited source line only *names* a credential in a fixed string
- * literal: it has a string literal, no interpolation, no concatenation, no
- * format placeholder, and no credential-looking identifier outside the literal.
+ * True when the cited source line is positively recognised as a harmless
+ * message: one fixed string literal naming a credential, passed as the sole
+ * argument of an error constructor or log call, with no secret-looking value
+ * in the literal. Every other expression is retained (fail closed).
  */
 export function lineNamesCredentialWithoutValue(line: string): boolean {
-  const code = stripStringLiterals(line);
-  if (code === undefined) return false;
-  if (!/(["'`])\1/.test(code)) return false; // needs a literal
-  if (code.includes("+")) return false; // concatenation or arithmetic: do not guess
-  if (/\.format\s*\(|\.concat\s*\(|\.join\s*\(|%[sdvq]|\{\}|\bf["']/.test(line)) return false;
-  if (VALUE_IDENTIFIER.test(code)) return false;
-  return true;
+  const split = splitStringLiterals(line);
+  if (split === undefined || split.literals.length !== 1) return false;
+  if (!HARMLESS_CODE.test(split.code)) return false;
+  return !literalLooksLikeSecretValue(split.literals[0] as string);
 }
 
 /**

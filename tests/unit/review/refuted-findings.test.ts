@@ -37,6 +37,34 @@ test("lineNamesCredentialWithoutValue: interpolation, concatenation, and value i
   }
 });
 
+test("lineNamesCredentialWithoutValue: a log call passing a variable beside a credential-named message is kept", () => {
+  for (const line of [
+    'console.log("authentication failed", value);',
+    'logger.error("invalid token", err);',
+    'print("password rejected", pw)',
+    'throw new Error("credential invalid", { cause: value });',
+    'console.log("token missing", getSecret());',
+  ]) {
+    assert.equal(lineNamesCredentialWithoutValue(line), false, line);
+  }
+});
+
+test("lineNamesCredentialWithoutValue: a hardcoded credential-looking value inside a literal is kept", () => {
+  for (const line of [
+    'throw new Error("bad key sk-abcdef1234567890abcdef");',
+    'console.log("token ghp_abcdefghijklmnop1234");',
+    'throw new Error("password=hunter2222");',
+    'console.error("Authorization: Bearer abcdefgh12345678");',
+    'throw new Error("secret Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5");',
+  ]) {
+    assert.equal(lineNamesCredentialWithoutValue(line), false, line);
+  }
+});
+
+test("lineNamesCredentialWithoutValue: a sole fixed literal in a log call is suppressed", () => {
+  assert.equal(lineNamesCredentialWithoutValue('console.error("No API token is configured.");'), true);
+});
+
 test("isCredentialInMessageClaim: needs credential, exposure and message vocabulary", () => {
   const base = { path: "a.ts", line: 1, severity: "blocking" as const };
   assert.equal(
