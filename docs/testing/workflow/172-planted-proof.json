@@ -249,15 +249,19 @@
    "planted_exit": 1,
    "planted_observed": [],
    "restored_exit": 0
-  }
- ],
- "not_isolated_by_existing_suites": [
+  },
   {
-   "gate": "hub preflight: configuration binding",
+   "gate": "hub preflight: configuration binding (Ronda-owned isolating test)",
    "source": "scripts/development-workflow/hub-worker-preflight.py",
    "line": 230,
    "predicate": "or evidence[\"config_id\"] != config_id",
-   "note": "mutation not detected by the upstream suite; upstream coverage gap, not introduced by this sync"
+   "mutation": "or False",
+   "suite": "scripts/development-workflow/tests/test-hub-worker-preflight-config-binding.sh",
+   "planted_exit": 1,
+   "planted_observed": [
+    "AssertionError (planted result accepted)"
+   ],
+   "restored_exit": 0
   }
  ]
 }

@@ -53,8 +53,9 @@ The changed or new gates are upstream v0.50.0 code, identical to the pinned temp
 | evidence freshness: repository/PR/head identity | `review-evidence-context.py:116` | `if any(previous.get(k) != current[k] for k in ("repository",` → `if False:` | `test-review-evidence-context.sh` exit 1 | exit 0 |
 | hub preflight: hub repository id binding | `hub-worker-preflight.py:229` | `if (evidence["hub_repo_id"] != digest(hub_slug) or` → `if (False or` | `test-hub-worker-preflight.sh` exit 1 | exit 0 |
 | hub preflight: hub checkout id binding | `hub-worker-preflight.py:229` | `or evidence["hub_checkout_id"] != digest(str(hub))` → `or False` | `test-hub-worker-preflight.sh` exit 1 | exit 0 |
+| hub preflight: configuration binding (Ronda-owned isolating test) | `hub-worker-preflight.py:230` | `or evidence["config_id"] != config_id` → `or False` | `test-hub-worker-preflight-config-binding.sh` exit 1 | exit 0 |
 
-Not isolated by the upstream suites: the `config_id` binding (`hub-worker-preflight.py:230`) survives its mutation, so that one assertion has no isolating proof here. It is an upstream coverage gap in unmodified upstream code, reported rather than hidden. The remaining upstream assertions are byte-identical to the pinned template and are exercised by the upstream suites, which passed in full; this sync adds no Ronda change to them.
+The upstream suite does not isolate the `config_id` binding (`hub-worker-preflight.py:230`): its mutation survived. A small Ronda-owned suite, `test-hub-worker-preflight-config-binding.sh`, changes only that field of a valid current result (refused, `check=result`), then restores it (accepted); the mutated predicate makes that suite fail and the restored predicate passes. It reuses the upstream fixture without editing any upstream file.
 
 ### Decision-gate consistency matrix
 
