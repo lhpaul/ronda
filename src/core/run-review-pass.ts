@@ -52,6 +52,10 @@ import {
   resolveDurabilityMode,
   type DurabilityModeResolution,
 } from "../review/durability-mode.js";
+import {
+  filterNamedCredentialFindings,
+  type SuppressedFinding,
+} from "../review/refuted-findings.js";
 import { RepositoryFileUnusableError } from "../github/repo-content-reader.js";
 import {
   applyRepositoryContextBudgets,
@@ -579,6 +583,20 @@ export async function runReviewPass(
                 !isPathExcluded(finding.path, deps.config.excludePathGlobs),
             ),
     };
+    // #158: drop findings a maintainer would only refute by hand — a
+    // credential claim against a fixed string that merely names the
+    // credential. Deterministic, fails open, and runs before classification
+    // so the sweep record, summary, and counts describe only what is
+    // published.
+    const suppressed = filterNamedCredentialFindings(parsed.findings, changedFiles);
+    parsed.findings = suppressed.kept;
+    if (suppressed.suppressed.length > 0) {
+      deps.logger.event("findings_suppressed", {
+        headSha: pr.headSha,
+        count: suppressed.suppressed.length,
+        byReason: countByReason(suppressed.suppressed),
+      });
+    }
     if (sweepList) {
       // Set the moment this returns, independently of any GitHub call below.
       classification = classifyFindings(parsed.findings, sweepList);
@@ -881,6 +899,12 @@ function mapErrorToFailureReason(error: unknown, deadlineExpired: boolean): Fail
     return "timed_out";
   }
   return "unexpected_error";
+}
+
+function countByReason(dropped: SuppressedFinding[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const { reason } of dropped) counts[reason] = (counts[reason] ?? 0) + 1;
+  return counts;
 }
 
 function renderFindingBody(finding: Finding): string {
