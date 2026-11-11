@@ -4,6 +4,7 @@ import {
   ReviewPublishedCheckRunError,
   runReviewPass,
 } from "../../../src/core/run-review-pass.js";
+import { describeConfigLoadFailure, loadConfig } from "../../../src/config/load-config.js";
 import { GithubClientError } from "../../../src/github/github-client.js";
 import { ModelClientError } from "../../../src/inference/model-client.js";
 import type {
@@ -575,7 +576,20 @@ test("a malformed operator config file fails the pass with unexpected_error nami
   assert.equal(github.publishedCheckRuns.length, 1);
 });
 
-test("a config-load failure with a safe detail publishes it in the check run without echoing operator text", async () => {
+test("an unsupported RONDA_EXCLUDE_PATH_GLOBS publishes a safe detail in the check run without echoing the glob", async () => {
+  const secretGlob = "customer-secret/**/*.[jt]s";
+  // Drive the same path the entrypoints use: loadConfig throws, the shared
+  // describeConfigLoadFailure helper builds the fallback fields, and the
+  // resulting config reaches runReviewPass.
+  let loadError: string | undefined;
+  let loadErrorDetail: string | undefined;
+  try {
+    loadConfig({ env: { RONDA_EXCLUDE_PATH_GLOBS: secretGlob }, fileExists: () => false });
+    assert.fail("expected loadConfig to throw");
+  } catch (error) {
+    ({ loadError, loadErrorDetail } = describeConfigLoadFailure(error));
+  }
+
   const github = createFakeGithub({ pullRequest: createPullRequest() });
   const { model } = createFakeModel({});
 
@@ -584,11 +598,7 @@ test("a config-load failure with a safe detail publishes it in the check run wit
     baseDeps({
       github: github.ops,
       model,
-      config: createConfig({
-        loadError: "Invalid Ronda configuration: RONDA_EXCLUDE_PATH_GLOBS contains unsupported glob syntax",
-        loadErrorDetail:
-          "RONDA_EXCLUDE_PATH_GLOBS contains unsupported glob syntax (only **, * and ? are supported)",
-      }),
+      config: createConfig({ loadError, loadErrorDetail }),
     }),
   );
 
@@ -596,6 +606,7 @@ test("a config-load failure with a safe detail publishes it in the check run wit
   assert.equal(github.publishedCheckRuns.length, 1);
   const summary = github.publishedCheckRuns[0].summary;
   assert.match(summary, /Detail: RONDA_EXCLUDE_PATH_GLOBS contains unsupported glob syntax/);
+  assert.doesNotMatch(summary, /customer-secret/);
 });
 
 test("a config-load failure without a safe detail keeps the generic check-run summary", async () => {
