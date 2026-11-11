@@ -252,6 +252,7 @@ export async function runReviewPass(
         startMs,
         reason: "unexpected_error",
         logMessage: deps.config.loadError,
+        failureDetail: deps.config.loadErrorDetail,
       });
     }
 
@@ -1292,6 +1293,8 @@ interface FinalizeFailureInput {
   startMs: number;
   reason: FailureReason;
   logMessage: string;
+  /** Safe text naming the offending setting; rendered in the check run. */
+  failureDetail?: string;
 }
 
 const EMPTY_SEVERITY_COUNTS: Record<Severity, number> = {
@@ -1314,6 +1317,7 @@ async function finalizeFailure(
     modelName: deps.model.modelName,
     durationMs,
     failureReason: failure.reason,
+    failureDetail: failure.failureDetail,
   });
 
   // Deliberately no `signal` here: a `timed_out` failure reaches this

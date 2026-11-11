@@ -1,7 +1,7 @@
 import { createSystemClock } from "../core/clock.js";
 import { createLogger } from "../core/logger.js";
 import { runReviewPass } from "../core/run-review-pass.js";
-import { ConfigLoadError, loadConfig } from "../config/load-config.js";
+import { describeConfigLoadFailure, loadConfig } from "../config/load-config.js";
 import type { RondaConfig } from "../config/config.types.js";
 import type {
   GithubOperations,
@@ -222,10 +222,7 @@ export async function runWebhookReviewJob(
   try {
     config = loadConfig();
   } catch (error) {
-    const loadError =
-      error instanceof ConfigLoadError
-        ? error.publicMessage
-        : "Failed to load Ronda config file at unknown path";
+    const { loadError, loadErrorDetail } = describeConfigLoadFailure(error);
     config = {
       model: { apiKey: "", baseUrl: "", modelName: "" },
       passTimeoutMs: 600_000,
@@ -244,6 +241,7 @@ export async function runWebhookReviewJob(
       repositoryContextBudgetFallbacks: [],
       excludePathGlobs: [],
       loadError,
+      loadErrorDetail,
     };
   }
 

@@ -575,6 +575,47 @@ test("a malformed operator config file fails the pass with unexpected_error nami
   assert.equal(github.publishedCheckRuns.length, 1);
 });
 
+test("a config-load failure with a safe detail publishes it in the check run without echoing operator text", async () => {
+  const github = createFakeGithub({ pullRequest: createPullRequest() });
+  const { model } = createFakeModel({});
+
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      config: createConfig({
+        loadError: "Invalid Ronda configuration: RONDA_EXCLUDE_PATH_GLOBS contains unsupported glob syntax",
+        loadErrorDetail:
+          "RONDA_EXCLUDE_PATH_GLOBS contains unsupported glob syntax (only **, * and ? are supported)",
+      }),
+    }),
+  );
+
+  assert.equal(result.failureReason, "unexpected_error");
+  assert.equal(github.publishedCheckRuns.length, 1);
+  const summary = github.publishedCheckRuns[0].summary;
+  assert.match(summary, /Detail: RONDA_EXCLUDE_PATH_GLOBS contains unsupported glob syntax/);
+});
+
+test("a config-load failure without a safe detail keeps the generic check-run summary", async () => {
+  const github = createFakeGithub({ pullRequest: createPullRequest() });
+  const { model } = createFakeModel({});
+
+  await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      config: createConfig({ loadError: "Failed to load Ronda config file at /tmp/x.json" }),
+    }),
+  );
+
+  const summary = github.publishedCheckRuns[0].summary;
+  assert.doesNotMatch(summary, /Detail:/);
+  assert.doesNotMatch(summary, /\/tmp\/x\.json/);
+});
+
 // --- Fix 1: a check-run write failure after a successful review must never
 // be reported as a failed pass (the review is already public). ---
 

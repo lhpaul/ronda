@@ -38,14 +38,38 @@ export class ConfigLoadError extends Error {
    * from an environment variable supplies its own.
    */
   readonly publicMessage: string;
+  /**
+   * Fixed, safe text naming the offending setting, set only when the failure
+   * came from a named environment variable. Unlike `publicMessage` it is
+   * rendered into the published check run, so it must never carry a path or an
+   * operator-supplied value. Absent for config-file failures, whose published
+   * output stays the generic failure.
+   */
+  readonly publicDetail?: string;
 
-  constructor(path: string, cause: unknown, publicMessage?: string) {
+  constructor(path: string, cause: unknown, publicMessage?: string, publicDetail?: string) {
     super(`Failed to load Ronda config file at ${path}`);
     this.name = "ConfigLoadError";
     this.path = path;
     this.cause = cause;
     this.publicMessage = publicMessage ?? `Failed to load Ronda config file at ${path}`;
+    this.publicDetail = publicDetail;
   }
+}
+
+/**
+ * The `loadError` / `loadErrorDetail` pair an entrypoint stores on the
+ * fallback config after `loadConfig` throws. Shared by the Action, control-pass
+ * and webhook paths so all three publish the same safe text.
+ */
+export function describeConfigLoadFailure(error: unknown): {
+  loadError: string;
+  loadErrorDetail?: string;
+} {
+  if (error instanceof ConfigLoadError) {
+    return { loadError: error.publicMessage, loadErrorDetail: error.publicDetail };
+  }
+  return { loadError: "Failed to load Ronda config file at unknown path" };
 }
 
 interface OperatorConfigFile {
@@ -226,6 +250,9 @@ export function loadConfig(options: LoadConfigOptions = {}): RondaConfig {
       ),
       fromEnvironment
         ? "Invalid Ronda configuration: RONDA_EXCLUDE_PATH_GLOBS contains unsupported glob syntax (only **, * and ? are supported)"
+        : undefined,
+      fromEnvironment
+        ? "RONDA_EXCLUDE_PATH_GLOBS contains unsupported glob syntax (only **, * and ? are supported)"
         : undefined,
     );
   }

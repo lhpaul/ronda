@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ConfigLoadError, loadConfig } from "../../../src/config/load-config.js";
+import { ConfigLoadError, describeConfigLoadFailure, loadConfig } from "../../../src/config/load-config.js";
 
 // #134: repository-configured review path-exclusion globs. Same
 // first-non-blank-source, never-merged precedence discipline as every other
@@ -165,4 +165,38 @@ test("path exclusion: an unsupported config-file glob keeps the config-file publ
     assert.ok(error instanceof ConfigLoadError);
     assert.match(error.publicMessage, /Failed to load Ronda config file at /);
   }
+});
+
+test("path exclusion: an unsupported env glob exposes a safe detail that names the variable and never echoes the glob", () => {
+  const secretGlob = "customer-secret/**/*.[jt]s";
+  try {
+    loadConfig({ env: { RONDA_EXCLUDE_PATH_GLOBS: secretGlob }, fileExists: () => false });
+    assert.fail("expected loadConfig to throw");
+  } catch (error) {
+    const described = describeConfigLoadFailure(error);
+    assert.match(described.loadErrorDetail ?? "", /RONDA_EXCLUDE_PATH_GLOBS/);
+    assert.match(described.loadErrorDetail ?? "", /unsupported glob syntax/);
+    assert.doesNotMatch(described.loadErrorDetail ?? "", /customer-secret/);
+  }
+});
+
+test("path exclusion: a config-file failure exposes no published detail", () => {
+  try {
+    loadConfig({
+      env: {},
+      fileExists: () => true,
+      readFile: () => JSON.stringify({ excludePathGlobs: ["a/*.[jt]s"] }),
+    });
+    assert.fail("expected loadConfig to throw");
+  } catch (error) {
+    const described = describeConfigLoadFailure(error);
+    assert.equal(described.loadErrorDetail, undefined);
+    assert.match(described.loadError, /Failed to load Ronda config file at /);
+  }
+});
+
+test("describeConfigLoadFailure falls back to the generic message for a non-ConfigLoadError", () => {
+  assert.deepEqual(describeConfigLoadFailure(new Error("boom")), {
+    loadError: "Failed to load Ronda config file at unknown path",
+  });
 });
