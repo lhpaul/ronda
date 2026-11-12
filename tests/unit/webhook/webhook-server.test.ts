@@ -19,6 +19,8 @@ import type { WebhookReviewJob } from "../../../src/webhook/webhook-job.js";
 import type { PublishCheckRunInput } from "../../../src/domain/review-pass.types.js";
 import type { ExistingRondaPullRequestReview } from "../../../src/github/pull-request-reader.js";
 import type { PullRequestMetadata } from "../../../src/domain/review-pass.types.js";
+import { createWorkerCompilerSession } from "../../../src/review/repository-context-compiler.js";
+import { CONTROLLABLE_ENTRY_URL, waitForNoLiveWorker } from "../../support/compiler-worker-test-helpers.js";
 
 const config: WebhookConfig = {
   host: "127.0.0.1",
@@ -2229,6 +2231,87 @@ test("queued webhook jobs report failures when they exceed the outer job timeout
   } finally {
     server.close();
   }
+});
+
+test("#131 AC3: a delivery received while a review job compiles is acknowledged and queued without waiting for the compile", async () => {
+  const compileMs = 4_000;
+  const started: string[] = [];
+  let compileStartedAt = 0;
+  let compileEndedAt = 0;
+  const server = startWebhookServer(
+    { ...config, port: 0 },
+    {
+      runJob: async (job) => {
+        started.push(job.deliveryId);
+        if (job.deliveryId !== "delivery-compile-1") {
+          return;
+        }
+        // A deliberately slow repository-context compile in a real worker.
+        const session = createWorkerCompilerSession({
+          entryUrl: CONTROLLABLE_ENTRY_URL,
+          workerData: { behaviour: { find: { kind: "busy", ms: compileMs } } },
+        });
+        try {
+          compileStartedAt = performance.now();
+          const outcome = await session.findCandidates(
+            {
+              changedSourceTexts: new Map([["src/a.ts", "export const a = 1;\n"]]),
+              changedLinesByFile: new Map([["src/a.ts", new Set([1])]]),
+            },
+            [],
+          );
+          compileEndedAt = performance.now();
+          assert.equal(outcome.kind, "result");
+        } finally {
+          session.close();
+        }
+      },
+      log: { error: () => undefined, log: () => undefined },
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server.once("listening", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  const post = (deliveryId: string, headSha: string) => {
+    const payload = pullRequestPayload();
+    payload.pull_request = { number: 7, head: { sha: headSha } };
+    const body = JSON.stringify(payload);
+    return fetch(`http://127.0.0.1:${address.port}/webhook`, {
+      method: "POST",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-github-delivery": deliveryId,
+        "x-hub-signature-256": signature(body),
+      },
+      body,
+    });
+  };
+  try {
+    const first = await post("delivery-compile-1", "c".repeat(40));
+    assert.equal(first.status, 202);
+    await eventually(() => compileStartedAt > 0);
+    // Let the worker start and get into its busy compile.
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+
+    const second = await post("delivery-compile-2", "d".repeat(40));
+    const acknowledgedAt = performance.now();
+    assert.equal(second.status, 202);
+    assert.deepEqual(await second.json(), { ok: true, queued: true, pullNumber: 7 });
+    assert.equal(compileEndedAt, 0, "the second delivery was acknowledged while the compile was still running");
+    assert.ok(acknowledgedAt - compileStartedAt < compileMs, "acknowledged before the compile could have finished");
+    assert.deepEqual(started, ["delivery-compile-1"], "one active review job at a time: the second is queued");
+
+    for (let attempt = 0; attempt < 200 && started.length < 2; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert.deepEqual(started, ["delivery-compile-1", "delivery-compile-2"]);
+    assert.ok(compileEndedAt > 0);
+  } finally {
+    server.close();
+  }
+  await waitForNoLiveWorker();
 });
 
 async function eventually(predicate: () => boolean): Promise<void> {

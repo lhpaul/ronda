@@ -278,3 +278,64 @@ test("check-pending recovery clears stale check run ids when lookup misses", asy
 
   assert.equal(refreshed.existingCheckRunId, null);
 });
+
+test("#131 D13: the job's watchdog signal reaches the review pass as jobAbortSignal", async () => {
+  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const webhookConfig: WebhookConfig = {
+    host: "127.0.0.1",
+    port: 0,
+    webhookSecret: "webhook-secret",
+    githubAppId: "123",
+    githubPrivateKey: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+    githubAppTokenTimeoutMs: 5_000,
+    webhookJobTimeoutMs: 900_000,
+    webhookJobSettlementTimeoutMs: 30_000,
+  };
+  const originalFetch = globalThis.fetch;
+  // Same stubbing approach as the installation-token timeout test above: the
+  // token request is answered locally, never sent to GitHub.
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ token: "installation-token-for-test" }), {
+      status: 201,
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch;
+
+  try {
+    const jobSignal = new AbortController().signal;
+    const observed: Array<AbortSignal | undefined> = [];
+    const result = await runWebhookReviewJob(
+      {
+        owner: "lhpaul",
+        repo: "example",
+        pullNumber: 7,
+        trigger: "automatic",
+        installationId: 42,
+        deliveryId: "delivery-job-signal",
+      },
+      webhookConfig,
+      jobSignal,
+      {},
+      {
+        runPass: async (_input, deps) => {
+          observed.push(deps.jobAbortSignal);
+          return {
+            outcome: "skipped",
+            skipReason: "draft_pull_request",
+            terminalCheckRunPublished: false,
+            findings: [],
+            malformedCount: 0,
+            coercedSeverityCount: 0,
+            duplicateCount: 0,
+            durationMs: 0,
+          };
+        },
+      },
+    );
+
+    assert.equal(observed.length, 1);
+    assert.equal(observed[0], jobSignal);
+    assert.equal(result.terminalCheckRunPublished, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
