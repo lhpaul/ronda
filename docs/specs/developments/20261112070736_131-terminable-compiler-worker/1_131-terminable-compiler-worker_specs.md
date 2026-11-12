@@ -185,7 +185,11 @@ excerpts given to the reviewer are the same as before this feature.
   candidates and resolving them — runs where the pass can stop it while it is in
   flight. When the budget that bounds a phase runs out, that phase's compiler
   work is stopped within a short, fixed grace (the plan names the value; it must
-  be well under one second), not when it finishes.
+  be well under one second), not when it finishes. "Compiler work" here means
+  the program building, type-checking, and syntax-tree walking that finding
+  and resolving candidates perform once their file text has been read. The
+  lightweight per-file import scan that gathers dependency files between reads
+  is not covered: it is already checked against the budget between reads.
 - **Same budgets, same outcomes.** This feature changes no budget, no budget
   default, no configuration value, and no pass outcome. A compile stopped by a
   budget is recorded exactly as a context time budget that ran out is recorded
@@ -234,8 +238,9 @@ excerpts given to the reviewer are the same as before this feature.
   naming the phase (finding or resolving candidates) and the budget that ran out
   (pass deadline or context time budget); one structured event when the isolated
   execution context could not start; one when it stopped unexpectedly. None of
-  these events contains file text, repository content, credentials, or local
-  paths.
+  these events — nor the existing repository-context failure event when an
+  isolation failure reaches it — contains file text, repository content,
+  credentials, or local paths.
 - **Per-pass record**: unchanged in shape. Stopped compiles appear as time-budget
   drops; isolation failures appear as a failed repository-context phase.
 - **Notifications**: none.
@@ -245,9 +250,9 @@ excerpts given to the reviewer are the same as before this feature.
 
 ## Acceptance Criteria
 
-- [ ] AC1: With repository context on, a resolution compile forced to run longer
-      than the context time budget (for example, by a deliberately slow compile
-      in a test environment) is stopped within the grace the plan names after the
+- [ ] AC1: With repository context on and the pass deadline still running, a
+      resolution compile forced to run longer than the context time budget (for
+      example, by a deliberately slow compile in a test environment) is stopped within the grace the plan names after the
       budget runs out — measured from budget expiry, not from compile completion
       — and the pass records the requested candidates as time-budget drops,
       records Repository context unavailable, and publishes its review.
@@ -265,8 +270,9 @@ excerpts given to the reviewer are the same as before this feature.
 - [ ] AC4: If the isolated execution context cannot be started, the pass records
       Repository context unavailable with every requested candidate dropped as a
       read that did not succeed (no drops when the failure happens while
-      finding candidates, since none has been requested yet), emits the "could not start" log event, publishes
-      its review, and raises no unhandled error.
+      finding candidates, since none has been requested yet), emits the "could
+      not start" log event, publishes its review, and raises no unhandled
+      error.
 - [ ] AC5: If the isolated execution context stops unexpectedly mid-compile, the
       pass records Repository context unavailable as in AC4, emits the "stopped
       unexpectedly" log event, publishes its review, and raises no unhandled
@@ -285,8 +291,9 @@ excerpts given to the reviewer are the same as before this feature.
       execution context (not a stub) and resolves a candidate through it; the
       change adds no new required configuration, secret, or dependency, and
       changes no Action definition or workflow file.
-- [ ] AC10: No log event added by this feature contains file text, repository
-      content, credentials, or local paths.
+- [ ] AC10: No log event added by this feature, and no existing log event
+      emitted for an isolation failure, contains file text, repository content,
+      credentials, or local paths.
 - [ ] AC11: The architecture documentation's repository-context entry records
       that the compiler work runs in an isolated execution context the pass can
       stop at its budget; the resolver's recorded-limitation notes no longer
