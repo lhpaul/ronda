@@ -40,12 +40,23 @@ or resolving candidates takes longer than the budget that bounds it.
 1. The pass starts the compiler work in its isolated execution context.
 2. The bounding budget runs out while that work is still in flight.
 3. The pass stops the compiler work at that moment instead of waiting for it.
-4. The pass continues without the unfinished context and publishes its review.
+4. The pass continues without the unfinished context, exactly as it does today
+   once that budget has run out.
 
-**Postconditions**: The review for the head is published exactly as it would be
-for any other pass whose context time budget ran out. The pass record shows the
-affected candidates dropped for the time budget, and the outcome is Repository
-context unavailable (or partial, should any candidate already be resolved).
+**Postconditions**: What follows the stop is the existing behaviour for the
+budget that ran out — this feature only makes it happen at the budget instead
+of after the compile finishes:
+
+- **Context time budget ran out while resolving candidates** (the pass deadline
+  still has time): the pass record shows every requested candidate dropped for
+  the time budget, the outcome is Repository context unavailable, and the
+  review for the head is published exactly as for any other pass whose context
+  time budget ran out.
+- **Pass deadline ran out** (while finding candidates, or while resolving them
+  when what remained of the pass deadline was the lesser bound): the pass ends
+  the way a pass whose deadline runs out ends today — as a timed-out pass
+  failure — not with a published review. The only change is that it ends at
+  the deadline rather than when the compile finishes.
 
 **Information shown**:
 
@@ -178,7 +189,10 @@ excerpts given to the reviewer are the same as before this feature.
 - **Same budgets, same outcomes.** This feature changes no budget, no budget
   default, no configuration value, and no pass outcome. A compile stopped by a
   budget is recorded exactly as a context time budget that ran out is recorded
-  today: every candidate not already resolved is dropped for the time budget.
+  today: every requested candidate is dropped for the time budget, because a
+  stopped compile returns no partial result. A compile stopped because the pass
+  deadline ran out leaves the pass to end as a timed-out pass failure, exactly
+  as a pass whose deadline runs out does today.
 - **Failure is a degraded pass, never a failed one.** If the isolated execution
   context cannot start or stops unexpectedly, the pass proceeds without
   repository context, records it as a failed repository-context phase, and still
@@ -239,8 +253,9 @@ excerpts given to the reviewer are the same as before this feature.
       records Repository context unavailable, and publishes its review.
 - [ ] AC2: The same holds for the candidate-finding compile under the pass
       deadline: a finding compile forced to outlast the pass deadline is stopped
-      within the grace, and the pass proceeds the way a pass whose deadline ran
-      out during repository context proceeds today.
+      within the grace — measured from deadline expiry — and the pass ends as
+      the existing timed-out pass failure, exactly as a pass whose deadline ran
+      out during repository context ends today, raising no unhandled error.
 - [ ] AC3: While a deliberately slow compile is in flight, the process's own
       event loop keeps serving work: a timer scheduled during the compile fires
       within a small bound of its due time (the plan names the bound), and on the
@@ -249,7 +264,8 @@ excerpts given to the reviewer are the same as before this feature.
       the compile.
 - [ ] AC4: If the isolated execution context cannot be started, the pass records
       Repository context unavailable with every requested candidate dropped as a
-      read that did not succeed, emits the "could not start" log event, publishes
+      read that did not succeed (no drops when the failure happens while
+      finding candidates, since none has been requested yet), emits the "could not start" log event, publishes
       its review, and raises no unhandled error.
 - [ ] AC5: If the isolated execution context stops unexpectedly mid-compile, the
       pass records Repository context unavailable as in AC4, emits the "stopped
@@ -271,10 +287,12 @@ excerpts given to the reviewer are the same as before this feature.
       changes no Action definition or workflow file.
 - [ ] AC10: No log event added by this feature contains file text, repository
       content, credentials, or local paths.
-- [ ] AC11: The architecture documentation and the resolver's recorded-limitation
-      notes no longer describe the compile as uninterruptible, and the
-      repository-context evidence document's disclosed residual risk records that
-      it is closed by this item.
+- [ ] AC11: The architecture documentation's repository-context entry records
+      that the compiler work runs in an isolated execution context the pass can
+      stop at its budget; the resolver's recorded-limitation notes no longer
+      describe the compile as uninterruptible; and the repository-context
+      evidence document's disclosed residual risk records that it is closed by
+      this item.
 
 ---
 
@@ -346,5 +364,5 @@ excerpts given to the reviewer are the same as before this feature.
 | --- | --- | --- |
 | 1 | An isolation failure (could not start, stopped unexpectedly) is recorded as a failed repository-context phase — Repository context unavailable, every requested candidate dropped as a read that did not succeed — not as a new outcome or a new drop reason. | Keeps the #106 record shape and its five drop reasons unchanged, as #106 did for its own size caps. The new log events tell the two causes apart for the operator. Taken from the brief's direction that failures must degrade, not surface as errors. |
 | 2 | No in-line fallback when isolation fails. | Falling back would reintroduce the event-loop stall on exactly the inputs most likely to trigger it, defeating the item's purpose. A pass without repository context is the existing, accepted degraded mode. |
-| 3 | A compile stopped by a budget drops every candidate it had not yet resolved for the time budget. | The brief's stated degradation; identical to how an exhausted context time budget is already recorded. |
+| 3 | A resolution compile stopped by the context time budget drops every requested candidate for the time budget; a compile stopped by the pass deadline leaves the pass to end as today's timed-out failure. | The brief's stated degradation ("time budget for every requested reference"); identical to how an exhausted context time budget and an expired pass deadline are already handled. |
 | 4 | The input-size caps stay. | Defence in depth: they keep the everyday compile cheap and bound memory, which a time bound alone does not. |
