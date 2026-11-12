@@ -204,7 +204,8 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   Outcomes are recorded on the pass record and the logs; activation and the list
   version appear in the review summary. No finding text enters the records.
 - **Read-only repository context** (`src/review/repository-context.ts`,
-  `src/review/symbol-resolver.ts`): off by default for adopting repositories,
+  `src/review/symbol-resolver.ts`, `src/review/repository-context-compiler.ts`):
+  off by default for adopting repositories,
   and this repository's own dogfooding is the recorded exception once the
   owner sets it (`RONDA_REPOSITORY_CONTEXT` / `repositoryContext`, #106).
   **It remains off here too, for now**: the repository variable is
@@ -219,7 +220,20 @@ npm run benchmark:quality -- --response-file tests/fixtures/recall-benchmark/mod
   them with the TypeScript compiler API, and binds each changed-line reference
   to the declaration the checker resolves it to, following a re-export's alias
   chain; an unbindable reference is dropped `ambiguous_resolution` rather than
-  guessed. `repository-context.ts` orders the resolved candidates by the
+  guessed. The compiler work — finding candidates and resolving them — runs
+  in a per-pass worker thread (`repository-context-compiler.ts`, #131) that
+  the pass terminates at its bounding budget: the pass deadline while finding
+  candidates, the lesser of the context time budget and the remaining pass
+  time while resolving them, and a webhook watchdog abort of the job in
+  either phase. Reads stay on the main thread through the same seam; only
+  already-read text crosses into the worker, which gets an empty environment
+  and whose output is discarded. A stopped resolution drops every requested
+  reference `time_budget`; a worker that cannot start or stops unexpectedly
+  degrades to a failed repository-context phase (`unavailable`, `read_failed`
+  drops) and the review is still published. Review passes never fall back to
+  compiling in-line, so a slow compile no longer stalls the webhook server's
+  event loop; the input-size caps remain as defence in depth, and the offline
+  recall benchmark still compiles in-line. `repository-context.ts` orders the resolved candidates by the
   recorded priority keys, applies the operator's candidate-count and
   character budgets (never displacing the diff), and resolves the pass's
   outcome (`used` / `partial` / `unavailable` / `nothing_to_resolve`). The

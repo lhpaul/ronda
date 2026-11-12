@@ -62,15 +62,25 @@ import {
   buildRepositoryContextCandidates,
   compareRepositoryContextCandidates,
   resolveRepositoryContextOutcome,
+  type RepositoryContextResolution,
 } from "../review/repository-context.js";
 import {
   buildSourceFileSet,
-  identifyCandidates,
-  resolveSymbols,
+  readChangedSourceTexts,
   RepositoryContextUnusableContentError,
+  type FindCandidatesResult,
   type InternalRequestedReference,
   type RepositoryContextReadFile,
 } from "../review/symbol-resolver.js";
+import {
+  createWorkerCompilerSession,
+  RepositoryContextIsolationError,
+  type CompileStopBound,
+  type CompilerIsolationFailure,
+  type CompilerPhase,
+  type CompilerStopReason,
+  type RepositoryContextCompilerSession,
+} from "../review/repository-context-compiler.js";
 import { filterExcludedFiles, isPathExcluded } from "../review/path-exclusion.js";
 
 function readLocalDurabilityModeDocument(
@@ -1095,10 +1105,23 @@ async function runRepositoryContextPhase(
   // not identification (which runs first, and can itself throw) ever let
   // control reach the point where this gets created.
   let contextDeadline: ReturnType<typeof createPassDeadline> | undefined;
+  // The per-pass compiler session (#131, D1): created lazily, only once the
+  // changed-file reads produced at least one source text, and always closed
+  // by the `finally` below — success, stop, isolation failure, or throw.
+  let session: RepositoryContextCompilerSession | undefined;
+  const openSession = (): RepositoryContextCompilerSession => {
+    session ??= (deps.createRepositoryContextCompiler ?? createWorkerCompilerSession)();
+    return session;
+  };
   // Recorded fallback for the catch block below, which reaches it whenever
   // identification itself throws — before the pass-remaining-time-adjusted
   // figure a few lines down is ever computed.
   let timeBudgetMs = deps.config.repositoryContextTimeBudgetMs;
+  // D6: a webhook watchdog abort stops either compile; it is listed first so
+  // it wins the D5 precedence whenever it applies.
+  const watchdogStops: CompileStopBound[] = deps.jobAbortSignal
+    ? [{ reason: "watchdog_abort", signal: deps.jobAbortSignal }]
+    : [];
 
   try {
     // Candidate identification (step a) is bounded by the pass deadline
@@ -1107,22 +1130,67 @@ async function runRepositoryContextPhase(
     // identification has returned, so a slow changed-file read can never
     // consume the context budget before resolution — the phase this budget
     // is meant to bound — ever starts.
-    const identified = await identifyCandidates(
+    const read = await readChangedSourceTexts(
       changedFiles.map((file) => file.path),
-      buildCommentableLinesByFile(changedFiles),
       readFileWithSignal(deadlineSignal),
     );
-    requested = identified.requested;
+    let found: FindCandidatesResult = { requested: [], nonRepositoryReferencesSkipped: 0 };
+    if (read.changedSourceTexts.size > 0) {
+      // The compile half runs in the terminable worker (#131); the pass can
+      // stop it the moment the pass deadline or a watchdog abort fires.
+      const findOutcome = await openSession().findCandidates(
+        {
+          changedSourceTexts: read.changedSourceTexts,
+          changedLinesByFile: buildCommentableLinesByFile(changedFiles),
+        },
+        [...watchdogStops, { reason: "pass_deadline", signal: deadlineSignal }],
+      );
+      if (findOutcome.kind === "stopped") {
+        logCompileStopped(deps, "finding_candidates", findOutcome.reason);
+        // Plan "Stop and failure outcomes", finding row: nothing was
+        // requested yet, so there is nothing to drop. The pass then ends as
+        // a timed-out pass failure at its model request (D14).
+        return {
+          repositoryContext: {
+            record: {
+              outcome: "unavailable",
+              candidatesRequested: 0,
+              candidatesResolved: 0,
+              drops: [],
+              unreadableChangedFilePaths: read.unreadableChangedFilePaths,
+              contentRequestCount: read.contentRequestCount,
+              nonRepositoryReferencesSkipped: 0,
+              charsUsed: 0,
+              maxCandidates,
+              maxChars,
+              timeBudgetMs,
+              timeUsedMs: 0,
+              budgetFallbacks: deps.config.repositoryContextBudgetFallbacks,
+            },
+          },
+          candidatesForPrompt: [],
+        };
+      }
+      if (findOutcome.kind === "isolation_failed") {
+        throwIsolationFailure(deps, "finding_candidates", findOutcome.failure);
+      }
+      found = findOutcome.value;
+    }
+    requested = found.requested;
 
     // Computed *after* identification, so it reflects the pass budget
     // actually remaining once identification's own (potentially slow) reads
-    // are done, never a stale figure captured before them.
+    // and compile are done, never a stale figure captured before them.
     const remainingPassMs = Math.max(0, passStartMs + deps.config.passTimeoutMs - deps.clock.now());
     timeBudgetMs = Math.min(deps.config.repositoryContextTimeBudgetMs, remainingPassMs);
+    // D6: label the context deadline by what it really is — the pass
+    // deadline when the remaining pass time was the lesser (or equal) bound.
+    const contextStopReason: CompilerStopReason =
+      remainingPassMs <= deps.config.repositoryContextTimeBudgetMs ? "pass_deadline" : "context_time_budget";
 
-    if (identified.requested.length === 0) {
+    if (found.requested.length === 0) {
       const outcome: RepositoryContextOutcome =
-        identified.unreadableChangedFilePaths.length > 0 ? "unavailable" : "nothing_to_resolve";
+        read.unreadableChangedFilePaths.length > 0 ? "unavailable" : "nothing_to_resolve";
       return {
         repositoryContext: {
           record: {
@@ -1130,9 +1198,9 @@ async function runRepositoryContextPhase(
             candidatesRequested: 0,
             candidatesResolved: 0,
             drops: [],
-            unreadableChangedFilePaths: identified.unreadableChangedFilePaths,
-            contentRequestCount: identified.contentRequestCount,
-            nonRepositoryReferencesSkipped: identified.nonRepositoryReferencesSkipped,
+            unreadableChangedFilePaths: read.unreadableChangedFilePaths,
+            contentRequestCount: read.contentRequestCount,
+            nonRepositoryReferencesSkipped: found.nonRepositoryReferencesSkipped,
             charsUsed: 0,
             maxCandidates,
             maxChars,
@@ -1153,34 +1221,61 @@ async function runRepositoryContextPhase(
     // has already returned, and combining its signal with the pass deadline
     // is what makes a stalled contents request abort at the tighter
     // boundary instead of silently riding the pass's own (much larger)
-    // budget.
+    // budget. The same signal stops the resolution compile in the worker.
+    //
+    // The phase start is captured *before* the deadline is armed, so the
+    // recorded time used always covers the whole budget window: a phase
+    // stopped by this deadline can never record less elapsed time than the
+    // budget that stopped it (honest time accounting).
+    const resolutionPhaseStartMs = deps.clock.now();
     contextDeadline = createPassDeadline(timeBudgetMs, deps.deadlineClock);
     const resolveReadFile = readFileWithSignal(combineAbortSignals(deadlineSignal, contextDeadline.signal));
 
-    const resolutionPhaseStartMs = deps.clock.now();
-    const closure = await buildSourceFileSet(identified.changedSourceTexts, resolveReadFile, timeBudgetMs);
-    const resolutions = resolveSymbols(closure.fileSet, identified.requested, closure);
+    const closure = await buildSourceFileSet(read.changedSourceTexts, resolveReadFile, timeBudgetMs);
+    const resolveOutcome = await openSession().resolveCandidates(
+      {
+        fileSet: closure.fileSet,
+        requested: found.requested,
+        bookkeeping: {
+          resolvedSpecifierKeys: closure.resolvedSpecifierKeys,
+          refusedSpecifierKeys: closure.refusedSpecifierKeys,
+          attemptedSpecifierKeys: closure.attemptedSpecifierKeys,
+        },
+      },
+      [
+        ...watchdogStops,
+        { reason: "pass_deadline", signal: deadlineSignal },
+        { reason: contextStopReason, signal: contextDeadline.signal },
+      ],
+    );
     const resolutionPhaseElapsedMs = deps.clock.now() - resolutionPhaseStartMs;
+    if (resolveOutcome.kind === "isolation_failed") {
+      throwIsolationFailure(deps, "resolving_candidates", resolveOutcome.failure);
+    }
 
-    // `resolveSymbols` is synchronous and cannot itself be interrupted by any
-    // `AbortSignal` — JS is single-threaded, so `contextDeadline`'s timer
-    // cannot fire until synchronous execution yields back to the event
-    // loop. `isResolutionFileSetOversized`'s size caps are what bound how
-    // long that synchronous work can run; this check cannot make it
-    // shorter. What it does guarantee is that the *record* is never
-    // dishonestly optimistic about work that only finished after the
-    // pass's own configured budget: if the deadline had already fired by
-    // the time the (uninterruptible) compile returns, every candidate is
-    // downgraded to `time_budget` rather than reported as resolved.
-    const effectiveResolutions = contextDeadline.expired()
-      ? identified.requested.map((ref) => ({ id: ref.id, reason: "time_budget" as const }))
-      : resolutions;
+    const allTimeBudget = (): RepositoryContextResolution[] =>
+      found.requested.map((ref) => ({ id: ref.id, reason: "time_budget" as const }));
+    let effectiveResolutions: RepositoryContextResolution[];
+    if (resolveOutcome.kind === "stopped") {
+      // A stopped compile returns no partial result: every requested
+      // reference is dropped `time_budget`, exactly as an exhausted context
+      // time budget is recorded. For `pass_deadline` / `watchdog_abort` the
+      // pass then ends as a timed-out failure at its model request (D14).
+      logCompileStopped(deps, "resolving_candidates", resolveOutcome.reason);
+      effectiveResolutions = allTimeBudget();
+    } else {
+      // A second guard on a returned result: the session already refuses a
+      // result once its stop has fired, but if the context deadline is
+      // recorded as expired by the time control returns here, the record is
+      // never optimistic about work that finished after the budget.
+      effectiveResolutions = contextDeadline.expired() ? allTimeBudget() : resolveOutcome.value;
+    }
 
-    const built = buildRepositoryContextCandidates(identified.requested, effectiveResolutions);
+    const built = buildRepositoryContextCandidates(found.requested, effectiveResolutions);
     const ordered = [...built.candidates].sort(compareRepositoryContextCandidates);
     const budgeted = applyRepositoryContextBudgets(ordered, { maxCandidates, maxChars });
     const outcome = resolveRepositoryContextOutcome({
-      candidatesRequested: identified.requested.length,
+      candidatesRequested: found.requested.length,
       candidatesResolved: budgeted.selected.length,
     });
     const charsUsed = budgeted.selected.reduce((sum, candidate) => sum + candidate.text.length, 0);
@@ -1189,20 +1284,21 @@ async function runRepositoryContextPhase(
       repositoryContext: {
         record: {
           outcome,
-          candidatesRequested: identified.requested.length,
+          candidatesRequested: found.requested.length,
           candidatesResolved: budgeted.selected.length,
           drops: [...built.drops, ...budgeted.drops],
-          unreadableChangedFilePaths: identified.unreadableChangedFilePaths,
-          contentRequestCount: identified.contentRequestCount + closure.contentRequestCount,
-          nonRepositoryReferencesSkipped: identified.nonRepositoryReferencesSkipped,
+          unreadableChangedFilePaths: read.unreadableChangedFilePaths,
+          contentRequestCount: read.contentRequestCount + closure.contentRequestCount,
+          nonRepositoryReferencesSkipped: found.nonRepositoryReferencesSkipped,
           charsUsed,
           maxCandidates,
           maxChars,
           timeBudgetMs,
           // The larger of the two measurements: buildSourceFileSet's own
           // internal figure (fetch time alone) and this phase's total wall
-          // clock (fetch plus the synchronous compile) — never understating
-          // real elapsed time spent for this budget.
+          // clock (fetch plus the worker compile, including any time spent
+          // stopping it) — never understating real elapsed time spent for
+          // this budget.
           timeUsedMs: Math.max(closure.timeUsedMs, resolutionPhaseElapsedMs),
           budgetFallbacks: deps.config.repositoryContextBudgetFallbacks,
         },
@@ -1210,6 +1306,9 @@ async function runRepositoryContextPhase(
       candidatesForPrompt: budgeted.selected,
     };
   } catch (error) {
+    // An isolation failure reaches here as `RepositoryContextIsolationError`,
+    // whose message is fixed text (D12) — the worker's own error text, exit
+    // code, and output are never logged.
     deps.logger.event("repository_context_phase_failed", { message: String(error) });
     return {
       repositoryContext: {
@@ -1238,8 +1337,35 @@ async function runRepositoryContextPhase(
       candidatesForPrompt: [],
     };
   } finally {
+    // Nothing left behind (#131): every worker this pass started is ended
+    // when the phase settles. `close()` never waits for the worker to exit.
+    session?.close();
     contextDeadline?.dispose();
   }
+}
+
+/** #131: the compile was stopped at a bound. Carries only the phase and the bound — no content. */
+function logCompileStopped(deps: ReviewPassDeps, phase: CompilerPhase, stoppedBy: CompilerStopReason): void {
+  deps.logger.event("repository_context_compile_stopped", { phase, stoppedBy });
+}
+
+/**
+ * #131 D12: emits the specific isolation event (phase only), then throws the
+ * fixed-text error into the phase's existing failure path, which records a
+ * failed repository-context phase.
+ */
+function throwIsolationFailure(
+  deps: ReviewPassDeps,
+  phase: CompilerPhase,
+  failure: CompilerIsolationFailure,
+): never {
+  deps.logger.event(
+    failure === "could_not_start"
+      ? "repository_context_compiler_start_failed"
+      : "repository_context_compiler_stopped_unexpectedly",
+    { phase },
+  );
+  throw new RepositoryContextIsolationError(failure);
 }
 
 /**

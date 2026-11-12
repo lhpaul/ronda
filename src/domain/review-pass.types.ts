@@ -1,6 +1,7 @@
 import type { RepositoryContextBudgetName, RondaConfig } from "../config/config.types.js";
 import type { DeadlineClock } from "../core/pass-deadline.js";
 import type { ModelClient } from "../inference/model-client.js";
+import type { RepositoryContextCompilerFactory } from "../review/repository-context-compiler.js";
 import type { SweepListResult } from "../review/sweep-categories.js";
 import type { Severity } from "./severity.js";
 
@@ -228,6 +229,24 @@ export interface ReviewPassDeps {
    * `deadlineClock`.
    */
   loadSweepList?: (options?: { path?: string }) => SweepListResult | Promise<SweepListResult>;
+  /**
+   * The webhook job's watchdog signal (#131, D13). Set only by the webhook
+   * ingress; the CLI and control-pass ingresses leave it unset. Only the
+   * repository-context phase reads it: a watchdog abort stops an in-flight
+   * compile at once instead of leaving it to run until a budget runs out.
+   * Every other pass step already sees the job signal through the combined
+   * GitHub and model signals the webhook job builds.
+   */
+  jobAbortSignal?: AbortSignal;
+  /**
+   * Overrides the repository-context compiler session factory (#131, D15).
+   * Absent in production, where each pass that needs a compile gets a fresh
+   * worker-thread session with the production worker entry. Tests inject
+   * controllable real workers, a scripted fake for exact event ordering, or
+   * an in-line session for older tests whose subject is not isolation. Same
+   * optional test-injection pattern as `deadlineClock`.
+   */
+  createRepositoryContextCompiler?: RepositoryContextCompilerFactory;
 }
 
 /**

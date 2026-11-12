@@ -180,6 +180,18 @@ regardless of what the model does with the content it read.
 
 ## Disclosed residual risk: synchronous compiler CPU-time worst-case measurement
 
+**Status: closed by [#131](https://github.com/lhpaul/ronda/issues/131).** In
+review passes the compiler work this section measures — finding candidates
+and resolving them — now runs in a per-pass worker thread
+(`src/review/repository-context-compiler.ts`) that the pass terminates at its
+bounding budget (the pass deadline, the context time budget, or a webhook
+watchdog abort), so a pathological compile costs at most its budget and no
+longer stalls the process. A stopped resolution drops every requested
+reference `time_budget`, as an exhausted context time budget already does. The
+size caps below stay as defence in depth. The measurement and the
+reproduction script are kept unchanged as the historical record; they call
+the in-line functions, which the offline recall benchmark still uses.
+
 `src/review/symbol-resolver.ts`'s size backstops
 (`MAX_RESOLUTION_FILE_COUNT`, `MAX_RESOLUTION_TOTAL_CHARS`,
 `MAX_CHANGED_FILE_CHARS`) bound the *input size* the synchronous

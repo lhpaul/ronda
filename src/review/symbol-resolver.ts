@@ -19,47 +19,37 @@ import type {
 const ELIGIBLE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 
 /**
- * Defensive backstops on the fetched closure `resolveSymbols` will
- * synchronously parse and type-check. `buildSourceFileSet`'s time budget
- * already bounds how much *network* time is spent fetching, but a small
- * number of pathologically large or type-complex files could still make the
- * synchronous compiler pass itself run long after every read has already
- * returned — and unlike a GitHub read, a synchronous `ts.Program`/checker
- * call cannot be interrupted by an `AbortSignal` once started, which could
- * otherwise block a long-lived webhook worker past its own watchdog
- * recovery. When either backstop is exceeded, resolution is skipped
+ * Defensive backstops on the fetched closure `resolveSymbols` will parse and
+ * type-check. `buildSourceFileSet`'s time budget already bounds how much
+ * *network* time is spent fetching; these caps bound how much text the
+ * compile is given. When either backstop is exceeded, resolution is skipped
  * entirely and every requested reference is dropped `time_budget` — the
  * same reason an exhausted context time budget already uses, since this is
  * the same budget-protection concern, not a sixth drop reason.
  *
- * **Recorded limitation, not a full fix**: these are size caps, not a CPU-
- * time bound. A file set at or under either cap can still, in a pathological
- * case (deeply nested generic or conditional types, for instance), take
- * longer to type-check than the configured budget — nothing here can
- * preempt a synchronous compiler call already in flight; only running that
- * call in a separate worker thread, with its own terminable execution
- * context, would give a genuine CPU-time bound, and that is a materially
- * larger architectural change than this feature's existing GitHub-contents-
- * seam, in-process design (D2) — out of scope for this iteration. The
- * values below are set low enough to keep this a narrow, disclosed residual
- * risk rather than a first-order concern for this repository's own
- * TypeScript source, which this feature dogfoods against first. A synthetic
- * at-cap worst-case measurement (well under one second of synchronous
- * compiler time; see
- * `docs/testing/ronda/repository-context-read-only-evidence-106.md`) and the
- * worker-thread-isolation follow-up (owner-accepted residual risk, filed as
- * https://github.com/lhpaul/ronda/issues/131, to land before this feature is
- * enabled on a long-lived webhook ingress) are both recorded there.
+ * **Defence in depth, plus a time bound from worker isolation (#131)**:
+ * these are size caps, not a CPU-time bound. A file set at or under either
+ * cap can still, in a pathological case (deeply nested generic or
+ * conditional types, for instance), take longer to type-check than the
+ * configured budget. In a review pass that is no longer a stall: the
+ * compile runs in a per-pass worker thread
+ * (`src/review/repository-context-compiler.ts`) that the pass terminates
+ * the moment the bounding budget, the pass deadline, or a webhook watchdog
+ * abort fires. The caps stay as the first line of defence — they keep the
+ * everyday compile cheap and bound its memory, which a time bound alone does
+ * not. The offline recall benchmark (`src/cli/recall-benchmark.ts`) still
+ * compiles in-line, one pass at a time with no server to stall. The
+ * synthetic at-cap worst-case measurement is recorded in
+ * `docs/testing/ronda/repository-context-read-only-evidence-106.md`.
  */
 const MAX_RESOLUTION_FILE_COUNT = 100;
 const MAX_RESOLUTION_TOTAL_CHARS = 1_000_000;
 /**
  * Same concern, applied to identification's own changed-files-only program
- * (step a — bounded by the pass deadline alone, D5, but its parse/type-check/
- * AST-walk is just as synchronous and just as uninterruptible). One
- * pathologically large single changed file is capped here directly; the
- * combined-total and file-count caps below reuse the resolution backstops
- * above, since both programs carry the same synchronous-blocking risk.
+ * (step a — bounded by the pass deadline alone, D5). One pathologically
+ * large single changed file is capped here directly; the combined-total and
+ * file-count caps below reuse the resolution backstops above, since both
+ * programs carry the same compile-cost concern.
  */
 const MAX_CHANGED_FILE_CHARS = 300_000;
 
@@ -148,18 +138,56 @@ export interface IdentifyCandidatesResult {
   nonRepositoryReferencesSkipped: number;
 }
 
+/** What {@link readChangedSourceTexts} returns: the read half of step (a). */
+export interface ReadChangedSourceTextsResult {
+  /** Changed files successfully read and within the size caps, keyed by path. */
+  changedSourceTexts: Map<string, string>;
+  /** Paths whose read failed **transiently** (past the bounded retry) — D5, E16. */
+  unreadableChangedFilePaths: string[];
+  contentRequestCount: number;
+}
+
+/** What {@link findCandidatesInSources} returns: the compile half of step (a). */
+export interface FindCandidatesResult {
+  requested: InternalRequestedReference[];
+  /** See {@link IdentifyCandidatesResult.nonRepositoryReferencesSkipped}. */
+  nonRepositoryReferencesSkipped: number;
+}
+
 /**
  * Step (a): reads the changed TypeScript/JavaScript-family files' full text
  * at the head — under the **pass deadline only**, never the context time
  * budget (D5) — parses each, and returns one requested candidate per
  * distinct referenced symbol whose declaration is not itself in one of the
  * changed files (E8).
+ *
+ * The composition of {@link readChangedSourceTexts} (reads, on the caller's
+ * thread) and {@link findCandidatesInSources} (the compile). Review passes
+ * call the two halves separately so the compile runs in the terminable
+ * compiler worker (#131); the offline recall benchmark keeps calling this
+ * in-line.
  */
 export async function identifyCandidates(
   changedFilePaths: string[],
   changedLinesByFile: Map<string, Set<number>>,
   readFile: RepositoryContextReadFile,
 ): Promise<IdentifyCandidatesResult> {
+  const read = await readChangedSourceTexts(changedFilePaths, readFile);
+  if (read.changedSourceTexts.size === 0) {
+    return { ...read, requested: [], nonRepositoryReferencesSkipped: 0 };
+  }
+  const found = findCandidatesInSources(read.changedSourceTexts, changedLinesByFile);
+  return { ...read, ...found };
+}
+
+/**
+ * The read half of step (a): reads every eligible changed file once through
+ * the injected seam and applies the input-size caps. Never compiles.
+ */
+export async function readChangedSourceTexts(
+  changedFilePaths: string[],
+  readFile: RepositoryContextReadFile,
+): Promise<ReadChangedSourceTextsResult> {
   const eligible = [...new Set(changedFilePaths)]
     .filter(isRepositoryContextEligiblePath)
     .sort((a, b) => a.localeCompare(b));
@@ -180,15 +208,14 @@ export async function identifyCandidates(
     }
     if (text !== undefined) {
       // A single pathologically large changed file, or too many combined,
-      // would make the synchronous parse+type-check+AST-walk below
-      // (nothing here observes any `AbortSignal`, same concern as
-      // `resolveSymbols`'s own backstop) block the process for a long time
-      // — on the webhook ingress, potentially past the pass deadline/
-      // watchdog. Declining to include an oversized file is a deterministic
-      // fact about the head, exactly like a refused non-file type (position
-      // (b) below) — accounted for, no candidate, no drop, and `nothing_to_
-      // resolve` stays available when every other changed file also
-      // produces nothing.
+      // makes the parse+type-check+AST-walk in `findCandidatesInSources`
+      // expensive. The size caps keep the everyday compile cheap and bound
+      // its memory; the time bound comes from running that compile in the
+      // terminable compiler worker (#131). Declining to include an
+      // oversized file is a deterministic fact about the head, exactly like
+      // a refused non-file type (position (b) below) — accounted for, no
+      // candidate, no drop, and `nothing_to_resolve` stays available when
+      // every other changed file also produces nothing.
       if (
         text.length <= MAX_CHANGED_FILE_CHARS &&
         combinedChangedChars + text.length <= MAX_RESOLUTION_TOTAL_CHARS &&
@@ -203,14 +230,21 @@ export async function identifyCandidates(
     // (b)): no source, no reference, no candidate, no drop.
   }
 
+  return { changedSourceTexts, unreadableChangedFilePaths, contentRequestCount };
+}
+
+/**
+ * The compile half of step (a): builds one program over the already-read
+ * changed files and walks their changed lines for candidates. Synchronous
+ * and read-free — it only consumes the texts it is given, which is what lets
+ * it run inside the compiler worker (#131).
+ */
+export function findCandidatesInSources(
+  changedSourceTexts: ReadonlyMap<string, string>,
+  changedLinesByFile: ReadonlyMap<string, ReadonlySet<number>>,
+): FindCandidatesResult {
   if (changedSourceTexts.size === 0) {
-    return {
-      requested: [],
-      unreadableChangedFilePaths,
-      changedSourceTexts,
-      contentRequestCount,
-      nonRepositoryReferencesSkipped: 0,
-    };
+    return { requested: [], nonRepositoryReferencesSkipped: 0 };
   }
 
   const host = createVirtualCompilerHost(changedSourceTexts);
@@ -266,20 +300,14 @@ export async function identifyCandidates(
     visit(sourceFile);
   }
 
-  return {
-    requested,
-    unreadableChangedFilePaths,
-    changedSourceTexts,
-    contentRequestCount,
-    nonRepositoryReferencesSkipped: skipped.size,
-  };
+  return { requested, nonRepositoryReferencesSkipped: skipped.size };
 }
 
 function considerIdentifier(
   node: ts.Identifier,
   sourceFile: ts.SourceFile,
   filePath: string,
-  changedLines: Set<number>,
+  changedLines: ReadonlySet<number>,
   changedFileSet: Set<string>,
   checker: ts.TypeChecker,
   seen: Map<ts.Symbol, number>,
@@ -631,8 +659,8 @@ function isPotentialGuardCall(call: ts.CallExpression, ctx: TraceContext): boole
 
 /**
  * Shared state for provenance tracing. `remaining` is a work budget reset per
- * traced member access: the tracer runs synchronously inside identification,
- * which nothing can interrupt, and shared initializer chains
+ * traced member access: the tracer runs inside identification's compile, and
+ * shared initializer chains
  * (`a1 = [a0, a0, ...]`, `a2 = [a1, a1, ...]`) expand exponentially without
  * one. An exhausted budget yields `unknown`, which keeps the candidate. The
  * memo maps make each shared node or symbol cost once per run.

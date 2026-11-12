@@ -25,7 +25,8 @@ ronda/
 │   ├── github/                   # Octokit wrapper, PR reader, diff parser, publishers
 │   ├── inference/                # ModelClient seam, OpenAI-compatible client, prompt, parser
 │   ├── core/                     # runReviewPass orchestration, deadline, summary, logger
-│   ├── review/                   # durability-mode, sweep-categories, repository-context, symbol-resolver
+│   ├── review/                   # durability-mode, sweep-categories, repository-context, symbol-resolver,
+│   │                             # repository-context-compiler (+ its worker entry and bootstrap)
 │   ├── cli/                      # Action entrypoint (review-pr.ts), control-pass.ts, trigger resolution
 │   └── webhook/                  # Local GitHub App webhook service
 ├── tests/

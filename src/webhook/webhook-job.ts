@@ -118,11 +118,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+export interface WebhookReviewJobOptions {
+  /** Test seam: observes the pass deps without running a real pass. Default: `runReviewPass`. */
+  runPass?: typeof runReviewPass;
+}
+
 export async function runWebhookReviewJob(
   job: WebhookReviewJob,
   webhookConfig: WebhookConfig,
   signal?: AbortSignal,
   lifecycle: WebhookReviewJobLifecycle = {},
+  options: WebhookReviewJobOptions = {},
 ): Promise<WebhookReviewJobResult> {
   const appTokenSignal = combineAbortSignals(
     AbortSignal.timeout(webhookConfig.githubAppTokenTimeoutMs),
@@ -255,7 +261,7 @@ export async function runWebhookReviewJob(
   );
   const logger = createLogger([config.model.apiKey, installationToken, webhookConfig.githubPrivateKey]);
 
-  const result = await runReviewPass(job, {
+  const result = await (options.runPass ?? runReviewPass)(job, {
     github,
     model,
     config,
@@ -263,6 +269,9 @@ export async function runWebhookReviewJob(
     logger,
     detailsUrl: webhookConfig.detailsUrl,
     onReviewPublished: lifecycle.onReviewPublished,
+    // #131 D13: a watchdog abort also stops an in-flight repository-context
+    // compile, so the aborted job settles as promptly as one with none.
+    ...(signal ? { jobAbortSignal: signal } : {}),
   });
   logger.event("webhook_review_completed", {
     deliveryId: job.deliveryId,
