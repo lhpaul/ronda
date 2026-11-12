@@ -54,11 +54,14 @@ that runs a release containing #106. Record that release and the time it
 reached `main` as the next row of this table; the ledger's counted pull
 requests start from it, not from the variable's creation.
 
-The webhook ingress stays off until
-[#131](https://github.com/lhpaul/ronda/issues/131) moves the synchronous
-compiler work into a terminable worker thread. Record every later change to
-the switch here, with its time, so the ledger's counted pull requests stay
-attributable to one configuration.
+The webhook ingress was held off until
+[#131](https://github.com/lhpaul/ronda/issues/131) moved the synchronous
+compiler work into a terminable worker thread. #131 lands that change
+([#179](https://github.com/lhpaul/ronda/pull/179)), so the technical blocker
+is gone, but the ingress stays off: switching it on remains the repository
+owner's decision, and no switch change is recorded by #131 itself. Record
+every later change to the switch here, with its time, so the ledger's counted
+pull requests stay attributable to one configuration.
 
 **Gate wording, corrected.** An earlier version of this document also gated
 the switch on this document's fixture-comparison and real-PR sections being
