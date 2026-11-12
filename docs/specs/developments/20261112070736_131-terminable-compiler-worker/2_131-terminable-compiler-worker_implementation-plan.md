@@ -344,7 +344,10 @@ on CI through `npm test` (V7).
    returns to 0 within D3's grace; for the watchdog case the stop event
    (`watchdog_abort`) lands within the grace of the abort and the result is
    `failed` / `timed_out` (D14). `webhook-job.test.ts`: the injected `runPass`
-   receives `jobAbortSignal` identical to the job signal.
+   receives `jobAbortSignal` identical to the job signal. Teardown race: the
+   controllable worker throws after `close` and after an abort-driven stop but
+   before its `exit`; no uncaught exception reaches the process, the settled
+   outcome is unchanged, and the counter returns to 0.
 8. **AC8** — a counting factory passed as `createRepositoryContextCompiler`
    is never called for: repository context off, a fork-originated head, a
    draft pull request, a pass that fails before review execution (missing
@@ -422,9 +425,16 @@ timers and HTTP callbacks share the main thread with an in-flight compile.
   ignored. The counter decrements on the first `exit` only.
 - **Listener and resource cleanup**: on settle the session removes its abort
   listeners from every stop signal; on `close` (always called from the
-  phase's `finally`) it removes its worker listeners except the one-shot
-  `exit` listener that decrements the counter, and calls `terminate()`
-  without awaiting. `contextDeadline.dispose()` stays in the same `finally`.
+  phase's `finally`) it removes its `message` and `messageerror` listeners,
+  calls `terminate()` without awaiting, and keeps two listeners attached until
+  the worker's `exit`: the one-shot `exit` listener that decrements the
+  counter, and a no-op-after-settlement `error` listener. Termination is
+  asynchronous, so an exception already pending in the worker can still emit
+  `error` before `exit`; with no `error` listener Node would rethrow it and
+  crash the process. The retained `error` listener only ignores the event (the
+  request is already settled or the session is `closed`) and is removed by the
+  `exit` handler together with itself. `contextDeadline.dispose()` stays in
+  the same `finally`.
 - **Race conditions at initialization**: a request posted before the worker
   has loaded is queued by Node and delivered once the entry listens; `ready`
   only marks the boundary between `could_not_start` and
@@ -433,8 +443,13 @@ timers and HTTP callbacks share the main thread with an in-flight compile.
   that started it). A stop already aborted when a request is made settles
   before anything is spawned or posted.
 - **Race conditions at teardown**: after `terminate()`, the worker may still
-  emit `exit` (handled by the counter listener) or, rarely, a message already
-  in transit (ignored: no request in flight, session `closed`). The pass never
+  emit `exit` (handled by the counter listener), an `error` already pending
+  (handled by the retained `error` listener and ignored), or, rarely, a message
+  already in transit (ignored: no request in flight, session `closed`). A
+  dedicated test makes the controllable worker throw after `close` (and after
+  an abort-driven stop) but before `exit`, and asserts the process raises no
+  uncaught exception, the outcome already settled is unchanged, and the
+  live-worker counter returns to zero (AC5, AC7). The pass never
   waits for the exit (D3).
 - **Error propagation across async boundaries**: worker errors arrive as
   `error` events and are converted into an outcome, never rethrown; the
@@ -442,7 +457,8 @@ timers and HTTP callbacks share the main thread with an in-flight compile.
   throwing synchronously is caught. Isolation outcomes reach the existing
   phase `catch` only through D12's fixed-text error, which the phase already
   contains. No unhandled rejection or uncaught exception can come from the
-  worker: an `error` listener is attached before the first message is posted.
+  worker: an `error` listener is attached before the first message is posted
+  and stays attached until the worker's `exit`, including after `close`.
 - **New concurrent pattern**: worker threads are new to this codebase (V2).
   The pattern follows the existing abort-signal style (`createPassDeadline`,
   `AbortSignal.any`) rather than introducing a scheduler or pool.
@@ -454,7 +470,7 @@ timers and HTTP callbacks share the main thread with an in-flight compile.
 | Entity | Values / Scenario | File |
 | --- | --- | --- |
 | Resolution fixture (existing) | Parity between in-line and worker results (AC6) | `tests/fixtures/repository-context/resolution/` |
-| Controllable worker entry (new) | Slow, crash, malformed, wrong-`seq`, normal answers per phase (AC1–AC5, AC7, AC12) | `tests/fixtures/repository-context/compiler-worker/controllable-compiler-worker.ts` |
+| Controllable worker entry (new) | Slow, crash, throw-after-close, malformed, wrong-`seq`, normal answers per phase (AC1–AC5, AC7, AC12) | `tests/fixtures/repository-context/compiler-worker/controllable-compiler-worker.ts` |
 | Caller/util pair (existing inline constants) | Real-worker resolution (AC9) and pass-level runs | `tests/integration/core/review-pass-repository-context.test.ts` (`CALLER_TEXT`, `UTIL_TEXT`) — reuse the same text in the new tests |
 
 No database or persisted data.
