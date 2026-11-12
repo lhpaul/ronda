@@ -124,6 +124,21 @@ isolated worker the pass can stop at its budget; the resolver comments no
 longer call the review-pass compile uninterruptible; the evidence document
 records the residual risk as closed by #131.
 
+### Observed Results (In Development, 2026-11-12)
+
+Run by the implementing agent on the feature branch, Node 22.15.0 (and the
+session and pass-level files also three times each on Node 20.20.2, CI's
+version).
+
+| Step | Result | Evidence |
+| --- | --- | --- |
+| 1 | PASS | `repository-context-compiler.test.ts` 42/42 (real production worker resolves `helper`; parity with in-line results on the resolution fixture); `symbol-resolver.test.ts` 47/47 |
+| 2 | PASS | `review-pass-compiler-isolation.test.ts` 16/16: context-budget stop publishes with every reference `time_budget`; finding and resolving pass-deadline cases end `failed` / `timed_out`; stop event and worker exit within 250 ms (D3); worst timer lateness within 200 ms (D4) |
+| 3 | PASS | Could-not-start (missing entry, throwing spawn), crash, and malformed-result cases publish with `unavailable` and the matching event; the log-content check finds no file text, credential, repository path, temp path, or `file://` |
+| 4 | PASS | Cleanup cases (success, budget stop, isolation failure, supersede, watchdog abort) end with no live worker; no-start cases create no session; webhook tests 59/59, including the job-signal wiring and a second delivery acknowledged `202` with `queued: true` while a real worker compiles |
+| 5 | Skipped — human step | Live run with a model credential |
+| 6 | PASS | Architecture entry, resolver comments, and the evidence document's residual-risk section updated |
+
 ### Last Step: Validate
 
 - [ ] `npm run typecheck`, `npm run lint`, and `npm test` pass.
