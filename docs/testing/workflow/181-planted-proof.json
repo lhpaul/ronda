@@ -193,18 +193,27 @@
     "FAIL: 2116_readiness_override_no_write_refuses - expected 'reviewer-evidence-unreadable', got 'gate-passed'"
    ],
    "restored_exit": 0
-  }
- ],
- "not_isolated_by_upstream_suite": [
+  },
   {
-   "id": "readiness_override_head_binding",
+   "id": "readiness_override_ledger_head",
+   "gate": "readiness override ledger record bound to live head",
    "file": "scripts/development-workflow/apply-readiness-labels.sh",
    "line": 1291,
    "predicate": "[ -n \"$verdict_head\" ] && [ \"$verdict_head\" = \"$head_sha\" ] &&\n          workflow_reviewer_human_override_json",
    "mutation": "true &&\n          workflow_reviewer_human_override_json",
    "suite": "test-apply-readiness-labels.sh",
-   "planted_exit": 0,
-   "restored_exit": 0
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116_readiness_override_stale_ledger_refuses - expected 'reviewer-evidence-unreadable', got 'gate-passed'",
+    "FAIL: 2116_readiness_override_stale_ledger_no_label - expected '0', got '1'"
+   ],
+   "restored_exit": 0,
+   "isolating_test": "Ronda-owned stale_ledger case added to the upstream 2116 loop in test-apply-readiness-labels.sh",
+   "runtime_commit": "4bc835141feca6529a6e0f0f84256d3dea250236"
   }
- ]
+ ],
+ "superseded_survivor": {
+  "id": "readiness_override_head_binding",
+  "note": "Survived against the upstream suite alone at 47838aa; isolated by the Ronda-owned stale_ledger case (see readiness_override_ledger_head)."
+ }
 }

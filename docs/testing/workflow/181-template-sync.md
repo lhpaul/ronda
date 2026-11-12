@@ -35,6 +35,7 @@ Two new upstream suites mock `gh` without the REST pull-files endpoint. Ronda's 
 
 - `scripts/development-workflow/tests/test-local-ai-reviewer-pr-review-loop-dispatch.sh`: `1957_T-L1_*` (3 cases) failed before, 19/19 pass after.
 - `scripts/development-workflow/tests/test-local-ai-reviewer-backend.sh`: `T-B11_copy_not_created_reason` failed before, 186/186 pass after.
+- `scripts/development-workflow/tests/test-apply-readiness-labels.sh`: adds the `stale_ledger` case described under the isolating proof below (test-only).
 
 ## Migration note 0.51.0 (local-ai-reviewer Claude backend)
 
@@ -67,7 +68,7 @@ The gate predicates are identical to upstream v0.51.0; the files carry Ronda del
 | `feat/*` classified as feature | `workflow-lib.sh:587` | `feature/*\|feat/*)` → `feature/*)` | `test-workflow-lib-branch-prefix.sh` exit 1 (`feat alias`) | exit 0 |
 | `backport/*` is its own implementation class | `workflow-lib.sh:595` | `backport/?*)` → `backport/planted-never)` | `test-workflow-lib-branch-prefix.sh` exit 1 (`backport`) | exit 0 |
 
-Not isolated by the upstream suite: the ledger-head comparison `[ "$verdict_head" = "$head_sha" ]` at `apply-readiness-labels.sh:1291` survived its plant (`true &&`; suite exit 0 both ways). It is defence in depth: the live-marker lookup on the same line is bound to the same `head_sha` and is isolated above. The predicate is identical to upstream v0.51.0; Ronda adds no isolating test for it in this sync.
+The upstream suite alone did not isolate the ledger-head comparison `[ "$verdict_head" = "$head_sha" ]` at `apply-readiness-labels.sh:1291`: its plant (`true &&`) survived. Ronda adds one case to the upstream 2116 loop in `test-apply-readiness-labels.sh`, `stale_ledger`: the ledger records the override for an older head while a valid live marker names the current head. With the guard it refuses (`reviewer-evidence-unreadable`, no label); with the plant it passes the gate (`2116_readiness_override_stale_ledger_refuses` fails, suite exit 1); restored, the suite exits 0. Recorded as `readiness_override_ledger_head` in the proof file.
 
 ## Validation
 
