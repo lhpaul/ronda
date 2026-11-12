@@ -91,4 +91,11 @@ export interface RondaConfig {
    * machinery even when configuration failed to load.
    */
   loadError?: string;
+  /**
+   * Safe, fixed text naming the offending setting, published in the failure
+   * check run. Set only alongside `loadError`, and only for a failure the
+   * loader can attribute to a named environment variable; never carries a
+   * path or an operator-supplied value.
+   */
+  loadErrorDetail?: string;
 }

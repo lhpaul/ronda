@@ -4,6 +4,7 @@ import {
   ReviewPublishedCheckRunError,
   runReviewPass,
 } from "../../../src/core/run-review-pass.js";
+import { describeConfigLoadFailure, loadConfig } from "../../../src/config/load-config.js";
 import { GithubClientError } from "../../../src/github/github-client.js";
 import { ModelClientError } from "../../../src/inference/model-client.js";
 import type {
@@ -573,6 +574,57 @@ test("a malformed operator config file fails the pass with unexpected_error nami
   assert.equal(result.failureReason, "unexpected_error");
   assert.equal(github.publishedReviews.length, 0);
   assert.equal(github.publishedCheckRuns.length, 1);
+});
+
+test("an unsupported RONDA_EXCLUDE_PATH_GLOBS publishes a safe detail in the check run without echoing the glob", async () => {
+  const secretGlob = "customer-secret/**/*.[jt]s";
+  // Drive the same path the entrypoints use: loadConfig throws, the shared
+  // describeConfigLoadFailure helper builds the fallback fields, and the
+  // resulting config reaches runReviewPass.
+  let loadError: string | undefined;
+  let loadErrorDetail: string | undefined;
+  try {
+    loadConfig({ env: { RONDA_EXCLUDE_PATH_GLOBS: secretGlob }, fileExists: () => false });
+    assert.fail("expected loadConfig to throw");
+  } catch (error) {
+    ({ loadError, loadErrorDetail } = describeConfigLoadFailure(error));
+  }
+
+  const github = createFakeGithub({ pullRequest: createPullRequest() });
+  const { model } = createFakeModel({});
+
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      config: createConfig({ loadError, loadErrorDetail }),
+    }),
+  );
+
+  assert.equal(result.failureReason, "unexpected_error");
+  assert.equal(github.publishedCheckRuns.length, 1);
+  const summary = github.publishedCheckRuns[0].summary;
+  assert.match(summary, /Detail: RONDA_EXCLUDE_PATH_GLOBS contains unsupported glob syntax/);
+  assert.doesNotMatch(summary, /customer-secret/);
+});
+
+test("a config-load failure without a safe detail keeps the generic check-run summary", async () => {
+  const github = createFakeGithub({ pullRequest: createPullRequest() });
+  const { model } = createFakeModel({});
+
+  await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 1, trigger: "automatic" },
+    baseDeps({
+      github: github.ops,
+      model,
+      config: createConfig({ loadError: "Failed to load Ronda config file at /tmp/x.json" }),
+    }),
+  );
+
+  const summary = github.publishedCheckRuns[0].summary;
+  assert.doesNotMatch(summary, /Detail:/);
+  assert.doesNotMatch(summary, /\/tmp\/x\.json/);
 });
 
 // --- Fix 1: a check-run write failure after a successful review must never

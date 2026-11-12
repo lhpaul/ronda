@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { createSystemClock } from "../core/clock.js";
 import { createLogger } from "../core/logger.js";
 import { runReviewPass } from "../core/run-review-pass.js";
-import { ConfigLoadError, loadConfig } from "../config/load-config.js";
+import { describeConfigLoadFailure, loadConfig } from "../config/load-config.js";
 import { createGithubClient } from "../github/github-client.js";
 import {
   findExistingCheckRun,
@@ -79,10 +79,7 @@ export async function main(): Promise<number> {
   try {
     config = loadConfig();
   } catch (error) {
-    const loadError =
-      error instanceof ConfigLoadError
-        ? error.publicMessage
-        : "Failed to load Ronda config file at unknown path";
+    const { loadError, loadErrorDetail } = describeConfigLoadFailure(error);
     config = {
       model: { apiKey: "", baseUrl: "", modelName: "" },
       passTimeoutMs: 600_000,
@@ -101,6 +98,7 @@ export async function main(): Promise<number> {
       repositoryContextBudgetFallbacks: [],
       excludePathGlobs: [],
       loadError,
+      loadErrorDetail,
     };
   }
 

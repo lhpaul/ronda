@@ -257,6 +257,12 @@ export interface CheckRunOutputInput {
   durationMs: number;
   failureReason?: FailureReason;
   /**
+   * Safe, fixed text naming the setting that caused the failure (#141). Only a
+   * configuration-load failure supplies it, and only text the loader produced
+   * itself — never a path or an operator-supplied value.
+   */
+  failureDetail?: string;
+  /**
    * The per-category record (#105, AC1). Only a check run whose outcome is a
    * review carries it; the failure path never receives sweep fields, so a
    * failure check-run output is byte-identical to a pre-feature one.
@@ -306,6 +312,7 @@ export function buildCheckRunOutput(input: CheckRunOutputInput): CheckRunOutput 
     `Model: ${input.modelName}`,
     `Duration: ${formatDuration(input.durationMs)}`,
     `Reason: ${reasonText}`,
+    ...(input.failureDetail ? [`Detail: ${input.failureDetail}`] : []),
     `Ask for another pass with \`${REVIEW_COMMAND}\`.`,
   ].join("\n");
   return { title, summary };
