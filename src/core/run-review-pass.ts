@@ -1222,10 +1222,15 @@ async function runRepositoryContextPhase(
     // is what makes a stalled contents request abort at the tighter
     // boundary instead of silently riding the pass's own (much larger)
     // budget. The same signal stops the resolution compile in the worker.
+    //
+    // The phase start is captured *before* the deadline is armed, so the
+    // recorded time used always covers the whole budget window: a phase
+    // stopped by this deadline can never record less elapsed time than the
+    // budget that stopped it (honest time accounting).
+    const resolutionPhaseStartMs = deps.clock.now();
     contextDeadline = createPassDeadline(timeBudgetMs, deps.deadlineClock);
     const resolveReadFile = readFileWithSignal(combineAbortSignals(deadlineSignal, contextDeadline.signal));
 
-    const resolutionPhaseStartMs = deps.clock.now();
     const closure = await buildSourceFileSet(read.changedSourceTexts, resolveReadFile, timeBudgetMs);
     const resolveOutcome = await openSession().resolveCandidates(
       {
