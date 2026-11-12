@@ -6,10 +6,12 @@ import { fileURLToPath } from "node:url";
 import {
   buildSourceFileSet,
   candidatePathsFor,
+  findCandidatesInSources,
   identifyCandidates,
   isOwnLibPath,
   isRepositoryContextEligiblePath,
   isResolutionFileSetOversized,
+  readChangedSourceTexts,
   resolveSymbols,
   RepositoryContextUnusableContentError,
   TS_LIB_DIR,
@@ -1126,4 +1128,34 @@ test("resolveSymbols skips compilation and drops every requested reference time_
     attemptedSpecifierKeys: new Set(),
   });
   assert.deepEqual(results, [{ id: 0, reason: "time_budget" }]);
+});
+
+// --- #131 D10: the read/compile split changes no result --------------------
+
+test("#131 AC6: readChangedSourceTexts + findCandidatesInSources equals identifyCandidates on the resolution fixture", async () => {
+  const fileNames = ["types.ts", "shared.ts", "inner.ts", "reexport.ts", "overload.ts", "changed.ts"];
+  const files = new Map(fileNames.map((name) => [name, readFileSync(join(FIXTURE_DIR, name), "utf8")]));
+  const readFile: RepositoryContextReadFile = async (path) => files.get(path);
+  const changedText = files.get("changed.ts");
+  assert.ok(changedText);
+  const totalLines = changedText.split("\n").length;
+  const changedLines = new Map([["changed.ts", new Set(Array.from({ length: totalLines }, (_, i) => i + 1))]]);
+  // A second, non-eligible changed path proves the read half keeps the same
+  // eligibility filter and request accounting as the composition.
+  const changedPaths = ["changed.ts", "docs/readme.md"];
+
+  const composed = await identifyCandidates(changedPaths, changedLines, readFile);
+  const read = await readChangedSourceTexts(changedPaths, readFile);
+  const found = findCandidatesInSources(read.changedSourceTexts, changedLines);
+
+  assert.ok(found.requested.length > 0, "the fixture must produce candidates for the parity check to mean anything");
+  assert.deepEqual(read.changedSourceTexts, composed.changedSourceTexts);
+  assert.deepEqual(read.unreadableChangedFilePaths, composed.unreadableChangedFilePaths);
+  assert.equal(read.contentRequestCount, composed.contentRequestCount);
+  assert.deepEqual(found.requested, composed.requested);
+  assert.equal(found.nonRepositoryReferencesSkipped, composed.nonRepositoryReferencesSkipped);
+});
+
+test("#131 D10: findCandidatesInSources with no source text compiles nothing and requests nothing", () => {
+  assert.deepEqual(findCandidatesInSources(new Map(), new Map()), { requested: [], nonRepositoryReferencesSkipped: 0 });
 });
