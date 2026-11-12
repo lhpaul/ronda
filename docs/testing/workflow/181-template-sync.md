@@ -48,6 +48,27 @@ Two new upstream suites mock `gh` without the REST pull-files endpoint. Ronda's 
 - `CHANGELOG.md`: project-owned; release notes go through `changelog.d/181.changed.template-sync-v0-51-0.md`.
 - Coverage check: `UNCOVERED_COUNT=0`, no `REQUIRED_ADDITION_MISSING`.
 
+## Isolating violation proof for the new v0.51.0 gates
+
+The new gates are upstream v0.51.0 code, identical to the pinned template. Each listed assertion has one isolating source mutation (a planted violation) applied to the working tree. The named suite is run with the plant, the file is restored byte-for-byte (sha256 checked) and the suite is rerun. Mutations were confined to the disposable working tree at runtime commit `47838aa`; the full record (predicate, mutation, first failing case) is [`181-planted-proof.json`](181-planted-proof.json).
+
+| Gate | Source line | Plant (predicate → mutation) | Planted result | Restored |
+| --- | --- | --- | --- | --- |
+| deferred follow-up must remain open | `item-completion-self-check.sh:1087` | `elif [ "$followup_state" != "OPEN" ]; then` → `elif false; then` | `test-item-completion-followups.sh` exit 1 (`deferred_closed_issue_blocks`) | exit 0 |
+| deferred follow-up not closed by PR text | `item-completion-self-check.sh:1089` | `elif [ "$followup_closing" = "present" ]; then` → `elif false; then` | `test-item-completion-followups.sh` exit 1 (`deferred_closed_by_pr_body_blocks`) | exit 0 |
+| `--followup` argument validation | `item-completion-self-check.sh:162` | `if ! [[ "$2" =~ ^[1-9][0-9]*=(fixed\|deferred)$ ]]; then` → `if false; then` | `test-item-completion-followups.sh` exit 1 (`malformed_rejected`) | exit 0 |
+| self-check revalidates the live human override | `item-completion-self-check.sh:889` | override lookup → lookup `\|\| printf '{"by":"maintainer"}'` (accept without a live marker) | `test-item-completion-self-check.sh` exit 1 (`2116_human_override_old_head_exit_one`) | exit 0 |
+| readiness revalidates the live human override | `apply-readiness-labels.sh:1291` | drop `&& workflow_reviewer_human_override_json …` (ledger record alone accepted) | `test-apply-readiness-labels.sh` exit 1 (`2116_readiness_override_old_head_refuses`) | exit 0 |
+| override marker names the current head | `workflow-lib.sh:4993` | `select(($o.platform // "") == $platform and ($o.head // "") == $head)` → `select(($o.platform // "") == $platform)` | `test-pr-review-loop-human-override.sh` exit 1 (`2116a_older_head_has_no_effect`) | exit 0 |
+| override author is a User, not a Bot | `workflow-lib.sh:4995` | `select(($c.user.type // "") == "User" and` → `select(true and` | `test-pr-review-loop-human-override.sh` exit 1 (`2116a_bot_author_has_no_effect`) | exit 0 |
+| override author has write, maintain or admin | `workflow-lib.sh:5008` | `admin\|maintain\|write)` → `*)` | `test-pr-review-loop-human-override.sh` exit 1 (`2116a_read_only_author_has_no_effect`) | exit 0 |
+| Claude review copy unchanged after review | `local-claude-review-command.sh:384` | `if ! after="$(fingerprint_copy)" \|\| [ "$after" != "$baseline" ]; then` → `if ! after="$(fingerprint_copy)"; then` | `test-local-claude-review-command.sh` exit 1 (`T-C7_1_exit`) | exit 0 |
+| capacity retries stay inside the round budget | `local-ai-reviewer.sh:1777` | `if [ "$capacity_remaining" -le "$capacity_attempt" ]; then` → `if false; then` | `test-local-ai-reviewer-backend.sh` exit 1 (`T-B12b_capacity_budget_no_room_result`) | exit 0 |
+| `feat/*` classified as feature | `workflow-lib.sh:587` | `feature/*\|feat/*)` → `feature/*)` | `test-workflow-lib-branch-prefix.sh` exit 1 (`feat alias`) | exit 0 |
+| `backport/*` is its own implementation class | `workflow-lib.sh:595` | `backport/?*)` → `backport/planted-never)` | `test-workflow-lib-branch-prefix.sh` exit 1 (`backport`) | exit 0 |
+
+Not isolated by the upstream suite: the ledger-head comparison `[ "$verdict_head" = "$head_sha" ]` at `apply-readiness-labels.sh:1291` survived its plant (`true &&`; suite exit 0 both ways). It is defence in depth: the live-marker lookup on the same line is bound to the same `head_sha` and is isolated above. This is upstream code, byte-identical to v0.51.0; Ronda adds no isolating test for it in this sync.
+
 ## Validation
 
 - `npm ci`, `npm run typecheck`, `npm run lint`, `npm test` (820 tests): pass.
