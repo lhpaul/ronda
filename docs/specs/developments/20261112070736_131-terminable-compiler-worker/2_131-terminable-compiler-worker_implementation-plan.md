@@ -108,10 +108,14 @@ or reject.
 | `starting` / `busy` | a second request while one is in flight | the second request gets `stopped_unexpectedly`; the first is unaffected | unchanged |
 | any | `close()` | an in-flight request (none in normal use) settles `stopped_unexpectedly` | `closed` |
 
-Entering `closed` from a state with a live worker calls `worker.terminate()`
-once (not awaited) and removes every listener the session added to the stop
-signals and the worker. The live-worker counter (D15) is incremented on
-successful spawn and decremented once, on the worker's `exit` event.
+Entering `closed` from a state with a live worker (by a stop, an isolation
+failure, or `close()`) calls `worker.terminate()` once (not awaited), removes
+the session's listeners from the stop signals and its `message` /
+`messageerror` listeners from the worker, and keeps the worker's `exit` and
+`error` listeners attached until the worker's `exit` (concurrent-event-source
+addendum, **Listener and resource cleanup**). The live-worker counter (D15) is
+incremented on successful spawn and decremented once, on the worker's `exit`
+event.
 
 ---
 
@@ -424,8 +428,9 @@ timers and HTTP callbacks share the main thread with an in-flight compile.
   `exit` that follows `terminate()`, a late `result`, a second abort) are
   ignored. The counter decrements on the first `exit` only.
 - **Listener and resource cleanup**: on settle the session removes its abort
-  listeners from every stop signal; on `close` (always called from the
-  phase's `finally`) it removes its `message` and `messageerror` listeners,
+  listeners from every stop signal; on entering `closed` (a stop, an
+  isolation failure, or `close`, which the phase's `finally` always calls) it
+  removes its `message` and `messageerror` listeners,
   calls `terminate()` without awaiting, and keeps two listeners attached until
   the worker's `exit`: the one-shot `exit` listener that decrements the
   counter, and a no-op-after-settlement `error` listener. Termination is
@@ -449,8 +454,10 @@ timers and HTTP callbacks share the main thread with an in-flight compile.
   dedicated test makes the controllable worker throw after `close` (and after
   an abort-driven stop) but before `exit`, and asserts the process raises no
   uncaught exception, the outcome already settled is unchanged, and the
-  live-worker counter returns to zero (AC5, AC7). The pass never
-  waits for the exit (D3).
+  live-worker counter returns to zero (AC5, AC7). Because a real worker
+  cannot place the `error` between `close` and `exit` on demand, a fake-`spawn`
+  session test also emits `error` after `close()` and before `exit`
+  deterministically (AC12 class). The pass never waits for the exit (D3).
 - **Error propagation across async boundaries**: worker errors arrive as
   `error` events and are converted into an outcome, never rethrown; the
   session's public methods resolve, never reject, and `new Worker(...)`
