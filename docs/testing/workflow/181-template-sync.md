@@ -50,7 +50,7 @@ Two new upstream suites mock `gh` without the REST pull-files endpoint. Ronda's 
 
 ## Isolating violation proof for the new v0.51.0 gates
 
-The new gates are upstream v0.51.0 code, identical to the pinned template. Each listed assertion has one isolating source mutation (a planted violation) applied to the working tree. The named suite is run with the plant, the file is restored byte-for-byte (sha256 checked) and the suite is rerun. Mutations were confined to the disposable working tree at runtime commit `47838aa`; the full record (predicate, mutation, first failing case) is [`181-planted-proof.json`](181-planted-proof.json).
+The gate predicates are identical to upstream v0.51.0; the files carry Ronda deltas outside the gates. Line numbers are Ronda file lines (upstream is lower in `workflow-lib.sh` and `local-ai-reviewer.sh`). Each listed assertion has one isolating source mutation (a planted violation) applied to the working tree. The named suite is run with the plant, the file is restored byte-for-byte (sha256 checked) and the suite is rerun. Mutations were confined to the disposable working tree at runtime commit `47838aa`; the full record (predicate, mutation, first failing case) is [`181-planted-proof.json`](181-planted-proof.json).
 
 | Gate | Source line | Plant (predicate → mutation) | Planted result | Restored |
 | --- | --- | --- | --- | --- |
@@ -67,7 +67,7 @@ The new gates are upstream v0.51.0 code, identical to the pinned template. Each 
 | `feat/*` classified as feature | `workflow-lib.sh:587` | `feature/*\|feat/*)` → `feature/*)` | `test-workflow-lib-branch-prefix.sh` exit 1 (`feat alias`) | exit 0 |
 | `backport/*` is its own implementation class | `workflow-lib.sh:595` | `backport/?*)` → `backport/planted-never)` | `test-workflow-lib-branch-prefix.sh` exit 1 (`backport`) | exit 0 |
 
-Not isolated by the upstream suite: the ledger-head comparison `[ "$verdict_head" = "$head_sha" ]` at `apply-readiness-labels.sh:1291` survived its plant (`true &&`; suite exit 0 both ways). It is defence in depth: the live-marker lookup on the same line is bound to the same `head_sha` and is isolated above. This is upstream code, byte-identical to v0.51.0; Ronda adds no isolating test for it in this sync.
+Not isolated by the upstream suite: the ledger-head comparison `[ "$verdict_head" = "$head_sha" ]` at `apply-readiness-labels.sh:1291` survived its plant (`true &&`; suite exit 0 both ways). It is defence in depth: the live-marker lookup on the same line is bound to the same `head_sha` and is isolated above. The predicate is identical to upstream v0.51.0; Ronda adds no isolating test for it in this sync.
 
 ## Validation
 
