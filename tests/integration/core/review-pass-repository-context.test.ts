@@ -20,6 +20,7 @@ import type { ModelClient, ModelCompletion } from "../../../src/inference/model-
 import type { ReviewPrompt } from "../../../src/inference/review-prompt.js";
 import type { RondaConfig } from "../../../src/config/config.types.js";
 import type { DeadlineClock, DeadlineTimerHandle } from "../../../src/core/pass-deadline.js";
+import { createInlineCompilerSession } from "../../support/inline-compiler-session.js";
 
 /**
  * A real timer the process treats as an *active* handle, unlike
@@ -388,7 +389,10 @@ test("a slow changed-file read during identification never consumes the context 
         repositoryContextTimeBudgetMs: 60, // shorter than identification's own 120ms delay
         passTimeoutMs: 600_000,
       }),
-      { deadlineClock: createKeepAliveDeadlineClock() },
+      // #131 Rule 6: this test's subject is *when* the context budget is
+      // armed, not isolation, and its 60ms budget is shorter than a real
+      // worker's resolution compile — so it compiles in-line.
+      { deadlineClock: createKeepAliveDeadlineClock(), createRepositoryContextCompiler: createInlineCompilerSession },
     ),
   );
   assert.equal(result.outcome, "succeeded");

@@ -188,6 +188,10 @@ test("AC4: no repository-context module ever imports a process-spawning or dynam
     "src/review/repository-context.ts",
     "src/core/run-review-pass.ts",
     "src/github/repo-content-reader.ts",
+    // #131: the compiler worker code receives reviewed-repository text too.
+    "src/review/repository-context-compiler.ts",
+    "src/review/repository-context-compiler-worker.ts",
+    "src/review/repository-context-compiler-bootstrap.mjs",
   ];
   const forbidden = [/node:child_process/, /\bexec(File)?Sync?\(/, /\bnew Function\(/, /\beval\(/];
   for (const relativePath of filesToScan) {

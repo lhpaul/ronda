@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
-import type { Worker, WorkerOptions } from "node:worker_threads";
+import type { WorkerOptions } from "node:worker_threads";
 import {
   activeRepositoryContextCompilerWorkerCount,
   createWorkerCompilerSession,
@@ -14,7 +14,6 @@ import {
   isResolutionList,
   REPOSITORY_CONTEXT_COMPILE_STOP_GRACE_MS,
   RepositoryContextIsolationError,
-  spawnCompilerWorker,
   type CompileOutcome,
   type CompileStopBound,
   type CompilerStopReason,
@@ -29,14 +28,16 @@ import {
   resolveSymbols,
   type RepositoryContextReadFile,
 } from "../../../src/review/symbol-resolver.js";
+import {
+  captureUncaught,
+  CONTROLLABLE_ENTRY_URL,
+  MISSING_ENTRY_URL,
+  recordingSpawn,
+  waitFor,
+  waitForNoLiveWorker,
+} from "../../support/compiler-worker-test-helpers.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const CONTROLLABLE_ENTRY_URL = pathToFileURL(
-  join(HERE, "..", "..", "fixtures", "repository-context", "compiler-worker", "controllable-compiler-worker.ts"),
-).href;
-const MISSING_ENTRY_URL = pathToFileURL(
-  join(HERE, "..", "..", "fixtures", "repository-context", "compiler-worker", "does-not-exist.ts"),
-).href;
 const RESOLUTION_FIXTURE_DIR = join(HERE, "..", "..", "fixtures", "repository-context", "resolution");
 
 /** D4: a main-thread timer must fire no later than this after its due time while a compile runs. */
@@ -92,20 +93,6 @@ function stopsFor(reasons: CompilerStopReason[]): { stops: CompileStopBound[]; c
     return { reason, signal: controller.signal };
   });
   return { stops, controllers };
-}
-
-async function waitFor(condition: () => boolean, timeoutMs: number, label: string): Promise<void> {
-  const deadline = performance.now() + timeoutMs;
-  while (!condition()) {
-    if (performance.now() > deadline) {
-      assert.fail(`timed out after ${timeoutMs}ms waiting for: ${label}`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
-}
-
-async function waitForNoLiveWorker(): Promise<void> {
-  await waitFor(() => activeRepositoryContextCompilerWorkerCount() === 0, 5_000, "no live compiler worker");
 }
 
 /** Blocks the main thread for `ms` (a synchronous sleep). */
@@ -563,29 +550,6 @@ test("teardown race (deterministic): an error after an abort-driven stop and bef
 
 // --- Real workers -----------------------------------------------------------
 
-function recordingSpawn(): { spawn: CompilerWorkerSpawn; exits: number[]; errors: number[] } {
-  const exits: number[] = [];
-  const errors: number[] = [];
-  return {
-    exits,
-    errors,
-    spawn: (url, options) => {
-      const worker = spawnCompilerWorker(url, options) as Worker;
-      worker.once("exit", () => exits.push(performance.now()));
-      // Observe `error` emissions without adding a listener (a listener would
-      // itself hide a missing one in the session).
-      const originalEmit = worker.emit.bind(worker);
-      worker.emit = ((event: string | symbol, ...args: unknown[]) => {
-        if (event === "error") {
-          errors.push(performance.now());
-        }
-        return originalEmit(event, ...args);
-      }) as typeof worker.emit;
-      return worker;
-    },
-  };
-}
-
 test("AC9: the production worker entry finds and resolves the helper candidate under this runtime", async () => {
   const session = createWorkerCompilerSession();
   try {
@@ -749,22 +713,6 @@ async function throwAfter(handshake: Int32Array, stopNow: () => void): Promise<v
   assert.equal(Atomics.wait(handshake, 2, 0, 5_000) === "timed-out", false, "the worker must have thrown");
   blockMainThread(100);
   stopNow();
-}
-
-async function captureUncaught<T>(run: () => Promise<T>): Promise<{ value: T; uncaught: unknown[] }> {
-  const uncaught: unknown[] = [];
-  const onUncaught = (error: unknown): void => {
-    uncaught.push(error);
-  };
-  process.on("uncaughtException", onUncaught);
-  process.on("unhandledRejection", onUncaught);
-  try {
-    const value = await run();
-    return { value, uncaught };
-  } finally {
-    process.off("uncaughtException", onUncaught);
-    process.off("unhandledRejection", onUncaught);
-  }
 }
 
 test("teardown race (real worker): a worker that throws after close() raises no uncaught exception and exits", async () => {
