@@ -194,8 +194,12 @@ The reusable Action path uses only `pull_request`, never
 `pull_request_target`. Fork pull requests therefore receive GitHub's normal
 read-only `GITHUB_TOKEN` on the automatic Action path, so a fork-originated PR
 will not receive an automatic Action review in v0 — see **Known limitations**
-below. The local GitHub App webhook path publishes with the base repository's
-installation token instead.
+below. The manual `/ronda review` comment trigger is different: GitHub runs
+`issue_comment` workflows in the base repository with the base repository's
+token, so a fork-originated PR is reviewed when an `OWNER`, `MEMBER`, or
+`COLLABORATOR` posts the command (see **The review command**). The local
+GitHub App webhook path publishes with the base repository's installation
+token instead.
 
 ### Optional inputs
 
@@ -405,8 +409,21 @@ retrospectives. `quality:summary` remains a legacy comparison-only rollup.
 - **Fork pull requests on the reusable Action path** are not reviewed
   automatically. `pull_request` (not `pull_request_target`) gives
   fork-originated pull requests a read-only token, so the automatic Action path
-  cannot publish for them. The local GitHub App webhook path is the supported
-  fork-friendly ingress in v0.
+  cannot publish for them, and the reusable workflow's fork guard skips that
+  run. The guard does not apply to the manual trigger. What a fork-originated
+  pull request receives on this path, per trigger:
+
+  | Trigger | Fork-originated pull request |
+  | --- | --- |
+  | Automatic (`pull_request`) | Skipped — no review, no check run. |
+  | Manual `/ronda review` comment from an `OWNER`, `MEMBER`, or `COLLABORATOR` | Reviewed with the base repository's token. |
+  | Manual `/ronda review` comment from anyone else | Ignored, same as for a same-repository pull request. |
+
+  A manual review is maintainer-initiated, and nothing from the fork is
+  executed: the job checks out Ronda itself, not the pull request head, and
+  reads the diff through the GitHub REST API. Repository context also stays
+  off for a fork-originated head (see below). The local GitHub App webhook
+  path is the supported fork-friendly ingress in v0.
 - **Local webhook availability is operator-owned.** When using the local
   webhook path, GitHub delivery depends on the tunnel or machine being online.
   The reusable Action path remains available during migration.
