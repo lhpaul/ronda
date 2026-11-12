@@ -31,9 +31,10 @@ does not change.
 
 **Actor**: Ronda, running a review pass with repository context on, on any
 ingress (webhook server, GitHub Actions job, or a local run).
-**Preconditions**: Repository context is enabled for a same-repository head, the
-changed lines produced at least one candidate, and the compiler work for finding
-or resolving candidates takes longer than the budget that bounds it.
+**Preconditions**: Repository context is enabled for a same-repository head, at
+least one changed file is eligible for repository context, and the compiler work
+for finding candidates — or, once at least one candidate has been found, for
+resolving them — takes longer than the budget that bounds it.
 
 **Steps**:
 
@@ -190,6 +191,10 @@ excerpts given to the reviewer are the same as before this feature.
   and resolving candidates perform once their file text has been read. The
   lightweight per-file import scan that gathers dependency files between reads
   is not covered: it is already checked against the budget between reads.
+- **Stoppable when the job is aborted.** When the webhook server's watchdog
+  aborts the job running a pass, in-flight compiler work is stopped within the
+  same grace, so the aborted job settles as promptly as one with no compile
+  running and the watchdog's existing recovery is never held up by a compile.
 - **Same budgets, same outcomes.** This feature changes no budget, no budget
   default, no configuration value, and no pass outcome. A compile stopped by a
   budget is recorded exactly as a context time budget that ran out is recorded
@@ -234,9 +239,10 @@ excerpts given to the reviewer are the same as before this feature.
 
 ## Operational Visibility
 
-- **Logs**: one structured event when compiler work is stopped by a budget,
-  naming the phase (finding or resolving candidates) and the budget that ran out
-  (pass deadline or context time budget); one structured event when the isolated
+- **Logs**: one structured event when compiler work is stopped, naming the
+  phase (finding or resolving candidates) and what stopped it (the pass
+  deadline, the context time budget, or a watchdog abort of the job); one
+  structured event when the isolated
   execution context could not start; one when it stopped unexpectedly. None of
   these events — nor the existing repository-context failure event when an
   isolation failure reaches it — contains file text, repository content,
@@ -252,8 +258,8 @@ excerpts given to the reviewer are the same as before this feature.
 
 - [ ] AC1: With repository context on and the pass deadline still running, a
       resolution compile forced to run longer than the context time budget (for
-      example, by a deliberately slow compile in a test environment) is stopped within the grace the plan names after the
-      budget runs out — measured from budget expiry, not from compile completion
+      example, by a deliberately slow compile in a test environment) is stopped
+      within the grace the plan names after the budget runs out — measured from budget expiry, not from compile completion
       — and the pass records the requested candidates as time-budget drops,
       records Repository context unavailable, and publishes its review.
 - [ ] AC2: The same holds for the candidate-finding compile under the pass
@@ -283,7 +289,10 @@ excerpts given to the reviewer are the same as before this feature.
       fixtures.
 - [ ] AC7: After a pass settles in each of these ways — success, a compile
       stopped by a budget, an isolation failure, supersede, and watchdog abort —
-      no isolated execution context started by that pass is still running.
+      no isolated execution context started by that pass is still running; and
+      when the webhook watchdog aborts a job while its compile is in flight, the
+      compile is stopped within the grace measured from the abort, not left to
+      run until a budget runs out.
 - [ ] AC8: A pass with repository context off, a fork-originated head, or a pass
       ending before review execution starts no isolated execution context.
 - [ ] AC9: The isolation works under the same runtime CI uses, proven by an
@@ -328,7 +337,7 @@ excerpts given to the reviewer are the same as before this feature.
 | 1 | AC2, Business Rules → Stoppable at the budget |
 | 2 | AC1, Business Rules → Stoppable at the budget |
 | 3 | AC1, AC2 |
-| 4 | AC3, Use Case 2 |
+| 4 | AC3, AC7 (watchdog abort), Use Case 2, Business Rules → Stoppable when the job is aborted |
 | 5 | AC9, Business Rules → Same runtimes, no new setup |
 | 6 | AC6 (behavioural parity); the code-level approach is a plan decision |
 | 7 | AC4 |
