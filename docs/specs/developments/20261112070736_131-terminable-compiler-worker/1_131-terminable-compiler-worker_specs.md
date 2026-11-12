@@ -202,6 +202,23 @@ excerpts given to the reviewer are the same as before this feature.
   stopped compile returns no partial result. A compile stopped because the pass
   deadline ran out leaves the pass to end as a timed-out pass failure, exactly
   as a pass whose deadline runs out does today.
+- **Which stop wins.** When more than one reason to stop applies at the moment
+  the pass stops the compiler work, or before it has received a result, the
+  outcome is decided by the first applicable reason in this order: the
+  watchdog aborted the job (the job ends as a watchdog-aborted job does today);
+  the pass deadline ran out (timed-out pass failure); the context time budget
+  ran out (every requested candidate dropped for the time budget); the isolated
+  execution context failed (failed repository-context phase). Only when none of
+  these applies is a returned result used.
+- **Late and malformed results.** A result that arrives after the budget
+  bounding its phase has already run out is never used; the stop rules above
+  apply as if it had not arrived. A result the pass cannot use as a complete
+  answer — missing, incomplete, or not in the expected form — is treated as the
+  isolated execution context stopping unexpectedly.
+- **The pass never waits past the grace.** Once the pass decides to stop the
+  compiler work, it continues within the grace whether or not the isolated
+  execution context has finished ending; ending it still completes under
+  **Nothing left behind**.
 - **Failure is a degraded pass, never a failed one.** If the isolated execution
   context cannot start or stops unexpectedly, the pass proceeds without
   repository context, records it as a failed repository-context phase, and still
@@ -309,6 +326,14 @@ excerpts given to the reviewer are the same as before this feature.
       describe the compile as uninterruptible; and the repository-context
       evidence document's disclosed residual risk records that it is closed by
       this item.
+- [ ] AC12: The stop-precedence and result rules hold under forced
+      combinations in a test environment: with the pass deadline and the context
+      time budget both expired when the compile is stopped, the pass ends as a
+      timed-out pass failure; with the context time budget expired and the
+      isolated execution context crashing at the same time, every requested
+      candidate is dropped for the time budget; a result delivered after its
+      phase's budget ran out is not used; and a malformed result is recorded as
+      the isolated execution context stopping unexpectedly (AC5).
 
 ---
 
@@ -342,7 +367,7 @@ excerpts given to the reviewer are the same as before this feature.
 | 6 | AC6 (behavioural parity); the code-level approach is a plan decision |
 | 7 | AC4 |
 | 8 | AC5 |
-| 9 | AC1, Business Rules → Same budgets, same outcomes |
+| 9 | AC1, AC12, Business Rules → Same budgets, same outcomes; Which stop wins |
 | 10 | Satisfied by this spec and its plan going through the full pipeline |
 | 11 | Out of Scope → switching repository context on (sequencing only) |
 
