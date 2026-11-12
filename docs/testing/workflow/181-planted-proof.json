@@ -210,6 +210,102 @@
    "restored_exit": 0,
    "isolating_test": "Ronda-owned stale_ledger case added to the upstream 2116 loop in test-apply-readiness-labels.sh",
    "runtime_commit": "4bc835141feca6529a6e0f0f84256d3dea250236"
+  },
+  {
+   "id": "override_marker_platform",
+   "gate": "override marker names local-ai-reviewer",
+   "file": "scripts/development-workflow/workflow-lib.sh",
+   "line": 4993,
+   "predicate": "| select(($o.platform // \"\") == $platform and ($o.head // \"\") == $head)",
+   "mutation": "| select(($o.head // \"\") == $head)",
+   "suite": "test-pr-review-loop-human-override.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116a_other_platform_has_no_effect \u2014 expected 'none', got 'maint'"
+   ],
+   "restored_exit": 0,
+   "runtime_commit": "d770c046f8a55e1d5c2f93b862ddb1bb513d73f6"
+  },
+  {
+   "id": "override_marker_reason_nonempty",
+   "gate": "override marker carries a non-empty reason",
+   "file": "scripts/development-workflow/workflow-lib.sh",
+   "line": 4994,
+   "predicate": "| select((($o.reason // null) | type) == \"string\" and ($o.reason | trim | length) > 0)",
+   "mutation": "| select(true)",
+   "suite": "test-pr-review-loop-human-override.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116a_blank_reason_has_no_effect \u2014 expected 'none', got 'maint'"
+   ],
+   "restored_exit": 0,
+   "runtime_commit": "d770c046f8a55e1d5c2f93b862ddb1bb513d73f6"
+  },
+  {
+   "id": "override_marker_by_matches_author",
+   "gate": "optional marker by matches the comment author",
+   "file": "scripts/development-workflow/workflow-lib.sh",
+   "line": 4996,
+   "predicate": "| select((($o.by // $c.user.login) | tostring) == $c.user.login)",
+   "mutation": "| select(true)",
+   "suite": "test-pr-review-loop-human-override.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116a_by_mismatch_has_no_effect \u2014 expected 'none', got 'maint'"
+   ],
+   "restored_exit": 0,
+   "runtime_commit": "d770c046f8a55e1d5c2f93b862ddb1bb513d73f6"
+  },
+  {
+   "id": "verification_not_configured",
+   "gate": "PR-Agent verification escalates when local-ai-reviewer is not configured",
+   "file": "scripts/development-workflow/pr-review-loop.sh",
+   "line": 6753,
+   "predicate": "if ! grep -Fxq local-ai-reviewer <<<\"$configured_local\"; then\n        _pr_agent_verification_dead_end not_configured",
+   "mutation": "if false; then\n        _pr_agent_verification_dead_end not_configured",
+   "suite": "test-pr-review-loop-pr-agent-coderabbit.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116_verification_not_configured_escalates \u2014 expected 'RESULT=escalate', got 'RESULT=clean'",
+    "FAIL: 2116_verification_not_configured_distinct_reason \u2014 expected 'pr_agent_verification_requires_local_reviewer', got 'missing'",
+    "FAIL: 2116_verification_not_configured_human_action \u2014 expected 'present', got 'absent'"
+   ],
+   "restored_exit": 0,
+   "runtime_commit": "d770c046f8a55e1d5c2f93b862ddb1bb513d73f6"
+  },
+  {
+   "id": "verification_failed_on_head",
+   "gate": "PR-Agent verification escalates after a failed local review on the head without retry",
+   "file": "scripts/development-workflow/pr-review-loop.sh",
+   "line": 6765,
+   "predicate": "if [ \"${local_review_retry_head_record:-}\" != \"$head_sha\" ]; then\n          _pr_agent_verification_dead_end failed_on_head",
+   "mutation": "if false; then\n          _pr_agent_verification_dead_end failed_on_head",
+   "suite": "test-pr-review-loop-pr-agent-coderabbit.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116_verification_failed_on_head_escalates \u2014 expected 'RESULT=escalate', got 'RESULT=clean'",
+    "FAIL: 2116_verification_failed_on_head_distinct_reason \u2014 expected 'pr_agent_verification_requires_local_reviewer', got 'missing'",
+    "FAIL: 2116_verification_failed_on_head_human_action \u2014 expected 'present', got 'absent'"
+   ],
+   "restored_exit": 0,
+   "runtime_commit": "d770c046f8a55e1d5c2f93b862ddb1bb513d73f6"
+  },
+  {
+   "id": "verification_local_skipped",
+   "gate": "PR-Agent verification escalates when the local pass is skipped",
+   "file": "scripts/development-workflow/pr-review-loop.sh",
+   "line": 6776,
+   "predicate": "if [ \"$raw_local\" = skipped ]; then\n        _pr_agent_verification_dead_end",
+   "mutation": "if false; then\n        _pr_agent_verification_dead_end",
+   "suite": "test-pr-review-loop-pr-agent-coderabbit.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116_verification_disabled_distinct_reason \u2014 expected 'pr_agent_verification_requires_local_reviewer', got 'pr_agent_ambiguous_review'",
+    "FAIL: 2116_verification_disabled_not_ambiguous \u2014 expected '0', got '1'",
+    "FAIL: 2116_verification_disabled_human_action \u2014 expected 'present', got 'absent'"
+   ],
+   "restored_exit": 0,
+   "runtime_commit": "d770c046f8a55e1d5c2f93b862ddb1bb513d73f6"
   }
  ],
  "superseded_survivor": {
