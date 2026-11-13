@@ -1949,3 +1949,69 @@ test("P14: the last line without a trailing newline reports the right line", () 
     [1, 2],
   );
 });
+
+test("#132: a --repository-context campaign records its arm and per-request candidates, and gives precision the same arm", async () => {
+  const seen: Array<{ kind: "recall" | "precision"; hasContext: boolean }> = [];
+  const capturingModel = (): ModelClient => ({
+    modelName: "fixture:capture",
+    async complete(prompt) {
+      seen.push({
+        kind: prompt.userPrompt.includes("Recall benchmark") ? "recall" : "precision",
+        hasContext: prompt.userPrompt.includes("## Repository context (untrusted reviewed-head content)"),
+      });
+      return { content: JSON.stringify({ findings: [] }) };
+    },
+  });
+  const options: Partial<CliOptions> = {
+    manifestPath: "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+    patchesPath: "tests/fixtures/recall-benchmark/repository-context-seeds/patches.json",
+    quality: true,
+  };
+
+  const on = await runCampaign(
+    "ctx-on",
+    { ...options, repositoryContextMode: "on" },
+    campaignDeps({ createModel: capturingModel }),
+  );
+  const onSeen = seen.splice(0);
+  const off = await runCampaign(
+    "ctx-off",
+    { ...options, repositoryContextMode: "off" },
+    campaignDeps({ createModel: capturingModel }),
+  );
+  const offSeen = seen.splice(0);
+
+  assert.deepEqual(onSeen.map((entry) => entry.hasContext), [true, true]);
+  assert.deepEqual(offSeen.map((entry) => entry.hasContext), [false, false]);
+
+  const onRecord = on.records[0] as {
+    configuration: { repositoryContextMode?: string; promptFingerprint: string };
+    repositoryContext: {
+      mode: string;
+      recall: Array<{ symbolName: string; path: string; line: number }>;
+      precision: Record<string, Array<{ symbolName: string }>>;
+    };
+  };
+  const offRecord = off.records[0] as typeof onRecord;
+  assert.equal(onRecord.configuration.repositoryContextMode, "on");
+  assert.equal(offRecord.configuration.repositoryContextMode, "off");
+  // The run-level fingerprint excludes repository context, so the arms agree on it.
+  assert.equal(onRecord.configuration.promptFingerprint, offRecord.configuration.promptFingerprint);
+  assert.equal(onRecord.repositoryContext.mode, "on");
+  assert.ok(onRecord.repositoryContext.recall.some((c) => c.symbolName === "parseTestSummary"));
+  assert.ok(onRecord.repositoryContext.precision["harmless-deploy-label"].length > 0);
+  // Identifiers only: no excerpt text reaches the record.
+  assert.equal(JSON.stringify(onRecord.repositoryContext).includes("text"), false);
+  assert.deepEqual(offRecord.repositoryContext, {
+    mode: "off",
+    recall: [],
+    precision: { "harmless-deploy-label": [] },
+  });
+});
+
+test("#132: a campaign without --repository-context keeps its earlier record shape", async () => {
+  const run = await runCampaign("ctx-absent", {}, campaignDeps());
+  const record = run.records[0] as { configuration: Record<string, unknown> };
+  assert.equal("repositoryContext" in run.records[0], false);
+  assert.equal("repositoryContextMode" in record.configuration, false);
+});

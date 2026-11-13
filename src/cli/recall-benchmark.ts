@@ -118,6 +118,13 @@ export interface RecallBenchmarkSummary {
   originalThirteenSubset?: OriginalThirteenSubset;
   /** Inference requests this pass issued — present on both arms (AC11 compares them). */
   modelCallCount?: number;
+  /**
+   * The `--repository-context` arm this run used and the candidates it supplied
+   * to each request (#132). Present only when the flag was given, so a run
+   * recorded without it keeps its earlier shape. Identifiers only — never an
+   * excerpt's text.
+   */
+  repositoryContext?: BenchmarkRepositoryContextRecord;
   /** Wall-clock milliseconds this pass spent, both arms. */
   elapsedMs?: number;
 }
@@ -153,6 +160,25 @@ export interface BenchmarkRunFailure {
 
 /** One entry of a campaign: a successful run, or a recorded failure. */
 export type BenchmarkRunRecord = RecallBenchmarkSummary | BenchmarkRunFailure;
+
+/** One supplied repository-context candidate, by identity only (#132). */
+export interface BenchmarkRepositoryContextCandidateIdentity {
+  symbolName: string;
+  path: string;
+  line: number;
+}
+
+/**
+ * The repository-context arm of one run (#132): which arm, and per request the
+ * candidates that reached its prompt. An `off` arm supplies none, so its lists
+ * are empty — which is what makes the two arms' records comparable side by side.
+ */
+export interface BenchmarkRepositoryContextRecord {
+  mode: RepositoryContextModeSetting;
+  recall: BenchmarkRepositoryContextCandidateIdentity[];
+  /** Keyed by precision fixture id; present only for a `--quality` run. */
+  precision?: Record<string, BenchmarkRepositoryContextCandidateIdentity[]>;
+}
 
 /** The resolved input files a benchmark run read, by content rather than by name. */
 export interface BenchmarkFixtureIdentity {
@@ -214,6 +240,13 @@ export interface BenchmarkConfigurationBase {
   requestParameters: { temperature: number };
   /** SHA-256 over the composed prompt template with the sweep section excluded. */
   promptFingerprint: string;
+  /**
+   * The `--repository-context` arm (#132), recorded only when the flag was
+   * given so earlier records keep their shape. The run-level
+   * `promptFingerprint` excludes repository context, so the two arms agree on
+   * it by construction; each request's own fingerprint does not.
+   */
+  repositoryContextMode?: RepositoryContextModeSetting;
 }
 
 export interface BenchmarkConfigurationIdentity extends BenchmarkConfigurationBase {
@@ -340,6 +373,12 @@ export interface RunPrecisionFixtureInput {
   maxPatchChars: number;
   signal?: AbortSignal;
   sweepCategories?: SweepCategory[];
+  /**
+   * The `--repository-context on` arm's candidates for this fixture's own
+   * changed files (#132), so paired precision is measured under the same
+   * arm as recall. Omitted or empty leaves the prompt unchanged.
+   */
+  repositoryContext?: RepositoryContextCandidate[];
 }
 
 /** The recall pass's result plus the identity only the response can report. */
@@ -584,6 +623,9 @@ async function runPrecisionPass(input: RunPrecisionFixtureInput): Promise<Precis
     changedFiles: input.fixture.changedFiles,
     maxPatchChars: input.maxPatchChars,
     ...(input.sweepCategories ? { sweepCategories: input.sweepCategories } : {}),
+    ...(input.repositoryContext && input.repositoryContext.length > 0
+      ? { repositoryContext: input.repositoryContext }
+      : {}),
   });
   const completion = await input.model.complete(prompt, input.signal ?? new AbortController().signal);
   const parsed = parseModelResponse(completion.content, input.fixture.changedFiles);
@@ -992,6 +1034,7 @@ function buildConfigurationBase(input: {
   versionAttestation: string | undefined;
   maxPatchChars: number;
   promptFingerprint: string;
+  repositoryContextMode?: RepositoryContextModeSetting;
 }): BenchmarkConfigurationBase {
   return {
     sweepMode: input.sweepMode,
@@ -1003,6 +1046,9 @@ function buildConfigurationBase(input: {
     durabilityModeApplied: false,
     requestParameters: { temperature: CHAT_COMPLETION_TEMPERATURE },
     promptFingerprint: input.promptFingerprint,
+    ...(input.repositoryContextMode !== undefined
+      ? { repositoryContextMode: input.repositoryContextMode }
+      : {}),
   };
 }
 
@@ -1114,6 +1160,8 @@ interface CampaignRunContext {
   promptFingerprint: string;
   /** Resolved once, when `--repository-context on` (#106); every run in the campaign reuses it. */
   repositoryContext?: RepositoryContextCandidate[];
+  /** Per precision fixture id, resolved once when `--repository-context on` (#132). */
+  precisionRepositoryContext?: Map<string, RepositoryContextCandidate[]>;
 }
 
 /** Counts model calls, so a run's cost is this run's, not the campaign's. */
@@ -1157,6 +1205,9 @@ function composeRunRecord(input: {
     configuration: input.configuration,
     modelCallCount: input.modelCallCount,
     elapsedMs: input.elapsedMs,
+    ...(input.context.options.repositoryContextMode !== undefined
+      ? { repositoryContext: buildRepositoryContextRecord(input.context) }
+      : {}),
     ...(input.sweep !== undefined
       ? {
           sweepListVersion: input.sweep.listVersion,
@@ -1164,6 +1215,35 @@ function composeRunRecord(input: {
         }
       : {}),
     ...(subset !== undefined ? { originalThirteenSubset: subset } : {}),
+  };
+}
+
+function candidateIdentities(
+  candidates: RepositoryContextCandidate[] | undefined,
+): BenchmarkRepositoryContextCandidateIdentity[] {
+  return (candidates ?? []).map((candidate) => ({
+    symbolName: candidate.symbolName,
+    path: candidate.path,
+    line: candidate.line,
+  }));
+}
+
+/** The run's repository-context record (#132): the arm and, per request, the candidate identities supplied. */
+function buildRepositoryContextRecord(context: CampaignRunContext): BenchmarkRepositoryContextRecord {
+  const precisionFixtures = context.options.quality ? (context.manifest.precisionFixtures ?? []) : [];
+  return {
+    mode: context.options.repositoryContextMode ?? "off",
+    recall: candidateIdentities(context.repositoryContext),
+    ...(precisionFixtures.length > 0
+      ? {
+          precision: Object.fromEntries(
+            precisionFixtures.map((fixture) => [
+              fixture.id,
+              candidateIdentities(context.precisionRepositoryContext?.get(fixture.id)),
+            ]),
+          ),
+        }
+      : {}),
   };
 }
 
@@ -1286,6 +1366,9 @@ async function runOneCampaignRun(
                     maxPatchChars: context.maxPatchChars,
                     signal: controller.signal,
                     ...(sweepCategories !== undefined ? { sweepCategories } : {}),
+                    ...(context.precisionRepositoryContext?.has(fixture.id) === true
+                      ? { repositoryContext: context.precisionRepositoryContext.get(fixture.id) }
+                      : {}),
                   }),
             ),
           )
@@ -1326,6 +1409,9 @@ async function runOneCampaignRun(
         versionAttestation: context.options.versionAttestation,
         maxPatchChars: context.maxPatchChars,
         promptFingerprint: context.promptFingerprint,
+        ...(context.options.repositoryContextMode !== undefined
+          ? { repositoryContextMode: context.options.repositoryContextMode }
+          : {}),
       }),
       requests: [
         {
@@ -1419,6 +1505,9 @@ async function runOneCampaignRun(
         versionAttestation: context.options.versionAttestation,
         maxPatchChars: context.maxPatchChars,
         promptFingerprint: context.promptFingerprint,
+        ...(context.options.repositoryContextMode !== undefined
+          ? { repositoryContextMode: context.options.repositoryContextMode }
+          : {}),
       }),
       failure: {
         ...buildFailureDetail(error, context.manifest, deadlineFired),
@@ -1504,6 +1593,19 @@ export async function runBenchmarkCampaign(
           options.repositoryContextFixtureDir ?? DEFAULT_REPOSITORY_CONTEXT_FIXTURE_DIR,
         )
       : undefined;
+  let precisionRepositoryContext: Map<string, RepositoryContextCandidate[]> | undefined;
+  if (options.repositoryContextMode === "on" && options.quality && manifest.precisionFixtures) {
+    precisionRepositoryContext = new Map();
+    for (const fixture of manifest.precisionFixtures) {
+      precisionRepositoryContext.set(
+        fixture.id,
+        await computeBenchmarkRepositoryContext(
+          fixture.changedFiles,
+          options.repositoryContextFixtureDir ?? DEFAULT_REPOSITORY_CONTEXT_FIXTURE_DIR,
+        ),
+      );
+    }
+  }
   const context: CampaignRunContext = {
     options,
     manifest,
@@ -1514,6 +1616,7 @@ export async function runBenchmarkCampaign(
     maxPatchChars,
     promptFingerprint: buildPromptFingerprint(manifest, changedFiles, maxPatchChars),
     ...(repositoryContext !== undefined ? { repositoryContext } : {}),
+    ...(precisionRepositoryContext !== undefined ? { precisionRepositoryContext } : {}),
   };
 
   let list: SweepCategoryList | undefined;

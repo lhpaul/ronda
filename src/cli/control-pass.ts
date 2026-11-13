@@ -148,6 +148,47 @@ interface ControlPassRecord {
   outcome: ReviewPassResult["outcome"];
   findingCount: number;
   repositoryContext: ReviewPassResult["repositoryContext"];
+  /**
+   * Cost fields for the AC14 cost arms (#132): wall-clock time of the review
+   * pass itself, the inference requests it issued, the configured model name
+   * and every distinct provider-reported model identity those requests
+   * returned (empty when the endpoint reported none), and the sweep mode the
+   * pass ran under, so two arms' configurations can be compared field by field.
+   */
+  elapsedMs: number;
+  modelCallCount: number;
+  modelName: string;
+  reportedModels: string[];
+  sweepMode: RondaConfig["sweepMode"];
+}
+
+/**
+ * Wraps a model client so the control pass can report how many inference
+ * requests the pass issued and which model identities the provider reported
+ * (#132). Pure pass-through otherwise.
+ */
+export function countingModelClient(model: ModelClient): {
+  model: ModelClient;
+  calls: () => number;
+  reportedModels: () => string[];
+} {
+  let calls = 0;
+  const reported = new Set<string>();
+  return {
+    model: {
+      modelName: model.modelName,
+      async complete(request, signal) {
+        calls += 1;
+        const completion = await model.complete(request, signal);
+        if (completion.reportedModel !== undefined) {
+          reported.add(completion.reportedModel);
+        }
+        return completion;
+      },
+    },
+    calls: () => calls,
+    reportedModels: () => [...reported].sort(),
+  };
 }
 
 export interface RunControlPassDeps {
@@ -241,7 +282,7 @@ export async function runControlPass(
     repositoryContextModeRaw: undefined,
   };
 
-  const model =
+  const baseModel =
     runDeps.modelOverride ??
     createOpenAiCompatibleClient({
       apiKey: config.model.apiKey,
@@ -261,11 +302,16 @@ export async function runControlPass(
     publishCheckRun: async () => undefined,
   };
 
+  const counting = countingModelClient(baseModel);
+  const model = counting.model;
+
   const logger = createLogger([config.model.apiKey, githubToken]);
+  const startedAt = Date.now();
   const result = await runReviewPass(
     { owner, repo, pullNumber: options.pullNumber, trigger: "manual" },
     { github, model, config, clock: createSystemClock(), logger },
   );
+  const elapsedMs = Date.now() - startedAt;
 
   const record: ControlPassRecord = {
     recordedAt: new Date().toISOString(),
@@ -277,6 +323,11 @@ export async function runControlPass(
     outcome: result.outcome,
     findingCount: result.findings.length,
     repositoryContext: result.repositoryContext,
+    elapsedMs,
+    modelCallCount: counting.calls(),
+    modelName: config.model.modelName,
+    reportedModels: counting.reportedModels(),
+    sweepMode: config.sweepMode,
   };
 
   mkdirSync(dirname(outFilePath), { recursive: true });
