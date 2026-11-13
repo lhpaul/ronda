@@ -257,8 +257,8 @@ template:
   # Optional: the template version last applied by the sync-template skill.
   # Written automatically by sync-template after a successful sync.
   # Used by the retrospective cross-reference step to identify "already fixed upstream" findings.
-  last_synced_version: "v0.50.0"
-  last_synced_commit: "50d99e4738704533105b6e404f4468e69d6e3f42"
+  last_synced_version: "v0.51.0"
+  last_synced_commit: "bada6da17b6cf0edb6f1629e314607fefdd73a20"
 
 # guardrails — declares how much authority AI agents have when advancing work through the
 # development workflow. This section is OPTIONAL. When omitted, all values resolve to the

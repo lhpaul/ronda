@@ -1,0 +1,315 @@
+{
+ "schema": "ronda_planted_proof.v1",
+ "issue": 181,
+ "runtime_commit": "47838aa50efad5781001c6942449c0a9139cb2fa",
+ "template_commit": "bada6da17b6cf0edb6f1629e314607fefdd73a20",
+ "method": "Each predicate is replaced in the working tree, the named suite is run (planted), the file is restored byte-for-byte (sha256 checked) and the suite is rerun (restored). Exit 0 = pass.",
+ "plants": [
+  {
+   "id": "followup_deferred_must_stay_open",
+   "gate": "deferred follow-up must remain open",
+   "file": "scripts/development-workflow/item-completion-self-check.sh",
+   "line": 1087,
+   "predicate": "elif [ \"$followup_state\" != \"OPEN\" ]; then",
+   "mutation": "elif false; then",
+   "suite": "test-item-completion-followups.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: deferred_closed_issue_blocks - expected exit 1, got 0",
+    "FAIL: deferred_closed_issue_row - missing '| followup.#1895 | discrepancy | deferred but state=CLOSED; must remain open |'",
+    "FAIL: hub_closed_tracker_issue_blocks - expected exit 1, got 0"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "id": "followup_deferred_not_closed_by_pr",
+   "gate": "deferred follow-up not closed by PR text",
+   "file": "scripts/development-workflow/item-completion-self-check.sh",
+   "line": 1089,
+   "predicate": "elif [ \"$followup_closing\" = \"present\" ]; then",
+   "mutation": "elif false; then",
+   "suite": "test-item-completion-followups.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: deferred_closed_by_pr_body_blocks - expected exit 1, got 0",
+    "FAIL: deferred_closed_by_pr_body_row - missing '| followup.#1895 | discrepancy | deferred but PR title, body or commit messages close it with a closing keyword |'",
+    "FAIL: keyword_variant_blocks: fixes #1895 - expected exit 1, got 0"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "id": "followup_argument_shape",
+   "gate": "--followup argument validation",
+   "file": "scripts/development-workflow/item-completion-self-check.sh",
+   "line": 162,
+   "predicate": "if ! [[ \"$2\" =~ ^[1-9][0-9]*=(fixed|deferred)$ ]]; then",
+   "mutation": "if false; then",
+   "suite": "test-item-completion-followups.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: malformed_rejected: 1895 - expected exit 64, got 1",
+    "FAIL: malformed_rejected: abc=deferred - expected exit 64, got 1",
+    "FAIL: malformed_rejected: 1895=maybe - expected exit 64, got 1"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "id": "selfcheck_override_live_revalidation",
+   "gate": "self-check revalidates live human override",
+   "file": "scripts/development-workflow/item-completion-self-check.sh",
+   "line": 889,
+   "predicate": "if local_override_json=\"$(workflow_reviewer_human_override_json \"$pr_repo\" \"$pr_number\" \"$pr_head_oid\" local-ai-reviewer)\"; then",
+   "mutation": "if local_override_json=\"$(workflow_reviewer_human_override_json \"$pr_repo\" \"$pr_number\" \"$pr_head_oid\" local-ai-reviewer || printf '{\"by\":\"maintainer\"}')\"; then",
+   "suite": "test-item-completion-self-check.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116_human_override_old_head_exit_one - expected '1', got '0'",
+    "FAIL: 2116_human_override_old_head_discrepancy - expected output to contain '| pull_request.local_reviewer_head | discrepancy | ledger records a human override but no valid live override marker'",
+    "FAIL: 2116_human_override_no_write_exit_one - expected '1', got '0'"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "id": "override_marker_head_binding",
+   "gate": "override marker names the current head",
+   "file": "scripts/development-workflow/workflow-lib.sh",
+   "line": 4993,
+   "predicate": "| select(($o.platform // \"\") == $platform and ($o.head // \"\") == $head)",
+   "mutation": "| select(($o.platform // \"\") == $platform)",
+   "suite": "test-pr-review-loop-human-override.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116a_older_head_has_no_effect \u2014 expected 'none', got 'maint'",
+    "FAIL: 2116b_older_head_reviewer_runs \u2014 expected '1', got '0'",
+    "FAIL: 2116b_older_head_finding_stands \u2014 expected 'needs_fixes', got 'skipped'"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "id": "override_author_is_user",
+   "gate": "override author is a User, not a Bot",
+   "file": "scripts/development-workflow/workflow-lib.sh",
+   "line": 4995,
+   "predicate": "| select(($c.user.type // \"\") == \"User\" and",
+   "mutation": "| select(true and",
+   "suite": "test-pr-review-loop-human-override.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116a_bot_author_has_no_effect \u2014 expected 'none', got 'maint'"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "id": "override_author_write_permission",
+   "gate": "override author has write/maintain/admin",
+   "file": "scripts/development-workflow/workflow-lib.sh",
+   "line": 5008,
+   "predicate": "admin|maintain|write) printf '%s\\n' \"$candidate\"; return 0 ;;",
+   "mutation": "*) printf '%s\\n' \"$candidate\"; return 0 ;;",
+   "suite": "test-pr-review-loop-human-override.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116a_read_only_author_has_no_effect \u2014 expected 'none', got 'reader'",
+    "FAIL: 2116a_newest_trusted_override_wins \u2014 expected 'admin1', got 'reader'",
+    "FAIL: 2116b_read_only_reviewer_runs \u2014 expected '1', got '0'"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "id": "claude_copy_containment",
+   "gate": "Claude review copy unchanged after review",
+   "file": "scripts/development-workflow/local-claude-review-command.sh",
+   "line": 384,
+   "predicate": "if ! after=\"$(fingerprint_copy)\" || [ \"$after\" != \"$baseline\" ]; then",
+   "mutation": "if ! after=\"$(fingerprint_copy)\"; then",
+   "suite": "test-local-claude-review-command.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: T-C7_1_exit - expected '3', got '0'",
+    "FAIL: T-C7_1_message - expected 'yes', got 'no'",
+    "FAIL: T-C7_1_stdout_empty - expected '', got '{\"result\":\"clean\",\"findings\":[],\"reviewed_head\":\"8d2501b8eb89051c792e6d10268c1716c52727e4\"}'"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "id": "capacity_round_budget",
+   "gate": "capacity retries stay inside the round budget",
+   "file": "scripts/development-workflow/local-ai-reviewer.sh",
+   "line": 1777,
+   "predicate": "if [ \"$capacity_remaining\" -le \"$capacity_attempt\" ]; then",
+   "mutation": "if false; then",
+   "suite": "test-local-ai-reviewer-backend.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: T-B12b_capacity_budget_no_room_result - expected 'needs_rerun/provider_overloaded', got 'waiting_on_reviewer/reviewer-no-verdict-yet'",
+    "FAIL: T-B12b_capacity_budget_no_room_stops - expected '1', got '2'",
+    "FAIL: T-B12b_capacity_budget_no_room_diag - expected 'yes', got 'no'"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "id": "feat_alias",
+   "gate": "feat/* classified as feature",
+   "file": "scripts/development-workflow/workflow-lib.sh",
+   "line": 587,
+   "predicate": "feature/*|feat/*) printf 'feature\\n' ;;",
+   "mutation": "feature/*) printf 'feature\\n' ;;",
+   "suite": "test-workflow-lib-branch-prefix.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: feat alias - expected 'feature', got 'unknown'",
+    "FAIL: reviewer feat alias - expected 'code-reviewer', got 'none'"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "id": "backport_class",
+   "gate": "backport/* is its own implementation class",
+   "file": "scripts/development-workflow/workflow-lib.sh",
+   "line": 595,
+   "predicate": "backport/?*) printf 'backport\\n' ;;",
+   "mutation": "backport/planted-never) printf 'backport\\n' ;;",
+   "suite": "test-workflow-lib-branch-prefix.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: backport - expected 'backport', got 'unknown'",
+    "FAIL: backport hotfix - expected 'backport', got 'unknown'",
+    "FAIL: reviewer backport - expected 'code-reviewer', got 'none'"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "id": "readiness_override_live_marker",
+   "gate": "readiness revalidates live human override",
+   "file": "scripts/development-workflow/apply-readiness-labels.sh",
+   "line": 1291,
+   "predicate": "[ -n \"$verdict_head\" ] && [ \"$verdict_head\" = \"$head_sha\" ] &&\n          workflow_reviewer_human_override_json \"$repo\" \"$pr_number\" \"$head_sha\" local-ai-reviewer >/dev/null; then",
+   "mutation": "[ -n \"$verdict_head\" ] && [ \"$verdict_head\" = \"$head_sha\" ]; then",
+   "suite": "test-apply-readiness-labels.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116_readiness_override_old_head_refuses - expected 'reviewer-evidence-unreadable', got 'gate-passed'",
+    "FAIL: 2116_readiness_override_old_head_no_label - expected '0', got '1'",
+    "FAIL: 2116_readiness_override_no_write_refuses - expected 'reviewer-evidence-unreadable', got 'gate-passed'"
+   ],
+   "restored_exit": 0
+  },
+  {
+   "id": "readiness_override_ledger_head",
+   "gate": "readiness override ledger record bound to live head",
+   "file": "scripts/development-workflow/apply-readiness-labels.sh",
+   "line": 1291,
+   "predicate": "[ -n \"$verdict_head\" ] && [ \"$verdict_head\" = \"$head_sha\" ] &&\n          workflow_reviewer_human_override_json",
+   "mutation": "true &&\n          workflow_reviewer_human_override_json",
+   "suite": "test-apply-readiness-labels.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116_readiness_override_stale_ledger_refuses - expected 'reviewer-evidence-unreadable', got 'gate-passed'",
+    "FAIL: 2116_readiness_override_stale_ledger_no_label - expected '0', got '1'"
+   ],
+   "restored_exit": 0,
+   "isolating_test": "Ronda-owned stale_ledger case added to the upstream 2116 loop in test-apply-readiness-labels.sh",
+   "runtime_commit": "4bc835141feca6529a6e0f0f84256d3dea250236"
+  },
+  {
+   "id": "override_marker_platform",
+   "gate": "override marker names local-ai-reviewer",
+   "file": "scripts/development-workflow/workflow-lib.sh",
+   "line": 4993,
+   "predicate": "| select(($o.platform // \"\") == $platform and ($o.head // \"\") == $head)",
+   "mutation": "| select(($o.head // \"\") == $head)",
+   "suite": "test-pr-review-loop-human-override.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116a_other_platform_has_no_effect \u2014 expected 'none', got 'maint'"
+   ],
+   "restored_exit": 0,
+   "runtime_commit": "d770c046f8a55e1d5c2f93b862ddb1bb513d73f6"
+  },
+  {
+   "id": "override_marker_reason_nonempty",
+   "gate": "override marker carries a non-empty reason",
+   "file": "scripts/development-workflow/workflow-lib.sh",
+   "line": 4994,
+   "predicate": "| select((($o.reason // null) | type) == \"string\" and ($o.reason | trim | length) > 0)",
+   "mutation": "| select(true)",
+   "suite": "test-pr-review-loop-human-override.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116a_blank_reason_has_no_effect \u2014 expected 'none', got 'maint'"
+   ],
+   "restored_exit": 0,
+   "runtime_commit": "d770c046f8a55e1d5c2f93b862ddb1bb513d73f6"
+  },
+  {
+   "id": "override_marker_by_matches_author",
+   "gate": "optional marker by matches the comment author",
+   "file": "scripts/development-workflow/workflow-lib.sh",
+   "line": 4996,
+   "predicate": "| select((($o.by // $c.user.login) | tostring) == $c.user.login)",
+   "mutation": "| select(true)",
+   "suite": "test-pr-review-loop-human-override.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116a_by_mismatch_has_no_effect \u2014 expected 'none', got 'maint'"
+   ],
+   "restored_exit": 0,
+   "runtime_commit": "d770c046f8a55e1d5c2f93b862ddb1bb513d73f6"
+  },
+  {
+   "id": "verification_not_configured",
+   "gate": "PR-Agent verification escalates when local-ai-reviewer is not configured",
+   "file": "scripts/development-workflow/pr-review-loop.sh",
+   "line": 6753,
+   "predicate": "if ! grep -Fxq local-ai-reviewer <<<\"$configured_local\"; then\n        _pr_agent_verification_dead_end not_configured",
+   "mutation": "if false; then\n        _pr_agent_verification_dead_end not_configured",
+   "suite": "test-pr-review-loop-pr-agent-coderabbit.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116_verification_not_configured_escalates \u2014 expected 'RESULT=escalate', got 'RESULT=clean'",
+    "FAIL: 2116_verification_not_configured_distinct_reason \u2014 expected 'pr_agent_verification_requires_local_reviewer', got 'missing'",
+    "FAIL: 2116_verification_not_configured_human_action \u2014 expected 'present', got 'absent'"
+   ],
+   "restored_exit": 0,
+   "runtime_commit": "d770c046f8a55e1d5c2f93b862ddb1bb513d73f6"
+  },
+  {
+   "id": "verification_failed_on_head",
+   "gate": "PR-Agent verification escalates after a failed local review on the head without retry",
+   "file": "scripts/development-workflow/pr-review-loop.sh",
+   "line": 6765,
+   "predicate": "if [ \"${local_review_retry_head_record:-}\" != \"$head_sha\" ]; then\n          _pr_agent_verification_dead_end failed_on_head",
+   "mutation": "if false; then\n          _pr_agent_verification_dead_end failed_on_head",
+   "suite": "test-pr-review-loop-pr-agent-coderabbit.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116_verification_failed_on_head_escalates \u2014 expected 'RESULT=escalate', got 'RESULT=clean'",
+    "FAIL: 2116_verification_failed_on_head_distinct_reason \u2014 expected 'pr_agent_verification_requires_local_reviewer', got 'missing'",
+    "FAIL: 2116_verification_failed_on_head_human_action \u2014 expected 'present', got 'absent'"
+   ],
+   "restored_exit": 0,
+   "runtime_commit": "d770c046f8a55e1d5c2f93b862ddb1bb513d73f6"
+  },
+  {
+   "id": "verification_local_skipped",
+   "gate": "PR-Agent verification escalates when the local pass is skipped",
+   "file": "scripts/development-workflow/pr-review-loop.sh",
+   "line": 6776,
+   "predicate": "if [ \"$raw_local\" = skipped ]; then\n        _pr_agent_verification_dead_end",
+   "mutation": "if false; then\n        _pr_agent_verification_dead_end",
+   "suite": "test-pr-review-loop-pr-agent-coderabbit.sh",
+   "planted_exit": 1,
+   "planted_failures": [
+    "FAIL: 2116_verification_disabled_distinct_reason \u2014 expected 'pr_agent_verification_requires_local_reviewer', got 'pr_agent_ambiguous_review'",
+    "FAIL: 2116_verification_disabled_not_ambiguous \u2014 expected '0', got '1'",
+    "FAIL: 2116_verification_disabled_human_action \u2014 expected 'present', got 'absent'"
+   ],
+   "restored_exit": 0,
+   "runtime_commit": "d770c046f8a55e1d5c2f93b862ddb1bb513d73f6"
+  }
+ ],
+ "superseded_survivor": {
+  "id": "readiness_override_head_binding",
+  "note": "Survived against the upstream suite alone at 47838aa; isolated by the Ronda-owned stale_ledger case (see readiness_override_ledger_head)."
+ }
+}
