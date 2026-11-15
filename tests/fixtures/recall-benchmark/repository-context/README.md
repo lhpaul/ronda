@@ -13,9 +13,22 @@ example, a seed patch that reads `import { helper } from "./util.js"` from
 `src/benchmark/caller.ts` would resolve against
 `src/benchmark/util.ts` placed under this directory.
 
-## AC13 admissibility (recorded 2026-09-29)
+## Contents (#132)
 
-This directory is currently **empty of seed-matching source** because the
+`src/benchmark/ctx/` holds the definitions the
+[`repository-context-seeds`](../repository-context-seeds/) fixture's four seeds
+depend on: `deploy-events.ts`, `review-api.ts`, `checker-output.ts` and
+`test-summary.ts`. Each seed's defect is stated only in the body of the
+definition it imports from here, never in its own patch. The admissibility
+statement and the campaign that used them are in
+[`docs/testing/ronda/repository-context-effect-evidence-106.md`](../../../../docs/testing/ronda/repository-context-effect-evidence-106.md).
+
+Edit these files only together with a new campaign: the `on` arm's prompt is
+built from them, so a change alters what any recorded `on` run received.
+
+## AC13 admissibility of the three original seeds (recorded 2026-09-29)
+
+This directory holds **no source for the three original seeds** because the
 three AC13 target seeds' committed patches
 (`api-evidence-state-reconstruction` → `src/benchmark/git-history.ts`,
 `external-output-parsing-lossy` → `src/benchmark/output.ts`,
@@ -42,7 +55,5 @@ already recorded. This item does not do that rebalancing.
 The `--repository-context` **mechanism** itself is real and tested — see
 `computeBenchmarkRepositoryContext`'s own positive-path test, which proves it
 resolves a candidate correctly when a fixture placed here *does* provide one.
-Populating this directory with real seed dependencies, or targeting a
-different fixture whose seeds already have resolvable surrounding source, is
-future work for whoever runs the interleaved recall/precision/cost campaign
-(plan step 14, explicitly deferred past this pull request).
+#132 took the second route: a separate seed fixture whose definitions live
+here (see **Contents** above). The three original seeds were left untouched.

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { Octokit } from "@octokit/rest";
 import {
   ControlPassUsageError,
+  countingModelClient,
   createNoWriteOctokit,
   parseControlPassArgs,
   resolveControlPassOutPath,
@@ -200,6 +201,55 @@ test("runControlPass records one JSON line and never writes to GitHub", async (t
   assert.equal(record.pullNumber, 7);
   assert.equal(record.arm, "on");
   assert.ok("outcome" in record);
+});
+
+test("runControlPass records the AC14 cost fields: elapsed time, model calls, and model identity (#132)", async (t) => {
+  t.after(cleanupOutFile);
+  cleanupOutFile();
+  let calls = 0;
+  const model: ModelClient = {
+    modelName: "fake-model",
+    async complete() {
+      calls += 1;
+      return { content: JSON.stringify({ findings: [] }), reportedModel: "fake-model-2026-01-01" };
+    },
+  };
+  const exitCode = await runControlPass(baseOptions({ repositoryContext: "off" }), {
+    octokit: createFakeOctokit(),
+    githubToken: "test-token",
+    getWriteAttempts: () => 0,
+    configOverride: testConfig(),
+    modelOverride: model,
+  });
+  assert.equal(exitCode, 0);
+  const record = JSON.parse(readFileSync(join(REPO_ROOT, TEST_OUT_PATH), "utf8").trim().split("\n")[0]);
+  assert.equal(record.arm, "off");
+  assert.equal(record.modelCallCount, calls);
+  assert.ok(calls >= 1);
+  assert.equal(record.modelName, "fake-model");
+  assert.deepEqual(record.reportedModels, ["fake-model-2026-01-01"]);
+  assert.equal(typeof record.elapsedMs, "number");
+  assert.ok(record.elapsedMs >= 0);
+  assert.equal(record.sweepMode, testConfig().sweepMode);
+});
+
+test("countingModelClient counts requests and collects distinct reported models", async () => {
+  const replies = ["a", undefined, "a", "b"];
+  let index = 0;
+  const counting = countingModelClient({
+    modelName: "m",
+    async complete() {
+      const reportedModel = replies[index++];
+      return reportedModel === undefined ? { content: "" } : { content: "", reportedModel };
+    },
+  });
+  const signal = new AbortController().signal;
+  for (let i = 0; i < 4; i += 1) {
+    await counting.model.complete({ systemPrompt: "", userPrompt: "" }, signal);
+  }
+  assert.equal(counting.calls(), 4);
+  assert.deepEqual(counting.reportedModels(), ["a", "b"]);
+  assert.equal(counting.model.modelName, "m");
 });
 
 test("runControlPass refuses a fork-originated head before any further read", async () => {

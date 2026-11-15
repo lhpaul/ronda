@@ -1,0 +1,972 @@
+[
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 7,
+        "severity": "important",
+        "title": "Potential index-out-of-bounds access"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 11,
+        "severity": "important",
+        "title": "Incorrect latest-review logic"
+      },
+      {
+        "path": "src/benchmark/ctx/checker-summary.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Misclassified non-error, non-warning lines"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:14:06.851Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "off",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "e18765efe243a9f14adec30f3ceb7f9e432ff7cefc622de140fc97b6e4e1ba43",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 7386,
+    "repositoryContext": {
+      "mode": "off",
+      "recall": [],
+      "precision": {
+        "harmless-deploy-label": []
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 7,
+        "severity": "important",
+        "title": "Potential index-out-of-bounds access"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 11,
+        "severity": "important",
+        "title": "Incorrect latest-review logic"
+      },
+      {
+        "path": "src/benchmark/ctx/checker-summary.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Misclassified non-error, non-warning lines"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:14:30.574Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "off",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "e18765efe243a9f14adec30f3ceb7f9e432ff7cefc622de140fc97b6e4e1ba43",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 7208,
+    "repositoryContext": {
+      "mode": "off",
+      "recall": [],
+      "precision": {
+        "harmless-deploy-label": []
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 7,
+        "severity": "important",
+        "title": "Potential index-out-of-bounds access"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Incorrect latest review selection logic"
+      },
+      {
+        "path": "src/benchmark/ctx/checker-summary.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Misclassified non-error, non-warning lines as warnings"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:14:50.807Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "off",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "e18765efe243a9f14adec30f3ceb7f9e432ff7cefc622de140fc97b6e4e1ba43",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 6887,
+    "repositoryContext": {
+      "mode": "off",
+      "recall": [],
+      "precision": {
+        "harmless-deploy-label": []
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 7,
+        "severity": "important",
+        "title": "Potential index-out-of-bounds access"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Incorrect latest review state aggregation"
+      },
+      {
+        "path": "src/benchmark/ctx/checker-summary.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Misclassified non-error, non-warning lines as warnings"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:15:08.495Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "off",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "e18765efe243a9f14adec30f3ceb7f9e432ff7cefc622de140fc97b6e4e1ba43",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 6823,
+    "repositoryContext": {
+      "mode": "off",
+      "recall": [],
+      "precision": {
+        "harmless-deploy-label": []
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 7,
+        "severity": "important",
+        "title": "Potential index-out-of-bounds access"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Incorrect latest review selection logic"
+      },
+      {
+        "path": "src/benchmark/ctx/checker-summary.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Misclassified non-error, non-warning lines as warnings"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:15:25.467Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "off",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "e18765efe243a9f14adec30f3ceb7f9e432ff7cefc622de140fc97b6e4e1ba43",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 7065,
+    "repositoryContext": {
+      "mode": "off",
+      "recall": [],
+      "precision": {
+        "harmless-deploy-label": []
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 7,
+        "severity": "important",
+        "title": "Potential index-out-of-bounds access"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Incorrect latest review state logic"
+      },
+      {
+        "path": "src/benchmark/ctx/checker-summary.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Misclassified non-error, non-warning lines as warnings"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:15:46.846Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "off",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "e18765efe243a9f14adec30f3ceb7f9e432ff7cefc622de140fc97b6e4e1ba43",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 7581,
+    "repositoryContext": {
+      "mode": "off",
+      "recall": [],
+      "precision": {
+        "harmless-deploy-label": []
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 7,
+        "severity": "important",
+        "title": "Potential index-out-of-bounds access"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Incorrect latest review state aggregation"
+      },
+      {
+        "path": "src/benchmark/ctx/checker-summary.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Misclassified non-error, non-warning lines as warnings"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:16:03.952Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "off",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "e18765efe243a9f14adec30f3ceb7f9e432ff7cefc622de140fc97b6e4e1ba43",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 7226,
+    "repositoryContext": {
+      "mode": "off",
+      "recall": [],
+      "precision": {
+        "harmless-deploy-label": []
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 7,
+        "severity": "important",
+        "title": "Potential index-out-of-bounds access"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Incorrect latest review selection logic"
+      },
+      {
+        "path": "src/benchmark/ctx/checker-summary.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Misclassified non-error, non-warning lines as warnings"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:16:21.300Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "off",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "e18765efe243a9f14adec30f3ceb7f9e432ff7cefc622de140fc97b6e4e1ba43",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 6923,
+    "repositoryContext": {
+      "mode": "off",
+      "recall": [],
+      "precision": {
+        "harmless-deploy-label": []
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 7,
+        "severity": "important",
+        "title": "Potential index-out-of-bounds access"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Incorrect latest review selection logic"
+      },
+      {
+        "path": "src/benchmark/ctx/checker-summary.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Misclassified non-error, non-warning lines as warnings"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:16:38.896Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "off",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "e18765efe243a9f14adec30f3ceb7f9e432ff7cefc622de140fc97b6e4e1ba43",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 6890,
+    "repositoryContext": {
+      "mode": "off",
+      "recall": [],
+      "precision": {
+        "harmless-deploy-label": []
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 7,
+        "severity": "important",
+        "title": "Potential index-out-of-bounds access"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Incorrect latest review state aggregation"
+      },
+      {
+        "path": "src/benchmark/ctx/checker-summary.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Misclassified non-error, non-warning lines as warnings"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:16:56.449Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "off",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "e18765efe243a9f14adec30f3ceb7f9e432ff7cefc622de140fc97b6e4e1ba43",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 7411,
+    "repositoryContext": {
+      "mode": "off",
+      "recall": [],
+      "precision": {
+        "harmless-deploy-label": []
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  }
+]

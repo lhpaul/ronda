@@ -1,0 +1,160 @@
+{
+  "benchmarkId": "issue-132-repository-context-seeds",
+  "qualityCategories": [
+    "state reconstruction from API evidence",
+    "external output parsing"
+  ],
+  "seededDefects": [
+    {
+      "id": "ctx-state-reconstruction-event-order",
+      "category": "state reconstruction from API evidence",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/ctx/deploy-status.ts",
+      "description": "Current deploy state is reconstructed from the last element of a list the API returns newest first, so it reports the oldest event's state. Visible only from listDeployEvents' definition.",
+      "matchTerms": [
+        "newest first"
+      ],
+      "matchTermGroups": [
+        [
+          "newest first"
+        ],
+        [
+          "newest-first"
+        ],
+        [
+          "descending"
+        ],
+        [
+          "direction=desc"
+        ],
+        [
+          "oldest event"
+        ],
+        [
+          "oldest deploy"
+        ],
+        [
+          "oldest state"
+        ],
+        [
+          "events[0]"
+        ]
+      ]
+    },
+    {
+      "id": "ctx-state-reconstruction-first-page",
+      "category": "state reconstruction from API evidence",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/ctx/approval-state.ts",
+      "description": "Outstanding change requests are reconstructed from listReviews, which returns only the first page of 30 reviews, so a later review that supersedes or adds a change request is never seen. Visible only from listReviews' definition.",
+      "matchTerms": [
+        "paginat"
+      ],
+      "matchTermGroups": [
+        [
+          "paginat"
+        ],
+        [
+          "first page"
+        ],
+        [
+          "next page"
+        ],
+        [
+          "later page"
+        ],
+        [
+          "per_page"
+        ],
+        [
+          "30 reviews"
+        ],
+        [
+          "only 30"
+        ]
+      ]
+    },
+    {
+      "id": "ctx-lossy-parsing-fatal-level",
+      "category": "external output parsing",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/ctx/checker-summary.ts",
+      "description": "Every non-error checker record is counted as a warning, so a 'fatal' record (the checker aborted on the file) is downgraded to a warning. Visible only from parseCheckerLine's definition.",
+      "matchTerms": [
+        "fatal"
+      ],
+      "matchTermGroups": [
+        [
+          "fatal"
+        ]
+      ]
+    },
+    {
+      "id": "ctx-lossy-parsing-unrecognised-summary",
+      "category": "external output parsing",
+      "expectedSeverity": "important",
+      "path": "src/benchmark/ctx/ci-gate.ts",
+      "description": "parseTestSummary returns zero counts for an unrecognised or missing summary line (the runner's other ordering, or a crash), so suiteIsGreen reports a failed or crashed run as green. Visible only from parseTestSummary's definition.",
+      "matchTerms": [
+        "unrecogni"
+      ],
+      "matchTermGroups": [
+        [
+          "unrecogni"
+        ],
+        [
+          "does not match"
+        ],
+        [
+          "doesn't match"
+        ],
+        [
+          "fails to match"
+        ],
+        [
+          "no match"
+        ],
+        [
+          "not match"
+        ],
+        [
+          "crash"
+        ],
+        [
+          "zero counts"
+        ],
+        [
+          "returns zero"
+        ],
+        [
+          "defaults to zero"
+        ],
+        [
+          "passed: 0"
+        ],
+        [
+          "missing summary"
+        ],
+        [
+          "no summary"
+        ]
+      ]
+    }
+  ],
+  "precisionFixtures": [
+    {
+      "id": "harmless-deploy-label",
+      "description": "A clean changed file that imports a type from the repository-context source tree and should not require a Ronda finding.",
+      "expected": "clean",
+      "changedFiles": [
+        {
+          "path": "src/benchmark/ctx/deploy-label.ts",
+          "status": "added",
+          "additions": 5,
+          "deletions": 0,
+          "patch": "@@ -0,0 +1,5 @@\n+import type { DeployEvent } from \"./deploy-events.js\";\n+\n+export function describeDeployEvent(event: DeployEvent): string {\n+  return `${event.environment}: ${event.state} at ${event.createdAt}`;\n+}\n"
+        }
+      ]
+    }
+  ]
+}

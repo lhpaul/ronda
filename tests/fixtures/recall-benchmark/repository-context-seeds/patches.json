@@ -1,0 +1,30 @@
+[
+  {
+    "path": "src/benchmark/ctx/deploy-status.ts",
+    "status": "added",
+    "additions": 10,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,10 @@\n+import { listDeployEvents, type DeployEvent } from \"./deploy-events.js\";\n+\n+export async function currentDeployState(\n+  environment: string,\n+  fetchJson: (url: string) => Promise<DeployEvent[]>,\n+): Promise<DeployEvent[\"state\"] | \"unknown\"> {\n+  const events = await listDeployEvents(environment, fetchJson);\n+  const latest = events[events.length - 1];\n+  return latest ? latest.state : \"unknown\";\n+}\n"
+  },
+  {
+    "path": "src/benchmark/ctx/approval-state.ts",
+    "status": "added",
+    "additions": 13,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,13 @@\n+import { listReviews, type ReviewRecord } from \"./review-api.js\";\n+\n+export async function hasOutstandingChangeRequest(\n+  pullNumber: number,\n+  fetchJson: (url: string) => Promise<ReviewRecord[]>,\n+): Promise<boolean> {\n+  const reviews = await listReviews(pullNumber, fetchJson);\n+  const latestByUser = new Map<string, ReviewRecord[\"state\"]>();\n+  for (const review of reviews) {\n+    latestByUser.set(review.user, review.state);\n+  }\n+  return [...latestByUser.values()].includes(\"CHANGES_REQUESTED\");\n+}\n"
+  },
+  {
+    "path": "src/benchmark/ctx/checker-summary.ts",
+    "status": "added",
+    "additions": 14,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,14 @@\n+import { parseCheckerLine } from \"./checker-output.js\";\n+\n+export function countProblems(output: string): { errors: number; warnings: number } {\n+  const counts = { errors: 0, warnings: 0 };\n+  for (const line of output.split(\"\\n\")) {\n+    const record = parseCheckerLine(line);\n+    if (record?.level === \"error\") {\n+      counts.errors += 1;\n+    } else if (record !== undefined) {\n+      counts.warnings += 1;\n+    }\n+  }\n+  return counts;\n+}\n"
+  },
+  {
+    "path": "src/benchmark/ctx/ci-gate.ts",
+    "status": "added",
+    "additions": 5,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,5 @@\n+import { parseTestSummary } from \"./test-summary.js\";\n+\n+export function suiteIsGreen(output: string): boolean {\n+  return parseTestSummary(output).failed === 0;\n+}\n"
+  }
+]
