@@ -286,39 +286,51 @@ runner, time and model configuration. Records:
 | Where | One operator workstation (local CLI). **No Actions runner was used, so billed minutes are 0 on both arms** |
 | Outcome | 20 of 20 `succeeded`; 0 refused write attempts; nothing published (AC22) |
 
-### Comparative figures (paired, same heads)
+### Per-arm measurements (paired runs; no comparative claim drawn)
 
-| Head | Off elapsed (s) | On elapsed (s) | On − off, mean (s) | Calls per pass | Candidates requested / resolved (on) | `contentRequestCount` (on) | Context time used (on, s) | Findings off / on |
-| --- | --- | --- | ---: | --- | --- | ---: | --- | --- |
-| #176 | 8.9, 6.5 | 54.9, 53.7 | +46.6 | 1 / 1 | 24 / 12 (`partial`) | 151 | 40.5, 39.0 | 0, 0 / 1, 1 |
-| #173 | 8.7, 6.9 | 37.3, 34.6 | +28.1 | 1 / 1 | 57 / 12 (`partial`) | 81 | 21.4, 20.4 | 0, 0 / 2, 2 |
-| #155 | 9.5, 6.9 | 35.1, 32.3 | +25.5 | 1 / 1 | 180 / 12 (`partial`) | 67 | 17.8, 17.4 | 0, 0 / 6, 5 |
-| #146 | 7.0, 10.1 | 31.3, 30.3 | +22.2 | 1 / 1 | 2 / 2 (`used`) | 68 | 20.4, 19.3 | 1, 3 / 2, 2 |
-| #96 | 22.8, 14.1 | 49.1, 49.1 | +30.6 | 1 / 1 | 65 / 12 (`partial`) | 110 | 29.2, 28.9 | 5, 4 / 5, 5 |
-| **All** | median 8.8 | median 36.2 | median of per-head means +28.1 | 1 / 1 | 12 of 12 budget slots filled on 4 of 5 heads | 67–151 | 17.4–40.5 | 13 / 31 |
+The two arms were run paired, interleaved and under one model so that a
+comparative cost claim **can** be drawn once the tier admits one. **This
+ledger is at `real_pr_provisional`**, and the spec's claim-admissibility rule
+permits a comparative claim about real pull requests only at
+`real_pr_measured`. An inadmissible claim is omitted, not hedged. This section
+therefore records each arm's own measured figures, as AC14 requires, and
+states **no difference between the arms and no effect attributed to
+repository context**. The records stay in
+[`repository-context-control-passes.jsonl`](repository-context-control-passes.jsonl)
+for the comparison to be read when the tier reaches `real_pr_measured`.
 
-- **Model calls per pass: 1 on both arms.** Repository context adds no
-  inference request. It adds prompt content (2,917–15,772 characters per
-  pass) and GitHub content reads (`contentRequestCount` 67–151 per pass,
-  probes included).
-- **Elapsed time.** Context-on passes took 22–47 s longer than context-off
-  on the same head (mean of the five per-head differences +30.6 s). The
-  context phase accounts for 17–41 s of that. The remainder was not measured
-  separately; it is consistent with a longer model response to a larger
-  prompt. These are workstation-to-API latencies, not Actions runner figures.
-- **Drops.** `candidate_count_budget` cut 9–40 resolved candidates on four
-  of five heads, and `ambiguous_resolution` dropped 2–159. No
-  `time_budget` or `read_failed` drop occurred.
+Context-off arm (10 passes):
+
+| Head | Elapsed (s) | Model calls per pass | Published findings in record |
+| --- | --- | --- | --- |
+| #176 | 8.9, 6.5 | 1, 1 | 0, 0 |
+| #173 | 8.7, 6.9 | 1, 1 | 0, 0 |
+| #155 | 9.5, 6.9 | 1, 1 | 0, 0 |
+| #146 | 7.0, 10.1 | 1, 1 | 1, 3 |
+| #96 | 22.8, 14.1 | 1, 1 | 5, 4 |
+
+Context-on arm (10 passes):
+
+| Head | Elapsed (s) | Model calls per pass | Outcome | Candidates requested / resolved | `contentRequestCount` | Context time used (s) | Characters used | Published findings in record |
+| --- | --- | --- | --- | --- | ---: | --- | ---: | --- |
+| #176 | 54.9, 53.7 | 1, 1 | `partial` | 24 / 12 | 151 | 40.5, 39.0 | 15,772 | 1, 1 |
+| #173 | 37.3, 34.6 | 1, 1 | `partial` | 57 / 12 | 81 | 21.4, 20.4 | 2,917 | 2, 2 |
+| #155 | 35.1, 32.3 | 1, 1 | `partial` | 180 / 12 | 67 | 17.8, 17.4 | 4,875 | 6, 5 |
+| #146 | 31.3, 30.3 | 1, 1 | `used` | 2 / 2 | 68 | 20.4, 19.3 | 4,548 | 2, 2 |
+| #96 | 49.1, 49.1 | 1, 1 | `partial` | 65 / 12 | 110 | 29.2, 28.9 | 3,251 | 5, 5 |
+
+- **Billed minutes: 0 on both arms.** Every pass ran as a local CLI on one
+  operator workstation; no Actions runner was used. Elapsed times are
+  workstation-to-API latencies, not Actions runner figures.
+- **Drops on the context-on arm.** `candidate_count_budget` cut 9–40
+  resolved candidates on four of five heads, and `ambiguous_resolution`
+  dropped 2–159. No `time_budget` or `read_failed` drop occurred.
 - **Budget exhaustion (AC14).** **0 of 10** context-on passes exhausted the
   120 s context time budget (maximum 40.5 s used). **0 of 20** passes hit the
   10-minute pass budget or the job backstop (longest 54.9 s). The pass
   budget in effect was **sufficient** for every pass measured.
-- **Findings.** Context-on passes published, in their records, 31 findings
-  against 13 for context-off on the same heads. These findings are **not
-  adjudicated**. This ledger's tier does not admit a comparative claim about
-  real pull requests (see below), so the difference is recorded as an
-  observation only. It says nothing about whether the extra findings are
-  true or noise.
+- **Findings** are counts from each record, **not adjudicated**, and no
+  claim about their truth or about any difference between arms is made.
 
 ### Descriptive references (not arms, never paired)
 
@@ -359,7 +371,8 @@ no repository-context figure exists for `guard-fails-open`.
 
 - **Tier:** fixture figures are `fixture`-scoped and admitted by the #132
   admissibility statement. The real-PR figures are under ledger tier
-  `real_pr_provisional`.
+  `real_pr_provisional`. That tier admits per-arm descriptive measurements
+  only, so no comparative real-PR claim is published.
 - **Independence caveat:** the seeds, the definitions they depend on, and
   their matchers were written by the same agent session that ran and
   adjudicated the campaign, with knowledge of what repository context would
@@ -373,8 +386,9 @@ no repository-context figure exists for `guard-fails-open`.
 - The ledger's counted pull requests stay at **0**. No real-PR review with
   repository context has been adjudicated, so `real_pr_measured` (10
   terminally adjudicated PRs under one configuration) is not reached, and no
-  comparative recall or finding-count claim about real pull requests is
-  admitted.
+  comparative recall, finding-count or cost claim about real pull requests
+  is admitted. The paired cost records are kept so that comparison can be
+  read once the tier allows it.
 - Webhook ingress stays off. Switching it on remains the repository owner's
   decision (see **Switch history**).
 
