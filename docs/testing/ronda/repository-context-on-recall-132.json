@@ -1,0 +1,1629 @@
+[
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level"
+    ],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 7,
+        "severity": "blocking",
+        "title": "Potential index-out-of-bounds access"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:14:15.388Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "on",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "30eaa461e92cba1d169262b79426b3ab3dec2a4837f4c9350ff94e44399a664e",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "776240c0866680e120bab76eaea38317f14917fc87bfcb8d7dd91393f1749207",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 8378,
+    "repositoryContext": {
+      "mode": "on",
+      "recall": [
+        {
+          "symbolName": "ReviewRecord",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listReviews",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "user",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 2
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseCheckerLine",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 9
+        },
+        {
+          "symbolName": "level",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 4
+        },
+        {
+          "symbolName": "failed",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseTestSummary",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "DeployEvent",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listDeployEvents",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 7
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 3
+        }
+      ],
+      "precision": {
+        "harmless-deploy-label": [
+          {
+            "symbolName": "DeployEvent",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 1
+          },
+          {
+            "symbolName": "environment",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 2
+          },
+          {
+            "symbolName": "state",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 3
+          },
+          {
+            "symbolName": "createdAt",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 4
+          }
+        ]
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "missedSeededDefects": [],
+    "falsePositives": [],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:14:38.754Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "on",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "30eaa461e92cba1d169262b79426b3ab3dec2a4837f4c9350ff94e44399a664e",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "776240c0866680e120bab76eaea38317f14917fc87bfcb8d7dd91393f1749207",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 11420,
+    "repositoryContext": {
+      "mode": "on",
+      "recall": [
+        {
+          "symbolName": "ReviewRecord",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listReviews",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "user",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 2
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseCheckerLine",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 9
+        },
+        {
+          "symbolName": "level",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 4
+        },
+        {
+          "symbolName": "failed",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseTestSummary",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "DeployEvent",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listDeployEvents",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 7
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 3
+        }
+      ],
+      "precision": {
+        "harmless-deploy-label": [
+          {
+            "symbolName": "DeployEvent",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 1
+          },
+          {
+            "symbolName": "environment",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 2
+          },
+          {
+            "symbolName": "state",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 3
+          },
+          {
+            "symbolName": "createdAt",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 4
+          }
+        ]
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-lossy-parsing-fatal-level"
+    ],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "blocking",
+        "title": "Incorrect handling of multiple reviews per user"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:14:58.678Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "on",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "30eaa461e92cba1d169262b79426b3ab3dec2a4837f4c9350ff94e44399a664e",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "776240c0866680e120bab76eaea38317f14917fc87bfcb8d7dd91393f1749207",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 9268,
+    "repositoryContext": {
+      "mode": "on",
+      "recall": [
+        {
+          "symbolName": "ReviewRecord",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listReviews",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "user",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 2
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseCheckerLine",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 9
+        },
+        {
+          "symbolName": "level",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 4
+        },
+        {
+          "symbolName": "failed",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseTestSummary",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "DeployEvent",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listDeployEvents",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 7
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 3
+        }
+      ],
+      "precision": {
+        "harmless-deploy-label": [
+          {
+            "symbolName": "DeployEvent",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 1
+          },
+          {
+            "symbolName": "environment",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 2
+          },
+          {
+            "symbolName": "state",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 3
+          },
+          {
+            "symbolName": "createdAt",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 4
+          }
+        ]
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [
+      "ctx-lossy-parsing-fatal-level"
+    ],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 6,
+        "severity": "important",
+        "title": "Empty deploy events array causes index-out-of-bounds access"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Incorrect latest review selection logic"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:15:16.314Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "on",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "30eaa461e92cba1d169262b79426b3ab3dec2a4837f4c9350ff94e44399a664e",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "776240c0866680e120bab76eaea38317f14917fc87bfcb8d7dd91393f1749207",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 8604,
+    "repositoryContext": {
+      "mode": "on",
+      "recall": [
+        {
+          "symbolName": "ReviewRecord",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listReviews",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "user",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 2
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseCheckerLine",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 9
+        },
+        {
+          "symbolName": "level",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 4
+        },
+        {
+          "symbolName": "failed",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseTestSummary",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "DeployEvent",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listDeployEvents",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 7
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 3
+        }
+      ],
+      "precision": {
+        "harmless-deploy-label": [
+          {
+            "symbolName": "DeployEvent",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 1
+          },
+          {
+            "symbolName": "environment",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 2
+          },
+          {
+            "symbolName": "state",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 3
+          },
+          {
+            "symbolName": "createdAt",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 4
+          }
+        ]
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-lossy-parsing-fatal-level"
+    ],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "blocking",
+        "title": "Incorrect latest review state logic"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:15:33.479Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "on",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "30eaa461e92cba1d169262b79426b3ab3dec2a4837f4c9350ff94e44399a664e",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "776240c0866680e120bab76eaea38317f14917fc87bfcb8d7dd91393f1749207",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 12790,
+    "repositoryContext": {
+      "mode": "on",
+      "recall": [
+        {
+          "symbolName": "ReviewRecord",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listReviews",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "user",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 2
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseCheckerLine",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 9
+        },
+        {
+          "symbolName": "level",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 4
+        },
+        {
+          "symbolName": "failed",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseTestSummary",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "DeployEvent",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listDeployEvents",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 7
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 3
+        }
+      ],
+      "precision": {
+        "harmless-deploy-label": [
+          {
+            "symbolName": "DeployEvent",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 1
+          },
+          {
+            "symbolName": "environment",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 2
+          },
+          {
+            "symbolName": "state",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 3
+          },
+          {
+            "symbolName": "createdAt",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 4
+          }
+        ]
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level"
+    ],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 6,
+        "severity": "blocking",
+        "title": "Empty deploy events array causes crash"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:15:55.389Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "on",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "30eaa461e92cba1d169262b79426b3ab3dec2a4837f4c9350ff94e44399a664e",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "776240c0866680e120bab76eaea38317f14917fc87bfcb8d7dd91393f1749207",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 8014,
+    "repositoryContext": {
+      "mode": "on",
+      "recall": [
+        {
+          "symbolName": "ReviewRecord",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listReviews",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "user",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 2
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseCheckerLine",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 9
+        },
+        {
+          "symbolName": "level",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 4
+        },
+        {
+          "symbolName": "failed",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseTestSummary",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "DeployEvent",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listDeployEvents",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 7
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 3
+        }
+      ],
+      "precision": {
+        "harmless-deploy-label": [
+          {
+            "symbolName": "DeployEvent",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 1
+          },
+          {
+            "symbolName": "environment",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 2
+          },
+          {
+            "symbolName": "state",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 3
+          },
+          {
+            "symbolName": "createdAt",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 4
+          }
+        ]
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-fatal-level"
+    ],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 6,
+        "severity": "blocking",
+        "title": "Unchecked array access may cause crash"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:16:12.137Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "on",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "30eaa461e92cba1d169262b79426b3ab3dec2a4837f4c9350ff94e44399a664e",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "776240c0866680e120bab76eaea38317f14917fc87bfcb8d7dd91393f1749207",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 8613,
+    "repositoryContext": {
+      "mode": "on",
+      "recall": [
+        {
+          "symbolName": "ReviewRecord",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listReviews",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "user",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 2
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseCheckerLine",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 9
+        },
+        {
+          "symbolName": "level",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 4
+        },
+        {
+          "symbolName": "failed",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseTestSummary",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "DeployEvent",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listDeployEvents",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 7
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 3
+        }
+      ],
+      "precision": {
+        "harmless-deploy-label": [
+          {
+            "symbolName": "DeployEvent",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 1
+          },
+          {
+            "symbolName": "environment",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 2
+          },
+          {
+            "symbolName": "state",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 3
+          },
+          {
+            "symbolName": "createdAt",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 4
+          }
+        ]
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [
+      "ctx-lossy-parsing-fatal-level"
+    ],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 6,
+        "severity": "blocking",
+        "title": "Unchecked array access may cause crash"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Incorrect latest review per user logic"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:16:29.179Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "on",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "30eaa461e92cba1d169262b79426b3ab3dec2a4837f4c9350ff94e44399a664e",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "776240c0866680e120bab76eaea38317f14917fc87bfcb8d7dd91393f1749207",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 9124,
+    "repositoryContext": {
+      "mode": "on",
+      "recall": [
+        {
+          "symbolName": "ReviewRecord",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listReviews",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "user",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 2
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseCheckerLine",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 9
+        },
+        {
+          "symbolName": "level",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 4
+        },
+        {
+          "symbolName": "failed",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseTestSummary",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "DeployEvent",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listDeployEvents",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 7
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 3
+        }
+      ],
+      "precision": {
+        "harmless-deploy-label": [
+          {
+            "symbolName": "DeployEvent",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 1
+          },
+          {
+            "symbolName": "environment",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 2
+          },
+          {
+            "symbolName": "state",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 3
+          },
+          {
+            "symbolName": "createdAt",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 4
+          }
+        ]
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [
+      "ctx-lossy-parsing-fatal-level"
+    ],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 6,
+        "severity": "blocking",
+        "title": "Unchecked array access may cause crash"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Incorrect latest-review logic per user"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:16:46.755Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "on",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "30eaa461e92cba1d169262b79426b3ab3dec2a4837f4c9350ff94e44399a664e",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "776240c0866680e120bab76eaea38317f14917fc87bfcb8d7dd91393f1749207",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 9129,
+    "repositoryContext": {
+      "mode": "on",
+      "recall": [
+        {
+          "symbolName": "ReviewRecord",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listReviews",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "user",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 2
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseCheckerLine",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 9
+        },
+        {
+          "symbolName": "level",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 4
+        },
+        {
+          "symbolName": "failed",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseTestSummary",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "DeployEvent",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listDeployEvents",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 7
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 3
+        }
+      ],
+      "precision": {
+        "harmless-deploy-label": [
+          {
+            "symbolName": "DeployEvent",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 1
+          },
+          {
+            "symbolName": "environment",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 2
+          },
+          {
+            "symbolName": "state",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 3
+          },
+          {
+            "symbolName": "createdAt",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 4
+          }
+        ]
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  },
+  {
+    "benchmarkId": "issue-132-repository-context-seeds",
+    "totalSeededDefects": 4,
+    "foundSeededDefects": [
+      "ctx-lossy-parsing-fatal-level"
+    ],
+    "missedSeededDefects": [
+      "ctx-state-reconstruction-event-order",
+      "ctx-state-reconstruction-first-page",
+      "ctx-lossy-parsing-unrecognised-summary"
+    ],
+    "falsePositives": [
+      {
+        "path": "src/benchmark/ctx/deploy-status.ts",
+        "line": 7,
+        "severity": "blocking",
+        "title": "Unchecked array access may cause crash"
+      },
+      {
+        "path": "src/benchmark/ctx/approval-state.ts",
+        "line": 10,
+        "severity": "important",
+        "title": "Incorrect latest-review logic per user"
+      }
+    ],
+    "model": "qwen-plus-2025-12-01",
+    "reviewedTarget": "issue-132-repository-context-seeds",
+    "timestamp": "2026-11-15T11:17:05.211Z",
+    "fixture": {
+      "manifestPath": "tests/fixtures/recall-benchmark/repository-context-seeds/manifest.json",
+      "benchmarkId": "issue-132-repository-context-seeds",
+      "seedCount": 4,
+      "manifestSha256": "1b80521eebaf7635e3f79789e5813f738646a4e4a08affe7f0be94118b44fa67",
+      "patchesSha256": "39eac28793fc4446a81c1c9fcf611a72ce83b8054831bae9d9b236120a6e209b"
+    },
+    "configuration": {
+      "sweepMode": "off",
+      "modelName": "qwen-plus-2025-12-01",
+      "versionAttestation": "Provider-published dated snapshot identifier qwen-plus-2025-12-01 configured explicitly on every leg; frozen-artifact status rests on the provider's dated-snapshot naming and is not independently verified",
+      "maxPatchChars": 400000,
+      "durabilityMode": "default",
+      "durabilityModeDefault": false,
+      "durabilityModeApplied": false,
+      "requestParameters": {
+        "temperature": 0
+      },
+      "promptFingerprint": "5309fd31066dea922dd11dc3b4dcdf4263583aa58168e6c08dd88f40bb417fd0",
+      "repositoryContextMode": "on",
+      "requests": [
+        {
+          "kind": "recall",
+          "promptFingerprint": "30eaa461e92cba1d169262b79426b3ab3dec2a4837f4c9350ff94e44399a664e",
+          "reportedModel": "qwen-plus-2025-12-01"
+        },
+        {
+          "kind": "precision",
+          "fixtureId": "harmless-deploy-label",
+          "promptFingerprint": "776240c0866680e120bab76eaea38317f14917fc87bfcb8d7dd91393f1749207",
+          "reportedModel": "qwen-plus-2025-12-01"
+        }
+      ]
+    },
+    "modelCallCount": 2,
+    "elapsedMs": 9706,
+    "repositoryContext": {
+      "mode": "on",
+      "recall": [
+        {
+          "symbolName": "ReviewRecord",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listReviews",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "user",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 2
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/review-api.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseCheckerLine",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 9
+        },
+        {
+          "symbolName": "level",
+          "path": "src/benchmark/ctx/checker-output.ts",
+          "line": 4
+        },
+        {
+          "symbolName": "failed",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 3
+        },
+        {
+          "symbolName": "parseTestSummary",
+          "path": "src/benchmark/ctx/test-summary.ts",
+          "line": 6
+        },
+        {
+          "symbolName": "DeployEvent",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 1
+        },
+        {
+          "symbolName": "listDeployEvents",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 7
+        },
+        {
+          "symbolName": "state",
+          "path": "src/benchmark/ctx/deploy-events.ts",
+          "line": 3
+        }
+      ],
+      "precision": {
+        "harmless-deploy-label": [
+          {
+            "symbolName": "DeployEvent",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 1
+          },
+          {
+            "symbolName": "environment",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 2
+          },
+          {
+            "symbolName": "state",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 3
+          },
+          {
+            "symbolName": "createdAt",
+            "path": "src/benchmark/ctx/deploy-events.ts",
+            "line": 4
+          }
+        ]
+      }
+    },
+    "qualityCategories": [
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "missedCategories": [
+      "state reconstruction from API evidence",
+      "state reconstruction from API evidence",
+      "external output parsing"
+    ],
+    "precisionFixtures": [
+      {
+        "id": "harmless-deploy-label",
+        "expected": "clean",
+        "clean": true,
+        "falsePositiveCount": 0,
+        "falsePositives": []
+      }
+    ],
+    "comparisons": []
+  }
+]
