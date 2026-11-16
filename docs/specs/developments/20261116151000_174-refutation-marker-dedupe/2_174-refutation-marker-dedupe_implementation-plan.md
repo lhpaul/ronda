@@ -53,7 +53,8 @@ Inspected at `8a94514` (`origin/develop`) on 2026-11-16.
 - `REFUTATION_COMMAND = "/ronda refuted"`, `MAINTAINER_ASSOCIATIONS = {OWNER, MEMBER, COLLABORATOR}`.
 - `CITED_CODE_RADIUS = 10`: the window is the cited line ±10 lines, clipped to
   the file (BR3).
-- `normalizeClaim(title)`: lowercase, collapse `[^a-z0-9]+` to one space, trim.
+- `normalizeClaim(title)`: lowercase, collapse `[^\p{L}\p{N}]+` (Unicode-aware) to one space, trim. A
+  title that normalizes to empty never matches a refutation.
 - `claimHash(title)` and `citedCodeHash(fileText, line)`: SHA-256 hex. The code
   hash covers the cited line's offset in the window plus the window's lines
   joined with `\n`. It is `undefined` when the line is outside the file.

@@ -41,9 +41,13 @@ function sha256Hex(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
-/** Lowercase, every run of non-alphanumeric characters collapsed to one space, trimmed. */
+/**
+ * Lowercase, every run of non-alphanumeric characters collapsed to one space,
+ * trimmed. Alphanumeric is Unicode-aware, so titles in non-Latin scripts keep
+ * their identity instead of all collapsing to the empty claim.
+ */
 export function normalizeClaim(title: string): string {
-  return title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
 export function claimHash(title: string): string {
@@ -123,7 +127,9 @@ export async function filterRefutedFindings(
   const kept: Finding[] = [];
   const refuted: Finding[] = [];
   for (const finding of findings) {
-    if (finding.line === null || refutations.length === 0) {
+    // An empty normalized claim (a title with no letters or digits) identifies
+    // nothing, so it never matches (fail open).
+    if (finding.line === null || refutations.length === 0 || normalizeClaim(finding.title) === "") {
       kept.push(finding);
       continue;
     }

@@ -38,6 +38,15 @@ test("normalizeClaim lowercases and collapses punctuation and whitespace", () =>
   assert.notEqual(claimHash("Profile write is missing an authentication check"), claimHash(REFUTED_TITLE));
 });
 
+test("non-Latin titles keep distinct claims and a letterless title never matches a refutation", async () => {
+  assert.notEqual(normalizeClaim("漏洞一"), normalizeClaim("漏洞二"));
+  assert.equal(normalizeClaim("!!!"), "");
+  const refutation = { path: FILE_PATH, claim: claimHash("!!!"), code: HEX };
+  const result = await filterRefutedFindings([finding({ title: "???" })], [refutation], async () => HEX);
+  assert.equal(result.refuted.length, 0);
+  assert.equal(result.kept.length, 1);
+});
+
 test("citedCodeHash covers a window around the cited line", () => {
   const base = citedCodeHash(HEAD_WITH_GUARD, WRITE_LINE);
   assert.ok(base);
