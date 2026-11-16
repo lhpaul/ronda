@@ -149,9 +149,18 @@ export interface PlantedFixture {
 
 /**
  * Reads and validates a planted fixture. Only a repository-relative fixture
- * file is accepted, and the planted path must be a plain repository-relative
- * path, so the fixture cannot point the pass at anything outside the repository.
+ * file is accepted, and the planted path must be a canonical
+ * repository-relative POSIX path (no leading `/`, no backslash, and no empty,
+ * `.` or `..` segment), so it compares and glob-matches exactly like a path
+ * GitHub reports.
  */
+function isCanonicalRelativePath(path: string): boolean {
+  if (path === "" || path.startsWith("/") || path.includes("\\")) {
+    return false;
+  }
+  return path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
+}
+
 export function loadPlantedFixture(fixturePath: string, repoRoot: string = REPO_ROOT): PlantedFixture {
   const resolved = resolveInsideRepo("--plant-fixture", fixturePath, repoRoot);
   let parsed: unknown;
@@ -165,9 +174,7 @@ export function loadPlantedFixture(fixturePath: string, repoRoot: string = REPO_
     candidate === null ||
     typeof candidate !== "object" ||
     typeof candidate.path !== "string" ||
-    candidate.path === "" ||
-    candidate.path.startsWith("/") ||
-    candidate.path.split("/").includes("..") ||
+    !isCanonicalRelativePath(candidate.path) ||
     typeof candidate.patch !== "string" ||
     candidate.patch === "" ||
     typeof candidate.additions !== "number" ||
@@ -404,7 +411,15 @@ export async function runControlPass(
         additions: planted.additions,
         deletions: 0,
       };
-      return [...files.filter((file) => file.path !== planted.path), plantedFile];
+      // A planted file is an addition on top of the real changed files; it
+      // never replaces one. A collision fails the pass rather than silently
+      // discarding the pull request's real change to that path.
+      if (files.some((file) => file.path === planted.path || file.previousPath === planted.path)) {
+        throw new Error(
+          `Planted fixture path ${planted.path} collides with a real changed file in pull request #${n}`,
+        );
+      }
+      return [...files, plantedFile];
     },
     readFileAtRef: (o, r, path, ref, signal, opts) => readRepositoryFileAtRef(octokit, o, r, path, ref, signal, opts),
     findExistingCheckRun: (o, r, sha, signal) => findExistingCheckRun(octokit, o, r, sha, signal),

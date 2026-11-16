@@ -325,6 +325,10 @@ test("loadPlantedFixture refuses a fixture outside the repository and an unsafe 
     const bad = join(dir, "bad.json");
     writeFileSync(bad, JSON.stringify({ path: "../escape.ts", patch: "@@ -0,0 +1 @@\n+x", additions: 1, defect: "d" }));
     assert.throws(() => loadPlantedFixture("bad.json", dir), ControlPassUsageError);
+    for (const path of ["src/./a.ts", "src//a.ts", "src/a.ts/", "src\\a.ts", "src/../a.ts"]) {
+      writeFileSync(bad, JSON.stringify({ path, patch: "@@ -0,0 +1 @@\n+x", additions: 1, defect: "d" }));
+      assert.throws(() => loadPlantedFixture("bad.json", dir), ControlPassUsageError, path);
+    }
     writeFileSync(bad, JSON.stringify({ path: "src/a.ts", patch: "", additions: 1, defect: "d" }));
     assert.throws(() => loadPlantedFixture("bad.json", dir), ControlPassUsageError);
     writeFileSync(bad, "not json");
@@ -438,6 +442,34 @@ test("loadPlantedFixture refuses a non-integer or negative additions count", () 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("runControlPass fails rather than replacing a real changed file that collides with the planted path", async (t) => {
+  t.after(cleanupOutFile);
+  cleanupOutFile();
+  let modelCalls = 0;
+  const exitCode = await runControlPass(
+    baseOptions({ repositoryContext: "off", plantFixturePath: "tests/fixtures/review-path-exclusion/planted-defect.json" }),
+    {
+      octokit: createOctokitWithFiles([
+        { filename: "src/review/excluded-bytes.ts", patch: "@@ -0,0 +1 @@\n+export const real = 1;" },
+      ]),
+      githubToken: "test-token",
+      getWriteAttempts: () => 0,
+      configOverride: testConfig(),
+      modelOverride: {
+        modelName: "fake-model",
+        async complete() {
+          modelCalls += 1;
+          return { content: JSON.stringify({ findings: [] }) };
+        },
+      },
+    },
+  );
+  assert.equal(exitCode, 1);
+  assert.equal(modelCalls, 0);
+  const record = JSON.parse(readFileSync(join(REPO_ROOT, TEST_OUT_PATH), "utf8").trim().split("\n")[0]);
+  assert.equal(record.outcome, "failed");
 });
 
 test("runControlPass refuses an unreadable --plant-fixture before reading the pull request", async () => {
