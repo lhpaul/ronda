@@ -73,8 +73,9 @@ the `summary` field) contains:
 - **A planted real defect in a non-excluded `.ts` file is still reported:
   met.** Passes 2 and 5 each report the planted off-by-one as a single
   Blocking finding at `src/review/excluded-bytes.ts:10` (the planted loop
-  line), titled "Off-by-one loop bound in excludedBytesWithinLimit", in the
-  same pass that excluded the seven JSON files.
+  line), in the same pass that excluded the seven JSON files. Pass 2 titles
+  it "Off-by-one loop bound in excludedBytesWithinLimit" and pass 5
+  "Off-by-one loop bound causes out-of-bounds access".
 - **The seeded recall benchmark is unchanged: met.** This change touches
   nothing under `tests/fixtures/recall-benchmark/`, and the benchmark's tests
   pass unchanged in `npm test`.
