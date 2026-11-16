@@ -147,13 +147,7 @@ export interface PlantedFixture {
   defect: string;
 }
 
-/**
- * Reads and validates a planted fixture. Only a repository-relative fixture
- * file is accepted, and the planted path must be a canonical
- * repository-relative POSIX path (no leading `/`, no backslash, and no empty,
- * `.` or `..` segment), so it compares and glob-matches exactly like a path
- * GitHub reports.
- */
+/** True for a canonical repository-relative POSIX path, as GitHub reports changed-file paths. */
 function isCanonicalRelativePath(path: string): boolean {
   if (path === "" || path.startsWith("/") || path.includes("\\")) {
     return false;
@@ -161,6 +155,13 @@ function isCanonicalRelativePath(path: string): boolean {
   return path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
 }
 
+/**
+ * Reads and validates a planted fixture. Only a repository-relative fixture
+ * file is accepted, and the planted path must be a canonical
+ * repository-relative POSIX path (no leading `/`, no backslash, and no empty,
+ * `.` or `..` segment), so it compares and glob-matches exactly like a path
+ * GitHub reports.
+ */
 export function loadPlantedFixture(fixturePath: string, repoRoot: string = REPO_ROOT): PlantedFixture {
   const resolved = resolveInsideRepo("--plant-fixture", fixturePath, repoRoot);
   let parsed: unknown;
