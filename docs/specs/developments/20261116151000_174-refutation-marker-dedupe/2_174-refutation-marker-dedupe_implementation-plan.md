@@ -77,8 +77,9 @@ Inspected at `8a94514` (`origin/develop`) on 2026-11-16.
 
 - GraphQL `repository.pullRequest.reviewThreads(first: 100, after:)` with
   `isResolved`, `path`, and `comments(first: 100) { body authorAssociation author { __typename } }`.
-  It pages threads until `hasNextPage` is false. Comments past 100 in one
-  thread are not read, which can only miss a refutation (fail open).
+  It pages threads until `hasNextPage` is false, bounded at 50 pages (5,000
+  threads). Comments past 100 in one thread, and threads past the bound, are
+  not read, which can only miss a refutation (fail open).
 - The whole walk goes through `withAbortMapping(withRetry(...))`, as the other
   paginated readers do.
 

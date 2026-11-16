@@ -12,6 +12,7 @@ import {
 } from "../domain/review-pass.types.js";
 import type { DurabilityModeResolution } from "../review/durability-mode.js";
 import type { ExcludedFile } from "../review/path-exclusion.js";
+import { REFUTATION_COMMAND } from "../review/refutation-marker.js";
 
 export interface SeverityCounts {
   blocking: number;
@@ -32,6 +33,12 @@ export interface ReviewSummaryInput {
   malformedCount: number;
   coercedSeverityCount: number;
   duplicateCount: number;
+  /**
+   * Findings not re-posted because a maintainer refuted them with
+   * `/ronda refuted` on unchanged code (#174). Rendered so a suppression is
+   * never silent.
+   */
+  refutedCount?: number;
   durabilityMode?: DurabilityModeResolution;
   /**
    * The active category-forced sweep (#105, AC3). The review body states only
@@ -157,10 +164,12 @@ export function buildReviewSummary(input: ReviewSummaryInput): string {
     }
   }
 
+  const refutedCount = input.refutedCount ?? 0;
   if (
     input.malformedCount > 0 ||
     input.coercedSeverityCount > 0 ||
-    input.duplicateCount > 0
+    input.duplicateCount > 0 ||
+    refutedCount > 0
   ) {
     lines.push("");
     lines.push("### Parsing notes");
@@ -176,6 +185,11 @@ export function buildReviewSummary(input: ReviewSummaryInput): string {
     }
     if (input.duplicateCount > 0) {
       lines.push(`- ${input.duplicateCount} duplicate finding(s) were removed.`);
+    }
+    if (refutedCount > 0) {
+      lines.push(
+        `- ${refutedCount} finding(s) a maintainer marked \`${REFUTATION_COMMAND}\` on unchanged code were not re-posted.`,
+      );
     }
   }
 

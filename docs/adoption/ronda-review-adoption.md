@@ -241,6 +241,35 @@ comment `author_association` is `OWNER`, `MEMBER`, or `COLLABORATOR`;
 other users are ignored. Draft pull requests ignore the command entirely,
 same as the automatic path.
 
+### Refuting a finding
+
+To stop Ronda from re-posting an inline finding you judge wrong, reply in
+that finding's thread with this exact first line, then resolve the thread:
+
+```text
+/ronda refuted
+```
+
+Later lines can carry your reason. Later passes on the same pull request
+then skip that claim on that path while the code around the cited line is
+unchanged (the cited line and ten lines on each side, at the reviewed head).
+The review summary states how many refuted findings were not re-posted.
+
+All of these are required, otherwise nothing is suppressed:
+
+- the reply's first line is exactly `/ronda refuted` (case-sensitive);
+- the reply author's `author_association` is `OWNER`, `MEMBER`, or
+  `COLLABORATOR`;
+- the thread is resolved;
+- the thread was started by Ronda (a bot comment carrying Ronda's hidden
+  finding marker);
+- the new finding has the same path, the same title up to case and
+  punctuation, and unchanged code around the cited line.
+
+Resolving a thread without the reply never suppresses anything, so a finding
+that was fixed and later regresses is posted again. A change to the code
+around the cited line also makes Ronda post the finding again.
+
 ## 4. Consumption contract
 
 A consuming workflow — the ADF reviewer-loop, a Helm workflow, or your own

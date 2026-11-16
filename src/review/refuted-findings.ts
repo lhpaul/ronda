@@ -8,7 +8,12 @@ import type { ChangedFile, Finding } from "../domain/review-pass.types.js";
  * unrecognised shape keeps the finding).
  */
 
-export type SuppressionReason = "names_credential_without_value";
+/**
+ * `refuted_by_maintainer` is produced by the refutation-marker filter (#174,
+ * `src/review/refutation-marker.ts`); it shares this type so one
+ * `findings_suppressed` event reports both reasons.
+ */
+export type SuppressionReason = "names_credential_without_value" | "refuted_by_maintainer";
 
 export interface SuppressedFinding {
   finding: Finding;
