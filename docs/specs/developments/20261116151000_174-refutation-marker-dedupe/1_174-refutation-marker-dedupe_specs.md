@@ -103,6 +103,11 @@ threads never suppress anything.
   pass logs a suppression event with counts by reason only, never finding text.
 - BR7: Nothing else changes: no prompt change, no default-model change, no new
   configuration key, no new GitHub permission, no new GitHub write.
+- BR8: Model output is untrusted. Anything shaped like a finding marker is
+  removed from the model's titles and bodies before publication, repeatedly
+  until none remains, so only Ronda emits markers. A model steered by
+  pull-request content cannot bind a maintainer's refutation of the visible
+  claim to a different claim. Added after the Step 7a review.
 
 ## Operational Visibility
 
@@ -136,6 +141,9 @@ threads never suppress anything.
   changed-window, and non-maintainer cases are still published.
 - [ ] AC8: No prompt, default model, configuration key, workflow, Action, or GitHub
   permission changes; all verification is offline.
+- [ ] AC9: A marker written by the model in a finding's title or body, nested
+  or not, is never published; the only marker on a published inline comment
+  is the one Ronda rendered for that finding's own claim and cited code.
 
 ## Brief Objective List and Coverage Matrix
 
@@ -144,7 +152,7 @@ threads never suppress anything.
 | O1: Do not re-post a claim a maintainer explicitly refuted on the same code | BR1–BR2; AC1 |
 | O2: Never suppress a claim that was merely resolved because it was fixed | BR1, BR3; AC2–AC3; Use Case 3 |
 | O3: Explicit marker shape | BR1; AC2 |
-| O4: Publisher identity without a config key | BR1, BR5; AC2, AC6 |
+| O4: Publisher identity without a config key | BR1, BR5, BR8; AC2, AC6, AC9 |
 | O5: Binding and expiry on code change | BR2–BR3; AC3–AC4 |
 | O6: Offline before/after measurement | AC7 |
 | O7: No prompt or default-model change | BR7; AC8 |
