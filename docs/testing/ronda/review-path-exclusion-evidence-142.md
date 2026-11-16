@@ -12,8 +12,9 @@ Raw records: [`review-path-exclusion-control-passes.jsonl`](review-path-exclusio
 ## How the passes were run
 
 Every pass is the non-publishing control pass (`npm run quality:control-pass`):
-GitHub reads only, writes refused and counted (zero recorded), and nothing
-posted to #119 or any other pull request. All six passes used:
+GitHub reads only, and every write is refused and counted. A non-zero count
+fails the run, and all six passes exited 0. Nothing was posted to #119 or any
+other pull request. All six passes used:
 
 - `--pr 119 --repository-context off`
 - `RONDA_MODEL_NAME=qwen-plus-2025-12-01` (the dated snapshot the dogfood
@@ -71,8 +72,9 @@ the `summary` field) contains:
   by the seven paths (the list caps at 20 entries).
 - **A planted real defect in a non-excluded `.ts` file is still reported:
   met.** Passes 2 and 5 each report the planted off-by-one as a single
-  Blocking finding at `src/review/excluded-bytes.ts:10`, in the same pass that
-  excluded the seven JSON files.
+  Blocking finding at `src/review/excluded-bytes.ts:10` (the planted loop
+  line), titled "Off-by-one loop bound in excludedBytesWithinLimit", in the
+  same pass that excluded the seven JSON files.
 - **The seeded recall benchmark is unchanged: met.** This change touches
   nothing under `tests/fixtures/recall-benchmark/`, and the benchmark's tests
   pass unchanged in `npm test`.

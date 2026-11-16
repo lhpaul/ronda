@@ -171,6 +171,8 @@ export function loadPlantedFixture(fixturePath: string, repoRoot: string = REPO_
     typeof candidate.patch !== "string" ||
     candidate.patch === "" ||
     typeof candidate.additions !== "number" ||
+    !Number.isInteger(candidate.additions) ||
+    candidate.additions < 0 ||
     typeof candidate.defect !== "string" ||
     candidate.defect === ""
   ) {

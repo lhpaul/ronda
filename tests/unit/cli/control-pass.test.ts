@@ -408,6 +408,38 @@ test("runControlPass records exclusion globs, findings, the excluded-files summa
   });
 });
 
+test("runControlPass records an empty exclusion list, findings, and summary but no plantedFixture on a plain run", async (t) => {
+  t.after(cleanupOutFile);
+  cleanupOutFile();
+  const exitCode = await runControlPass(baseOptions({ repositoryContext: "off" }), {
+    octokit: createOctokitWithFiles([{ filename: "src/a.ts", patch: "@@ -0,0 +1 @@\n+export const a = 1;" }]),
+    githubToken: "test-token",
+    getWriteAttempts: () => 0,
+    configOverride: testConfig(),
+    modelOverride: testModel(),
+  });
+  assert.equal(exitCode, 0);
+  const record = JSON.parse(readFileSync(join(REPO_ROOT, TEST_OUT_PATH), "utf8").trim().split("\n")[0]);
+  assert.deepEqual(record.excludePathGlobs, []);
+  assert.deepEqual(record.findings, []);
+  assert.equal(typeof record.summary, "string");
+  assert.ok(!record.summary.includes("Excluded from review"));
+  assert.equal("plantedFixture" in record, false);
+});
+
+test("loadPlantedFixture refuses a non-integer or negative additions count", () => {
+  const dir = mkdtempSync(join(tmpdir(), "control-pass-fixture-"));
+  try {
+    const bad = join(dir, "bad.json");
+    for (const additions of [-1, 1.5]) {
+      writeFileSync(bad, JSON.stringify({ path: "src/a.ts", patch: "@@ -0,0 +1 @@\n+x", additions, defect: "d" }));
+      assert.throws(() => loadPlantedFixture("bad.json", dir), ControlPassUsageError);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("runControlPass refuses an unreadable --plant-fixture before reading the pull request", async () => {
   const octokit = {
     pulls: {
