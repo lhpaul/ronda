@@ -77,7 +77,14 @@ export function citedCodeHash(fileText: string, line: number): string | undefine
  * attacker-chosen claim. Only `renderFindingMarker` may emit one.
  */
 export function stripFindingMarkers(text: string): string {
-  return text.replace(/<!--\s*ronda:finding[\s\S]*?-->/gi, "").replace(/<!--\s*ronda:finding/gi, "");
+  // Repeat to a fixed point: removing an inner marker can splice the text
+  // around it into a new one (`<!-- ronda:<!-- ronda:finding x -->finding ...`).
+  let current = text;
+  for (;;) {
+    const next = current.replace(/<!--\s*ronda:finding[\s\S]*?-->/gi, "").replace(/<!--\s*ronda:finding/gi, "");
+    if (next === current) return next;
+    current = next;
+  }
 }
 
 export function renderFindingMarker(marker: FindingMarker): string {

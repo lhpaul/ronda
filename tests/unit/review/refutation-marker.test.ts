@@ -172,3 +172,10 @@ test("stripFindingMarkers removes well-formed, malformed, and unterminated marke
   assert.ok(!stripFindingMarkers("tail <!-- ronda:finding v1 claim=").includes("ronda:finding"));
   assert.equal(stripFindingMarkers("<!-- unrelated --> text"), "<!-- unrelated --> text");
 });
+
+test("stripFindingMarkers cannot be defeated by nesting a marker inside another", () => {
+  const marker = renderFindingMarker({ claim: HEX, code: HEX2 });
+  const nested = `<!-- ronda:${marker}finding v1 claim=${HEX} code=${HEX2} -->`;
+  assert.equal(parseFindingMarker(stripFindingMarkers(nested)), undefined);
+  assert.ok(!stripFindingMarkers(nested).includes("ronda:finding"));
+});
