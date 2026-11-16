@@ -1,0 +1,6 @@
+{
+  "path": "src/review/excluded-bytes.ts",
+  "additions": 14,
+  "defect": "Off-by-one loop bound: `index <= listed.length` reads `listed[listed.length]`, which is undefined, so `.bytes` throws a TypeError on every call (line 10).",
+  "patch": "@@ -0,0 +1,14 @@\n+export interface ExcludedFileEntry {\n+  path: string;\n+  bytes: number;\n+}\n+\n+/** Sums the size of the first `limit` excluded files for the summary footer. */\n+export function excludedBytesWithinLimit(entries: ExcludedFileEntry[], limit: number): number {\n+  const listed = entries.slice(0, limit);\n+  let total = 0;\n+  for (let index = 0; index <= listed.length; index += 1) {\n+    total += listed[index].bytes;\n+  }\n+  return total;\n+}"
+}

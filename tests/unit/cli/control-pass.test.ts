@@ -1,12 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Octokit } from "@octokit/rest";
 import {
   ControlPassUsageError,
   countingModelClient,
   createNoWriteOctokit,
+  loadPlantedFixture,
   parseControlPassArgs,
   resolveControlPassOutPath,
   runControlPass,
@@ -287,6 +289,137 @@ test("runControlPass exits non-zero when the no-write counter is non-zero at the
     getWriteAttempts: () => 1,
     configOverride: testConfig(),
     modelOverride: testModel(),
+  });
+  assert.equal(exitCode, 1);
+});
+
+// --- path-exclusion evidence and planted fixture (#142) ---------------------
+
+test("parseControlPassArgs accepts an optional --plant-fixture and omits it otherwise", () => {
+  const withFixture = parseControlPassArgs([
+    "--pr",
+    "119",
+    "--repository-context",
+    "off",
+    "--repo",
+    "lhpaul/ronda",
+    "--plant-fixture",
+    "tests/fixtures/review-path-exclusion/planted-defect.json",
+  ]);
+  assert.equal(withFixture.plantFixturePath, "tests/fixtures/review-path-exclusion/planted-defect.json");
+  const without = parseControlPassArgs(["--pr", "119", "--repository-context", "off", "--repo", "lhpaul/ronda"]);
+  assert.equal("plantFixturePath" in without, false);
+});
+
+test("loadPlantedFixture reads the committed #142 fixture", () => {
+  const fixture = loadPlantedFixture("tests/fixtures/review-path-exclusion/planted-defect.json", REPO_ROOT);
+  assert.equal(fixture.path, "src/review/excluded-bytes.ts");
+  assert.ok(fixture.patch.startsWith("@@ -0,0 +1,"));
+  assert.ok(fixture.defect.length > 0);
+});
+
+test("loadPlantedFixture refuses a fixture outside the repository and an unsafe planted path", () => {
+  assert.throws(() => loadPlantedFixture("../outside.json", REPO_ROOT), ControlPassUsageError);
+  const dir = mkdtempSync(join(tmpdir(), "control-pass-fixture-"));
+  try {
+    const bad = join(dir, "bad.json");
+    writeFileSync(bad, JSON.stringify({ path: "../escape.ts", patch: "@@ -0,0 +1 @@\n+x", additions: 1, defect: "d" }));
+    assert.throws(() => loadPlantedFixture("bad.json", dir), ControlPassUsageError);
+    writeFileSync(bad, JSON.stringify({ path: "src/a.ts", patch: "", additions: 1, defect: "d" }));
+    assert.throws(() => loadPlantedFixture("bad.json", dir), ControlPassUsageError);
+    writeFileSync(bad, "not json");
+    assert.throws(() => loadPlantedFixture("bad.json", dir), ControlPassUsageError);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function createOctokitWithFiles(files: Array<{ filename: string; patch: string }>): Octokit {
+  const base = createFakeOctokit() as unknown as Record<string, unknown>;
+  return {
+    ...base,
+    paginate: async () =>
+      files.map((file) => ({ filename: file.filename, status: "added", patch: file.patch, additions: 1, deletions: 0 })),
+  } as unknown as Octokit;
+}
+
+test("runControlPass records exclusion globs, findings, the excluded-files summary, and the planted fixture", async (t) => {
+  t.after(cleanupOutFile);
+  cleanupOutFile();
+  let promptSeen = "";
+  const model: ModelClient = {
+    modelName: "fake-model",
+    async complete(request) {
+      promptSeen = request.userPrompt;
+      return {
+        content: JSON.stringify({
+          findings: [
+            {
+              path: "docs/testing/ronda/sweep-on-extended.json",
+              line: 1,
+              severity: "important",
+              title: "Excluded-path finding",
+              body: "Must be discarded.",
+            },
+            {
+              path: "src/review/excluded-bytes.ts",
+              line: 10,
+              severity: "blocking",
+              title: "Off-by-one loop reads past the end of the array",
+              body: "`index <= listed.length` reads an undefined element.",
+            },
+          ],
+        }),
+      };
+    },
+  };
+  const octokit = createOctokitWithFiles([
+    { filename: "docs/testing/ronda/sweep-on-extended.json", patch: "@@ -0,0 +1 @@\n+{}" },
+    { filename: "docs/testing/README.md", patch: "@@ -0,0 +1 @@\n+# Testing" },
+  ]);
+  const exitCode = await runControlPass(
+    baseOptions({ repositoryContext: "off", plantFixturePath: "tests/fixtures/review-path-exclusion/planted-defect.json" }),
+    {
+      octokit,
+      githubToken: "test-token",
+      getWriteAttempts: () => 0,
+      configOverride: { ...testConfig(), excludePathGlobs: ["docs/testing/ronda/**/*.json"] },
+      modelOverride: model,
+    },
+  );
+  assert.equal(exitCode, 0);
+  assert.ok(promptSeen.includes("src/review/excluded-bytes.ts"));
+  assert.ok(!promptSeen.includes("docs/testing/ronda/sweep-on-extended.json"));
+  const record = JSON.parse(readFileSync(join(REPO_ROOT, TEST_OUT_PATH), "utf8").trim().split("\n")[0]);
+  assert.deepEqual(record.excludePathGlobs, ["docs/testing/ronda/**/*.json"]);
+  assert.deepEqual(
+    record.findings.map((finding: { path: string }) => finding.path),
+    ["src/review/excluded-bytes.ts"],
+  );
+  assert.equal(record.findings[0].line, 10);
+  assert.equal("body" in record.findings[0], false);
+  assert.equal(typeof record.summary, "string");
+  assert.ok(record.summary.includes("Excluded from review"));
+  assert.ok(record.summary.includes("docs/testing/ronda/sweep-on-extended.json"));
+  assert.deepEqual(record.plantedFixture, {
+    fixturePath: "tests/fixtures/review-path-exclusion/planted-defect.json",
+    path: "src/review/excluded-bytes.ts",
+    defect: loadPlantedFixture("tests/fixtures/review-path-exclusion/planted-defect.json", REPO_ROOT).defect,
+  });
+});
+
+test("runControlPass refuses an unreadable --plant-fixture before reading the pull request", async () => {
+  const octokit = {
+    pulls: {
+      get: async () => {
+        throw new Error("must not be called when the fixture is invalid");
+      },
+    },
+  } as unknown as Octokit;
+  const exitCode = await runControlPass(baseOptions({ plantFixturePath: "tests/fixtures/review-path-exclusion/missing.json" }), {
+    octokit,
+    githubToken: "test-token",
+    getWriteAttempts: () => 0,
   });
   assert.equal(exitCode, 1);
 });
