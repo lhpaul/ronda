@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Octokit } from "@octokit/rest";
@@ -22,7 +22,8 @@ import {
   DEFAULT_REPOSITORY_CONTEXT_TIME_BUDGET_MS,
 } from "../config/load-config.js";
 import { createOpenAiCompatibleClient } from "../inference/openai-compatible-client.js";
-import type { GithubOperations, ReviewPassResult } from "../domain/review-pass.types.js";
+import type { ChangedFile, GithubOperations, ReviewPassResult } from "../domain/review-pass.types.js";
+import type { Severity } from "../domain/severity.js";
 import type { ModelClient } from "../inference/model-client.js";
 import type { RondaConfig } from "../config/config.types.js";
 
@@ -35,7 +36,14 @@ import type { RondaConfig } from "../config/config.types.js";
  *
  * Invocation contract:
  *
- *   npm run quality:control-pass -- --pr <number> --repository-context on|off [--repo <owner/repo>] [--out <path>]
+ *   npm run quality:control-pass -- --pr <number> --repository-context on|off [--repo <owner/repo>] [--out <path>] [--plant-fixture <path>]
+ *
+ * `--plant-fixture` (#142) appends one committed synthetic changed file to the
+ * pull request's real changed-file list for this run alone, in memory, so a
+ * control pass can show that a known defect in a non-excluded file is still
+ * reported alongside path exclusion. Nothing is pushed to the pull request;
+ * the record names the fixture so a planted pass is never mistaken for a
+ * plain one.
  */
 
 export const DEFAULT_CONTROL_PASS_OUT_PATH = "docs/testing/ronda/repository-context-control-passes.jsonl";
@@ -49,6 +57,8 @@ export interface ControlPassOptions {
   repositoryContext: "on" | "off";
   repo: string;
   outPath: string;
+  /** Repository-relative path to a committed planted-changed-file fixture (#142). */
+  plantFixturePath?: string;
 }
 
 /** Parses and validates argv. Throws {@link ControlPassUsageError} on any invalid or missing required option. */
@@ -60,6 +70,7 @@ export function parseControlPassArgs(
   let repositoryContextRaw: string | undefined;
   let repo = env.GITHUB_REPOSITORY;
   let outPath = DEFAULT_CONTROL_PASS_OUT_PATH;
+  let plantFixturePath: string | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -76,11 +87,14 @@ export function parseControlPassArgs(
     } else if (arg === "--out" && next !== undefined) {
       outPath = next;
       index += 1;
+    } else if (arg === "--plant-fixture" && next !== undefined) {
+      plantFixturePath = next;
+      index += 1;
     }
   }
 
   const usage =
-    "Usage: quality:control-pass -- --pr <number> --repository-context on|off [--repo <owner/repo>] [--out <path>]";
+    "Usage: quality:control-pass -- --pr <number> --repository-context on|off [--repo <owner/repo>] [--out <path>] [--plant-fixture <path>]";
 
   if (pullNumberRaw === undefined || !/^\d+$/.test(pullNumberRaw)) {
     throw new ControlPassUsageError(`--pr is required and must be a positive integer. ${usage}`);
@@ -95,17 +109,91 @@ export function parseControlPassArgs(
     throw new ControlPassUsageError(`--repo is required when GITHUB_REPOSITORY is not set. ${usage}`);
   }
 
-  return { pullNumber: parseInt(pullNumberRaw, 10), repositoryContext: repositoryContextRaw, repo, outPath };
+  const options: ControlPassOptions = {
+    pullNumber: parseInt(pullNumberRaw, 10),
+    repositoryContext: repositoryContextRaw,
+    repo,
+    outPath,
+  };
+  if (plantFixturePath !== undefined) {
+    options.plantFixturePath = plantFixturePath;
+  }
+  return options;
 }
 
 /** Refuses a path that resolves outside the repository root (an operator-specific path never becomes the destination). */
 export function resolveControlPassOutPath(outPath: string, repoRoot: string = REPO_ROOT): string {
-  const resolved = resolve(repoRoot, outPath);
+  return resolveInsideRepo("--out", outPath, repoRoot);
+}
+
+function resolveInsideRepo(flag: string, path: string, repoRoot: string): string {
+  const resolved = resolve(repoRoot, path);
   const rel = relative(repoRoot, resolved);
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
-    throw new ControlPassUsageError(`--out resolves outside the repository root: ${outPath}`);
+    throw new ControlPassUsageError(`${flag} resolves outside the repository root: ${path}`);
   }
   return resolved;
+}
+
+/**
+ * A committed planted-changed-file fixture (#142): one synthetic changed file
+ * plus a statement of the defect it plants, so the evidence record can say
+ * what a reviewer was expected to find.
+ */
+export interface PlantedFixture {
+  path: string;
+  patch: string;
+  additions: number;
+  defect: string;
+}
+
+/** True for a canonical repository-relative POSIX path, as GitHub reports changed-file paths. */
+function isCanonicalRelativePath(path: string): boolean {
+  if (path === "" || path.startsWith("/") || path.includes("\\")) {
+    return false;
+  }
+  return path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
+}
+
+/**
+ * Reads and validates a planted fixture. Only a repository-relative fixture
+ * file is accepted, and the planted path must be a canonical
+ * repository-relative POSIX path (no leading `/`, no backslash, and no empty,
+ * `.` or `..` segment), so it compares and glob-matches exactly like a path
+ * GitHub reports.
+ */
+export function loadPlantedFixture(fixturePath: string, repoRoot: string = REPO_ROOT): PlantedFixture {
+  const resolved = resolveInsideRepo("--plant-fixture", fixturePath, repoRoot);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(resolved, "utf8"));
+  } catch (error) {
+    throw new ControlPassUsageError(`--plant-fixture could not be read as JSON: ${fixturePath} (${String(error)})`);
+  }
+  const candidate = parsed as Partial<PlantedFixture> | null;
+  if (
+    candidate === null ||
+    typeof candidate !== "object" ||
+    typeof candidate.path !== "string" ||
+    !isCanonicalRelativePath(candidate.path) ||
+    typeof candidate.patch !== "string" ||
+    candidate.patch === "" ||
+    typeof candidate.additions !== "number" ||
+    !Number.isInteger(candidate.additions) ||
+    candidate.additions < 0 ||
+    typeof candidate.defect !== "string" ||
+    candidate.defect === ""
+  ) {
+    throw new ControlPassUsageError(
+      `--plant-fixture must hold { path, patch, additions, defect } with a repository-relative path: ${fixturePath}`,
+    );
+  }
+  return {
+    path: candidate.path,
+    patch: candidate.patch,
+    additions: candidate.additions,
+    defect: candidate.defect,
+  };
 }
 
 /**
@@ -160,6 +248,18 @@ interface ControlPassRecord {
   modelName: string;
   reportedModels: string[];
   sweepMode: RondaConfig["sweepMode"];
+  /**
+   * Path-exclusion evidence (#142): the exclusion globs the pass ran under,
+   * every finding's location and title (bodies omitted to keep the record
+   * small), and the review summary body the pass would have published —
+   * which names the excluded files — captured locally instead of being sent
+   * anywhere. `null` when the pass ended before composing a review.
+   */
+  excludePathGlobs: string[];
+  findings: Array<{ path: string; line: number | null; severity: Severity; title: string }>;
+  summary: string | null;
+  /** Present only for a pass run with `--plant-fixture`. */
+  plantedFixture?: { fixturePath: string; path: string; defect: string };
 }
 
 /**
@@ -220,8 +320,12 @@ export async function runControlPass(
   }
 
   let outFilePath: string;
+  let planted: PlantedFixture | undefined;
   try {
     outFilePath = resolveControlPassOutPath(options.outPath);
+    if (options.plantFixturePath !== undefined) {
+      planted = loadPlantedFixture(options.plantFixturePath);
+    }
   } catch (error) {
     console.error(error instanceof ControlPassUsageError ? error.message : String(error));
     return 1;
@@ -293,12 +397,36 @@ export async function runControlPass(
   // Pure, local, non-publishing implementations (AC22): findings and the
   // check-run text are captured for the evidence record instead of being
   // sent anywhere. Neither ever calls `octokit`.
+  let capturedSummary: string | null = null;
   const github: GithubOperations = {
     readPullRequest: (o, r, n, signal) => readPullRequest(octokit, o, r, n, signal),
-    readChangedFiles: (o, r, n, signal) => readChangedFiles(octokit, o, r, n, signal),
+    readChangedFiles: async (o, r, n, signal) => {
+      const files = await readChangedFiles(octokit, o, r, n, signal);
+      if (planted === undefined) {
+        return files;
+      }
+      const plantedFile: ChangedFile = {
+        path: planted.path,
+        status: "added",
+        patch: planted.patch,
+        additions: planted.additions,
+        deletions: 0,
+      };
+      // A planted file is an addition on top of the real changed files; it
+      // never replaces one. A collision fails the pass rather than silently
+      // discarding the pull request's real change to that path.
+      if (files.some((file) => file.path === planted.path || file.previousPath === planted.path)) {
+        throw new Error(
+          `Planted fixture path ${planted.path} collides with a real changed file in pull request #${n}`,
+        );
+      }
+      return [...files, plantedFile];
+    },
     readFileAtRef: (o, r, path, ref, signal, opts) => readRepositoryFileAtRef(octokit, o, r, path, ref, signal, opts),
     findExistingCheckRun: (o, r, sha, signal) => findExistingCheckRun(octokit, o, r, sha, signal),
-    publishReview: async () => undefined,
+    publishReview: async (input) => {
+      capturedSummary = input.summaryBody;
+    },
     publishCheckRun: async () => undefined,
   };
 
@@ -328,7 +456,18 @@ export async function runControlPass(
     modelName: config.model.modelName,
     reportedModels: counting.reportedModels(),
     sweepMode: config.sweepMode,
+    excludePathGlobs: [...config.excludePathGlobs],
+    findings: result.findings.map((finding) => ({
+      path: finding.path,
+      line: finding.line,
+      severity: finding.severity,
+      title: finding.title,
+    })),
+    summary: capturedSummary,
   };
+  if (planted !== undefined && options.plantFixturePath !== undefined) {
+    record.plantedFixture = { fixturePath: options.plantFixturePath, path: planted.path, defect: planted.defect };
+  }
 
   mkdirSync(dirname(outFilePath), { recursive: true });
   appendFileSync(outFilePath, `${JSON.stringify(record)}\n`, "utf8");

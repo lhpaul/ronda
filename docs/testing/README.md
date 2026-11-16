@@ -230,6 +230,10 @@ beside them:
 - **Campaign records**: [`ronda/sweep-off-*.json`](ronda/) and
   [`ronda/sweep-on-*.json`](ronda/) — the raw per-run records the evidence
   document reads, six files across the three legs.
+- **Review path-exclusion evidence**: [`ronda/review-path-exclusion-evidence-142.md`](ronda/review-path-exclusion-evidence-142.md) —
+  the #119 control passes with and without the repository's exclusion globs,
+  including a planted-defect pass, with raw records in
+  [`ronda/review-path-exclusion-control-passes.jsonl`](ronda/review-path-exclusion-control-passes.jsonl).
 
 ## References
 

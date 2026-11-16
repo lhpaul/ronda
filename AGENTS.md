@@ -141,8 +141,9 @@ npm run quality:report
 # records findings + the repository-context record only to a committed
 # evidence file — never a review, check run, or comment to GitHub. Requires
 # GITHUB_TOKEN and a model credential; --pr and --repository-context are
-# required (no default arm).
-npm run quality:control-pass -- --pr <number> --repository-context on|off
+# required (no default arm). Optional --plant-fixture <repo-relative JSON>
+# appends one committed synthetic changed file for that run only (#142).
+npm run quality:control-pass -- --pr <number> --repository-context on|off [--out <path>] [--plant-fixture <path>]
 
 # Replay committed spec/plan heads under one arm of the #143 experiment and
 # append the findings only to docs/testing/ronda/spec-plan-experiment-143.jsonl
