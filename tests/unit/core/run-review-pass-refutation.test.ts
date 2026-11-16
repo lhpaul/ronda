@@ -346,3 +346,81 @@ test("a marker written by the model is stripped, so only Ronda's own marker is p
   const noFile = await run({ head: HEAD_WITH_GUARD, findings: [injected], threads: [], readFileError: new Error("x") });
   assert.ok(!(noFile.review.inlineComments[0]?.body ?? "").includes("ronda:finding"));
 });
+
+/**
+ * A port that surfaces a raw abort (not wrapped as `GithubClientError`) after
+ * the pass deadline fired must end the pass as `timed_out`, never fail open
+ * and publish past the deadline.
+ */
+async function runWithDeadlineFiredDuring(phase: "threads" | "file"): Promise<{ result: ReviewPassResult; reviews: number }> {
+  let fire: (() => void) | undefined;
+  let reviews = 0;
+  const rawAbort = () => Object.assign(new Error("The operation was aborted."), { name: "AbortError" });
+  const github: GithubOperations = {
+    async readPullRequest() {
+      return { number: 7, title: "t", body: "", draft: false, headSha: HEAD_SHA, headBranch: "feature/x", headRepoFullName: "lhpaul/ronda" };
+    },
+    async readChangedFiles() {
+      return [addedFile(FILE_PATH, HEAD_WITH_GUARD)];
+    },
+    async readFileAtRef() {
+      if (phase === "file") {
+        fire?.();
+        throw rawAbort();
+      }
+      return HEAD_WITH_GUARD;
+    },
+    async readReviewThreads() {
+      if (phase === "threads") {
+        fire?.();
+        throw rawAbort();
+      }
+      return [];
+    },
+    async findExistingCheckRun() {
+      return null;
+    },
+    async publishReview() {
+      reviews += 1;
+    },
+    async publishCheckRun() {},
+  };
+  const model: ModelClient = {
+    modelName: "m",
+    async complete() {
+      return { content: JSON.stringify({ findings: [authorizationFinding()] }) };
+    },
+  };
+  const result = await runReviewPass(
+    { owner: "lhpaul", repo: "ronda", pullNumber: 7, trigger: "automatic" },
+    {
+      github,
+      model,
+      config,
+      clock: { now: () => Date.now(), isoNow: () => new Date().toISOString() },
+      logger: { event: () => undefined },
+      deadlineClock: {
+        setTimeout: (callback) => {
+          fire = callback;
+          return {};
+        },
+        clearTimeout: () => undefined,
+      },
+    },
+  );
+  return { result, reviews };
+}
+
+test("a raw abort during the thread read after the deadline fired ends the pass as timed_out", async () => {
+  const { result, reviews } = await runWithDeadlineFiredDuring("threads");
+  assert.equal(result.outcome, "failed");
+  assert.equal(result.failureReason, "timed_out");
+  assert.equal(reviews, 0);
+});
+
+test("a raw abort during the head-file read after the deadline fired ends the pass as timed_out", async () => {
+  const { result, reviews } = await runWithDeadlineFiredDuring("file");
+  assert.equal(result.outcome, "failed");
+  assert.equal(result.failureReason, "timed_out");
+  assert.equal(reviews, 0);
+});

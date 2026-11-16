@@ -977,7 +977,9 @@ async function readRefutations(
     const threads = await reader.call(deps.github, input.owner, input.repo, input.pullNumber, signal);
     return collectRefutations(threads);
   } catch (error) {
-    if (error instanceof GithubClientError) throw error;
+    // A port that surfaces a raw abort (not wrapped as `GithubClientError`)
+    // must still end the pass as a timeout, never fail open past the deadline.
+    if (error instanceof GithubClientError || signal.aborted) throw error;
     deps.logger.event("refutation_threads_unavailable", { headSha });
     return [];
   }
@@ -1000,7 +1002,7 @@ function headCodeHasher(
     let text = files.get(path);
     if (text === undefined) {
       text = deps.github.readFileAtRef(input.owner, input.repo, path, headSha, signal).catch((error: unknown) => {
-        if (error instanceof GithubClientError) throw error;
+        if (error instanceof GithubClientError || signal.aborted) throw error;
         return undefined;
       });
       files.set(path, text);
