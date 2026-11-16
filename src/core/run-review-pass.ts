@@ -62,6 +62,7 @@ import {
   collectRefutations,
   filterRefutedFindings,
   renderFindingMarker,
+  stripFindingMarkers,
   type Refutation,
 } from "../review/refutation-marker.js";
 import { RepositoryFileUnusableError } from "../github/repo-content-reader.js";
@@ -614,6 +615,14 @@ export async function runReviewPass(
     // refuted`) on the same path, claim, and cited code. Fails open: no
     // thread reader, a failed thread read, or an unreadable file keeps every
     // finding. The same head-file cache feeds the inline-comment markers.
+    // Model output is untrusted: it must never carry a finding marker of its
+    // own, or a maintainer's refutation of the visible claim could be bound
+    // to a different claim it chose.
+    parsed.findings = parsed.findings.map((finding) => ({
+      ...finding,
+      title: stripFindingMarkers(finding.title),
+      body: stripFindingMarkers(finding.body),
+    }));
     const codeHashFor = headCodeHasher(deps, input, pr.headSha, deadline.signal);
     const refutations = await readRefutations(deps, input, pr.headSha, deadline.signal);
     const refutation = await filterRefutedFindings(parsed.findings, refutations, codeHashFor);

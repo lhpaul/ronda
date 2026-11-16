@@ -69,6 +69,17 @@ export function citedCodeHash(fileText: string, line: number): string | undefine
   return sha256Hex(`${index - start}\n${lines.slice(start, end).join("\n")}`);
 }
 
+/**
+ * Neutralises anything shaped like a Ronda finding marker in model-written
+ * text. The model's output is untrusted (it can be steered by pull-request
+ * content), so it must never carry a marker of its own: a marker it planted
+ * could bind a maintainer's refutation of the visible claim to a different,
+ * attacker-chosen claim. Only `renderFindingMarker` may emit one.
+ */
+export function stripFindingMarkers(text: string): string {
+  return text.replace(/<!--\s*ronda:finding[\s\S]*?-->/gi, "").replace(/<!--\s*ronda:finding/gi, "");
+}
+
 export function renderFindingMarker(marker: FindingMarker): string {
   return `<!-- ronda:finding ${MARKER_VERSION} claim=${marker.claim} code=${marker.code} -->`;
 }

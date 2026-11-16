@@ -10,6 +10,7 @@ import {
   normalizeClaim,
   parseFindingMarker,
   renderFindingMarker,
+  stripFindingMarkers,
 } from "../../../src/review/refutation-marker.js";
 import type { Finding } from "../../../src/domain/review-pass.types.js";
 import {
@@ -160,4 +161,14 @@ test("filterRefutedFindings keeps a candidate when its code hash is unknown, and
   });
   assert.equal(none.kept.length, 1);
   assert.equal(called, false);
+});
+
+test("stripFindingMarkers removes well-formed, malformed, and unterminated markers from untrusted text", () => {
+  const marker = renderFindingMarker({ claim: HEX, code: HEX2 });
+  assert.equal(stripFindingMarkers(`before ${marker} after`), "before  after");
+  assert.equal(parseFindingMarker(stripFindingMarkers(`x ${marker}`)), undefined);
+  assert.equal(stripFindingMarkers("a <!--ronda:finding v9 junk--> b"), "a  b");
+  assert.equal(stripFindingMarkers("a <!-- RONDA:FINDING v1 claim=x code=y --> b"), "a  b");
+  assert.ok(!stripFindingMarkers("tail <!-- ronda:finding v1 claim=").includes("ronda:finding"));
+  assert.equal(stripFindingMarkers("<!-- unrelated --> text"), "<!-- unrelated --> text");
 });

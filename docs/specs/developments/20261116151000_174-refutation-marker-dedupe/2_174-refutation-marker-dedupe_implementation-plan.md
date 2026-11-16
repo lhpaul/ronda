@@ -86,7 +86,10 @@ Inspected at `8a94514` (`origin/develop`) on 2026-11-16.
 
 ### Pass wiring (`src/core/run-review-pass.ts`)
 
-1. After the named-credential filter: when `readReviewThreads` exists, read the
+0. After the named-credential filter, strip anything shaped like a finding
+   marker from every finding's title and body (`stripFindingMarkers`). Model
+   text is untrusted, so only Ronda may emit a marker.
+1. Then, when `readReviewThreads` exists, read the
    threads. On any error, log `refutation_threads_unavailable` (head SHA only)
    and continue with no refutations (AC5).
 2. Keep a per-pass cache: path → file text at `pr.headSha` via `readFileAtRef`.

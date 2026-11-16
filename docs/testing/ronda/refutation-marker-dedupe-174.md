@@ -17,6 +17,10 @@ claim on the same code:
   `/ronda refuted` from an `OWNER`, `MEMBER`, or `COLLABORATOR`.
 - **Suppression.** A new finding is dropped only when its path, claim hash,
   and code hash (recomputed at the new head) all match a refutation.
+- **Untrusted model text.** Anything shaped like a finding marker is stripped
+  from the model's titles and bodies before publication, so only Ronda emits
+  markers. A model steered by pull-request content cannot bind a maintainer's
+  refutation of the visible claim to a different claim.
 - **Fail open.** No thread reader, a failed thread read, an unreadable file, a
   finding without a line, or any inexact match keeps the finding.
 
