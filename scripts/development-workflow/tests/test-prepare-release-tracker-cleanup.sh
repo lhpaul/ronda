@@ -614,37 +614,51 @@ echo "=== Issue loop / TRACKER_UPDATED counting (stub workflow-lib.sh) ==="
 
 fixture_repo_issue_loop() {
   local name="$1"
+  local provider="${2:-github_projects}"
   local path="$TMP_ROOT/$name"
   mkdir -p "$path/scripts/development-workflow"
   # The real cleanup script is used; workflow-lib.sh is a stub.
   cp "$REPO_ROOT/scripts/development-workflow/prepare-release-post-merge-cleanup.sh" \
      "$path/scripts/development-workflow/prepare-release-post-merge-cleanup.sh"
   chmod +x "$path/scripts/development-workflow/prepare-release-post-merge-cleanup.sh"
-  cat > "$path/.ai-dev-workflow.yaml" <<'YAML'
+  cat > "$path/.ai-dev-workflow.yaml" <<YAML
 schema_version: 2
 issue_tracker:
-  provider: github_projects
+  provider: ${provider}
   project_number: 1
 YAML
   # Stub workflow-lib.sh: provides the bare-minimum functions needed for the
   # cleanup script's issue loop. update_tracker_status_best_effort returns
   # the value of STUB_TRACKER_OUT (set per test run) so each branch of the
   # pattern-matching block can be exercised independently.
-  cat > "$path/scripts/development-workflow/workflow-lib.sh" <<'STUB_LIB'
+  # STUB_TRACKER_OUT_FILE / STUB_STAMP_OUT_FILE replay canned output from a
+  # file instead, so a test can return buffers larger than the per-string
+  # environment limit (#168 large-buffer regressions).
+  cat > "$path/scripts/development-workflow/workflow-lib.sh" <<STUB_LIB
 #!/usr/bin/env bash
 # Stub workflow-lib.sh for test-prepare-release-tracker-cleanup.sh
 cd_workflow_repo_root() { return 0; }
 require_gh() { return 0; }
-workflow_issue_tracker_provider_raw() { printf 'github_projects\n'; }
+workflow_issue_tracker_provider_raw() { printf '%s\n' '${provider}'; }
+STUB_LIB
+  cat >> "$path/scripts/development-workflow/workflow-lib.sh" <<'STUB_LIB'
 workflow_normalize_issue_tracker_provider() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 workflow_issue_tracker_project_number() { printf '1\n'; }
 record_release_for_issue_best_effort() {
   local issue="$1" version="$2"
+  if [ -n "${STUB_STAMP_OUT_FILE:-}" ]; then
+    cat "$STUB_STAMP_OUT_FILE"
+    return 0
+  fi
   printf 'RELEASE_STAMP_SKIPPED issue=%s version=%s provider=github_projects reason=no_milestone\n' \
     "$issue" "$version"
 }
 update_tracker_status_best_effort() {
   # Return the canned output controlled by the test harness.
+  if [ -n "${STUB_TRACKER_OUT_FILE:-}" ]; then
+    cat "$STUB_TRACKER_OUT_FILE"
+    return 0
+  fi
   printf '%s\n' "${STUB_TRACKER_OUT:-Warning: STUB_TRACKER_OUT not set; skipping.}"
 }
 STUB_LIB
@@ -691,6 +705,119 @@ status="$(printf '%s\n' "$result" | sed -n '1p')"
 output="$(printf '%s\n' "$result" | sed '1d')"
 run_test "stub_skipped_exits_zero" "0" "$status"
 run_contains "stub_skipped_counter" "UPDATED=0 SKIPPED=1 FAILED=0" "$output"
+
+echo ""
+echo "=== Issue loop large-buffer classification (#168) ==="
+#
+# Under `set -euo pipefail`, `echo "$BUF" | grep -q PATTERN` can take the
+# false branch when the match sits near the start of a buffer larger than the
+# pipe capacity: grep exits on the first match, the writer dies of SIGPIPE
+# (exit 141), and pipefail reports the pipeline as failed. Each buffer below
+# puts its decisive line first and is followed by more than 1 MiB of filler
+# that matches none of the classifier patterns, so a pipe-fed predicate would
+# misclassify it. The stub replays the buffer from a file because a single
+# environment string that large exceeds Linux's per-string limit.
+large_buffer_filler() {
+  awk 'BEGIN { for (i = 0; i < 16384; i++) print "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }'
+}
+
+# Large tracker output starting with "Updating tracker status" -> UPDATED=1
+# (a SIGPIPE false negative would fall through to SKIPPED=1).
+large_updated_file="$TMP_ROOT/large-tracker-updated.txt"
+{
+  printf 'Updating tracker status for issue 200 to Released...\n'
+  large_buffer_filler
+} > "$large_updated_file"
+stub_repo_large_updated="$(fixture_repo_issue_loop stub-large-updated)"
+result="$(STUB_TRACKER_OUT_FILE="$large_updated_file" \
+  run_cleanup_stub "$stub_repo_large_updated" v1.18.0 --issue 200 --best-effort)"
+status="$(printf '%s\n' "$result" | sed -n '1p')"
+output="$(printf '%s\n' "$result" | sed '1d')"
+run_test "large_tracker_updated_exits_zero" "0" "$status"
+run_contains "large_tracker_updated_counter" "UPDATED=1 SKIPPED=0 FAILED=0" "$output"
+
+# Large tracker output with an early GraphQL failure -> FAILED=1 (exercises
+# the nested mutation-failure predicate as well as the outer one).
+large_failed_file="$TMP_ROOT/large-tracker-failed.txt"
+{
+  printf 'Updating tracker status for issue 200 to Released...\n'
+  printf 'Warning: GraphQL mutation failed for issue 200.\n'
+  large_buffer_filler
+} > "$large_failed_file"
+stub_repo_large_failed="$(fixture_repo_issue_loop stub-large-failed)"
+result="$(STUB_TRACKER_OUT_FILE="$large_failed_file" \
+  run_cleanup_stub "$stub_repo_large_failed" v1.18.0 --issue 200 --best-effort)"
+status="$(printf '%s\n' "$result" | sed -n '1p')"
+output="$(printf '%s\n' "$result" | sed '1d')"
+run_contains "large_tracker_failed_counter" "UPDATED=0 SKIPPED=0 FAILED=1" "$output"
+
+# Large deferred-action output -> UPDATED=1.
+large_deferred_file="$TMP_ROOT/large-tracker-deferred.txt"
+{
+  printf 'TRACKER_ACTION_REQUIRED=set_status issue=200 target_status=Released\n'
+  large_buffer_filler
+} > "$large_deferred_file"
+stub_repo_large_deferred="$(fixture_repo_issue_loop stub-large-deferred)"
+result="$(STUB_TRACKER_OUT_FILE="$large_deferred_file" \
+  run_cleanup_stub "$stub_repo_large_deferred" v1.18.0 --issue 200 --best-effort)"
+status="$(printf '%s\n' "$result" | sed -n '1p')"
+output="$(printf '%s\n' "$result" | sed '1d')"
+run_test "large_tracker_deferred_exits_zero" "0" "$status"
+run_contains "large_tracker_deferred_counter" "UPDATED=1 SKIPPED=0 FAILED=0" "$output"
+
+# Large output for an issue already in the target status -> UPDATED=1.
+large_already_file="$TMP_ROOT/large-tracker-already.txt"
+{
+  printf "Issue #200 does not match required source status 'Merged' (current status 'Released').\n"
+  large_buffer_filler
+} > "$large_already_file"
+stub_repo_large_already="$(fixture_repo_issue_loop stub-large-already)"
+result="$(STUB_TRACKER_OUT_FILE="$large_already_file" \
+  run_cleanup_stub "$stub_repo_large_already" v1.18.0 --issue 200 --best-effort)"
+status="$(printf '%s\n' "$result" | sed -n '1p')"
+output="$(printf '%s\n' "$result" | sed '1d')"
+run_test "large_tracker_already_released_exits_zero" "0" "$status"
+run_contains "large_tracker_already_released_counter" "UPDATED=1 SKIPPED=0 FAILED=0" "$output"
+
+# Large stamp outputs on the GitHub path -> the matching STAMPED / STAMP_SKIPPED
+# counter (a SIGPIPE false negative would count either as STAMP_FAILED).
+for stamp_case in STAMPED STAMP_SKIPPED; do
+  large_stamp_file="$TMP_ROOT/large-stamp-${stamp_case}.txt"
+  {
+    printf 'RELEASE_%s issue=200 version=v1.18.0 provider=github_projects\n' "$stamp_case"
+    large_buffer_filler
+  } > "$large_stamp_file"
+  stub_repo_large_stamp="$(fixture_repo_issue_loop "stub-large-stamp-${stamp_case}")"
+  result="$(STUB_STAMP_OUT_FILE="$large_stamp_file" \
+    STUB_TRACKER_OUT="Updating tracker status for issue 200 to Released..." \
+    run_cleanup_stub "$stub_repo_large_stamp" v1.18.0 --issue 200 --best-effort)"
+  output="$(printf '%s\n' "$result" | sed '1d')"
+  if [ "$stamp_case" = "STAMPED" ]; then
+    expected_stamp="STAMPED=1 STAMP_SKIPPED=0 STAMP_FAILED=0"
+  else
+    expected_stamp="STAMPED=0 STAMP_SKIPPED=1 STAMP_FAILED=0"
+  fi
+  run_contains "large_stamp_${stamp_case}_counter" "$expected_stamp" "$output"
+done
+
+# Large stamp outputs on the Linear path -> the matching counter.
+for stamp_case in STAMPED STAMP_SKIPPED; do
+  large_linear_stamp_file="$TMP_ROOT/large-linear-stamp-${stamp_case}.txt"
+  {
+    printf 'RELEASE_%s issue=200 version=v1.18.0 provider=linear\n' "$stamp_case"
+    large_buffer_filler
+  } > "$large_linear_stamp_file"
+  stub_repo_large_linear="$(fixture_repo_issue_loop "stub-large-linear-${stamp_case}" linear)"
+  result="$(STUB_STAMP_OUT_FILE="$large_linear_stamp_file" \
+    run_cleanup_stub "$stub_repo_large_linear" v1.18.0 --issue 200 --best-effort)"
+  output="$(printf '%s\n' "$result" | sed '1d')"
+  if [ "$stamp_case" = "STAMPED" ]; then
+    expected_stamp="STAMPED=1 STAMP_SKIPPED=0 STAMP_FAILED=0"
+  else
+    expected_stamp="STAMPED=0 STAMP_SKIPPED=1 STAMP_FAILED=0"
+  fi
+  run_contains "large_linear_stamp_${stamp_case}_counter" "$expected_stamp" "$output"
+done
 
 echo ""
 echo "=== Component cleanup --json (real end-to-end, not a fixture) ==="
