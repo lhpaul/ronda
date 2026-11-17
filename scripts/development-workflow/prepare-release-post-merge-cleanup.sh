@@ -2723,11 +2723,11 @@ if [ "$TRACKER_PROVIDER" = "linear" ]; then
       STAMP_OUT="RELEASE_STAMP_FAILED issue=${issue} version=${RELEASE_VERSION} provider=${TRACKER_PROVIDER:-unknown} reason=helper_failed"
     fi
     cleanup_log "$STAMP_OUT"
-    if echo "$STAMP_OUT" | grep -q "^RELEASE_STAMPED "; then
+    if grep -q "^RELEASE_STAMPED " <<< "$STAMP_OUT"; then
       LINEAR_STAMPED=$((LINEAR_STAMPED + 1))
-    elif echo "$STAMP_OUT" | grep -q "^RELEASE_STAMP_FAILED "; then
+    elif grep -q "^RELEASE_STAMP_FAILED " <<< "$STAMP_OUT"; then
       LINEAR_STAMP_FAILED=$((LINEAR_STAMP_FAILED + 1))
-    elif echo "$STAMP_OUT" | grep -q "^RELEASE_STAMP_SKIPPED "; then
+    elif grep -q "^RELEASE_STAMP_SKIPPED " <<< "$STAMP_OUT"; then
       LINEAR_STAMP_SKIPPED=$((LINEAR_STAMP_SKIPPED + 1))
     else
       cleanup_log "Warning: unrecognized release-stamp output for issue #$issue; counting as stamp failure."
@@ -2771,11 +2771,11 @@ for issue in "${ISSUE_NUMBERS[@]}"; do
     STAMP_OUT="RELEASE_STAMP_FAILED issue=${issue} version=${RELEASE_VERSION} provider=${TRACKER_PROVIDER:-unknown} reason=helper_failed"
   fi
   cleanup_log "$STAMP_OUT"
-  if echo "$STAMP_OUT" | grep -q "^RELEASE_STAMPED "; then
+  if grep -q "^RELEASE_STAMPED " <<< "$STAMP_OUT"; then
     RELEASE_STAMPED=$((RELEASE_STAMPED + 1))
-  elif echo "$STAMP_OUT" | grep -q "^RELEASE_STAMP_FAILED "; then
+  elif grep -q "^RELEASE_STAMP_FAILED " <<< "$STAMP_OUT"; then
     RELEASE_STAMP_FAILED=$((RELEASE_STAMP_FAILED + 1))
-  elif echo "$STAMP_OUT" | grep -q "^RELEASE_STAMP_SKIPPED "; then
+  elif grep -q "^RELEASE_STAMP_SKIPPED " <<< "$STAMP_OUT"; then
     RELEASE_STAMP_SKIPPED=$((RELEASE_STAMP_SKIPPED + 1))
   else
     cleanup_log "Warning: unrecognized release-stamp output for issue #$issue; counting as stamp failure."
@@ -2800,22 +2800,22 @@ for issue in "${ISSUE_NUMBERS[@]}"; do
   # Treat that as a no-op success so that UPDATED=0 only signals a real failure.
   TRACKER_OUT=$(update_tracker_status_best_effort "$issue" "$RELEASED_LABEL" "$MERGED_LABEL" 2>&1)
   cleanup_log "$TRACKER_OUT"
-  if echo "$TRACKER_OUT" | grep -q "^Updating tracker status"; then
-    if echo "$TRACKER_OUT" | grep -q "Warning: GraphQL mutation failed"; then
+  if grep -q "^Updating tracker status" <<< "$TRACKER_OUT"; then
+    if grep -q "Warning: GraphQL mutation failed" <<< "$TRACKER_OUT"; then
       TRACKER_FAILED=$((TRACKER_FAILED + 1))
     else
       TRACKER_UPDATED=$((TRACKER_UPDATED + 1))
     fi
-  elif echo "$TRACKER_OUT" | grep -q "^TRACKER_ACTION_REQUIRED=set_status"; then
+  elif grep -q "^TRACKER_ACTION_REQUIRED=set_status" <<< "$TRACKER_OUT"; then
     # Linear provider: the mutation is deferred to the orchestrator via MCP.
     # Count as updated (the orchestrator must apply this signal after this script).
     TRACKER_UPDATED=$((TRACKER_UPDATED + 1))
-  elif echo "$TRACKER_OUT" | grep -q "current status '${RELEASED_LABEL}'"; then
+  elif grep -q "current status '${RELEASED_LABEL}'" <<< "$TRACKER_OUT"; then
     # Issue is already in the target Released status (set by GitHub project automation).
     # This is a no-op success — not a failure or a skip that warrants an error exit.
     cleanup_log "Issue #$issue is already in '$RELEASED_LABEL' status; counting as success."
     TRACKER_UPDATED=$((TRACKER_UPDATED + 1))
-  elif echo "$TRACKER_OUT" | grep -q "Warning:"; then
+  elif grep -q "Warning:" <<< "$TRACKER_OUT"; then
     TRACKER_SKIPPED=$((TRACKER_SKIPPED + 1))
   else
     # Unexpected output pattern — treat conservatively as a skip
