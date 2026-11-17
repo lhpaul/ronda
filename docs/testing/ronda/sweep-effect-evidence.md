@@ -120,7 +120,10 @@ each record's own `fixture` block match the content of the manifest and patch
 files at `5d4b413`. The extended fixture's `patchesSha256` differs from the
 previous set's because that commit rewrote the `external-output-parsing-lossy`
 seed's patch; its `manifestSha256` and the original-thirteen control's hashes
-are unchanged.
+are unchanged. Both manifests changed after this campaign (#124 added term
+groups to `sensitive-value-exposure`), so the recorded `manifestSha256` values
+no longer match the files at the current head; see
+[The 13 sweep-on `sensitive-value-exposure` misses, classified](#the-13-sweep-on-sensitive-value-exposure-misses-classified-124).
 
 ## Model identity and version attestation
 
@@ -195,6 +198,10 @@ Fixture version, read from each record's own `fixture` block:
 | --- | --- | --- | --- | --- | --- |
 | Extended / precision | `tests/fixtures/recall-benchmark/manifest.json` | `issue-15-recall-benchmark` | 18 | `8c8a8e3b5300d458239a5c02784b14dd58bfc513106095e8a534b9524a1ab325` | `5108572af57b51eda6d4c0ee44d923df894971415f2eaa8c24bc9f6c4c188a8d` |
 | Original-thirteen control | `tests/fixtures/recall-benchmark/original-thirteen/manifest.json` | `issue-15-recall-benchmark` | 13 | `1ff80de715d320db744f0b866b51df1c7501e952fce63dfa48ef60a1529eb497` | `e548bd03e17accf6f003d16c361c941fb26d57cddd23e2f8999443d98f0e1b61` |
+
+These are the hashes the campaign ran against. The `manifestSha256` values
+predate the #124 term-group change and no longer match the manifests at the
+current head.
 
 The original-thirteen control shares the extended fixture's `benchmarkId` (the
 snapshot is a byte-identical copy) and is nonetheless distinct evidence: it
@@ -422,8 +429,10 @@ Counts are out of the 5 runs of the leg, read from each record's
   sweep-on misses of it carry a same-file unmatched finding on
   `src/benchmark/auth.ts` (lines 2, 3, titled as a hardcoded, exposed, or
   sensitive value or credential), so they are consistent with the reviewer raising the
-  finding in wording the lexical matcher does not credit; that is not
-  adjudicated finding by finding. The harder credential seed
+  finding in wording the lexical matcher does not credit. They are classified
+  finding by finding, as far as the records allow, under
+  [The 13 sweep-on `sensitive-value-exposure` misses, classified](#the-13-sweep-on-sensitive-value-exposure-misses-classified-124):
+  3 are matcher artifacts and 10 cannot be decided from the records. The harder credential seed
   `credential-pattern-gap-camel` was found in 1 of 10 sweep-off and
   8 of 10 sweep-on 18-seed runs (extended 0/5 to 4/5, precision legs 1/5 to 4/5),
   `api-evidence-state-reconstruction` in 0 of 10 and
@@ -494,6 +503,85 @@ Counts are out of the 5 runs of the leg, read from each record's
   `external-output-parsing-lossy` patch is found in 3 of 20 runs of this set, against
   0 of 20 in the previous set's. This is recorded as it stands: these
   seeds reflect the reviewer on this model, not the fixture.
+
+### The 13 sweep-on `sensitive-value-exposure` misses, classified (#124)
+
+[#124](https://github.com/lhpaul/ronda/issues/124) asked whether the 13 sweep-on
+runs that missed `sensitive-value-exposure` missed the defect or only the
+matcher's wording. This is an offline reading of the committed records; no model
+pass was run for it.
+
+**What the records hold.** A campaign record keeps each unmatched finding's
+path, line, severity, and title, not its body, so a finding cannot be read in
+full from the records of this set. The matcher still fixes one fact about every
+body. A finding on the seed's file is credited when it is `blocking`, does not
+repeat the seed's forbidden value, and its title plus body contain every term of
+one of the seed's term groups. The parser replaces the seeded value with
+`[REDACTED]` before classification, so the forbidden-value rule did not reject
+these findings. All 13 are `blocking` and every title contains `sensitive`, or
+both `secret` and `exposed`, so the groups `["sensitive", "token"]` and
+`["secret", "token", "exposed"]` failed only on `token`: **none of the 13 titles
+or bodies contains `token`**, not even the identifiers `seededToken` or
+`recordToken`.
+
+**Classification.** A finding is a *matcher artifact* when its recorded text
+names the seed's defect, a sensitive value written to a log, on the seed's
+lines. It is a *real miss* when the recorded text shows it is about something
+else. It is *undecidable from the records* when the title fits either reading
+and the body that would settle it was not recorded.
+
+| Leg | Run position | Line | Title | Classification |
+| --- | --- | --- | --- | --- |
+| Extended | 0 | 3 | Exposed hardcoded secret | Undecidable from the records |
+| Extended | 1 | 3 | Hardcoded sensitive value exposed in console log | Matcher artifact |
+| Extended | 3 | 3 | Exposed hardcoded secret | Undecidable from the records |
+| Extended | 4 | 3 | Exposed hardcoded secret | Undecidable from the records |
+| Original-thirteen | 0 | 3 | Hardcoded secret exposed in source | Undecidable from the records |
+| Original-thirteen | 2 | 3 | Exposed hardcoded secret | Undecidable from the records |
+| Original-thirteen | 3 | 2 | Hardcoded sensitive value exposed in logging | Matcher artifact |
+| Original-thirteen | 4 | 3 | Hardcoded sensitive value | Undecidable from the records |
+| Precision legs | 0 | 3 | Hardcoded sensitive value | Undecidable from the records |
+| Precision legs | 1 | 2 | Hardcoded sensitive value exposed in logging | Matcher artifact |
+| Precision legs | 2 | 3 | Hardcoded sensitive value | Undecidable from the records |
+| Precision legs | 3 | 3 | Hardcoded sensitive value | Undecidable from the records |
+| Precision legs | 4 | 3 | Exposed sensitive credential value | Undecidable from the records |
+
+Counts: **3 matcher artifacts, 0 real misses, 10 undecidable from the
+records.** The 10 are titled as a hardcoded secret, credential, or sensitive
+value. A hardcoded credential in source is a related defect, but it is not the
+seeded one, which is a value written to a log instead of being redacted. Line 3
+is the logging line, so most of the 10 sit on the seed's line, but the title does
+not say whether the body is about the log or about the literal.
+
+**Decision on the match terms.** The seed gains six term groups in both the
+extended manifest and the original-thirteen manifest: `sensitive` or `secret`,
+each paired with `logg` (logged, logging, logger), `logs`, or `console`. The
+groups were derived from the seed's own description, a value "logged directly
+instead of being redacted". The rule is: a finding that says a sensitive or
+secret value reaches a log describes the seeded defect whether or not it uses
+the variable name `token`. The 3 matcher artifacts were then checked against
+that rule. The 10 undecidable findings played no part in choosing the terms,
+and the rule would be the same if every sweep-on run had credited the seed.
+It credits findings in either arm that name the logging exposure, and it leaves
+a finding that names only a hardcoded secret uncredited in either arm. The
+`blocking` requirement and the forbidden-value rule apply to the new groups as
+to the old ones. Matching is by substring, so the groups use logging stems
+rather than a bare `log`, which would also credit `login`, `logic`, or
+`catalog`. Tests pin both behaviours.
+
+**What this changes in the figures above: nothing yet.** Every count in this
+document was scored under the previous term groups, and the committed records
+name the previous manifests' hashes. Re-scoring titles alone under the new
+groups would credit the 3 matcher artifacts. That would take sweep-on to at
+least 5 of 15 (extended 2 of 5, control 2 of 5, precision legs 1 of 5) and leave
+sweep-off at 15 of 15. It is a lower bound, because a body that mentions logging
+could credit more of the 10. It is not substituted for the recorded figures.
+A like-for-like answer needs the campaign re-run under the new manifests, which
+needs live model passes. That re-run is left to a human, and
+[#124](https://github.com/lhpaul/ronda/issues/124) stays open for it. From
+#124 on, each unmatched finding in a benchmark record also keeps its body,
+redacted the same way as its title, so the next campaign's misses can be read
+finding by finding from its records.
 
 ## Precision evidence and the strict regression result (AC9)
 

@@ -30,6 +30,7 @@ import {
 } from "../../../src/config/load-config.js";
 import type { RondaConfig } from "../../../src/config/config.types.js";
 import type { ChangedFile } from "../../../src/domain/review-pass.types.js";
+import type { Severity } from "../../../src/domain/severity.js";
 import { ModelClientError, type ModelClient, type ModelRequest } from "../../../src/inference/model-client.js";
 
 function fixturePath(name: string): string {
@@ -140,6 +141,7 @@ test("unmatched findings are counted as false positives", async () => {
       line: 1,
       severity: "nit",
       title: "Rename parseRange",
+      body: "The function name is too short.",
     },
   ]);
 });
@@ -254,6 +256,7 @@ test("precision fixture reports clean and noisy outcomes", () => {
       line: 1,
       severity: "nit",
       title: "Rename harmless helper",
+      body: "The helper name could be shorter.",
     },
   ]);
 });
@@ -297,13 +300,101 @@ test("precision fixture summaries redact forbidden values from false positives",
         line: 3,
         severity: "blocking",
         title: "Remove sk_live_seeded_secret_value from logs",
-        body: "The body is not included in evidence.",
+        body: "The body repeats sk_live_seeded_secret_value and is redacted in evidence.",
       },
     ],
   });
 
   assert.equal(summary.falsePositives[0]?.title, "Remove [redacted] from logs");
+  assert.equal(
+    summary.falsePositives[0]?.body,
+    "The body repeats [redacted] and is redacted in evidence.",
+  );
 });
+
+test("#124: a pre-#124 record finding without a body still type-checks as a FindingSummary", () => {
+  const legacy: RecallBenchmarkSummary["falsePositives"][number] = {
+    path: "src/benchmark/auth.ts",
+    line: 3,
+    severity: "blocking",
+    title: "Hardcoded sensitive value",
+  };
+  assert.equal(legacy.body, undefined);
+});
+
+test("#124: unmatched recall findings keep their body, with forbidden values redacted", () => {
+  const summary = classifyFindings({
+    manifest,
+    findings: [
+      {
+        path: "src/benchmark/auth.ts",
+        line: 2,
+        severity: "blocking",
+        title: "Hardcoded credential in source",
+        body: "The literal sk_live_seeded_secret_value is committed to the repository.",
+      },
+    ],
+    model: "fixture",
+    reviewedTarget: "fixture-head",
+    timestamp: "2026-09-10T00:00:00.000Z",
+  });
+
+  assert.ok(summary.missedSeededDefects.includes("sensitive-value-exposure"));
+  assert.deepEqual(summary.falsePositives, [
+    {
+      path: "src/benchmark/auth.ts",
+      line: 2,
+      severity: "blocking",
+      title: "Hardcoded credential in source",
+      body: "The literal [redacted] is committed to the repository.",
+    },
+  ]);
+});
+
+for (const manifestPath of ["manifest.json", "original-thirteen/manifest.json"]) {
+  const seededManifest = readJson<RecallBenchmarkManifest>(manifestPath);
+  const classifySensitive = (title: string, body: string, severity: Severity = "blocking") =>
+    classifyFindings({
+      manifest: seededManifest,
+      findings: [{ path: "src/benchmark/auth.ts", line: 3, severity, title, body }],
+      model: "fixture",
+      reviewedTarget: "fixture-head",
+      timestamp: "2026-09-10T00:00:00.000Z",
+    });
+
+  test(`#124 (${manifestPath}): a sensitive or secret value exposed through logging credits the seed without naming the token`, () => {
+    for (const [title, body] of [
+      ["Hardcoded sensitive value exposed in logging", "The value is written to the console."],
+      ["Hardcoded sensitive value exposed in console log", "Redact it before writing."],
+      ["Secret written to logs", "The hardcoded value reaches the log output."],
+    ]) {
+      const summary = classifySensitive(title, body);
+      assert.ok(summary.foundSeededDefects.includes("sensitive-value-exposure"), title);
+      assert.equal(summary.falsePositives.length, 0, title);
+    }
+  });
+
+  test(`#124 (${manifestPath}): a hardcoded-secret finding that does not mention logging stays uncredited`, () => {
+    for (const [title, body] of [
+      ["Exposed hardcoded secret", "A credential is committed to source; move it to configuration."],
+      ["Hardcoded sensitive value", "Load the value from the environment instead."],
+      // `log` alone would match these; the groups use logging stems, not `log`.
+      ["Hardcoded secret in the login helper", "The login logic embeds a credential."],
+      ["Sensitive value in the catalog", "Move the catalog credential to configuration."],
+    ]) {
+      const summary = classifySensitive(title, body);
+      assert.ok(summary.missedSeededDefects.includes("sensitive-value-exposure"), title);
+      assert.equal(summary.falsePositives.length, 1, title);
+    }
+  });
+
+  test(`#124 (${manifestPath}): the new groups still require a blocking finding and still reject a repeated value`, () => {
+    const lowered = classifySensitive("Sensitive value logged", "Redact before logging.", "important");
+    assert.ok(lowered.missedSeededDefects.includes("sensitive-value-exposure"));
+    const repeated = classifySensitive("Sensitive value logged", "This logs sk_live_seeded_secret_value.");
+    assert.ok(repeated.missedSeededDefects.includes("sensitive-value-exposure"));
+  });
+}
 
 test("review comparison records clean agreement and false-clean candidates", () => {
   const cleanAgreement = readJson<ReviewComparisonRecord[]>(
@@ -1746,7 +1837,11 @@ test("committed benchmark fixtures carry no real credential values", () => {
   );
 });
 
-/** The artifacts the category-forced sweep committed for AC14's evidence scan. */
+/**
+ * The artifacts the category-forced sweep committed for AC14's evidence scan.
+ * Since #124 each record's unmatched findings carry a free-text body, so a
+ * re-recorded campaign file must be listed here or its bodies go unscanned.
+ */
 const SWEEP_EVIDENCE_ARTIFACTS: readonly string[] = [
   "sweep-categories.json",
   "sweep-effect-evidence.md",
