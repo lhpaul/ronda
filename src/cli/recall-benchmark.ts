@@ -92,12 +92,12 @@ export interface RecallBenchmarkSummary {
   totalSeededDefects: number;
   foundSeededDefects: string[];
   missedSeededDefects: string[];
-  falsePositives: Array<{
-    path: string;
-    line: number | null;
-    severity: Severity;
-    title: string;
-  }>;
+  /**
+   * Findings no seeded defect credited. Each keeps its body, redacted the same
+   * way as its title, so a miss can be read finding by finding from the
+   * committed record (#124) instead of only from its title.
+   */
+  falsePositives: FindingSummary[];
   model: string;
   reviewedTarget: string;
   timestamp: string;
@@ -346,11 +346,16 @@ export interface QualityBenchmarkSummary extends RecallBenchmarkSummary {
   };
 }
 
-interface FindingSummary {
+export interface FindingSummary {
   path: string;
   line: number | null;
   severity: Severity;
   title: string;
+  /**
+   * The finding's body with every forbidden value redacted. Optional because
+   * records written before #124 carry only the title.
+   */
+  body?: string;
 }
 
 export interface RunRecallBenchmarkInput {
@@ -795,6 +800,7 @@ function summarizeFinding(finding: Finding, forbidden: string[]): FindingSummary
     line: finding.line,
     severity: finding.severity,
     title: redactForbiddenValues(finding.title, forbidden),
+    body: redactForbiddenValues(finding.body, forbidden),
   };
 }
 

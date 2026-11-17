@@ -52,7 +52,9 @@
       "matchTermGroups": [
         ["token", "log", "sensitive"],
         ["secret", "token", "exposed"],
-        ["sensitive", "token"]
+        ["sensitive", "token"],
+        ["sensitive", "log"],
+        ["secret", "log"]
       ],
       "forbiddenValue": "sk_live_seeded_secret_value"
     },
