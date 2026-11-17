@@ -800,17 +800,24 @@ for stamp_case in STAMPED STAMP_SKIPPED; do
   run_contains "large_stamp_${stamp_case}_counter" "$expected_stamp" "$output"
 done
 
-# Large stamp output on the Linear path -> STAMPED=1.
-large_linear_stamp_file="$TMP_ROOT/large-linear-stamp.txt"
-{
-  printf 'RELEASE_STAMPED issue=200 version=v1.18.0 provider=linear\n'
-  large_buffer_filler
-} > "$large_linear_stamp_file"
-stub_repo_large_linear="$(fixture_repo_issue_loop stub-large-linear linear)"
-result="$(STUB_STAMP_OUT_FILE="$large_linear_stamp_file" \
-  run_cleanup_stub "$stub_repo_large_linear" v1.18.0 --issue 200 --best-effort)"
-output="$(printf '%s\n' "$result" | sed '1d')"
-run_contains "large_linear_stamp_counter" "STAMPED=1 STAMP_SKIPPED=0 STAMP_FAILED=0" "$output"
+# Large stamp outputs on the Linear path -> the matching counter.
+for stamp_case in STAMPED STAMP_SKIPPED; do
+  large_linear_stamp_file="$TMP_ROOT/large-linear-stamp-${stamp_case}.txt"
+  {
+    printf 'RELEASE_%s issue=200 version=v1.18.0 provider=linear\n' "$stamp_case"
+    large_buffer_filler
+  } > "$large_linear_stamp_file"
+  stub_repo_large_linear="$(fixture_repo_issue_loop "stub-large-linear-${stamp_case}" linear)"
+  result="$(STUB_STAMP_OUT_FILE="$large_linear_stamp_file" \
+    run_cleanup_stub "$stub_repo_large_linear" v1.18.0 --issue 200 --best-effort)"
+  output="$(printf '%s\n' "$result" | sed '1d')"
+  if [ "$stamp_case" = "STAMPED" ]; then
+    expected_stamp="STAMPED=1 STAMP_SKIPPED=0 STAMP_FAILED=0"
+  else
+    expected_stamp="STAMPED=0 STAMP_SKIPPED=1 STAMP_FAILED=0"
+  fi
+  run_contains "large_linear_stamp_${stamp_case}_counter" "$expected_stamp" "$output"
+done
 
 echo ""
 echo "=== Component cleanup --json (real end-to-end, not a fixture) ==="
