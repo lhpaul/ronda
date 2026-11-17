@@ -93,6 +93,29 @@ test("buildReviewSummary reports parsing notes when present", () => {
   assert.match(summary, /3 duplicate finding\(s\)/);
 });
 
+test("buildReviewSummary states refuted findings that were not re-posted, and only when there are some (#174)", () => {
+  const input = {
+    changedFileCount: 1,
+    additions: 1,
+    deletions: 0,
+    findings: [],
+    unmappedFindings: [],
+    modelName: "qwen-plus",
+    durationMs: 1000,
+    trigger: "automatic" as const,
+    malformedCount: 0,
+    coercedSeverityCount: 0,
+    duplicateCount: 0,
+  };
+  const withRefuted = buildReviewSummary({ ...input, refutedCount: 2 });
+  assert.match(withRefuted, /### Parsing notes/);
+  assert.match(withRefuted, /- 2 finding\(s\) a maintainer marked `\/ronda refuted` on unchanged code were not re-posted\./);
+  for (const summary of [buildReviewSummary(input), buildReviewSummary({ ...input, refutedCount: 0 })]) {
+    assert.doesNotMatch(summary, /Parsing notes/);
+    assert.doesNotMatch(summary, /ronda refuted/);
+  }
+});
+
 test("buildCheckRunOutput renders a succeeded outcome with the finding total", () => {
   const output = buildCheckRunOutput({
     outcome: "succeeded",

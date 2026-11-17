@@ -56,6 +56,15 @@ import {
   filterNamedCredentialFindings,
   type SuppressedFinding,
 } from "../review/refuted-findings.js";
+import {
+  citedCodeHash,
+  claimHash,
+  collectRefutations,
+  filterRefutedFindings,
+  renderFindingMarker,
+  stripFindingMarkers,
+  type Refutation,
+} from "../review/refutation-marker.js";
 import { RepositoryFileUnusableError } from "../github/repo-content-reader.js";
 import {
   applyRepositoryContextBudgets,
@@ -601,11 +610,32 @@ export async function runReviewPass(
     // published.
     const suppressed = filterNamedCredentialFindings(parsed.findings, changedFiles);
     parsed.findings = suppressed.kept;
-    if (suppressed.suppressed.length > 0) {
+    const allSuppressed: SuppressedFinding[] = [...suppressed.suppressed];
+    // #174: drop only a finding a maintainer explicitly refuted (`/ronda
+    // refuted`) on the same path, claim, and cited code. Fails open: no
+    // thread reader, a failed thread read, or an unreadable file keeps every
+    // finding. The same head-file cache feeds the inline-comment markers.
+    // Model output is untrusted: it must never carry a finding marker of its
+    // own, or a maintainer's refutation of the visible claim could be bound
+    // to a different claim it chose.
+    parsed.findings = parsed.findings.map((finding) => ({
+      ...finding,
+      title: stripFindingMarkers(finding.title),
+      body: stripFindingMarkers(finding.body),
+    }));
+    const codeHashFor = headCodeHasher(deps, input, pr.headSha, deadline.signal);
+    const refutations = await readRefutations(deps, input, pr.headSha, deadline.signal);
+    const refutation = await filterRefutedFindings(parsed.findings, refutations, codeHashFor);
+    parsed.findings = refutation.kept;
+    const refutedCount = refutation.refuted.length;
+    for (const finding of refutation.refuted) {
+      allSuppressed.push({ finding, reason: "refuted_by_maintainer" });
+    }
+    if (allSuppressed.length > 0) {
       deps.logger.event("findings_suppressed", {
         headSha: pr.headSha,
-        count: suppressed.suppressed.length,
-        byReason: countByReason(suppressed.suppressed),
+        count: allSuppressed.length,
+        byReason: countByReason(allSuppressed),
       });
     }
     if (sweepList) {
@@ -620,10 +650,19 @@ export async function runReviewPass(
     for (const finding of parsed.findings) {
       const commentableLines = commentableByFile.get(finding.path);
       if (finding.line !== null && commentableLines?.has(finding.line)) {
+        // #174: the hidden marker lets a later pass recognise a maintainer's
+        // refutation of this exact claim over this exact code. No marker when
+        // the cited code could not be read: such a comment can never be the
+        // basis of a suppression.
+        const code = await codeHashFor(finding.path, finding.line);
+        const body = renderFindingBody(finding);
         inlineComments.push({
           path: finding.path,
           line: finding.line,
-          body: renderFindingBody(finding),
+          body:
+            code === undefined
+              ? body
+              : `${body}\n\n${renderFindingMarker({ claim: claimHash(finding.title), code })}`,
         });
       } else {
         unmappedFindings.push(finding);
@@ -667,6 +706,7 @@ export async function runReviewPass(
       malformedCount: parsed.malformedCount,
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
+      refutedCount,
       durabilityMode,
       excludedFiles,
       // AC3: the body states only that the sweep ran and which list version it
@@ -690,6 +730,7 @@ export async function runReviewPass(
       malformedCount: parsed.malformedCount,
       coercedSeverityCount: parsed.coercedSeverityCount,
       duplicateCount: parsed.duplicateCount,
+      refutedCount,
       durabilityMode,
       excludedFiles,
       ...(sweepList ? { sweep: { listVersion: sweepList.version } } : {}),
@@ -916,6 +957,59 @@ function countByReason(dropped: SuppressedFinding[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const { reason } of dropped) counts[reason] = (counts[reason] ?? 0) + 1;
   return counts;
+}
+
+/**
+ * Reads the pull request's review threads and returns the maintainer
+ * refutations they carry (#174). Fails open: no reader or a failed read means
+ * no refutations. An abort is rethrown so the pass classifies it as a
+ * timeout, like every other GitHub-phase abort.
+ */
+async function readRefutations(
+  deps: ReviewPassDeps,
+  input: ReviewPassInput,
+  headSha: string,
+  signal: AbortSignal,
+): Promise<Refutation[]> {
+  const reader = deps.github.readReviewThreads;
+  if (reader === undefined) return [];
+  try {
+    const threads = await reader.call(deps.github, input.owner, input.repo, input.pullNumber, signal);
+    return collectRefutations(threads);
+  } catch (error) {
+    // A port that surfaces a raw abort (not wrapped as `GithubClientError`)
+    // must still end the pass as a timeout, never fail open past the deadline.
+    if (error instanceof GithubClientError || signal.aborted) throw error;
+    deps.logger.event("refutation_threads_unavailable", { headSha });
+    return [];
+  }
+}
+
+/**
+ * Per-pass, per-path cache of the cited-code hash source: the file at the
+ * reviewed head. A file that cannot be read (missing, unusable, or a failed
+ * request) yields no hash, which keeps the finding and omits its marker
+ * (#174, fail open). An abort is rethrown.
+ */
+function headCodeHasher(
+  deps: ReviewPassDeps,
+  input: ReviewPassInput,
+  headSha: string,
+  signal: AbortSignal,
+): (path: string, line: number) => Promise<string | undefined> {
+  const files = new Map<string, Promise<string | undefined>>();
+  return async (path, line) => {
+    let text = files.get(path);
+    if (text === undefined) {
+      text = deps.github.readFileAtRef(input.owner, input.repo, path, headSha, signal).catch((error: unknown) => {
+        if (error instanceof GithubClientError || signal.aborted) throw error;
+        return undefined;
+      });
+      files.set(path, text);
+    }
+    const content = await text;
+    return content === undefined ? undefined : citedCodeHash(content, line);
+  };
 }
 
 function renderFindingBody(finding: Finding): string {

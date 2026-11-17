@@ -112,6 +112,23 @@ export interface InlineComment {
   body: string;
 }
 
+/** One comment of a pull-request review thread, in thread order (#174). */
+export interface ReviewThreadComment {
+  body: string;
+  /** GitHub `CommentAuthorAssociation` (`OWNER`, `MEMBER`, `COLLABORATOR`, ...). */
+  authorAssociation: string;
+  /** True when the author is a GitHub bot account (GraphQL `Bot`). */
+  authorIsBot: boolean;
+}
+
+/** One pull-request review thread, read only for refutation dedupe (#174). */
+export interface ReviewThread {
+  isResolved: boolean;
+  /** Path the thread is attached to; empty when GitHub returns none. */
+  path: string;
+  comments: ReviewThreadComment[];
+}
+
 export interface PublishReviewInput {
   owner: string;
   repo: string;
@@ -180,6 +197,17 @@ export interface GithubOperations {
     headSha: string,
     signal?: AbortSignal,
   ): Promise<number | null>;
+  /**
+   * Reads the pull request's review threads for refutation dedupe (#174).
+   * Optional: a port without it performs no refutation dedupe, and a pass
+   * treats a failed read as "no refutations" (fail open).
+   */
+  readReviewThreads?(
+    owner: string,
+    repo: string,
+    pullNumber: number,
+    signal?: AbortSignal,
+  ): Promise<ReviewThread[]>;
   publishReview(input: PublishReviewInput, signal?: AbortSignal): Promise<void>;
   publishCheckRun(input: PublishCheckRunInput, signal?: AbortSignal): Promise<void>;
 }

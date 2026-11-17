@@ -17,6 +17,7 @@ import {
   readPullRequest,
 } from "../github/pull-request-reader.js";
 import { readRepositoryFileAtRef } from "../github/repo-content-reader.js";
+import { readReviewThreads } from "../github/review-thread-reader.js";
 import {
   DEFAULT_MAX_AUTHORITATIVE_DOC_CHARS,
   DEFAULT_MAX_AUTHORITATIVE_DOC_COUNT,
@@ -210,6 +211,14 @@ export async function runWebhookReviewJob(
         findExistingCheckRun(installationClient.octokit, o, r, sha, combinedSignal, options),
       );
     },
+    readReviewThreads: (o, r, n, requestSignal) =>
+      readReviewThreads(
+        installationClient.octokit,
+        o,
+        r,
+        n,
+        combineAbortSignals(requestSignal, signal),
+      ),
     publishReview: (reviewInput, requestSignal) =>
       publishReview(
         installationClient.octokit,
