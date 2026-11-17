@@ -53,8 +53,12 @@
         ["token", "log", "sensitive"],
         ["secret", "token", "exposed"],
         ["sensitive", "token"],
-        ["sensitive", "log"],
-        ["secret", "log"]
+        ["sensitive", "logg"],
+        ["sensitive", "logs"],
+        ["sensitive", "console"],
+        ["secret", "logg"],
+        ["secret", "logs"],
+        ["secret", "console"]
       ],
       "forbiddenValue": "sk_live_seeded_secret_value"
     },

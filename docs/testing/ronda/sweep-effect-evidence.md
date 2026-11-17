@@ -120,7 +120,10 @@ each record's own `fixture` block match the content of the manifest and patch
 files at `5d4b413`. The extended fixture's `patchesSha256` differs from the
 previous set's because that commit rewrote the `external-output-parsing-lossy`
 seed's patch; its `manifestSha256` and the original-thirteen control's hashes
-are unchanged.
+are unchanged. Both manifests changed after this campaign (#124 added term
+groups to `sensitive-value-exposure`), so the recorded `manifestSha256` values
+no longer match the files at the current head; see
+[The 13 sweep-on `sensitive-value-exposure` misses, classified](#the-13-sweep-on-sensitive-value-exposure-misses-classified-124).
 
 ## Model identity and version attestation
 
@@ -195,6 +198,10 @@ Fixture version, read from each record's own `fixture` block:
 | --- | --- | --- | --- | --- | --- |
 | Extended / precision | `tests/fixtures/recall-benchmark/manifest.json` | `issue-15-recall-benchmark` | 18 | `8c8a8e3b5300d458239a5c02784b14dd58bfc513106095e8a534b9524a1ab325` | `5108572af57b51eda6d4c0ee44d923df894971415f2eaa8c24bc9f6c4c188a8d` |
 | Original-thirteen control | `tests/fixtures/recall-benchmark/original-thirteen/manifest.json` | `issue-15-recall-benchmark` | 13 | `1ff80de715d320db744f0b866b51df1c7501e952fce63dfa48ef60a1529eb497` | `e548bd03e17accf6f003d16c361c941fb26d57cddd23e2f8999443d98f0e1b61` |
+
+These are the hashes the campaign ran against. The `manifestSha256` values
+predate the #124 term-group change and no longer match the manifests at the
+current head.
 
 The original-thirteen control shares the extended fixture's `benchmarkId` (the
 snapshot is a byte-identical copy) and is nonetheless distinct evidence: it
@@ -546,18 +553,21 @@ seeded one, which is a value written to a log instead of being redacted. Line 3
 is the logging line, so most of the 10 sit on the seed's line, but the title does
 not say whether the body is about the log or about the literal.
 
-**Decision on the match terms.** The seed gains two term groups,
-`["sensitive", "log"]` and `["secret", "log"]`, in both the extended manifest
-and the original-thirteen manifest. A finding that says a sensitive or secret
-value reaches a log describes the seeded defect whether or not it uses the
-variable name `token`. The change does not depend on which arm it helps. It
-credits findings in either arm that name the logging exposure, and leaves a
-finding that names only a hardcoded secret uncredited in either arm. The
+**Decision on the match terms.** The seed gains six term groups in both the
+extended manifest and the original-thirteen manifest: `sensitive` or `secret`,
+each paired with `logg` (logged, logging, logger), `logs`, or `console`. The
+groups were derived from the seed's own description, a value "logged directly
+instead of being redacted". The rule is: a finding that says a sensitive or
+secret value reaches a log describes the seeded defect whether or not it uses
+the variable name `token`. The 3 matcher artifacts were then checked against
+that rule. The 10 undecidable findings played no part in choosing the terms,
+and the rule would be the same if every sweep-on run had credited the seed.
+It credits findings in either arm that name the logging exposure, and it leaves
+a finding that names only a hardcoded secret uncredited in either arm. The
 `blocking` requirement and the forbidden-value rule apply to the new groups as
-to the old ones. Matching is by substring, so `log` also matches words such as
-`login`. That was already true of the existing group `["token", "log",
-"sensitive"]`, and here it is bounded by the seed's path and the `blocking`
-requirement.
+to the old ones. Matching is by substring, so the groups use logging stems
+rather than a bare `log`, which would also credit `login`, `logic`, or
+`catalog`. Tests pin both behaviours.
 
 **What this changes in the figures above: nothing yet.** Every count in this
 document was scored under the previous term groups, and the committed records

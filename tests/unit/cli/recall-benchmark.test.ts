@@ -312,6 +312,16 @@ test("precision fixture summaries redact forbidden values from false positives",
   );
 });
 
+test("#124: a pre-#124 record finding without a body still type-checks as a FindingSummary", () => {
+  const legacy: RecallBenchmarkSummary["falsePositives"][number] = {
+    path: "src/benchmark/auth.ts",
+    line: 3,
+    severity: "blocking",
+    title: "Hardcoded sensitive value",
+  };
+  assert.equal(legacy.body, undefined);
+});
+
 test("#124: unmatched recall findings keep their body, with forbidden values redacted", () => {
   const summary = classifyFindings({
     manifest,
@@ -368,6 +378,9 @@ for (const manifestPath of ["manifest.json", "original-thirteen/manifest.json"])
     for (const [title, body] of [
       ["Exposed hardcoded secret", "A credential is committed to source; move it to configuration."],
       ["Hardcoded sensitive value", "Load the value from the environment instead."],
+      // `log` alone would match these; the groups use logging stems, not `log`.
+      ["Hardcoded secret in the login helper", "The login logic embeds a credential."],
+      ["Sensitive value in the catalog", "Move the catalog credential to configuration."],
     ]) {
       const summary = classifySensitive(title, body);
       assert.ok(summary.missedSeededDefects.includes("sensitive-value-exposure"), title);
@@ -1824,7 +1837,11 @@ test("committed benchmark fixtures carry no real credential values", () => {
   );
 });
 
-/** The artifacts the category-forced sweep committed for AC14's evidence scan. */
+/**
+ * The artifacts the category-forced sweep committed for AC14's evidence scan.
+ * Since #124 each record's unmatched findings carry a free-text body, so a
+ * re-recorded campaign file must be listed here or its bodies go unscanned.
+ */
 const SWEEP_EVIDENCE_ARTIFACTS: readonly string[] = [
   "sweep-categories.json",
   "sweep-effect-evidence.md",
