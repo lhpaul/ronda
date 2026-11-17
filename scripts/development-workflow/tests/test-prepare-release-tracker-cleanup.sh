@@ -779,8 +779,8 @@ output="$(printf '%s\n' "$result" | sed '1d')"
 run_test "large_tracker_already_released_exits_zero" "0" "$status"
 run_contains "large_tracker_already_released_counter" "UPDATED=1 SKIPPED=0 FAILED=0" "$output"
 
-# Large stamp outputs on the GitHub path -> the matching STAMPED / STAMP_FAILED
-# counter (a SIGPIPE false negative would count STAMPED as STAMP_FAILED).
+# Large stamp outputs on the GitHub path -> the matching STAMPED / STAMP_SKIPPED
+# counter (a SIGPIPE false negative would count either as STAMP_FAILED).
 for stamp_case in STAMPED STAMP_SKIPPED; do
   large_stamp_file="$TMP_ROOT/large-stamp-${stamp_case}.txt"
   {
