@@ -108,7 +108,24 @@ Closes #125'
 expect true 125 '    ```
 Closes #125'
 
+# Fences behind container prefixes (blockquote, list item) are code too.
+expect false 125 '> ```
+> Closes #125
+> ```'
+expect false 125 '- ```
+  Closes #125
+  ```'
+expect false 125 '1. ~~~
+   Closes #125
+   ~~~'
+
 # --- Prose after properly closed code still counts --------------------------
+expect true 125 '- Closes #125'
+expect true 125 '> Closes #125'
+# CRLF bodies (GitHub web editor) behave like LF bodies.
+expect true 125 "$(printf 'Uses a ` stray backtick.\r\n\r\nCloses #125\r\n\r\nAnother ` here.\r\n')"
+expect false 125 "$(printf '```\r\nCloses #125\r\n```\r\n')"
+expect true 125 "$(printf '```\r\ncode\r\n```\r\nCloses #125\r\n')"
 expect true 125 '````
 ```
 not a closer

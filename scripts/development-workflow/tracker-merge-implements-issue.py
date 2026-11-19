@@ -64,6 +64,10 @@ CLOSING_RE = re.compile(
 # different run inside the block is content, so ```` ... ``` ... ```` stays
 # one block. An unterminated fence runs to the end of the body.
 FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
+# Container prefixes a fence may sit behind: blockquote markers and list item
+# markers. They are peeled before fence detection so a fence quoted in a
+# blockquote or nested in a list is stripped too (ambiguous text never counts).
+CONTAINER_PREFIX_RE = re.compile(r"^(?:[ \t]*>[ \t]?|[ \t]*(?:[-*+]|[0-9]{1,9}[.)])[ \t]+)+")
 HTML_COMMENT_RE = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 # An inline code span never crosses a paragraph break (a blank line), so a
 # stray backtick cannot pair with one paragraphs away and hide real prose.
@@ -74,7 +78,8 @@ def strip_fences(text: str) -> str:
     kept: list[str] = []
     fence_char = ""
     fence_len = 0
-    for line in text.split("\n"):
+    for raw_line in text.split("\n"):
+        line = CONTAINER_PREFIX_RE.sub("", raw_line)
         if fence_char:
             stripped = line.strip()
             if (
@@ -93,13 +98,16 @@ def strip_fences(text: str) -> str:
             fence_len = len(opened.group("run"))
             kept.append("")
             continue
-        kept.append(line)
+        kept.append(raw_line)
     return "\n".join(kept)
 
 
 def strip_non_prose(body: str) -> str:
     """Remove HTML comments, fenced code and inline code spans."""
-    text = HTML_COMMENT_RE.sub(" ", body)
+    # Bodies edited in the GitHub web UI often use CRLF; normalize so the
+    # blank-line and fence rules see the same text either way.
+    text = body.replace("\r\n", "\n").replace("\r", "\n")
+    text = HTML_COMMENT_RE.sub(" ", text)
     text = strip_fences(text)
     text = INLINE_CODE_RE.sub(" ", text)
     return text
