@@ -67,10 +67,14 @@ FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
 # Container prefixes a fence may sit behind: blockquote markers and list item
 # markers. They are peeled before fence detection so a fence quoted in a
 # blockquote or nested in a list is stripped too (ambiguous text never counts).
-# Indented code: a line starting with four spaces or a tab, at top level or
-# behind blockquote markers. Stripped unconditionally -- this also drops an
-# indented paragraph continuation, which only ever fails closed.
-INDENTED_CODE_RE = re.compile(r"^(?:[ \t]*>[ \t]?)*(?: {4}|\t)")
+# Indented code: four spaces or a tab beyond the content start, at top level
+# or behind blockquote markers and list-item markers (a marker takes exactly
+# one separating space, so "-     Closes #N" is code inside a list item).
+# Stripped unconditionally -- this also drops an indented paragraph
+# continuation, which only ever fails closed.
+INDENTED_CODE_RE = re.compile(
+    r"^(?:[ \t]*>[ \t]?|[ \t]*(?:[-*+]|[0-9]{1,9}[.)])[ \t])*(?: {4}|\t)"
+)
 CONTAINER_PREFIX_RE = re.compile(r"^(?:[ \t]*>[ \t]?|[ \t]*(?:[-*+]|[0-9]{1,9}[.)])[ \t]+)+")
 HTML_COMMENT_RE = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 # An inline code span never crosses a paragraph break (a blank line), so a
