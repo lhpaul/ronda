@@ -108,6 +108,16 @@ Closes #125'
 expect true 125 '    ```
 Closes #125'
 
+# Indented code blocks (four spaces or a tab) are code, also inside a quote.
+expect false 125 'Example of the convention:
+
+    Closes #125
+
+Evidence only.'
+expect false 125 "$(printf 'Example:\n\n\tCloses #125\n')"
+expect false 125 '>     Closes #125'
+expect true 125 '   Closes #125'
+
 # Fences behind container prefixes (blockquote, list item) are code too.
 expect false 125 '> ```
 > Closes #125

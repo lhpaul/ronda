@@ -15,7 +15,7 @@ else -- no keyword, a keyword for another issue, a reference to another
 repository, or a keyword only inside code or an HTML comment -- is treated as
 ambiguous, and the caller leaves the item alone.
 
-Code spans, fenced code blocks and HTML comments are stripped before
+Code spans, fenced and indented code blocks and HTML comments are stripped before
 matching, so a description that quotes the convention (or a pull request
 template's commented-out example) does not count as a declaration. That only
 narrows what THIS workflow acts on; GitHub's own closing-keyword handling is
@@ -67,6 +67,10 @@ FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
 # Container prefixes a fence may sit behind: blockquote markers and list item
 # markers. They are peeled before fence detection so a fence quoted in a
 # blockquote or nested in a list is stripped too (ambiguous text never counts).
+# Indented code: a line starting with four spaces or a tab, at top level or
+# behind blockquote markers. Stripped unconditionally -- this also drops an
+# indented paragraph continuation, which only ever fails closed.
+INDENTED_CODE_RE = re.compile(r"^(?:[ \t]*>[ \t]?)*(?: {4}|\t)")
 CONTAINER_PREFIX_RE = re.compile(r"^(?:[ \t]*>[ \t]?|[ \t]*(?:[-*+]|[0-9]{1,9}[.)])[ \t]+)+")
 HTML_COMMENT_RE = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 # An inline code span never crosses a paragraph break (a blank line), so a
@@ -92,6 +96,9 @@ def strip_fences(text: str) -> str:
             kept.append("")
             continue
         opened = FENCE_OPEN_RE.match(line)
+        if not opened and INDENTED_CODE_RE.match(raw_line):
+            kept.append("")
+            continue
         # A backtick fence's info string may not contain a backtick.
         if opened and not (opened.group("run")[0] == "`" and "`" in opened.group("info")):
             fence_char = opened.group("run")[0]
@@ -103,7 +110,7 @@ def strip_fences(text: str) -> str:
 
 
 def strip_non_prose(body: str) -> str:
-    """Remove HTML comments, fenced code and inline code spans."""
+    """Remove HTML comments, fenced and indented code, and inline code spans."""
     # Bodies edited in the GitHub web UI often use CRLF; normalize so the
     # blank-line and fence rules see the same text either way.
     text = body.replace("\r\n", "\n").replace("\r", "\n")
