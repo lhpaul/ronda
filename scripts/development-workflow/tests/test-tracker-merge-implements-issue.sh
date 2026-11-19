@@ -186,10 +186,11 @@ awk '
 ' "$WORKFLOW" > "$step_script"
 [ -s "$step_script" ] || fail "could not extract the implements-check step script from the workflow"
 
-# The detect step must classify a feature/<N>-* branch as impl for issue N, so
-# the implements-check is what decides — not the branch prefix.
-# shellcheck disable=SC2016 # literal workflow text
-grep -Fq '"$BRANCH" == feature/*' "$WORKFLOW" || fail "workflow detect step no longer treats feature/* as impl"
+# The detect step must still classify a feature/<N>-* branch as impl (Merged),
+# so the implements-check is what decides — not the branch prefix. The
+# canonical mapping check owns that assertion; reuse it instead of re-parsing.
+WORKFLOW_FILE_OVERRIDE="$WORKFLOW" bash "$ROOT_DIR/scripts/development-workflow/check-tracker-merge-mapping.sh" > /dev/null \
+  || fail "check-tracker-merge-mapping.sh must pass on the real workflow (feature/* → impl/Merged, #125 gates)"
 
 # dry_run <description> -> prints the step's implements output
 dry_run() {
