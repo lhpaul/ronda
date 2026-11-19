@@ -70,6 +70,41 @@ github_hyphen_missing_output="$(run_with_workflow "$TMP_DIR/missing-update-track
 grep -q "GitHub-based tracker provider 'github_projects' requires update-tracker-on-merge.yml" <<< "$github_hyphen_missing_output" \
   || fail "hyphenated GitHub workflow output should identify the normalized provider"
 
+# Issue #125 implements-check wiring, appended to every fixture that should
+# otherwise pass (steps are the last list in each fixture's job).
+write_implements_steps() {
+  # $1 = destination (appended), $2 = "gated" | "close-ungated" |
+  #   "status-ungated" | "no-check" | "no-id" | "no-script" | "no-body"
+  local dest="$1" variant="${2:-gated}"
+  local check_id="        id: implements"
+  local check_env="          PR_BODY: \${{ github.event.pull_request.body }}"
+  local check_run="        run: python3 scripts/development-workflow/tracker-merge-implements-issue.py --issue 1 --repo o/r"
+  [ "$variant" = "no-id" ] && check_id="        id: decide"
+  [ "$variant" = "no-body" ] && check_env="          PR_BODY: \${{ github.event.pull_request.title }}"
+  [ "$variant" = "no-script" ] && check_run="        run: echo implements=true >> \"\$GITHUB_OUTPUT\""
+  local close_if="        if: steps.implements.outputs.implements == 'true'"
+  local status_if="$close_if"
+  [ "$variant" = "close-ungated" ] && close_if="        if: steps.detect.outputs.branch_type == 'impl'"
+  [ "$variant" = "status-ungated" ] && status_if="        if: steps.detect.outputs.branch_type != 'graduation'"
+  if [ "$variant" != "no-check" ]; then
+    cat >> "$dest" <<YAML
+      - name: Check the PR declares it implements the issue
+${check_id}
+        env:
+${check_env}
+${check_run}
+YAML
+  fi
+  cat >> "$dest" <<YAML
+      - name: Close issue for impl branches
+${close_if}
+        run: gh issue close 1
+      - name: Update GitHub Projects status after close
+${status_if}
+        run: echo update
+YAML
+}
+
 valid_workflow="$TMP_DIR/update-tracker-on-merge.yml"
 touch "$valid_workflow"
 cat > "$valid_workflow" <<'YAML'
@@ -104,6 +139,7 @@ jobs:
       - name: Run graduation closeout fallback
         run: ./scripts/development-workflow/graduation-closeout-from-merged-pr.sh --graduation-pr 1
 YAML
+write_implements_steps "$valid_workflow"
 
 valid_output="$(run_with_workflow "$valid_workflow")" \
   || fail "valid workflow mappings should pass"
@@ -113,6 +149,37 @@ grep -q "OK: branch 'develop-\*' → graduation closeout fallback" <<< "$valid_o
   || fail "valid workflow output should acknowledge graduation closeout fallback"
 grep -q 'OK: actions/checkout present with contents: read' <<< "$valid_output" \
   || fail "valid workflow output should confirm contents: read for checkout"
+grep -q "OK: step 'Close issue for impl branches' is gated on the #125 implements-check" <<< "$valid_output" \
+  || fail "valid workflow output should confirm the close step is gated (#125)"
+for ok_line in "OK: implements-check step has id: implements" \
+  "OK: implements-check step runs tracker-merge-implements-issue.py" \
+  "OK: implements-check step reads github.event.pull_request.body" \
+  "OK: step 'Update GitHub Projects status after close' is gated on the #125 implements-check"; do
+  grep -qF "$ok_line" <<< "$valid_output" || fail "valid workflow output should include: ${ok_line}"
+done
+
+# Issue #125 planted violations: each must fail and name what is missing.
+for variant in close-ungated status-ungated no-check no-id no-script no-body; do
+  planted="$TMP_DIR/update-tracker-125-${variant}.yml"
+  sed '/- name: Check the PR declares it implements the issue/,$d' "$valid_workflow" > "$planted"
+  write_implements_steps "$planted" "$variant"
+  planted_exit=0
+  planted_output="$(run_with_workflow "$planted" 2>&1)" || planted_exit=$?
+  [ "$planted_exit" -eq 1 ] || fail "#125 variant '${variant}' should fail the mapping check"
+  case "$variant" in
+    close-ungated) expected="step 'Close issue for impl branches' is not gated" ;;
+    status-ungated) expected="step 'Update GitHub Projects status after close' is not gated" ;;
+    no-check) expected="missing 'Check the PR declares it implements the issue' step" ;;
+    no-id) expected="implements-check step lacks 'id: implements'" ;;
+    no-script) expected="implements-check step does not run tracker-merge-implements-issue.py" ;;
+    no-body) expected="implements-check step does not read github.event.pull_request.body" ;;
+  esac
+  grep -qF "$expected" <<< "$planted_output" \
+    || fail "#125 variant '${variant}' should report: ${expected}"
+  planted_125_errors="$(grep -c '^ERROR: .*(#125)' <<< "$planted_output" || true)"
+  [ "$planted_125_errors" -eq 1 ] \
+    || fail "#125 variant '${variant}' should report exactly one #125 error, got ${planted_125_errors}"
+done
 
 missing_contents_workflow="$TMP_DIR/update-tracker-missing-contents.yml"
 cat > "$missing_contents_workflow" <<'YAML'
@@ -253,6 +320,7 @@ ${gate_if}
 ${token_env}
         run: ./scripts/development-workflow/graduation-closeout-from-merged-pr.sh --graduation-pr 1
 YAML
+  write_implements_steps "$dest"
 }
 
 # Direction 1 — gate present: the check passes.
