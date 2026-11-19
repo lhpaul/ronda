@@ -3,9 +3,21 @@
 # Branch-to-status mapping:
 #   spec/*                                  → Spec Ready
 #   implementation-plan/*                   → Plan Ready
-#   feature/*, fix/*, refactor/*, hotfix/*  → Merged (and close the issue)
+#   feature/*, fix/*, refactor/*, hotfix/*  → Merged (and close the issue),
+#                                             ONLY when the PR implements it
 #   develop-<slug> (graduation)             → graduation closeout fallback
 #     (invokes graduation-closeout-from-merged-pr.sh → graduation-closeout.sh)
+#
+# Implementation-branch opt-in (issue #125): a feature/fix/refactor/hotfix PR
+# closes its item and sets Merged only when its description carries a closing
+# keyword (Closes/Fixes/Resolves, as Protocol 03 requires) for the SAME issue
+# number the branch names. Evidence-only and follow-up PRs that reuse the
+# branch prefix without that line leave the item open and its Status unchanged;
+# the skip is logged in the job summary. The decision is made by
+# scripts/development-workflow/tracker-merge-implements-issue.py (offline,
+# tested by tests/test-tracker-merge-implements-issue.sh). Closing keywords in
+# a PR description ALSO close issues through GitHub's own linking,
+# independently of this workflow — see tracker-status-mapping.md.
 #
 # The issue number is extracted from the branch name prefix, e.g.:
 #   fix/463-some-slug         → issue 463
@@ -45,7 +57,8 @@ concurrency:
   cancel-in-progress: false
 
 # Least-privilege permissions: only what this workflow needs.
-# - contents: read       — checkout repo for graduation closeout fallback scripts
+# - contents: read       — checkout repo for the #125 implements-check and
+#                          graduation closeout fallback scripts
 # - pull-requests: read  — read PR metadata (head.ref, merged flag)
 # - issues: write        — close the GitHub issue for impl branches
 # Note: Projects v2 mutations require GH_PROJECT_TOKEN (PAT) — not GITHUB_TOKEN.
@@ -182,10 +195,61 @@ jobs:
             echo "Setup instructions: \`docs/workflow/development-workflow/integrations/github-projects.md\`."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Close issue for impl branches
+      - name: Checkout repository for workflow scripts
+        if: >
+          steps.detect.outputs.skip == 'false' &&
+          (steps.detect.outputs.branch_type == 'impl' ||
+           (steps.config.outputs.configured == 'true' &&
+            steps.detect.outputs.branch_type == 'graduation'))
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+
+      # Issue #125: only the implementing PR may close the item or set Merged.
+      # The PR description is passed through env and written to a file — it is
+      # data, never interpolated into the script.
+      - name: Check the PR declares it implements the issue
+        id: implements
         if: >
           steps.detect.outputs.skip == 'false' &&
           steps.detect.outputs.branch_type == 'impl'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          ISSUE_NUMBER: ${{ steps.detect.outputs.issue_number }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          body_file="$(mktemp)"
+          printf '%s' "${PR_BODY:-}" > "$body_file"
+          decision="$(python3 scripts/development-workflow/tracker-merge-implements-issue.py \
+            --issue "$ISSUE_NUMBER" --repo "$GH_REPO" --body-file "$body_file")"
+          echo "$decision"
+
+          implements="$(printf '%s\n' "$decision" | sed -n 's/^IMPLEMENTS=//p')"
+          reason="$(printf '%s\n' "$decision" | sed -n 's/^REASON=//p')"
+          if [ "$implements" = "true" ]; then
+            echo "implements=true" >> "$GITHUB_OUTPUT"
+            echo "PR declares it implements #${ISSUE_NUMBER} — closing and setting Merged."
+            exit 0
+          fi
+
+          echo "implements=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::PR description has no closing keyword for #${ISSUE_NUMBER} (${reason}) — leaving the item open and its Status unchanged."
+          {
+            echo "## Tracker update skipped"
+            echo ""
+            echo "This pull request's description does not declare a closing keyword"
+            echo "(\`Closes\`/\`Fixes\`/\`Resolves #${ISSUE_NUMBER}\`) for the issue its"
+            echo "branch names, so it is treated as evidence-only or follow-up work:"
+            echo "issue #${ISSUE_NUMBER} was **not** closed and its Status was **not** changed."
+            echo ""
+            echo "Reason: \`${reason}\`. See \`docs/workflow/development-workflow/tracker-status-mapping.md\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Close issue for impl branches
+        if: >
+          steps.detect.outputs.skip == 'false' &&
+          steps.detect.outputs.branch_type == 'impl' &&
+          steps.implements.outputs.implements == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.detect.outputs.issue_number }}
@@ -202,13 +266,6 @@ jobs:
           echo "Closing issue #${ISSUE_NUMBER} (implementation PR merged)..."
           gh issue close "$ISSUE_NUMBER" --repo "$GH_REPO" \
             --comment "Closed automatically: implementation PR merged to develop."
-
-      - name: Checkout repository for graduation closeout
-        if: >
-          steps.detect.outputs.skip == 'false' &&
-          steps.config.outputs.configured == 'true' &&
-          steps.detect.outputs.branch_type == 'graduation'
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
 
       - name: Run graduation closeout fallback
         if: >
@@ -270,7 +327,9 @@ jobs:
         if: >
           steps.detect.outputs.skip == 'false' &&
           steps.config.outputs.configured == 'true' &&
-          steps.detect.outputs.branch_type != 'graduation'
+          steps.detect.outputs.branch_type != 'graduation' &&
+          (steps.detect.outputs.branch_type != 'impl' ||
+           steps.implements.outputs.implements == 'true')
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7
         env:
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
@@ -423,10 +482,13 @@ jobs:
           echo "  spec/*                                  → Spec Ready"
           echo "  implementation-plan/*                   → Plan Ready"
           echo "  feature/*, fix/*, refactor/*, hotfix/*  → Merged (and close the issue)"
+          echo "    only when the PR description has a closing keyword for that issue (#125)"
           echo "  develop-<slug> (graduation)             → graduation closeout fallback"
           echo "========================================================"
           if [ "${{ steps.detect.outputs.skip }}" = "true" ]; then
             echo "This run: SKIP (untracked or invalid branch)"
+          elif [ "${{ steps.detect.outputs.branch_type }}" = "impl" ] && [ "${{ steps.implements.outputs.implements }}" != "true" ]; then
+            echo "This run: SKIP (no closing keyword for the branch's issue — evidence-only or follow-up PR; item left alone)"
           elif [ "${{ steps.config.outputs.configured }}" != "true" ]; then
             echo "This run: SKIP (GitHub Projects tracker not configured for this repository)"
           elif [ "${{ steps.detect.outputs.branch_type }}" = "graduation" ]; then

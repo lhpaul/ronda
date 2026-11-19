@@ -67,7 +67,15 @@ What each event means:
   (Protocol 91 Step 8a). This is the Step 8b transition, and it is the only
   readiness label that changes Status.
 - **`merged`**: the stage PR is merged, confirmed against live PR state (Protocol
-  91 Step 10, `post-merge-cleanup.sh`, and `update-tracker-on-merge.yml`).
+  91 Step 10, `post-merge-cleanup.sh`, and `update-tracker-on-merge.yml`). For
+  an implementation branch, `update-tracker-on-merge.yml` closes the item and
+  sets `Merged` only when the PR description has a closing keyword (`Closes`,
+  `Fixes`, or `Resolves`) for the same issue number. An evidence-only or
+  follow-up PR without that line leaves the item open and its Status unchanged
+  (issue #125). Closing keywords in a PR description also close issues through
+  GitHub's own linking, separately from this workflow. Use `Refs #N` in PRs
+  that do not implement the item. See
+  [`integrations/github-projects.md`](integrations/github-projects.md#only-the-implementing-pull-request-closes-the-item).
 - **`released`**: the merged implementation ships in a release (Protocol 05
   release cleanup).
 - **Labels marked "no change"**: these leave Status unchanged. A PR labeled

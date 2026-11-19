@@ -174,6 +174,47 @@ else
   echo "OK: workflow does not reference secrets.GH_PROJECT_TOKEN — configuration gate not applicable"
 fi
 
+# ---------------------------------------------------------------------------
+# Implementation-branch opt-in (issue #125)
+#
+# An impl-branch merge may close the item and set Merged only when the PR
+# description declares a closing keyword for that issue. The decision step
+# must exist and run the offline decider, and both the close step and the
+# Projects status step must be gated on its output. Fail closed: a missing
+# gate on either step is an error, never a silent pass.
+# ---------------------------------------------------------------------------
+step_block() {
+  local name="$1"
+  awk -v name="$name" '
+    /^[[:space:]]*-[[:space:]]*name:[[:space:]]/ {
+      if (in_step) exit
+      line = $0
+      sub(/^[[:space:]]*-[[:space:]]*name:[[:space:]]*/, "", line)
+      if (line == name) { in_step = 1 }
+    }
+    in_step { print }
+  ' "$WORKFLOW_FILE"
+}
+
+implements_block="$(step_block "Check the PR declares it implements the issue")"
+if grep -Eq '^[[:space:]]*id:[[:space:]]*implements[[:space:]]*$' <<< "$implements_block" \
+  && grep -Fq 'tracker-merge-implements-issue.py' <<< "$implements_block" \
+  && grep -Fq 'github.event.pull_request.body' <<< "$implements_block"; then
+  echo "OK: impl-branch implements-check step runs tracker-merge-implements-issue.py on the PR body"
+else
+  echo "ERROR: missing 'Check the PR declares it implements the issue' step (id: implements) running tracker-merge-implements-issue.py on github.event.pull_request.body (#125)"
+  ERRORS=$((ERRORS + 1))
+fi
+
+for gated_step in "Close issue for impl branches" "Update GitHub Projects status after close"; do
+  if grep -Fq "steps.implements.outputs.implements == 'true'" <<< "$(step_block "$gated_step")"; then
+    echo "OK: step '${gated_step}' is gated on the #125 implements-check"
+  else
+    echo "ERROR: step '${gated_step}' is not gated on steps.implements.outputs.implements == 'true' (#125)"
+    ERRORS=$((ERRORS + 1))
+  fi
+done
+
 # Checkout for graduation closeout requires contents: read when permissions: is explicit.
 if grep -Eq 'uses:[[:space:]]*actions/checkout@' "$WORKFLOW_FILE"; then
   if grep -Eq '^[[:space:]]*contents:[[:space:]]*read[[:space:]]*$' "$WORKFLOW_FILE"; then

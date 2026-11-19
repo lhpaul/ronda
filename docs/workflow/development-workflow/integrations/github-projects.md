@@ -498,6 +498,40 @@ repositories without implying equivalent behavior for every tracker provider.
 | `hotfix/*`              | Merged             | Yes           |
 | `develop-<slug>`        | Graduation closeout fallback (same reconciler as Protocol 05b Step 5) | Via closeout helper |
 
+`feature/*`, `fix/*`, `refactor/*`, and `hotfix/*` rows apply **only to the
+pull request that implements the item**. See the next section.
+
+### Only the implementing pull request closes the item
+
+The workflow closes an item and sets it to `Merged` only when the merged pull
+request's description has a closing keyword for the **same** issue number that
+the branch names. Closing keywords are `Closes`, `Fixes`, and `Resolves`, plus
+their other tenses. Protocol 03 already requires this line, for example
+`Closes #125`. The workflow accepts `#N`, `owner/repo#N` for this repository,
+and the issue URL.
+
+When the line is missing, the workflow leaves the item open and does not
+change its Status. It logs the skip in the job summary. This covers
+evidence-only and follow-up pull requests that reuse a `feature/<N>-*` branch
+prefix, a keyword for a different issue, and a keyword that appears only in a
+code span, a fenced code block, or an HTML comment. When the workflow cannot
+tell, it leaves the item alone. The workflow script
+`scripts/development-workflow/tracker-merge-implements-issue.py` makes this
+decision, and `tests/test-tracker-merge-implements-issue.sh` tests it (issue
+#125).
+
+> **Warning:** closing keywords close issues on their own. GitHub closes any
+> issue that a merged pull request's description links with a closing
+> keyword, even when the keyword is part of a sentence that explains the
+> workflow. This happens separately from `update-tracker-on-merge.yml`. In an
+> evidence-only or follow-up pull request, refer to the item with `Refs #N` or
+> `Part of #N`, and never put a closing keyword before its number. The
+> workflow ignores a keyword inside code or an HTML comment, but GitHub's own
+> linking may still act on it, so leave it out entirely.
+>
+> `post-merge-cleanup.sh` is a separate closeout path and has its own rules
+> for closing issues. This rule does not change them.
+
 Non-graduation mappings above are unchanged. Graduation heads no longer silently
 skip: the workflow runs
 `scripts/development-workflow/graduation-closeout-from-merged-pr.sh`, which
