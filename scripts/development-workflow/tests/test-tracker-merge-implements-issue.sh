@@ -87,6 +87,45 @@ Evidence only.'
 expect false 125 '~~~text
 Closes #125
 ~~~'
+# A shorter run inside a longer fence is content, not a closer.
+expect false 125 '````markdown
+```
+Closes #125
+```
+````
+Evidence only.'
+# A different fence character inside the fence is content too.
+expect false 125 '~~~
+```
+Closes #125
+~~~'
+# A closer with an info string is not a closer; the fence runs to the end.
+expect false 125 '```
+x
+```js
+Closes #125'
+# An indented-by-four line is not a fence opener (still prose here).
+expect true 125 '    ```
+Closes #125'
+
+# --- Prose after properly closed code still counts --------------------------
+expect true 125 '````
+```
+not a closer
+```
+````
+Closes #125'
+expect true 125 '```
+code
+`````
+Closes #125'
+# A stray backtick cannot pair with one paragraphs away and hide the line.
+# shellcheck disable=SC2016 # literal backticks are the fixture
+expect true 125 'Uses a ` stray backtick.
+
+Closes #125
+
+Another ` here.'
 
 # --- Usage errors ------------------------------------------------------------
 usage_exit=0

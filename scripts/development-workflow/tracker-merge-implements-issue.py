@@ -58,17 +58,49 @@ CLOSING_RE = re.compile(
     re.IGNORECASE,
 )
 
-FENCE_RE = re.compile(r"^[ \t]*(```|~~~).*?^[ \t]*\1[^\n]*$", re.MULTILINE | re.DOTALL)
-UNTERMINATED_FENCE_RE = re.compile(r"^[ \t]*(```|~~~).*\Z", re.MULTILINE | re.DOTALL)
+# CommonMark fences: an opening run of >= 3 backticks or tildes (up to three
+# spaces of indent); the block closes only on a line holding a run of the SAME
+# character at least as long as the opener and nothing else. A shorter or
+# different run inside the block is content, so ```` ... ``` ... ```` stays
+# one block. An unterminated fence runs to the end of the body.
+FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
 HTML_COMMENT_RE = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
-INLINE_CODE_RE = re.compile(r"(`+)(?:(?!\1).)+?\1", re.DOTALL)
+# An inline code span never crosses a paragraph break (a blank line), so a
+# stray backtick cannot pair with one paragraphs away and hide real prose.
+INLINE_CODE_RE = re.compile(r"(`+)(?:(?!\1)(?!\n[ \t]*\n).)+?\1", re.DOTALL)
+
+
+def strip_fences(text: str) -> str:
+    kept: list[str] = []
+    fence_char = ""
+    fence_len = 0
+    for line in text.split("\n"):
+        if fence_char:
+            stripped = line.strip()
+            if (
+                len(line) - len(line.lstrip(" ")) <= 3
+                and stripped
+                and set(stripped) == {fence_char}
+                and len(stripped) >= fence_len
+            ):
+                fence_char, fence_len = "", 0
+            kept.append("")
+            continue
+        opened = FENCE_OPEN_RE.match(line)
+        # A backtick fence's info string may not contain a backtick.
+        if opened and not (opened.group("run")[0] == "`" and "`" in opened.group("info")):
+            fence_char = opened.group("run")[0]
+            fence_len = len(opened.group("run"))
+            kept.append("")
+            continue
+        kept.append(line)
+    return "\n".join(kept)
 
 
 def strip_non_prose(body: str) -> str:
     """Remove HTML comments, fenced code and inline code spans."""
     text = HTML_COMMENT_RE.sub(" ", body)
-    text = FENCE_RE.sub(" ", text)
-    text = UNTERMINATED_FENCE_RE.sub(" ", text)
+    text = strip_fences(text)
     text = INLINE_CODE_RE.sub(" ", text)
     return text
 

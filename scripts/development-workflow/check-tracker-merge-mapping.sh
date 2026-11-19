@@ -197,13 +197,30 @@ step_block() {
 }
 
 implements_block="$(step_block "Check the PR declares it implements the issue")"
-if grep -Eq '^[[:space:]]*id:[[:space:]]*implements[[:space:]]*$' <<< "$implements_block" \
-  && grep -Fq 'tracker-merge-implements-issue.py' <<< "$implements_block" \
-  && grep -Fq 'github.event.pull_request.body' <<< "$implements_block"; then
-  echo "OK: impl-branch implements-check step runs tracker-merge-implements-issue.py on the PR body"
-else
-  echo "ERROR: missing 'Check the PR declares it implements the issue' step (id: implements) running tracker-merge-implements-issue.py on github.event.pull_request.body (#125)"
+if [ -z "$implements_block" ]; then
+  echo "ERROR: missing 'Check the PR declares it implements the issue' step (#125)"
   ERRORS=$((ERRORS + 1))
+else
+  # Each property is asserted on its own so a regression names exactly what
+  # broke (planted-violation tests cover each one separately).
+  if grep -Eq '^[[:space:]]*id:[[:space:]]*implements[[:space:]]*$' <<< "$implements_block"; then
+    echo "OK: implements-check step has id: implements"
+  else
+    echo "ERROR: implements-check step lacks 'id: implements' — the gates read steps.implements.outputs (#125)"
+    ERRORS=$((ERRORS + 1))
+  fi
+  if grep -Fq 'tracker-merge-implements-issue.py' <<< "$implements_block"; then
+    echo "OK: implements-check step runs tracker-merge-implements-issue.py"
+  else
+    echo "ERROR: implements-check step does not run tracker-merge-implements-issue.py (#125)"
+    ERRORS=$((ERRORS + 1))
+  fi
+  if grep -Fq 'github.event.pull_request.body' <<< "$implements_block"; then
+    echo "OK: implements-check step reads github.event.pull_request.body"
+  else
+    echo "ERROR: implements-check step does not read github.event.pull_request.body (#125)"
+    ERRORS=$((ERRORS + 1))
+  fi
 fi
 
 for gated_step in "Close issue for impl branches" "Update GitHub Projects status after close"; do
