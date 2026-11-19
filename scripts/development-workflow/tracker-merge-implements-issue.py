@@ -15,8 +15,8 @@ else -- no keyword, a keyword for another issue, a reference to another
 repository, or a keyword only inside code or an HTML comment -- is treated as
 ambiguous, and the caller leaves the item alone.
 
-Code spans, fenced and indented code blocks and HTML comments are stripped before
-matching, so a description that quotes the convention (or a pull request
+Code spans, fenced and indented code blocks, <pre>/<code> HTML and HTML
+comments are stripped before matching, so a description that quotes the convention (or a pull request
 template's commented-out example) does not count as a declaration. That only
 narrows what THIS workflow acts on; GitHub's own closing-keyword handling is
 independent and may still close the issue -- see
@@ -77,6 +77,10 @@ INDENTED_CODE_RE = re.compile(
 )
 CONTAINER_PREFIX_RE = re.compile(r"^(?:[ \t]*>[ \t]?|[ \t]*(?:[-*+]|[0-9]{1,9}[.)])[ \t]+)+")
 HTML_COMMENT_RE = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
+# GitHub renders <pre> and <code> HTML as code; an unclosed tag runs to the end.
+HTML_CODE_RE = re.compile(
+    r"<(?P<tag>pre|code)(?:\s[^>]*)?>.*?(?:</(?P=tag)\s*>|\Z)", re.DOTALL | re.IGNORECASE
+)
 # An inline code span never crosses a paragraph break (a blank line), so a
 # stray backtick cannot pair with one paragraphs away and hide real prose.
 INLINE_CODE_RE = re.compile(r"(`+)(?:(?!\1)(?!\n[ \t]*\n).)+?\1", re.DOTALL)
@@ -119,6 +123,7 @@ def strip_non_prose(body: str) -> str:
     # blank-line and fence rules see the same text either way.
     text = body.replace("\r\n", "\n").replace("\r", "\n")
     text = HTML_COMMENT_RE.sub(" ", text)
+    text = HTML_CODE_RE.sub(" ", text)
     text = strip_fences(text)
     text = INLINE_CODE_RE.sub(" ", text)
     return text

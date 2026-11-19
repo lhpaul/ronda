@@ -514,8 +514,8 @@ When the line is missing, the workflow leaves the item open and does not
 change its Status. It logs the skip in the job summary. This covers
 evidence-only and follow-up pull requests that reuse a `feature/<N>-*` branch
 prefix, a keyword for a different issue, and a keyword that appears only in a
-code span, a fenced or indented code block, or an HTML comment. When the
-workflow cannot tell, it leaves the item alone. The workflow script
+code span, a fenced or indented code block, `<pre>`/`<code>` HTML, or an HTML
+comment. When the workflow cannot tell, it leaves the item alone. The workflow script
 `scripts/development-workflow/tracker-merge-implements-issue.py` makes this
 decision, and `tests/test-tracker-merge-implements-issue.sh` tests it (issue
 #125).

@@ -124,6 +124,17 @@ expect false 125 '> -     Closes #125'
 expect true 125 '-  Closes #125'
 expect true 125 '1. Closes #125'
 
+# HTML code elements render as code on GitHub.
+expect false 125 '<pre>
+Closes #125
+</pre>'
+expect false 125 'Use <code>Closes #125</code> only in the implementing PR.'
+expect false 125 '<PRE class="x">Closes #125</PRE>'
+expect false 125 '<code>Closes #125'
+expect true 125 '<pre>example</pre>
+Closes #125'
+expect true 125 '<codex>Closes #125'
+
 # Fences behind container prefixes (blockquote, list item) are code too.
 expect false 125 '> ```
 > Closes #125
