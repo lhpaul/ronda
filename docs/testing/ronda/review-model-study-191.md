@@ -7,12 +7,12 @@ Question: does a DeepSeek model, served through Alibaba Cloud Model Studio (Dash
 - **Provider:** DashScope International (`dashscope-intl.aliyuncs.com`) only, with Ronda's existing credential and OpenAI-compatible client. The native DeepSeek API was **not** used. Only the model id changed between runs.
 - **Candidates (fixed by the maintainer):** `deepseek-v4.1-flash-1017` and `deepseek-v4-pro-0813`. Both were listed by the endpoint's `/models` on 2026-11-24, and every successful response echoed the requested dated id. GLM was not run: it was outside the candidates fixed for this run.
 - **Protocol:** the #143 / #183 protocol. Same 8 heads, same 29 recorded misses (`spec-plan-experiment-heads-143.md`), the spec/plan prompt (arm C of the committed harness), no PR description, the same judging convention, and the same thresholds: at least 30% recovered and at most 1 clearly false finding per pass.
-- **Harness:** the committed core of `npm run quality:spec-plan-experiment` (`runExperiment` in `src/cli/spec-plan-experiment.ts`, arm C), called from an uncommitted local wrapper that made only three changes:
+- **Harness:** the committed core of `npm run quality:spec-plan-experiment` (`runExperiment` in `src/cli/spec-plan-experiment.ts`, arm C), called from a local wrapper that is deliberately not committed, so that no harness or production code changes. The wrapper differs from the CLI only in these ways:
   1. It passed the model id past the CLI's `-YYYY-MM-DD` suffix check. DashScope's dated DeepSeek snapshots end in `-MMDD`, the same form as the `qwen3.8-max-0902` that #143 recorded.
   2. It wrapped the model `fetch` to log each call's token usage (no headers and no body text), so cost is measured from tokens, not estimated from characters.
   3. It enforced the spend cap before every call.
 
-  The no-write GitHub wrapper, the committed-manifest checks and the resume/retry rules are the committed ones. No GitHub write was attempted (count 0 on every run).
+  The no-write GitHub wrapper, the committed-manifest checks and the resume/retry rules are the committed ones. No GitHub write was attempted (count 0 on every run). Because the wrapper is not in the repository, the cap enforcement and the `-MMDD` bypass cannot be re-checked from the repo. The usage ledger is the committed record of every call.
 - **Raw evidence:**
   - `review-model-study-191-deepseek-v4.1-flash.jsonl`: 42 calls.
   - `review-model-study-191-deepseek-v4-pro.jsonl`: 10 calls.
@@ -36,6 +36,7 @@ Scoring caveat (as in #183): one judge per group of heads (reviewer agents) read
 | Latency per usable pass | ~10 s | ~11 min | 144-360 s (mean ~224 s) | 760 s |
 | Measured tokens per call (mean in / out) | not recorded | not recorded | 35.5k / 56.8k (mostly reasoning) | 57k / 29.8k |
 | Cost per call, list price | ~USD 0.02 (est.) | ~USD 0.2 (est.) | ~USD 0.08 (measured tokens) | ~USD 0.28 (one measured call) |
+| Cost and model time per usable pass, retries included | ~USD 0.02, ~10 s | ~USD 0.2 (est.), ~11 min | **~USD 0.15, ~8 min** (42 calls for 22 passes) | n/a |
 | List price, International, per M tokens in / out | 0.4 / 1.2 | 2 / 6 | 0.30 / 1.20 (peak) | 2.40 / 4.80 |
 
 Overlap with `qwen3.8-max`: flash recovers 9 of `qwen3.8-max`'s 15 and adds 2 it never named (`15abc9766ee4` on `8c28ba8c`, where `qwen3.8-max` recovered 0 of 3, and `562f60cc7912` on `a244cabd`). Together the two models cover 17 of 29.
@@ -43,7 +44,7 @@ Overlap with `qwen3.8-max`: flash recovers 9 of `qwen3.8-max`'s 15 and adds 2 it
 ### `deepseek-v4.1-flash-1017`
 
 - **Recall:** 11 of 29 (38%). That is above the 30% bar and between the default (10%) and `qwen3.8-max` (52%). Each run recovers 7, so it is steadier than `qwen3.8-max` (8, 14 and 12) but lower than its better runs.
-- **Precision:** the mean is 1.5 clearly false findings per pass, or 0.5 without the PR-description artifact. That is the lowest of any candidate measured so far. Excluding the artifact, 19 of 22 passes have at most 1. The exceptions are `194f66e5` runs 2 and 3 (2 and 3) and `a244cabd` run 3 (2). Most of those false findings ask for CLI flags the code already has. Of the 271 unmatched findings, 67 were judged real, 171 plausible and 33 clearly false.
+- **Precision:** the mean is 1.5 clearly false findings per pass, or 0.5 without the PR-description artifact. That is the lowest of any candidate measured so far. Excluding the artifact, 19 of 22 passes have at most 1. The exceptions are `194f66e5` runs 2 and 3 (2 and 3) and `a244cabd` run 3 (2). Of the 11 clearly false findings that are not the artifact, 4 ask for CLI flags that already exist and 3 ask about the existing `matchTerms` field. Of the 271 unmatched findings, 67 were judged real, 171 plausible and 33 clearly false.
 - **Reliability is the blocker.** 20 of 42 calls (48%) returned HTTP 200 with no review content. In all 20, `completion_tokens` was exactly 65,536 and nearly all of them were reasoning tokens: the model spent its whole output budget thinking and never answered. The harness records these as `unusable_output`.
   - Retries were allowed: each unusable attempt is re-run and the later record supersedes it. After four attempts each, two passes never succeeded (`90a694ea` run 2 and `8c28ba8c` run 2), so those heads have two runs instead of three.
   - Ronda's client sets neither an output limit nor a thinking budget, and this study did not change it. Whether a thinking budget or a non-thinking mode fixes this, and what it does to recall, is untested.
@@ -55,7 +56,7 @@ Overlap with `qwen3.8-max`: flash recovers 9 of `qwen3.8-max`'s 15 and adds 2 it
   - Run 1 hit the harness's 1,200 s client timeout.
   - Run 2 succeeded in **760 s** with 7 findings: 0 of the head's 4 misses, 1 clearly false (the PR-description artifact), 3 real, 3 plausible.
   - Run 3 got **HTTP 500** after 599 s.
-- The maintainer then chose a reduced run (one pass per remaining head). All 7 calls got **HTTP 403 `insufficient_quota`**: the account is in Model Studio's "use free tier only" mode and the free quota for this model was used up. One diagnostic call (a one-word prompt with `max_tokens` 1) confirmed the error code.
+- The maintainer then chose a reduced run (one pass per remaining head). All 7 calls got **HTTP 403 `insufficient_quota`**: the account is in Model Studio's "use free tier only" mode and the free quota for this model was used up. One diagnostic call (a one-word prompt with `max_tokens` 1) confirmed the error code. The raw rows carry the harness's generic label "Model API rejected the credential (HTTP 403)"; the quota cause comes from the probe.
 - Per the maintainer's decision (option B), pro is closed as **not measurable in free-tier-only mode** and was not called again. One pass is not evidence about recall.
 - Operationally, before the quota ran out, 2 of 3 calls failed and the one success took almost 13 minutes, already slower than `qwen3.8-max`.
 
@@ -66,7 +67,7 @@ The cap was USD 10 total. Before every call, the wrapper checked that cumulative
 | Model | Calls logged | Spend booked, list price |
 | --- | --- | --- |
 | `deepseek-v4.1-flash-1017` | 42 | USD 3.31 |
-| `deepseek-v4-pro-0813` | 12 (incl. 1 diagnostic probe) | USD 1.18 |
+| `deepseek-v4-pro-0813` | 11 calls in 12 usage rows (3 + 7 + 1 diagnostic probe; the HTTP 500 has a raw zero row and a worst-case row) | USD 1.18 |
 | **Total** | | **USD 4.49** |
 
 - Booked at **list price**, International (Singapore), peak rates: flash 0.30 / 1.20 and pro 2.40 / 4.80 USD per M tokens.
@@ -79,8 +80,9 @@ The cap was USD 10 total. Before every call, the wrapper checked that cumulative
 
 1. **Keep `qwen-plus-2025-12-01` as the default.** Nothing here justifies a change. Flash's 2.5-6 minute latency and 48% empty-response rate rule it out as a default for every PR as configured today.
 2. **`deepseek-v4.1-flash-1017` is the most promising candidate measured for the opt-in spec/plan mode (#157).**
-   - It is the first one to clear both #143 bars once the PR-description artifact is excluded: 38% recovered, 0.5 clearly false per pass.
-   - It costs about 0.4x `qwen3.8-max` per call and runs about 3x faster.
+   - It clears the 30% recall bar (38%). It meets the precision bar only on the mean and only once the PR-description artifact is excluded: 0.5 per pass, with 3 of 22 passes still above 1. As run, it is 1.5 per pass and fails the bar. #143 judged `qwen3.8-max` on its as-run figure (3.8), so neither model clears the bar under that reading.
+   - Other caveats on this comparison: a different set of judge agents scored flash, and two heads have only two runs each.
+   - Per usable pass, retries included, it costs about USD 0.15 against an estimated USD 0.2 for `qwen3.8-max` (~0.75x), and it takes about 8 minutes of model time against ~11 (~1.4x faster).
    - It is not usable until the empty-response problem is solved. The next step is a separate, maintainer-authorized item: measure flash with a thinking budget or a raised output limit. That needs a client or config change, which this item does not make.
 3. **`deepseek-v4-pro-0813` is not evaluated.** Re-measuring it needs paid access enabled in the Model Studio console, which is a billing decision for the maintainer, and a new cap. Given its observed latency (about 13 minutes) and failures, it is a low-priority candidate.
 4. **GLM (`glm-5.3`) was not run.** If it is wanted, it is a separate run with its own cap.
