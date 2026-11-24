@@ -70,6 +70,38 @@ Upstream v0.52.0 lets agents read `.ai-dev-workflow.local.yaml` and drops its `R
 
 `test-expensive-gate-config-error.sh` (#1817) forces the expensive reviewer with `PR_REVIEW_LOOP_FORCE_EXPENSIVE_REVIEWERS=1` but sets no justification. Ronda keeps its local rule that a forced expensive review needs `PR_REVIEW_LOOP_EXPENSIVE_OVERRIDE_JUSTIFICATION`, so the two force cases deferred with `expensive_override_missing_justification` (5 assertions failed). The test now exports a synthetic justification for those two cases, as Ronda's `test-expensive-reviewer-gate.sh` already does; no production code or assertion changed. Result: 40/40.
 
+## Isolating violation proof for new gates
+
+The local reviewer asked for location-specific proof for the new revision-currentness check (`outcome-record-revision-check.sh`, #1820) and the changed reviewer-loop guard verdicts in `pr-policy.yml` (#1838). Each listed assertion has one isolating source mutation (a planted violation) applied to the disposable working tree at runtime commit `b430dff`. The named suite runs with the plant, then the file is restored byte-for-byte (sha256 checked) and the suite runs again. For `pr-policy.yml`, the suite extracts and runs the guard's verdict and exit blocks from the workflow file. The full record (mutation, first failing case) is [`194-planted-proof.json`](194-planted-proof.json).
+
+| Gate | Source line | Planted result (first failing case) | Restored |
+| --- | --- | --- | --- |
+| missing stated revision | `outcome-record-revision-check.sh:133` | `test-outcome-record-revision-check.sh` exit 1 (`missing stated revision fails`) | exit 0 |
+| non-hex stated revision is malformed | `outcome-record-revision-check.sh:141` | `test-outcome-record-revision-check.sh` exit 1 (`malformed stated revision fails`) | exit 0 |
+| stated revision length 7..40 | `outcome-record-revision-check.sh:145` | `test-outcome-record-revision-check.sh` exit 1 (`SHA longer than 40 hex characters is malformed`) | exit 0 |
+| stated revision resolves to a commit | `outcome-record-revision-check.sh:150` | `test-outcome-record-revision-check.sh` exit 1 (`nonexistent stated revision fails`) | exit 0 |
+| stated equals head is current | `outcome-record-revision-check.sh:154` | `test-outcome-record-revision-check.sh` exit 1 (`stated equals head is current`) | exit 0 |
+| stated revision is an ancestor of head | `outcome-record-revision-check.sh:159` | `test-outcome-record-revision-check.sh` exit 1 (`stated revision not on the head's branch fails`) | exit 0 |
+| merge head is never current | `outcome-record-revision-check.sh:168` | `test-outcome-record-revision-check.sh` exit 1 (`merge commit head fails even when a parent is stamped`) | exit 0 |
+| head only parent is the stated revision | `outcome-record-revision-check.sh:172` | `test-outcome-record-revision-check.sh` exit 1 (`stamp two pushes behind the head fails`) | exit 0 |
+| structural change (add/delete/mode) fails | `outcome-record-revision-check.sh:184` | `test-outcome-record-revision-check.sh` exit 1 (`added file after the stamped revision fails`) | exit 0 |
+| binary change fails | `outcome-record-revision-check.sh:190` | `test-outcome-record-revision-check.sh` exit 1 (`modified binary file after the stamped revision fails`) | exit 0 |
+| every changed line is a Plan revision line | `outcome-record-revision-check.sh:240` | `test-outcome-record-revision-check.sh` exit 1 (`moved non-stamp line after the stamped revision fails`) | exit 0 |
+| removed/added normalized keys balance | `outcome-record-revision-check.sh:249` | `test-outcome-record-revision-check.sh` exit 1 (`stamp line whose non-SHA text changes fails`) | exit 0 |
+| only the SHA token after the label is normalized | `outcome-record-revision-check.sh:225` | `test-outcome-record-revision-check.sh` exit 1 (`stamp line whose non-SHA text changes fails`) | exit 0 |
+| diffs pin --no-relative | `outcome-record-revision-check.sh:178,183,189,194,202` | `test-outcome-record-revision-check.sh` exit 1 (`diff.relative from a subdirectory does not hide a substantive change`) | exit 0 |
+| diffs pin --ignore-submodules=none | `outcome-record-revision-check.sh:178,183,189,194,202` | `test-outcome-record-revision-check.sh` exit 1 (`diff.ignoreSubmodules=all does not hide a moved submodule pointer`) | exit 0 |
+| patch diff pins --submodule=short | `outcome-record-revision-check.sh:202` | `test-outcome-record-revision-check.sh` exit 1 (`diff.submodule=log does not hide a gitlink move bundled with a stamp`) | exit 0 |
+| pull_request_target missing summary is pending | `pr-policy.yml:294` | `test-reviewer-loop-guard-workflow.sh` exit 1 (`prt_missing_summary_is_pending`) | exit 0 |
+| pull_request_target stale clean head is pending | `pr-policy.yml:310` | `test-reviewer-loop-guard-workflow.sh` exit 1 (`prt_clean_stale_head_is_pending`) | exit 0 |
+| pending exits 0 after posting status | `pr-policy.yml:564` | `test-reviewer-loop-guard-workflow.sh` exit 1 (`guard_exit_pending_reports_pending`) | exit 0 |
+
+Three plants survived the upstream suites, so Ronda adds one case for each (test-only):
+
+- `modified binary file after the stamped revision fails` (`test-outcome-record-revision-check.sh`). The numstat check is the only one that reports `structural_change` for a modified binary. Without it, the patch scan still refuses, but with `substantive_change`.
+- `moved non-stamp line after the stamped revision fails` (`test-outcome-record-revision-check.sh`). A moved line leaves the removed and added keys balanced, so only the "every changed line is a `Plan revision:` line" rule rejects it.
+- `guard_exit_pending_reports_pending` (`test-reviewer-loop-guard-workflow.sh`). Without the pending branch, a pending state still exits 0, but through "Guard PASSED". The case requires the "Guard PENDING" line.
+
 ## Validation
 
 - `npm ci`, `npm run typecheck`, `npm run lint` and `npm test` (874) pass.

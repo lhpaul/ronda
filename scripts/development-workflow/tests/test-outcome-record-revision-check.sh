@@ -180,6 +180,26 @@ DASH_SHA="$(commit_all "docs: stamp plus deleted dashed line")"
 run_test "stamp bundled with a deleted '-- x' line fails" \
   "1|not_current|substantive_change" "$(check_result "$DASH_BASE_SHA" "$DASH_SHA")"
 
+# A modified binary file is a structural change, reported by the numstat
+# check before the patch scan (Ronda, #194).
+git_q reset -q --hard "$FIX_SHA"
+printf '\000\001\002binary-v1' > "$REPO/blob.bin"
+BIN_BASE_SHA="$(commit_all "docs: add binary")"
+printf '\000\001\002binary-v2' > "$REPO/blob.bin"
+BIN_SHA="$(commit_all "docs: modify binary")"
+run_test "modified binary file after the stamped revision fails" \
+  "1|not_current|structural_change" "$(check_result "$BIN_BASE_SHA" "$BIN_SHA")"
+
+# A moved non-stamp line leaves balanced removed/added keys, so only the
+# Plan-revision-only rule rejects it (Ronda, #194).
+git_q reset -q --hard "$FIX_SHA"
+grep -v '^Body of the plan\.$' "$PLAN" > "$PLAN.tmp"
+printf 'Body of the plan.\n' >> "$PLAN.tmp"
+mv "$PLAN.tmp" "$PLAN"
+MOVE_SHA="$(commit_all "plan: move a line")"
+run_test "moved non-stamp line after the stamped revision fails" \
+  "1|not_current|substantive_change" "$(check_result "$FIX_SHORT" "$MOVE_SHA")"
+
 # diff.noprefix must not change the verdict for a stamp-only push.
 git_q reset -q --hard "$FIX_SHA"
 sed "s/^Plan revision: \`0000000\`/Plan revision: \`$FIX_SHORT\`/" "$PLAN" > "$PLAN.tmp"

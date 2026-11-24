@@ -1,0 +1,262 @@
+{
+  "issue": 194,
+  "runtime_commit": "b430dff1a5a4125f40780bdd4c31df4aa7e1e31c",
+  "note": "Each record: one isolating source mutation applied to the disposable working tree, the named suite run with the plant, the file restored byte-for-byte (sha256 checked) and the suite rerun. added_case=true marks gates whose plant survived the upstream suite and that are isolated by a Ronda-added case.",
+  "records": [
+    {
+      "gate": "missing stated revision",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        133
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: missing stated revision fails - expected '1|not_current|missing', got '1|not_current|malformed'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "non-hex stated revision is malformed",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        141
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: malformed stated revision fails - expected '1|not_current|malformed', got '1|not_current|unresolved'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "stated revision length 7..40",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        145
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: SHA longer than 40 hex characters is malformed - expected '1|not_current|malformed', got '0|current|same_head'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "stated revision resolves to a commit",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        150
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: nonexistent stated revision fails - expected '1|not_current|unresolved', got '1|not_current|not_on_branch'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "stated equals head is current",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        154
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: stated equals head is current - expected '0|current|same_head', got '1|not_current|more_than_one_push'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "stated revision is an ancestor of head",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        159
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: stated revision not on the head's branch fails - expected '1|not_current|not_on_branch', got '1|not_current|more_than_one_push'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "merge head is never current",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        168
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: merge commit head fails even when a parent is stamped - expected '1|not_current|merge_head', got '1|not_current|structural_change'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "head only parent is the stated revision",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        172
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: stamp two pushes behind the head fails - expected '1|not_current|more_than_one_push', got '1|not_current|substantive_change'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "structural change (add/delete/mode) fails",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        184
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: added file after the stamped revision fails - expected '1|not_current|structural_change', got '1|not_current|substantive_change'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "binary change fails",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        190
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: modified binary file after the stamped revision fails - expected '1|not_current|structural_change', got '1|not_current|substantive_change'",
+      "restored_exit": 0,
+      "added_case": true
+    },
+    {
+      "gate": "every changed line is a Plan revision line",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        240
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: moved non-stamp line after the stamped revision fails - expected '1|not_current|substantive_change', got '0|current|stamp_lag_stamp_only'",
+      "restored_exit": 0,
+      "added_case": true
+    },
+    {
+      "gate": "removed/added normalized keys balance",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        249
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: stamp line whose non-SHA text changes fails - expected '1|not_current|substantive_change', got '0|current|stamp_lag_stamp_only'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "only the SHA token after the label is normalized",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        225
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: stamp line whose non-SHA text changes fails - expected '1|not_current|substantive_change', got '0|current|stamp_lag_stamp_only'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "diffs pin --no-relative",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        178,
+        183,
+        189,
+        194,
+        202
+      ],
+      "replacements": 5,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: diff.relative from a subdirectory does not hide a substantive change - expected '1|not_current|substantive_change', got '0|current|stamp_lag_no_change'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "diffs pin --ignore-submodules=none",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        178,
+        183,
+        189,
+        194,
+        202
+      ],
+      "replacements": 5,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: diff.ignoreSubmodules=all does not hide a moved submodule pointer - expected '1|not_current|substantive_change', got '0|current|stamp_lag_no_change'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "patch diff pins --submodule=short",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        202
+      ],
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: diff.submodule=log does not hide a gitlink move bundled with a stamp - expected '1|not_current|substantive_change', got '0|current|stamp_lag_stamp_only'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "pull_request_target missing summary is pending",
+      "file": ".github/workflows/pr-policy.yml",
+      "lines": [
+        294
+      ],
+      "replacements": 1,
+      "suite": "test-reviewer-loop-guard-workflow.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: prt_missing_summary_is_pending - expected 'pending', got 'failure'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "pull_request_target stale clean head is pending",
+      "file": ".github/workflows/pr-policy.yml",
+      "lines": [
+        310
+      ],
+      "replacements": 1,
+      "suite": "test-reviewer-loop-guard-workflow.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: prt_clean_stale_head_is_pending - expected 'pending', got 'failure'",
+      "restored_exit": 0,
+      "added_case": false
+    },
+    {
+      "gate": "pending exits 0 after posting status",
+      "file": ".github/workflows/pr-policy.yml",
+      "lines": [
+        564
+      ],
+      "replacements": 1,
+      "suite": "test-reviewer-loop-guard-workflow.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: guard_exit_pending_reports_pending - expected 'Guard PENDING', got 'Guard PASSED'",
+      "restored_exit": 0,
+      "added_case": true
+    }
+  ]
+}

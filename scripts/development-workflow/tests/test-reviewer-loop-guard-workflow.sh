@@ -347,6 +347,17 @@ guard_exit_for() {
 run_test "guard_exit_block_extractable" "yes" \
   "$(grep -Fq 'Guard PENDING' <<<"$GUARD_EXIT_BLOCK" && echo yes || echo no)"
 run_test "guard_exit_pending_is_zero" "0" "$(guard_exit_for pending)"
+# Pending exits through its own branch, never through "Guard PASSED" (Ronda,
+# #194): the job is green, but the log must not report a pass.
+guard_exit_output_for() {
+  # shellcheck disable=SC2034 # read by the eval'd exit block
+  (
+    STATE="$1"
+    DESCRIPTION="synthetic"
+    eval "$GUARD_EXIT_BLOCK"
+  ) 2>&1 | grep -E '^Guard (PENDING|PASSED|FAILED)' | head -1 | cut -d: -f1
+}
+run_test "guard_exit_pending_reports_pending" "Guard PENDING" "$(guard_exit_output_for pending)"
 run_test "guard_exit_failure_is_one" "1" "$(guard_exit_for failure)"
 run_test "guard_exit_success_is_zero" "0" "$(guard_exit_for success)"
 
