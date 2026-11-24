@@ -200,6 +200,21 @@ MOVE_SHA="$(commit_all "plan: move a line")"
 run_test "moved non-stamp line after the stamped revision fails" \
   "1|not_current|substantive_change" "$(check_result "$FIX_SHORT" "$MOVE_SHA")"
 
+# One-sided stamp changes: an added or a removed Plan-revision line has no
+# counterpart, so each key-balance direction rejects one of them (Ronda, #194).
+git_q reset -q --hard "$FIX_SHA"
+printf 'Plan revision: `%s` (extra stamp)\n' "$FIX_SHORT" >> "$PLAN"
+ADD_STAMP_SHA="$(commit_all "plan: add a second stamp line")"
+run_test "added Plan revision line without a removal fails" \
+  "1|not_current|substantive_change" "$(check_result "$FIX_SHORT" "$ADD_STAMP_SHA")"
+
+git_q reset -q --hard "$FIX_SHA"
+grep -v '^Plan revision:' "$PLAN" > "$PLAN.tmp"
+mv "$PLAN.tmp" "$PLAN"
+DEL_STAMP_SHA="$(commit_all "plan: remove the stamp line")"
+run_test "removed Plan revision line without an addition fails" \
+  "1|not_current|substantive_change" "$(check_result "$FIX_SHORT" "$DEL_STAMP_SHA")"
+
 # diff.noprefix must not change the verdict for a stamp-only push.
 git_q reset -q --hard "$FIX_SHA"
 sed "s/^Plan revision: \`0000000\`/Plan revision: \`$FIX_SHORT\`/" "$PLAN" > "$PLAN.tmp"

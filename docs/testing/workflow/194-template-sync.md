@@ -72,7 +72,7 @@ Upstream v0.52.0 lets agents read `.ai-dev-workflow.local.yaml` and drops its `R
 
 ## Isolating violation proof for new gates
 
-The local reviewer asked for location-specific proof for the new revision-currentness check (`outcome-record-revision-check.sh`, #1820) and the changed reviewer-loop guard verdicts in `pr-policy.yml` (#1838). Each listed assertion has one isolating source mutation (a planted violation) applied to the disposable working tree at runtime commit `b430dff`. The named suite runs with the plant, then the file is restored byte-for-byte (sha256 checked) and the suite runs again. For `pr-policy.yml`, the suite extracts and runs the guard's verdict and exit blocks from the workflow file. The full record (mutation, first failing case) is [`194-planted-proof.json`](194-planted-proof.json).
+The local reviewer asked for location-specific proof for the new revision-currentness check (`outcome-record-revision-check.sh`, #1820) and the changed reviewer-loop guard verdicts in `pr-policy.yml` (#1838). Each listed assertion has one isolating source mutation (a planted violation) applied to the disposable working tree at runtime commit `f56eb24` (plus the one-sided stamp cases). The named suite runs with the plant, then the file is restored byte-for-byte (sha256 checked) and the suite runs again. For `pr-policy.yml`, the suite extracts and runs the guard's verdict and exit blocks from the workflow file. The full record, with the exact mutation (`from` and `to`) and the first failing case, is [`194-planted-proof.json`](194-planted-proof.json).
 
 | Gate | Source line | Planted result (first failing case) | Restored |
 | --- | --- | --- | --- |
@@ -87,7 +87,8 @@ The local reviewer asked for location-specific proof for the new revision-curren
 | structural change (add/delete/mode) fails | `outcome-record-revision-check.sh:184` | `test-outcome-record-revision-check.sh` exit 1 (`added file after the stamped revision fails`) | exit 0 |
 | binary change fails | `outcome-record-revision-check.sh:190` | `test-outcome-record-revision-check.sh` exit 1 (`modified binary file after the stamped revision fails`) | exit 0 |
 | every changed line is a Plan revision line | `outcome-record-revision-check.sh:240` | `test-outcome-record-revision-check.sh` exit 1 (`moved non-stamp line after the stamped revision fails`) | exit 0 |
-| removed/added normalized keys balance | `outcome-record-revision-check.sh:249` | `test-outcome-record-revision-check.sh` exit 1 (`stamp line whose non-SHA text changes fails`) | exit 0 |
+| every removed stamp key has a matching addition | `outcome-record-revision-check.sh:249` | `test-outcome-record-revision-check.sh` exit 1 (`removed Plan revision line without an addition fails`) | exit 0 |
+| every added stamp key has a matching removal | `outcome-record-revision-check.sh:250` | `test-outcome-record-revision-check.sh` exit 1 (`added Plan revision line without a removal fails`) | exit 0 |
 | only the SHA token after the label is normalized | `outcome-record-revision-check.sh:225` | `test-outcome-record-revision-check.sh` exit 1 (`stamp line whose non-SHA text changes fails`) | exit 0 |
 | diffs pin --no-relative | `outcome-record-revision-check.sh:178,183,189,194,202` | `test-outcome-record-revision-check.sh` exit 1 (`diff.relative from a subdirectory does not hide a substantive change`) | exit 0 |
 | diffs pin --ignore-submodules=none | `outcome-record-revision-check.sh:178,183,189,194,202` | `test-outcome-record-revision-check.sh` exit 1 (`diff.ignoreSubmodules=all does not hide a moved submodule pointer`) | exit 0 |
@@ -96,10 +97,11 @@ The local reviewer asked for location-specific proof for the new revision-curren
 | pull_request_target stale clean head is pending | `pr-policy.yml:310` | `test-reviewer-loop-guard-workflow.sh` exit 1 (`prt_clean_stale_head_is_pending`) | exit 0 |
 | pending exits 0 after posting status | `pr-policy.yml:564` | `test-reviewer-loop-guard-workflow.sh` exit 1 (`guard_exit_pending_reports_pending`) | exit 0 |
 
-Three plants survived the upstream suites, so Ronda adds one case for each (test-only):
+Five single-assertion plants survive the upstream suites alone, so Ronda adds cases for them (test-only):
 
 - `modified binary file after the stamped revision fails` (`test-outcome-record-revision-check.sh`). The numstat check is the only one that reports `structural_change` for a modified binary. Without it, the patch scan still refuses, but with `substantive_change`.
 - `moved non-stamp line after the stamped revision fails` (`test-outcome-record-revision-check.sh`). A moved line leaves the removed and added keys balanced, so only the "every changed line is a `Plan revision:` line" rule rejects it.
+- `added Plan revision line without a removal fails` and `removed Plan revision line without an addition fails` (`test-outcome-record-revision-check.sh`). The two key-balance loops cover each other for two-sided changes, so each loop is isolated by a one-sided change.
 - `guard_exit_pending_reports_pending` (`test-reviewer-loop-guard-workflow.sh`). Without the pending branch, a pending state still exits 0, but through "Guard PASSED". The case requires the "Guard PENDING" line.
 
 ## Validation

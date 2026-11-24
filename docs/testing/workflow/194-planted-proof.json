@@ -1,7 +1,7 @@
 {
   "issue": 194,
-  "runtime_commit": "b430dff1a5a4125f40780bdd4c31df4aa7e1e31c",
-  "note": "Each record: one isolating source mutation applied to the disposable working tree, the named suite run with the plant, the file restored byte-for-byte (sha256 checked) and the suite rerun. added_case=true marks gates whose plant survived the upstream suite and that are isolated by a Ronda-added case.",
+  "runtime_commit": "f56eb24 plus the one-sided stamp cases in this commit",
+  "note": "Each record: one isolating source mutation (from -> to, every occurrence in file) applied to the disposable working tree, the named suite run with the plant, the file restored byte-for-byte (sha256 checked) and the suite rerun. lines lists every line holding the mutated text. added_case=true marks gates isolated by a Ronda-added case.",
   "records": [
     {
       "gate": "missing stated revision",
@@ -9,6 +9,8 @@
       "lines": [
         133
       ],
+      "from": "if [ -z \"$stated_clean\" ]; then",
+      "to": "if false; then",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -22,6 +24,8 @@
       "lines": [
         141
       ],
+      "from": "  *[!0-9a-fA-F]*)",
+      "to": "  __planted_never__)",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -35,6 +39,8 @@
       "lines": [
         145
       ],
+      "from": "if [ \"${#stated_clean}\" -lt 7 ] || [ \"${#stated_clean}\" -gt 40 ]; then",
+      "to": "if false; then",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -48,6 +54,8 @@
       "lines": [
         150
       ],
+      "from": "if [ -z \"$stated_sha\" ]; then",
+      "to": "if false; then",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -61,6 +69,8 @@
       "lines": [
         154
       ],
+      "from": "if [ \"$stated_sha\" = \"$head_sha\" ]; then",
+      "to": "if false; then",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -74,6 +84,8 @@
       "lines": [
         159
       ],
+      "from": "if ! git -C \"$repo_root\" merge-base --is-ancestor \"$stated_sha\" \"$head_sha\" 2>/dev/null; then",
+      "to": "if false; then",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -87,6 +99,8 @@
       "lines": [
         168
       ],
+      "from": "if [ \"$parent_count\" -gt 1 ]; then",
+      "to": "if false; then",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -100,6 +114,8 @@
       "lines": [
         172
       ],
+      "from": "if [ \"$parent_sha\" != \"$stated_sha\" ]; then",
+      "to": "if false; then",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -113,6 +129,8 @@
       "lines": [
         184
       ],
+      "from": "if [ -n \"$summary\" ]; then",
+      "to": "if false; then",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -126,6 +144,8 @@
       "lines": [
         190
       ],
+      "from": "if printf '%s\\n' \"$numstat\" | grep -q '^-'; then",
+      "to": "if false; then",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -139,6 +159,8 @@
       "lines": [
         240
       ],
+      "from": "if (body !~ /^[ \\t]*(\\*\\*)?Plan revision:/) { bad = 1; exit }",
+      "to": "if (0) { bad = 1; exit }",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -147,17 +169,34 @@
       "added_case": true
     },
     {
-      "gate": "removed/added normalized keys balance",
+      "gate": "every removed stamp key has a matching addition",
       "file": "scripts/development-workflow/outcome-record-revision-check.sh",
       "lines": [
         249
       ],
+      "from": "for (k in removed) { if (removed[k] != added[k]) { print \"substantive\"; exit } }",
+      "to": "for (k in removed) { }",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
-      "first_failure": "FAIL: stamp line whose non-SHA text changes fails - expected '1|not_current|substantive_change', got '0|current|stamp_lag_stamp_only'",
+      "first_failure": "FAIL: removed Plan revision line without an addition fails - expected '1|not_current|substantive_change', got '0|current|stamp_lag_stamp_only'",
       "restored_exit": 0,
-      "added_case": false
+      "added_case": true
+    },
+    {
+      "gate": "every added stamp key has a matching removal",
+      "file": "scripts/development-workflow/outcome-record-revision-check.sh",
+      "lines": [
+        250
+      ],
+      "from": "for (k in added) { if (added[k] != removed[k]) { print \"substantive\"; exit } }",
+      "to": "for (k in added) { }",
+      "replacements": 1,
+      "suite": "test-outcome-record-revision-check.sh",
+      "planted_exit": 1,
+      "first_failure": "FAIL: added Plan revision line without a removal fails - expected '1|not_current|substantive_change', got '0|current|stamp_lag_stamp_only'",
+      "restored_exit": 0,
+      "added_case": true
     },
     {
       "gate": "only the SHA token after the label is normalized",
@@ -165,6 +204,8 @@
       "lines": [
         225
       ],
+      "from": "if (length(hex) >= 7) { return head lead \"<sha>\" tail }",
+      "to": "if (length(hex) >= 7) { return head lead \"<sha>\" }",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -182,6 +223,8 @@
         194,
         202
       ],
+      "from": "--no-relative ",
+      "to": "",
       "replacements": 5,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -199,6 +242,8 @@
         194,
         202
       ],
+      "from": "--ignore-submodules=none ",
+      "to": "",
       "replacements": 5,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -212,6 +257,8 @@
       "lines": [
         202
       ],
+      "from": "--submodule=short ",
+      "to": "",
       "replacements": 1,
       "suite": "test-outcome-record-revision-check.sh",
       "planted_exit": 1,
@@ -225,6 +272,8 @@
       "lines": [
         294
       ],
+      "from": "              if [ \"${EVENT_NAME:-}\" = \"pull_request_target\" ]; then\n                STATE=\"pending\"",
+      "to": "              if false; then\n                STATE=\"pending\"",
       "replacements": 1,
       "suite": "test-reviewer-loop-guard-workflow.sh",
       "planted_exit": 1,
@@ -238,6 +287,8 @@
       "lines": [
         310
       ],
+      "from": "              if [ \"${EVENT_NAME:-}\" = \"pull_request_target\" ] &&\n                [ -n \"${LATEST_SUMMARY_HEAD_SHA:-}\" ]; then",
+      "to": "              if false; then",
       "replacements": 1,
       "suite": "test-reviewer-loop-guard-workflow.sh",
       "planted_exit": 1,
@@ -251,6 +302,8 @@
       "lines": [
         564
       ],
+      "from": "          if [ \"$STATE\" = \"pending\" ]; then\n            echo \"Guard PENDING",
+      "to": "          if false; then\n            echo \"Guard PENDING",
       "replacements": 1,
       "suite": "test-reviewer-loop-guard-workflow.sh",
       "planted_exit": 1,
