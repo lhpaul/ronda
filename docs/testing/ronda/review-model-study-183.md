@@ -43,3 +43,14 @@ Notes on the numbers:
 4. Pin the dated snapshot for any model used in recorded evidence (#121), as these runs did.
 
 Default model, prompt and production code are unchanged by this item.
+
+## Ciclo de vida de qwen-plus
+
+Lifecycle status, checked on 2026-11-24:
+
+- There is no official retirement notice for the international snapshot `qwen-plus-2025-12-01`.
+- On 2026-10-10 Alibaba Cloud Model Studio retired `qwen-plus-2025-12-01-us`, `qwen-plus-us` and older Plus snapshots (`qwen-plus-0112`, `qwen-plus-1220`, `qwen-plus-2025-07-28`, `qwen-plus-2025-09-11`). Notice: <https://www.alibabacloud.com/en/notice/model_studio_notice_of_retirement_for_selected_legacy_models_7d9>. Policy: <https://www.alibabacloud.com/help/en/model-studio/model-depreciation>.
+- The successor recommended in that notice is `qwen3.7-plus`, which recovered 2 of 29 misses on this corpus against 3 of 29 for `qwen-plus-2025-12-01` (see Comparison).
+- The batch announced for 2027-01-19 covers Qwen3.5 models and does not include `qwen-plus`.
+
+The recommendation stands: keep `qwen-plus-2025-12-01` as the default, watch the official retirement notices, and treat an evaluation of DeepSeek/GLM models as a separate item (not part of this PR).
