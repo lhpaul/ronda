@@ -1,0 +1,111 @@
+{
+ "model": "deepseek-v4-pro-0813",
+ "prompt": "spec/plan (#143 arm C harness)",
+ "usable_passes": 1,
+ "total_findings": 7,
+ "match_table": [],
+ "recovered_any_run": {
+  "count": 0,
+  "of": 29,
+  "misses": []
+ },
+ "recovered_per_run": {},
+ "unmatched_count": 7,
+ "unmatched_verdicts": {
+  "clearly_false": 1,
+  "plausible": 3,
+  "real": 3
+ },
+ "clearly_false_per_pass": {
+  "mean": 1,
+  "max": 1,
+  "mean_excluding_pr_description": 0,
+  "max_excluding_pr_description": 0,
+  "passes_over_1_excluding_pr_description": 0
+ },
+ "findings_per_pass": {
+  "min": 7,
+  "max": 7,
+  "mean": 7
+ },
+ "per_pass": [
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "findings": 7,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  }
+ ],
+ "judge_note": "Single judge (reviewer agents, one per group of heads) reading each finding against the document at its head; a match needs the same defect. The harness supplied no PR description, so findings that only ask for a PR-description log are clearly_false with pr_description_artifact true.",
+ "unmatched": [
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "Only point is the empty PR description / missing Document Quality Gate log (harness supplied none)."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 1,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Rigor outcome record is required by the supplied (current) REVIEW.md contract, not by the contract at this head; true that the plan lacks it, process-only."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 2,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Requiring the model to print category identifiers in title/body changes published finding text, conflicting with the spec's 'findings published exactly as in a non-sweep review' / no category info in the review body."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Concurrency addendum says no timer change while step 11 moves the benchmark timer per run; minor cross-section inconsistency (addendum is about the sweep pass)."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 4,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Seed Data snapshot row references step 9; fixture is mutated in step 10."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 5,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Step 11 calls the evidence doc 'step 11'; it is step 12."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 6,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'or similar' seed paths are virtual fixture paths (existing seeds use src/benchmark/*); minor under-specification."
+  }
+ ],
+ "calls": {
+  "total": 10,
+  "outcomes": {
+   "model_error": 9,
+   "findings": 1
+  }
+ },
+ "latency_seconds_usable": {
+  "min": 760,
+  "mean": 760,
+  "max": 760
+ }
+}

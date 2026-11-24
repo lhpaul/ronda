@@ -1,0 +1,2534 @@
+{
+ "model": "deepseek-v4.1-flash-1017",
+ "prompt": "spec/plan (#143 arm C harness)",
+ "usable_passes": 22,
+ "total_findings": 292,
+ "match_table": [
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "miss": "lhpaul-ronda-pr-117-manual-50e9639c0561",
+   "finding": 5,
+   "reason": "Same defect: no CLI/config input supplies the operator version-attestation basis, so commands can only emit unattested/hand-edited values."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "miss": "lhpaul-ronda-pr-117-manual-b463fa6cc2be",
+   "finding": 10,
+   "reason": "Same defect: 'Default 1 keeps today's single-run output identical' contradicts unconditional identity/cost fields on every run record."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "miss": "lhpaul-ronda-pr-117-manual-b463fa6cc2be",
+   "finding": 3,
+   "reason": "Same defect: --runs 1 identical-output claim contradicts unconditional new fields; asks for actual compatibility/envelope story."
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "miss": "lhpaul-ronda-pr-115-manual-46fdd12072ad",
+   "finding": 8,
+   "reason": "Same defect: duplicated trailing fragment 'they do not pair the claim.' in matrix row"
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "miss": "lhpaul-ronda-pr-115-manual-8c1a912944bc",
+   "finding": 9,
+   "reason": "Same defect: duplicated 'used.' in AC9"
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "miss": "lhpaul-ronda-pr-115-manual-8c1a912944bc",
+   "finding": 9,
+   "reason": "Same defect: duplicated 'used.' in AC9"
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "miss": "lhpaul-ronda-pr-115-manual-46fdd12072ad",
+   "finding": 10,
+   "reason": "Same defect: orphaned 'they do not pair the claim.' in claim-admissibility row"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "miss": "lhpaul-ronda-pr-115-manual-8c1a912944bc",
+   "finding": 7,
+   "reason": "Same defect: leftover 'used.' in AC9"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "miss": "lhpaul-ronda-pr-115-manual-46fdd12072ad",
+   "finding": 8,
+   "reason": "Same defect: dangling 'they do not pair the claim.' in Claim admissibility example"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 1,
+   "miss": "lhpaul-ronda-pr-115-manual-15abc9766ee4",
+   "finding": 1,
+   "reason": "Same defect: terminal miss record for human-only defect has no code value/record shape; external miss unrepresentable"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "miss": "lhpaul-ronda-pr-115-manual-15abc9766ee4",
+   "finding": 1,
+   "reason": "Same defect: terminal miss record undefined (no code value/row), implementer must invent it"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "miss": "lhpaul-ronda-pr-115-manual-b3bda1d52264",
+   "finding": 2,
+   "reason": "Same defect: the run cannot be compared with the 2026-09-10 baseline it is named after; label it a new baseline / no comparability claimed"
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "miss": "lhpaul-ronda-pr-117-manual-562f60cc7912",
+   "finding": 10,
+   "reason": "Same defect: plan claims the benchmark record is on output and logs but specifies/tests only the JSON output surface; asks for the log emission and its assertion."
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "miss": "lhpaul-ronda-pr-117-manual-c0431a0f26cb",
+   "finding": 9,
+   "reason": "Same defect: SweepCategory declares a per-category version field the artifact never populates; version belongs at list level."
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "miss": "lhpaul-ronda-pr-115-manual-1317057ec63b",
+   "finding": 2,
+   "reason": "Same defect: OQ1/OQ8 unresolved means list cannot be current, so UC1 precondition/AC1 sweep is unsatisfiable"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "miss": "lhpaul-ronda-pr-115-manual-1317057ec63b",
+   "finding": 2,
+   "reason": "Same defect: 'exactly one list current' vs list cannot be marked current while OQ1/OQ8 open"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "miss": "lhpaul-ronda-pr-115-manual-650c2ce575d3",
+   "finding": 9,
+   "reason": "Same defect: AC18 never enumerates recognized on/off values"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "miss": "lhpaul-ronda-pr-115-manual-1317057ec63b",
+   "finding": 1,
+   "reason": "Same defect: compliant list can never be current while OQ1/OQ8 unresolved, so sweep never runs"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "miss": "lhpaul-ronda-pr-115-manual-650c2ce575d3",
+   "finding": 7,
+   "reason": "Same defect: AC18 never lists recognized on/off values"
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "miss": "lhpaul-ronda-pr-117-manual-f3aba42b7fc2",
+   "finding": 7,
+   "reason": "Same defect: after seeds are added no original-thirteen fixture files exist, so the mandatory AC8 control cannot be run without inventing inputs."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "miss": "lhpaul-ronda-pr-117-manual-f3aba42b7fc2",
+   "finding": 6,
+   "reason": "Same defect: original fixture is overwritten by the seed step and no committed copy/extraction is specified for the control legs."
+  }
+ ],
+ "recovered_any_run": {
+  "count": 11,
+  "of": 29,
+  "misses": [
+   "lhpaul-ronda-pr-115-manual-1317057ec63b",
+   "lhpaul-ronda-pr-115-manual-15abc9766ee4",
+   "lhpaul-ronda-pr-115-manual-46fdd12072ad",
+   "lhpaul-ronda-pr-115-manual-650c2ce575d3",
+   "lhpaul-ronda-pr-115-manual-8c1a912944bc",
+   "lhpaul-ronda-pr-115-manual-b3bda1d52264",
+   "lhpaul-ronda-pr-117-manual-50e9639c0561",
+   "lhpaul-ronda-pr-117-manual-562f60cc7912",
+   "lhpaul-ronda-pr-117-manual-b463fa6cc2be",
+   "lhpaul-ronda-pr-117-manual-c0431a0f26cb",
+   "lhpaul-ronda-pr-117-manual-f3aba42b7fc2"
+  ]
+ },
+ "recovered_per_run": {
+  "1": 7,
+  "2": 7,
+  "3": 7
+ },
+ "unmatched_count": 271,
+ "unmatched_verdicts": {
+  "clearly_false": 33,
+  "plausible": 171,
+  "real": 67
+ },
+ "clearly_false_per_pass": {
+  "mean": 1.5,
+  "max": 4,
+  "mean_excluding_pr_description": 0.5,
+  "max_excluding_pr_description": 3,
+  "passes_over_1_excluding_pr_description": 3
+ },
+ "findings_per_pass": {
+  "min": 9,
+  "max": 18,
+  "mean": 13.27
+ },
+ "per_pass": [
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "findings": 10,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "findings": 17,
+   "clearly_false": 3,
+   "clearly_false_excluding_pr_description": 2
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "findings": 18,
+   "clearly_false": 4,
+   "clearly_false_excluding_pr_description": 3
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "findings": 13,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "findings": 11,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "findings": 13,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "findings": 12,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "findings": 12,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "8a637efc",
+   "run": 3,
+   "findings": 9,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 1,
+   "findings": 9,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "findings": 13,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "findings": 15,
+   "clearly_false": 2,
+   "clearly_false_excluding_pr_description": 1
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "findings": 14,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "findings": 17,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "findings": 11,
+   "clearly_false": 2,
+   "clearly_false_excluding_pr_description": 1
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "findings": 14,
+   "clearly_false": 3,
+   "clearly_false_excluding_pr_description": 2
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "findings": 12,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "findings": 15,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "findings": 11,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "findings": 16,
+   "clearly_false": 2,
+   "clearly_false_excluding_pr_description": 1
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "findings": 15,
+   "clearly_false": 1,
+   "clearly_false_excluding_pr_description": 0
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "findings": 15,
+   "clearly_false": 2,
+   "clearly_false_excluding_pr_description": 1
+  }
+ ],
+ "judge_note": "Single judge (reviewer agents, one per group of heads) reading each finding against the document at its head; a match needs the same defect. The harness supplied no PR description, so findings that only ask for a PR-description log are clearly_false with pr_description_artifact true.",
+ "unmatched": [
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "Only point is the empty PR description / missing Document Quality Gate log (harness supplied none)."
+  },
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "finding": 1,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Rigor outcome record is required by the supplied (current) REVIEW.md contract, not by the contract at this head; true that the plan lacks it, process-only."
+  },
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "finding": 2,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Plan puts AC17 statement in sweep-effect-evidence.md while smoke Step 12 expects it in sweep-real-pr-evidence.md."
+  },
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "finding": 3,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Scenario 7's shape-based scan would fail on the AC13 credential-shaped seed and on evidence that quotes it; the exemption mechanism is undefined."
+  },
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "finding": 4,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Production loadSweepList() takes no arg and the pass has no injection seam, yet scenario 5 must drive a malformed list through the pass."
+  },
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "finding": 6,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Requiring the model to print category identifiers in title/body changes published finding text, conflicting with the spec's 'findings published exactly as in a non-sweep review' / no category info in the review body."
+  },
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "finding": 7,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Line 84 says flags are specified in step 10 (they are step 11) and step 11 says evidence doc is step 11 (it is step 12)."
+  },
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "finding": 8,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Line-number/existence claims lack Verification Log rows; the cited ranges (e.g. recall-benchmark.ts:447-449) are in fact correct. Process ask."
+  },
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "finding": 9,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Step 2 verification requires scenario 8 assertions in a test file that step 4 creates; ordering defect."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 0,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Rigor outcome record is required by the supplied (current) REVIEW.md contract, not by the contract at this head; true that the plan lacks it, process-only."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 1,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "Only point is the empty PR description / missing Document Quality Gate log (harness supplied none)."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 2,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC1 is internally ambiguous ('reads changed files and runs the review' vs examples placing post-read GitHub errors after execution); the plan's narrower reading is arguable."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 3,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Requiring the model to print category identifiers in title/body changes published finding text, conflicting with the spec's 'findings published exactly as in a non-sweep review' / no category info in the review body."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Binding-enumeration marker is a process convention from the supplied contract; enumeration is already asserted exact by scenario 8."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Validator does not enforce lowercase matchTerms although the classifier lowercases only finding text; minor robustness gap."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 6,
+   "verdict": "clearly_false",
+   "pr_description_artifact": false,
+   "reason": "The fixture manifest itself carries a per-seed 'matchTerms' key (alongside matchTermGroups), so the seed row's usage is correct; no real name collision defect."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 7,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'or similar' seed paths are virtual fixture paths (existing seeds use src/benchmark/*); minor under-specification."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 8,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Seed Data row says snapshot happens 'before step 9 mutates the live fixture'; fixture is mutated in step 10."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 9,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Config-literal edits are specified in the layer section but no Implementation Order step owns them before step 3's typecheck; minor sequencing gap."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 11,
+   "verdict": "clearly_false",
+   "pr_description_artifact": false,
+   "reason": "--manifest/--patches/--quality/--precision-response-file already exist in recall-benchmark.ts parseArgs; asks to verify/add something present."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 12,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Step 12's evidence list omits AC9's per-configuration unexpected findings, attribution, and per-fixture clean status."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 13,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Tier row omits the spec's explicit count-restart on revision; covered loosely by 'all other combinations unchanged' plus the demotion clause."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 14,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Conditional documentation entries are a minor 'update as needed' judgment call."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 15,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Smoke Assertions Checklist AC1 line says post-request failures record not_determined on logs only, contradicting the plan's classified-flag partition and runbook Step 6."
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 16,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Committed campaign outputs/evidence under docs/testing/ronda that quote credential-shaped seed data have no stated exemption from the AC14 shape scan."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 0,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Rigor outcome record is required by the supplied (current) REVIEW.md contract, not by the contract at this head; true that the plan lacks it, process-only."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 1,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "Only point is the empty PR description / missing Document Quality Gate log (harness supplied none)."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 2,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC1 is internally ambiguous ('reads changed files and runs the review' vs examples placing post-read GitHub errors after execution); the plan's narrower reading is arguable."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'or similar' seed paths are virtual fixture paths (existing seeds use src/benchmark/*); minor under-specification."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 5,
+   "verdict": "clearly_false",
+   "pr_description_artifact": false,
+   "reason": "The fixture manifest itself carries a per-seed 'matchTerms' key (alongside matchTermGroups), so the seed row's usage is correct; no real name collision defect."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 6,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "matchTerms is a required field beyond AC19's closed malformed list; a deliberate tightening not labelled as such."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 7,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Conditional documentation entries are a minor 'update as needed' judgment call."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 8,
+   "verdict": "clearly_false",
+   "pr_description_artifact": false,
+   "reason": "--manifest/--patches/--quality/--precision-response-file already exist in recall-benchmark.ts parseArgs; asks to verify/add something present."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 9,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Line-number/existence claims lack Verification Log rows; the cited ranges (e.g. recall-benchmark.ts:447-449) are in fact correct. Process ask."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 10,
+   "verdict": "clearly_false",
+   "pr_description_artifact": false,
+   "reason": "The seam is explicitly traced to AC8/AC9/AC11 (immutable model version) in the plan; finding claims it is untraced."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 11,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Plan uses 'published' and 'parsed' finding interchangeably for attribution entries; minor wording ambiguity."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 12,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'outcome/attribution entry counts agreeing' is vague as an invariant; minor testability wording."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 13,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Classifier relies on model naming identifiers with no sampled real-output evidence; reasonable but judgment call."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 14,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Per-request reportedModel inside the configuration block could make arms differ beyond sweepMode; arguable edge."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 15,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Summary lumps 'off' into degraded paths 'with the spec-mandated record'; loose wording, the detailed rules are correct."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 16,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "ReviewPassResult.sweep stated 'for benchmark' though the benchmark uses its own record; minor."
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 17,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "findingInstanceCount vs 'count' naming inconsistency; minor."
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "PR description empty / no Document Quality Gate log (harness artifact)"
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "finding": 1,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Matrix mirror-surface citations name a Business rule that lives in UC1 Considerations and UC1 steps that don't state the rule"
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "finding": 2,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'Sweep-enabled real-pull-request miss record' never defined; name near Terminal miss record"
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Count unit PR vs head SHA unspecified for multi-head PRs"
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Provisional tier wording vs descriptive claim only at measured; ambiguity"
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC10 'clean result' publication undefined / collides with adjudication meaning"
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "finding": 6,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC10 anti-manufacture clause restates its premise; tautological"
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "finding": 7,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC15(d)/business rule don't say control never publishes or how it runs past existing-check skip"
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "finding": 10,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "AC1/AC19 cite AC2 for existing-check skip but AC2 only covers draft-skip/supersede"
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "finding": 11,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Enum says no other site restates code values, yet AC15(d) names ronda_only/ronda_rejected"
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "finding": 12,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "AC14 not mapped in any Coverage Matrix row"
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "PR description empty / no Document Quality Gate log (harness artifact)"
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "finding": 1,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Cohort members without external review can never be terminally adjudicated, blocking transition"
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "finding": 2,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "UC1 postcondition not carved out for pre-review skips; arguable since skips are not sweep passes"
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC1 'record on both surfaces' vs later write-failure case; internal tension"
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "finding": 4,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Matrix mirror-surface citations point at wrong sites"
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Pass outcomes / did-not-run records lack enum entries"
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "finding": 6,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Descriptive miss record admissibility at provisional unclear"
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "finding": 7,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC11 comparison against per-PR convergence figures has no defined content"
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "finding": 8,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'Review request' defining reached category ambiguous"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "PR description empty / no Document Quality Gate log (harness artifact)"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "finding": 1,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Pass-outcome and record values lack Statuses/Enum entries"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "finding": 2,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "All-clean head with adjudicated defect outside the claim is neither clean nor covered by terminal miss record, so never terminal"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Cutoff timing; spec doesn't say when cutoff is recorded (reading of unsatisfiability is overstated)"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC13 two definitions of 'harder'; arguable"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "finding": 5,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Matrix mirror-surface pointers don't resolve to named sites"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "finding": 6,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Whether real-PR evidence can be reported below ten is ambiguous across sites"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "finding": 9,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Op Visibility folds unrecognized-enablement into sweep-did-not-run record and drops raw-value redaction"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "finding": 10,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'Clean result' used for both a pass and an adjudicated head"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "finding": 11,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "AC1 attributes existing-check skip to AC2, which never defines it"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "finding": 12,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Dependency 53 listed but never cited; external-review vocabulary attributed only to 24"
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "PR description empty / no Document Quality Gate log (harness artifact)"
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "finding": 1,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Cohort deadlock on no-external-review member; main point is exit path, not precommitting cutoff (miss 1a6dc not matched)"
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "finding": 2,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC1 publishing-pass check-run surface stated two ways; arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Binary 'reached' vs UC1 'and no more' wording; arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Unpublished sweep-off control mechanism undefined; arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Precision-evidence match targets ambiguous for real-PR heads; arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "finding": 6,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC20 record in logs vs credential values; record content unspecified, arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "finding": 7,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC11 cost comparison vs per-PR figures undefined; arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "finding": 8,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Cost ceiling 'becomes necessary' vs 'only two tests gate'; arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "finding": 9,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC6 freezes five categories vs revisable list"
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "finding": 10,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Matrix mirror pointers (~106, ~541) cite wrong sites"
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "finding": 11,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "AC1/AC19 cite AC2 for existing-check-run skip AC2 does not define"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 0,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "No exit for unadjudicable cohort members; arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 1,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "PR description empty / no Document Quality Gate log (harness artifact)"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 2,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Measured label persists at >=10 while reopened head leaves cohort incomplete; arguable gap"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Precision-regression decision not a matrix row; judgment call"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Single composed request vs model-call multiplication question; arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Adjudication record has no defined matched-category field; arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 6,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Precision evidence 'same as what' unstated; arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 7,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Matrix mirror pointers cite non-existent Business rule and wrong UC1 steps"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 8,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Per-category record states / sweep-did-not-run not in enum section"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 9,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Existing-check-run skip cited to AC2, which does not define it"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 10,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC6 freezes five categories vs revisable list"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 11,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Denominator rule restated at five sites; drift risk, style"
+  },
+  {
+   "head": "8a637efc",
+   "run": 3,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "PR description empty / no Document Quality Gate log (harness artifact)"
+  },
+  {
+   "head": "8a637efc",
+   "run": 3,
+   "finding": 1,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC6 freezes five categories vs revisable list"
+  },
+  {
+   "head": "8a637efc",
+   "run": 3,
+   "finding": 2,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Cost ceiling necessity before default flip stated two ways; arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 3,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Membership determinism untestable given overlapping failure shapes; not the repeated-run conflict miss"
+  },
+  {
+   "head": "8a637efc",
+   "run": 3,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Unpublished sweep-off control mechanism undefined vs AC2; arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 3,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Whitespace-only value: matrix 'non-empty' input vs AC18 'counts as absent'; minor inconsistency"
+  },
+  {
+   "head": "8a637efc",
+   "run": 3,
+   "finding": 6,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Cohort membership for heads with unpublished sweep pass undefined; arguable"
+  },
+  {
+   "head": "8a637efc",
+   "run": 3,
+   "finding": 7,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'Clean result' two meanings; minor"
+  },
+  {
+   "head": "8a637efc",
+   "run": 3,
+   "finding": 8,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Matrix mirror pointers (~106/~120) cite Business rules that live in UC1 Considerations"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 1,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "PR description empty / no Document Quality Gate log (harness artifact)"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 1,
+   "finding": 2,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Precision pairing fields (fixture version, sample count) ambiguous vs real-PR heads; not the full-config binding miss"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 1,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Whether unpublished/superseded passes count as sweep-enabled reviews; arguable"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 1,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Closed cohort has no recovery path when blocked; arguable"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 1,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Membership determinism claim lacks disagreement rule; arguable"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 1,
+   "finding": 6,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "AC1/AC19 cite AC2 for existing-check skip AC2 does not define"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 1,
+   "finding": 7,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Matrix mirror pointers cite non-existent Business rule (~106) / wrong UC1 step"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 1,
+   "finding": 8,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'unless a repository enables it' vs deployment-wide webhook scope; wording"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "PR description empty / no Document Quality Gate log (harness artifact)"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "finding": 2,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Unpublished sweep-off control mechanism unspecified; arguable"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Cohort succession / cutoff scope undefined; arguable"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Membership determinism untestable; arguable"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Rejected-credential request boundary for 'reached'; edge case"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "finding": 6,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'check run whose outcome is a review' undefined; minor"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "finding": 7,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'means off ... counts as not supplied' wording; context makes deferral clear, minor"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "finding": 8,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC11 per-pass vs per-PR cost comparison undefined; arguable"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "finding": 9,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "UC2 'what would justify changing it' has no backing field; minor"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "finding": 10,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Matrix mirror pointers (~106/~120) point into UC1 Considerations, not Business Rules"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "finding": 11,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'Effect claim' broad vs narrow usage; wording"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "finding": 12,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC18 defers on/off vocabulary to existing switches; references existing list, arguable"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": false,
+   "reason": "Business-rule and AC15(d) denominator both carry the within-claim/uncategorized filter; no divergence"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 1,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Finding-level shape of per-category record (AC20) not specified; arguable"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 2,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "PR description empty / no Document Quality Gate log (harness artifact)"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC6 fixes five categories while list is revisable; scope to initial version"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC13 canonical-form sentence vs four-way exhaustive set; arguable"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Check-run output visibility vs 'never in review body' rationale; judgment call"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 6,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Matrix cites 'Business rule' (~106) that is actually in Use Case 1 Considerations; UC1 step 1 does not state the rule"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 7,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "sweep-did-not-run used as code value but absent from enum section; Operational Visibility merges it with unrecognized-enablement record"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 8,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "'recorded baseline-comparison configuration AC8 defines' is never defined in AC8; distinct from the non-comparability miss"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 9,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Terminal miss record lacks defect identity/matched-category fields; arguable"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 10,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "When/who records the cohort cutoff relative to already-running dogfooding; arguable"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 11,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'Clean result' used for both AC10 no-finding review and clean_agreement; minor"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 12,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Use cases lack explicit Trigger field; template/style point"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 13,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'check run whose outcome is a review' undefined; minor wording"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 14,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC1 restates existing failure-path mechanics; style judgment"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "PR description empty / no Document Quality Gate log (harness artifact)"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 1,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "AC1/AC19 cite AC2 for existing-check-run skip, but AC2 names only draft and supersede"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Closed cohort with <10 or unadjudicable member has no recovery path; arguable"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Sweep-enabled review definition admits unpublished superseded passes; arguable"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Descriptive real-PR claim at provisional tier; sites largely consistent, arguable"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 6,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Membership determinism claim has no arbiter/tie-break; arguable"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 7,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Whether finding-count refresh creates new list version unstated; arguable"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 8,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Operational Visibility uses one 'sweep-did-not-run' name for the distinct unrecognized-enablement record"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 9,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "sweep-did-not-run token not in Statuses / Enum Values; precision inconsistency"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 10,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Matrix mirror pointers (~106/~120) cite Business rules that live in UC1 Considerations"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 11,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Single composed request vs 'multiplies model calls' question; arguable"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 12,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'Manufactured finding' not operationalized; arguable"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 13,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'unless a repository enables it' vs deployment-wide webhook scope; wording"
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 0,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Rigor outcome record is required by the supplied (current) REVIEW.md contract, not by the contract at this head; true that the plan lacks it, process-only."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 1,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC1 is internally ambiguous ('reads changed files and runs the review' vs examples placing post-read GitHub errors after execution); the plan's narrower reading is arguable."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 2,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "Only point is the empty PR description / missing Document Quality Gate log (harness supplied none)."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 3,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "SweepPassRecord holds only per-category outcomes + uncategorized count, so it cannot attribute individual findings as AC9/AC20 require (fixed in a later commit)."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Common-word matchTerms could over-attribute; reasonable specificity concern but speculative."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Summary lumps 'off' into degraded paths 'with the spec-mandated record'; loose wording, detailed rules are correct."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 6,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Runbook says the original-thirteen snapshot is created in implementation step 9; plan creates it in step 10."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 7,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Shape-based AC14 scan would fail on the non-functional credential-shaped data AC13 requires; JWT wording also off."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 8,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'or similar' seed paths are virtual fixture paths (existing seeds use src/benchmark/*); minor under-specification."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 9,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Line-number/existence claims lack Verification Log rows; cited ranges are in fact correct. Process ask."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 11,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Conditional documentation entries are a minor 'update as needed' judgment call."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 12,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "How the loader resolves 'the Ronda checkout' path is unspecified; reasonable but arguable."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 13,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Summary's 'plus an explicit default alias' vs Verification Log 'default recognized (durability only)' is loose wording, not a real contradiction."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 14,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Workflow YAML verification 'or a careful read' is soft; minor."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 15,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Optional clean-counterpart precision fixture left to developer judgment; minor."
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "finding": 16,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Seed id equals a category identifier; cosmetic naming concern."
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "finding": 0,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Rigor outcome record is required by the supplied (current) REVIEW.md contract, not by the contract at this head; true that the plan lacks it, process-only."
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "finding": 1,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC1 is internally ambiguous ('reads changed files and runs the review' vs examples placing post-read GitHub errors after execution); the plan's narrower reading is arguable."
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "finding": 2,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "Only point is the empty PR description / missing Document Quality Gate log (harness supplied none)."
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "finding": 3,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Stale step references confirmed: flags 'step 10' (are 11), snapshot 'before step 9' (is 10), evidence doc 'step 11' (is 12), runbook 'step 9' (is 10)."
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Parser-risk addendum 'not applicable' while plan adds a substring classifier and credential-shape scanner; arguable classification."
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Line-number/existence claims lack Verification Log rows; cited ranges are in fact correct. Process ask."
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "finding": 6,
+   "verdict": "clearly_false",
+   "pr_description_artifact": false,
+   "reason": "Parsed findings do carry title/body (parse-model-response.ts) and the plan names title+body; asks to verify fields that exist."
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "finding": 7,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "At this head scenario 7 scans only the benchmark tree, omitting docs/testing/ronda evidence that AC14 also governs (widened in a later commit)."
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "finding": 8,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Whether campaign output JSONs are committed artifacts is not stated; minor completeness gap."
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "finding": 10,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Conditional documentation entries are a minor 'update as needed' judgment call."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 0,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Rigor outcome record is required by the supplied (current) REVIEW.md contract, not by the contract at this head; true that the plan lacks it, process-only."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 1,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "Only point is the empty PR description / missing Document Quality Gate log (harness supplied none)."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 2,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Summary's 'plus an explicit default alias' vs Verification Log 'default recognized (durability only)' is loose wording, not a real contradiction."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 3,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Runbook 'implementation step 9' for snapshot (is 10) and plan 'evidence doc (step 11)' (is 12) are both wrong."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 4,
+   "verdict": "clearly_false",
+   "pr_description_artifact": false,
+   "reason": "Recall legs already call the real model without --quality (main() builds the OpenAI client unless --response-file); premise is wrong."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Mixed: flag-existence part is moot (flags exist), line-number verification part is a process ask."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 6,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Assertions Checklist AC1 line says all post-request failures record not_determined on logs only, contradicting runbook Step 6's post-publication branch."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 7,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Conditional documentation entries are a minor 'update as needed' judgment call."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 8,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC15(d) per-finding membership recording not listed in the real-PR evidence record contents; arguable completeness gap."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 9,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Step 12 omits AC9's per-configuration unexpected findings/attribution/clean status, and AC17's operator-declaration clause is not planned."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 10,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'No residue on any pull request' overlooks already-published sweep summary lines; wording issue."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 11,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Short matchTerms like 'head' could match 'header'; speculative over-attribution concern."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 12,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Binding-enumeration marker is a process convention from the supplied contract; enumeration is already asserted exact by scenario 8."
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 13,
+   "verdict": "clearly_false",
+   "pr_description_artifact": false,
+   "reason": "The fixture manifest itself carries a per-seed 'matchTerms' key (alongside matchTermGroups), so the seed row's usage is correct; no real name collision defect."
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "PR description empty / no Document Quality Gate log (harness artifact)"
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "finding": 1,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Initial list includes guard-fails-open (5) over spec-AC-compliance (7); selection rule unstated (tied to OQ1)"
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC13 behavioural vs four-way definition of 'harder' can diverge; arguable"
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "finding": 4,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Unrecognized-enablement / sweep-did-not-run records have no defined surface (distinct from OQ7 per-category record); later head assigned surfaces"
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "UC3 preconditions omit extended-fixture dependency its considerations require"
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "finding": 6,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC15(a) 'effect claim' wording vs descriptive/comparative distinction"
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "finding": 7,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC18 precedence chain arguably implementation detail; judgment call"
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "finding": 8,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Line 486 says labels appear in review summaries but AC3/Op Visibility put only activation+version there"
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "finding": 9,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "List version identifier format undefined; arguably planning detail"
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "finding": 10,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "UC5/Business Rules plural 'variants' vs AC13 'at least one'; inconsistent (later fixed)"
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "finding": 11,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Use cases lack explicit triggers; style/template nit"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "PR description empty / no Document Quality Gate log (harness artifact)"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 1,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Spec adds gate/state behaviour without consistency matrix REVIEW.md asks for (later head added one)"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'Tied fifth' spec-AC-compliance (7) outranks included guard-fails-open (5); selection rule unstated"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Category counts (64) vs 79 real findings unaccounted; cutoff rule unstated"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "UC3 preconditions omit extended-fixture dependency"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 6,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Matched sweep-off control vs one-review-per-head; control is unpublished so tension is arguable"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 7,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "After list revision zero counted PRs fits both fixture_only and provisional labels"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 8,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "'External-finding evidence' and 'adjudicated' undefined, making AC15(b) gate untestable (distinct from resolving OQ4)"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 10,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "AC14 bans credential values while AC13 requires planting one; missing 'real' qualifier (later fixed)"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 11,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC13 two definitions of 'harder'; arguable"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 12,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'Effect claim' ambiguity descriptive vs comparative"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 13,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "AC17 restores gate on existence vs UC5 requires operator declaration"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 14,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC10 'clean result' output undefined"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "PR description empty / no Document Quality Gate log (harness artifact)"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "finding": 2,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "AC15(b) zero-count case fits provisional, fixture_only and post-revision provisional"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'Configuration identical' literally includes sweep flag; pedantic but later head added 'apart from the sweep setting'"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "finding": 4,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Ten-PR count: UC6/Business Rule count any Ronda review vs AC15(b)/UC6 consideration sweep-enabled only"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Matched sweep-off control vs one-review-per-head; arguable"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "finding": 6,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "AC18/AC19 records lack a defined surface and AC18 rules out summary/pass record (distinct from OQ7)"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "finding": 8,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "No selection rule; 64 vs 79 instances unaccounted"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "finding": 9,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC13 four ways vs table's five variant names; minor vocabulary mismatch"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "finding": 10,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC10 'clean result' undefined"
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "Only point is the empty PR description / missing Document Quality Gate log (harness supplied none)."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 1,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Rigor outcome record is required by the supplied (current) REVIEW.md contract, not by the contract at this head; true that the plan lacks it, process-only."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 2,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Plan puts sweep-did-not-run / unrecognized-enablement records on logs only and CheckRunOutputInput lacks them, but the spec puts them on AC1's surfaces incl. the review-outcome check run (fixed later)."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Matcher may over- or under-attribute (incidental words, inflections); reasonable concern, mostly speculative."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 4,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "matchTerms is a required field beyond AC19's closed malformed list; a deliberate tightening not labelled as such."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 5,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "AC17's middle clause (operator may declare the extended fixture ready as a gate basis, with the declaration recorded) has no planned home."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 6,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Conditional documentation entries are a minor 'update as needed' judgment call."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 8,
+   "verdict": "clearly_false",
+   "pr_description_artifact": false,
+   "reason": "--manifest/--patches/--precision-response-file/--quality already exist in recall-benchmark.ts parseArgs; asks to verify/add something present."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 9,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'or similar' seed paths are virtual fixture paths (existing seeds use src/benchmark/*); minor under-specification."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 10,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Tier row omits the spec's explicit count-restart on revision; covered loosely by 'all other combinations unchanged'."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 11,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "'No residue on any pull request' overlooks already-published sweep summary lines; wording issue."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 12,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Scenario 5 maps AC10 without a clean-sweep-pass case; minor test-mapping gap."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 13,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Step 11's evidence contents omit the category-list version and effective review configuration AC9 requires (added in a later commit)."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 14,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "SweepCategory declares a per-category version field the artifact never carries; version is list-level."
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 15,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Summary lumps 'off' into degraded paths 'with the spec-mandated record'; loose wording."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 0,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "Only point is the empty PR description / missing Document Quality Gate log (harness supplied none)."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 1,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Rigor outcome record is required by the supplied (current) REVIEW.md contract, not by the contract at this head; true that the plan lacks it, process-only."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 2,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Rule 4 keys not_determined on publication rather than on result existence; a post-parse pre-publication failure would wrongly record not_determined (AC1)."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 3,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Plan puts sweep-did-not-run / unrecognized-enablement records on logs only and CheckRunOutputInput lacks them, but the spec puts them on AC1's surfaces incl. the review-outcome check run (fixed later)."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 4,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Literal failureShape-derived matchTerms rarely appear in model prose, so genuine category findings fall to uncategorized; attribution undermined (later fixed with identifier carrier)."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 5,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Whether the list could be read from the reviewed checkout depends on deployment; plausible but unestablished."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 7,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Line 82 grammatically makes cost fields conditional on the sweep input while the output-shape bullet is unconditional; ambiguity."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 8,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "AC17's middle clause (operator may declare the extended fixture ready as a gate basis, with the declaration recorded) has no planned home."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 9,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Line-number/existence claims lack Verification Log rows; cited ranges are in fact correct. Process ask."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 10,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Mixed: flag-existence part is moot (flags exist); output-file disposition is a fair minor gap."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 11,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Webhook deployment-wide enablement scope not explicitly covered; minor."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 12,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "AC7 never-reuse rule not enforced by validator/revision procedure; arguable (history check is operator-side)."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 13,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "SweepCategory declares a per-category version field the artifact never carries; version is list-level."
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 14,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Conditional documentation entries are a minor 'update as needed' judgment call."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 0,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Rigor outcome record is required by the supplied (current) REVIEW.md contract, not by the contract at this head; true that the plan lacks it, process-only."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 1,
+   "verdict": "clearly_false",
+   "pr_description_artifact": true,
+   "reason": "Only point is the empty PR description / missing Document Quality Gate log (harness supplied none)."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 2,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Plan puts sweep-did-not-run / unrecognized-enablement records on logs only and CheckRunOutputInput lacks them, but the spec puts them on AC1's surfaces incl. the review-outcome check run (fixed later)."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 3,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "matchTerms is a required field beyond AC19's closed malformed list; a deliberate tightening not labelled as such."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 4,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Classifier requires model prose to reuse failureShape wording; genuine category findings in ordinary language become uncategorized, feeding AC9/AC15(d) evidence."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 5,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Code-sample comment says every post-execution failure records not_determined, contradicting rule 4's post-publication branch."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 6,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Scenario 5 at this head covers only 'not_determined on logs only' and no post-publication failure case."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 7,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Config-literal edits are specified in the layer section but no Implementation Order step owns them before typecheck; minor sequencing gap."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 8,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Line-number/existence claims lack Verification Log rows; cited ranges are in fact correct. Process ask."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 9,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Campaign output JSONs not listed as recorded artifacts; minor completeness gap."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 10,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "Benchmark output reuses aggregate SweepPassRecord, so per-finding attribution AC9 requires cannot be produced."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 11,
+   "verdict": "real",
+   "pr_description_artifact": false,
+   "reason": "AC17's middle clause (operator may declare the extended fixture ready as a gate basis, with the declaration recorded) has no planned home."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 12,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Binding-enumeration marker is a process convention from the supplied contract; minor."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 13,
+   "verdict": "clearly_false",
+   "pr_description_artifact": false,
+   "reason": "The fixture manifest already carries a per-seed 'matchTerms' key, so the seed row does not invent an unplanned field."
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 14,
+   "verdict": "plausible",
+   "pr_description_artifact": false,
+   "reason": "Conditional documentation entries are a minor 'update as needed' judgment call."
+  }
+ ],
+ "calls": {
+  "total": 42,
+  "outcomes": {
+   "findings": 22,
+   "unusable_output": 20
+  }
+ },
+ "latency_seconds_usable": {
+  "min": 144,
+  "mean": 224,
+  "max": 360
+ }
+}
