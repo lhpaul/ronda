@@ -1,0 +1,649 @@
+{
+ "model": "qwen3.7-plus-2026-05-26",
+ "prompt": "spec/plan",
+ "passes": 24,
+ "total_findings": 54,
+ "match_table": [
+  {
+   "head": "a691d010",
+   "run": 1,
+   "miss": "lhpaul-ronda-pr-115-manual-1317057ec63b",
+   "finding": 1,
+   "reason": "Names the contradiction between \"exactly one list is current at any time\" and \"cannot be marked current while OQ1/OQ8 unresolved\" (AC6); same defect as the miss."
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "miss": "lhpaul-ronda-pr-115-manual-25cd1570c897",
+   "finding": 1,
+   "reason": "Terminal miss record has codes only for sweep-enabled and external misses; no sweep-off control miss code, terminality requires only those two; same defect."
+  },
+  {
+   "head": "90a694ea",
+   "run": 2,
+   "miss": "lhpaul-ronda-pr-115-manual-25cd1570c897",
+   "finding": 1,
+   "reason": "Same: no code/requirement for a sweep-off control miss in the terminal miss record."
+  }
+ ],
+ "recovered_any_run": {
+  "count": 2,
+  "of": 29,
+  "misses": [
+   "lhpaul-ronda-pr-115-manual-1317057ec63b",
+   "lhpaul-ronda-pr-115-manual-25cd1570c897"
+  ]
+ },
+ "recovered_per_run": {
+  "1": 2,
+  "2": 1,
+  "3": 0
+ },
+ "unmatched_count": 51,
+ "unmatched_verdicts": {
+  "clearly_false": 28,
+  "real": 13,
+  "plausible": 10
+ },
+ "clearly_false_per_pass": {
+  "mean": 1.17,
+  "max": 3,
+  "passes": 24
+ },
+ "findings_per_pass": {
+  "min": 0,
+  "max": 4,
+  "mean": 2.25
+ },
+ "per_pass": [
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "findings": 4,
+   "clearly_false": 3
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "findings": 4,
+   "clearly_false": 2
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "findings": 4,
+   "clearly_false": 2
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "findings": 1,
+   "clearly_false": 1
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "findings": 2,
+   "clearly_false": 1
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "findings": 2,
+   "clearly_false": 1
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "findings": 1,
+   "clearly_false": 1
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "findings": 2,
+   "clearly_false": 1
+  },
+  {
+   "head": "8a637efc",
+   "run": 3,
+   "findings": 1,
+   "clearly_false": 0
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 1,
+   "findings": 2,
+   "clearly_false": 1
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 2,
+   "findings": 2,
+   "clearly_false": 1
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "findings": 1,
+   "clearly_false": 1
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "findings": 2,
+   "clearly_false": 1
+  },
+  {
+   "head": "90a694ea",
+   "run": 2,
+   "findings": 2,
+   "clearly_false": 1
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "findings": 2,
+   "clearly_false": 1
+  },
+  {
+   "head": "a244cabd",
+   "run": 1,
+   "findings": 0,
+   "clearly_false": 0
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "findings": 3,
+   "clearly_false": 2
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "findings": 3,
+   "clearly_false": 1
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "findings": 3,
+   "clearly_false": 1
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "findings": 4,
+   "clearly_false": 2
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "findings": 3,
+   "clearly_false": 2
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "findings": 3,
+   "clearly_false": 1
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "findings": 1,
+   "clearly_false": 0
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "findings": 2,
+   "clearly_false": 1
+  }
+ ],
+ "unmatched": [
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "finding": 0,
+   "title": "Fix relative path to smoke test runbook",
+   "verdict": "clearly_false",
+   "note": "Relative path ../../../testing resolves to docs/testing (verified); finding is wrong"
+  },
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "finding": 1,
+   "title": "Include Document Quality Gate log in PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "finding": 2,
+   "title": "Add Matrix coherence preflight row to Document Quality Gate log",
+   "verdict": "clearly_false",
+   "note": "PR-description matrix preflight row"
+  },
+  {
+   "head": "194f66e5",
+   "run": 1,
+   "finding": 3,
+   "title": "Add Plan authoring rigor outcome record",
+   "verdict": "real",
+   "note": "Missing plan-authoring-rigor outcome record"
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 0,
+   "title": "Missing Plan Authoring Rigor outcome record",
+   "verdict": "real",
+   "note": "Missing plan-authoring-rigor outcome record"
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 1,
+   "title": "Missing Document Quality Gate log in PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 2,
+   "title": "Missing cross-cutting checklist targets in documentation updates",
+   "verdict": "clearly_false",
+   "note": "Plan has Documentation Updates; workflow-repo targets not applicable"
+  },
+  {
+   "head": "194f66e5",
+   "run": 2,
+   "finding": 3,
+   "title": "Unverified numeric cross-references in implementation steps",
+   "verdict": "plausible",
+   "note": "Line-number cross-references mostly absent from Verification Log; judgment, checklist-driven"
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 0,
+   "title": "Missing Document Quality Gate log in PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 1,
+   "title": "Missing plan authoring rigor outcome record",
+   "verdict": "real",
+   "note": "Missing plan-authoring-rigor outcome record"
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 2,
+   "title": "Missing Matrix coherence preflight for decision-gate matrix",
+   "verdict": "clearly_false",
+   "note": "PR-description matrix preflight row"
+  },
+  {
+   "head": "194f66e5",
+   "run": 3,
+   "finding": 3,
+   "title": "Unverified line number cross-references",
+   "verdict": "plausible",
+   "note": "Unverified line-number references; judgment, checklist-driven"
+  },
+  {
+   "head": "40b89f74",
+   "run": 1,
+   "finding": 0,
+   "title": "Missing Document Quality Gate log in PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "finding": 0,
+   "title": "Missing Document Quality Gate log in PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "40b89f74",
+   "run": 2,
+   "finding": 1,
+   "title": "Missing code value for sweep-off control miss in Terminal miss record",
+   "verdict": "real",
+   "note": "Same defect as recorded miss 25cd1570c897 (recorded on 90a694ea); text verified present at this head; not a recorded miss for this head, so unmatched"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "finding": 0,
+   "title": "Terminal miss record omits sweep-off control miss",
+   "verdict": "real",
+   "note": "Same sweep-off control miss defect as 25cd1570c897 (recorded on another head); verified present here"
+  },
+  {
+   "head": "40b89f74",
+   "run": 3,
+   "finding": 1,
+   "title": "Missing Document Quality Gate log in PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "8a637efc",
+   "run": 1,
+   "finding": 0,
+   "title": "Missing Document Quality Gate log and preflight row",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 0,
+   "title": "Missing Document Quality Gate log in PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "8a637efc",
+   "run": 2,
+   "finding": 1,
+   "title": "Real-PR recall claim requires impossible benchmark precision conditions",
+   "verdict": "plausible",
+   "note": "judgment: AC15(d) wording ties \"fixture version and sample count\" to real-PR heads awkwardly, but the claim of impossibility overstates; not one of the head's recorded misses"
+  },
+  {
+   "head": "8a637efc",
+   "run": 3,
+   "finding": 0,
+   "title": "Fix conflation of benchmark and real-PR precision requirements in AC15(d) and the decision-gate matrix",
+   "verdict": "plausible",
+   "note": "same as run 2 finding #1"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 1,
+   "finding": 0,
+   "title": "AC15(d) mischaracterizes AC9's model identity requirement",
+   "verdict": "plausible",
+   "note": "judgment: claims AC9 binds precision to recall-run model; AC9 text binds only the two precision arms, so diagnosis is a misreading, but the underlying gap (precision not bound to recall config) is near recorded miss f1919e55de29; not matched"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 1,
+   "finding": 1,
+   "title": "Missing Document Quality Gate log in PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 2,
+   "finding": 0,
+   "title": "Missing Document Quality Gate log in PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 2,
+   "finding": 1,
+   "title": "Unspecified 'plan' referenced for exact configuration values",
+   "verdict": "plausible",
+   "note": "AC18 defers values to \"the plan\"; judgment"
+  },
+  {
+   "head": "8c28ba8c",
+   "run": 3,
+   "finding": 0,
+   "title": "Include the Document Quality Gate log in the PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "90a694ea",
+   "run": 1,
+   "finding": 0,
+   "title": "Missing Document Quality Gate log in PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "90a694ea",
+   "run": 2,
+   "finding": 0,
+   "title": "Include the Document Quality Gate log in the PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 0,
+   "title": "Include the required Document Quality Gate log in the PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "90a694ea",
+   "run": 3,
+   "finding": 1,
+   "title": "Clarify or remove ambiguous reference to 'the plan' for allowed values",
+   "verdict": "plausible",
+   "note": "AC18 says \"the plan states the exact values\"; defers vocabulary to plan while referencing durability switch; judgment"
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "finding": 0,
+   "title": "Missing Plan authoring rigor outcome record",
+   "verdict": "real",
+   "note": "Plan lacks the plan-authoring-rigor outcome record required by the checklist (grep for rigor: absent)"
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "finding": 1,
+   "title": "Missing Files to modify section and cross-cutting target enumeration",
+   "verdict": "clearly_false",
+   "note": "Plan has Documentation Updates and Cross-Cutting check; workflow-repo targets not applicable to this product repo"
+  },
+  {
+   "head": "a244cabd",
+   "run": 2,
+   "finding": 2,
+   "title": "Contradiction regarding the `default` alias and AC18 vocabulary",
+   "verdict": "clearly_false",
+   "note": "Summary and Verification Log agree: default is durability-only, sweep parser adds it explicitly"
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 0,
+   "title": "Missing plan authoring rigor outcome record",
+   "verdict": "real",
+   "note": "Missing plan-authoring-rigor outcome record"
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 1,
+   "title": "Missing Document Quality Gate log in PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "a244cabd",
+   "run": 3,
+   "finding": 2,
+   "title": "Incorrect implementation step reference for fixture snapshot",
+   "verdict": "real",
+   "note": "Seed Data and Step 8 text say fixture snapshot precedes \"step 9\" but Implementation Order puts fixture seeds at step 10; step 9 is workflow/config"
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "finding": 0,
+   "title": "Include the Document Quality Gate log in the PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log; harness supplied no description"
+  },
+  {
+   "head": "a691d010",
+   "run": 1,
+   "finding": 2,
+   "title": "Use Case 1 steps omit recording of uncategorized findings",
+   "verdict": "plausible",
+   "note": "UC1 step 3 omits uncategorized, but AC20 and line 91 cover it; nit"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 0,
+   "title": "Missing Document Quality Gate log in PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 1,
+   "title": "AC8 references undefined baseline sample count",
+   "verdict": "clearly_false",
+   "note": "judgment: spec states the baseline (five runs, line 12) and AC8 references the 2026-09-10 baseline"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 2,
+   "title": "Deferral Note D1 human confirmation not tracked in Open Questions",
+   "verdict": "real",
+   "note": "D1 asks human confirmation but is absent from the Awaiting Human Decisions table (true, low severity)"
+  },
+  {
+   "head": "a691d010",
+   "run": 2,
+   "finding": 3,
+   "title": "AC18 defers concrete configuration key name without tracking",
+   "verdict": "plausible",
+   "note": "AC18 defers key name to planning explicitly; not tracked as OQ; weak"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "finding": 0,
+   "title": "Missing Document Quality Gate log in PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "finding": 1,
+   "title": "Missing consistency matrix for decision-gate behavior",
+   "verdict": "real",
+   "note": "judgment: spec has evidence-tier state machine and no decision-gate consistency matrix at this head (later heads add one); per checklist"
+  },
+  {
+   "head": "a691d010",
+   "run": 3,
+   "finding": 2,
+   "title": "Missing Matrix coherence preflight row for stateful contract",
+   "verdict": "clearly_false",
+   "note": "PR-description Matrix coherence preflight row"
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 0,
+   "title": "Missing plan-authoring-rigor outcome record",
+   "verdict": "real",
+   "note": "Missing plan-authoring-rigor outcome record"
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 1,
+   "title": "Missing Document Quality Gate log and Matrix coherence preflight",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  },
+  {
+   "head": "e991d21c",
+   "run": 1,
+   "finding": 2,
+   "title": "Unverified claims about existing codebase surfaces",
+   "verdict": "plausible",
+   "note": "Unverified codebase claims; judgment, checklist-driven; model had no repo access"
+  },
+  {
+   "head": "e991d21c",
+   "run": 2,
+   "finding": 0,
+   "title": "Missing Plan authoring rigor outcome record",
+   "verdict": "real",
+   "note": "Missing plan-authoring-rigor outcome record"
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 0,
+   "title": "Add plan authoring rigor outcome record",
+   "verdict": "real",
+   "note": "Missing plan-authoring-rigor outcome record"
+  },
+  {
+   "head": "e991d21c",
+   "run": 3,
+   "finding": 1,
+   "title": "Add Document Quality Gate log to PR description",
+   "verdict": "clearly_false",
+   "note": "PR-description DQG log"
+  }
+ ],
+ "never_named": [
+  "lhpaul-ronda-pr-115-manual-650c2ce575d3",
+  "lhpaul-ronda-pr-115-manual-91f04dbff9fa",
+  "lhpaul-ronda-pr-115-manual-b596514c8898",
+  "lhpaul-ronda-pr-115-manual-f5531b2144bc",
+  "lhpaul-ronda-pr-115-manual-60739bb43732",
+  "lhpaul-ronda-pr-115-manual-b3bda1d52264",
+  "lhpaul-ronda-pr-115-manual-46fdd12072ad",
+  "lhpaul-ronda-pr-115-manual-8c1a912944bc",
+  "lhpaul-ronda-pr-115-manual-fc2583c080d9",
+  "lhpaul-ronda-pr-115-manual-15abc9766ee4",
+  "lhpaul-ronda-pr-115-manual-525d40c78849",
+  "lhpaul-ronda-pr-115-manual-f1919e55de29",
+  "lhpaul-ronda-pr-115-manual-1a6dc4d2446e",
+  "lhpaul-ronda-pr-115-manual-6d7d5a13709f",
+  "lhpaul-ronda-pr-115-manual-a60379f3bbca",
+  "lhpaul-ronda-pr-117-manual-1ea43fc566b6",
+  "lhpaul-ronda-pr-117-manual-562f60cc7912",
+  "lhpaul-ronda-pr-117-manual-786e12c3ef38",
+  "lhpaul-ronda-pr-117-manual-c0431a0f26cb",
+  "lhpaul-ronda-pr-117-manual-cbbd7afa9034",
+  "lhpaul-ronda-pr-117-manual-049ef9722a8e",
+  "lhpaul-ronda-pr-117-manual-50e9639c0561",
+  "lhpaul-ronda-pr-117-manual-8b6a50f27cad",
+  "lhpaul-ronda-pr-117-manual-b463fa6cc2be",
+  "lhpaul-ronda-pr-117-manual-4d9ab8fceee1",
+  "lhpaul-ronda-pr-117-manual-907ddb0e2386",
+  "lhpaul-ronda-pr-117-manual-f3aba42b7fc2"
+ ],
+ "notes": "Verdicts on unmatched findings are single-judge. 23 of the 28 clearly_false are PR-description DQG/preflight asks the harness did not supply (same convention as #143 arm C). Judgment calls flagged in notes.",
+ "clearly_false_pr_description_only": 23,
+ "clearly_false_excl_pr_description": {
+  "mean": 0.21,
+  "max": 2
+ }
+}
