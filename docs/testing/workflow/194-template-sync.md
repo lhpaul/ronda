@@ -47,12 +47,22 @@ Isolating proof: restoring the pre-#2183 `case` classifier (`feature/*|fix/*|hot
 ## Workflows and special handling
 
 - `.github/workflows/pr-policy.yml` (#1838): clean three-way merge. On `pull_request_target`, a missing reviewer-loop summary, or a clean summary for an older head, now posts the guard status `pending` and leaves the job green, instead of `failure`. The `workflow_dispatch` run that `pr-review-loop.sh` triggers after posting its summary flips the status to success or failure. Dispatch runs, non-clean summaries, skipped hotfix summaries and fetch failures still fail. Ronda's local `missing_summary_is_expected_for_event` exit is kept; with the pending window it only applies to the remaining failure cases. The workflow runs from the base branch on `pull_request_target`, so the change takes effect after merge.
-- `.claude/settings.json` (#2190): not changed in this PR (see below).
+- `.claude/settings.json` (#2190): adopted (see below).
 - No other special-handling path changed upstream.
 
 ## #2190 (shared local workflow config)
 
-Upstream v0.52.0 lets agents read `.ai-dev-workflow.local.yaml` and drops its `Read` deny from `.claude/settings.json`, on the condition that the file holds no secret values. The agent could not verify that condition: the current Read deny keeps the file closed to it, by design. The settings and `AGENTS.md` safety wording are therefore left as they are, pending the maintainer's decision. The rest of v0.52.0 does not depend on it; `test_runner_secret_prevention.py` checks those controls only in the template repository.
+Upstream v0.52.0 lets agents read `.ai-dev-workflow.local.yaml` and drops its `Read` deny from `.claude/settings.json`, on the condition that the file holds no secret values. The agent could not verify that condition, because the old Read deny kept the file closed to it. The maintainer confirmed that the file holds no secret values, so this PR adopts #2190:
+
+- `.claude/settings.json` now matches upstream v0.52.0 byte for byte. The `Read` deny for `.ai-dev-workflow.local.yaml` and `.ai-dev-workflow.local.yml` is dropped. `Edit` stays denied, and so do `Read` and `Edit` of the `.yaml.*`/`.yml.*` backups. The `.local.private.*` denies become one wildcard per operation.
+- `AGENTS.md` Safety Rules add the two upstream bullets: the local YAML is readable but holds no secret values, while env files, `.local.private.*`, backups, keys and credentials stay off limits. Ronda's merge policy and other safety bullets are unchanged.
+- `docs/workflow/development-workflow/README.md`, `integrations/runner-secret-prevention.md` and `integrations/cursor-my-machines.md` already carry the upstream #2190 wording from the sync apply.
+
+The file's contents are not copied anywhere in this PR. `test_runner_secret_prevention.py` checks these controls only in the template repository.
+
+## Product review checks on this PR
+
+The "Ronda review" and "Ronda dogfood" checks report "Review failed — changes too large" for this sync PR, which changes about 90 files. The maintainer accepts this as an expected size limit for a template sync. No manual `/ronda review` or other paid model pass was run.
 
 ## Reviewer configuration and #1817
 

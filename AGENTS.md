@@ -235,6 +235,8 @@ Read [`docs/best-practices/STACK-SPECIFIC.md`](docs/best-practices/STACK-SPECIFI
 
 ### Safety Rules
 
+- `.ai-dev-workflow.local.yaml` (or `.ai-dev-workflow.local.yml`) is shared local workflow configuration: checkout paths, product repos, review settings and references to where secrets live (`secret_ref`, `private_key_path`), never secret values. Agents may read it and run protocol scripts that read it; they do not edit it unless asked. Earlier guidance allowed secret values in this file: if yours still holds one, move it to `.ai-dev-workflow.local.env` or a `.ai-dev-workflow.local.private.*` file and leave a `secret_ref` in its place. An agent that finds a secret value there does not repeat or use it, and tells the human to move it.
+- Environment files (including `.ai-dev-workflow.local.env`), `.ai-dev-workflow.local.private.*` files, backups of the local YAML (such as `.ai-dev-workflow.local.yaml.retired`), private keys and credential files are not agent inspection or editing targets. Do not open them manually, copy their contents into fixtures, or include their values in transcripts or review artifacts. Public versioned examples remain readable.
 - **No `git push --force`**, `git reset --hard`, or rebase on shared branches without explicit human approval
 - **Stop and ask** if an action seems destructive or has wide blast radius
 - Opening a PR is not a terminal condition by itself
