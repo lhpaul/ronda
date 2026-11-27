@@ -277,6 +277,14 @@ run_expect_status "missing_regression_label_exit_2" 2 \
   env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_CHECK_RUN_PAGES="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="" \
   bash "$HELPER" 42 --branch feature/test --repo owner/repo --evidence-file "$SUCCESS_EVIDENCE" --no-label-mutation --repo-root "$REPO_ROOT" >/dev/null
 
+# #2183: feat/* and backport/* are implementation branches through the shared
+# workflow_branch_is_implementation classifier, so they need the regression label.
+for impl_branch in feat/test backport/test; do
+  run_expect_status "missing_regression_label_${impl_branch%%/*}_exit_2" 2 \
+    env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_HEAD_BRANCH="$impl_branch" MOCK_CHECK_RUN_PAGES="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="" \
+    bash "$HELPER" 42 --branch "$impl_branch" --repo owner/repo --evidence-file "$SUCCESS_EVIDENCE" --no-label-mutation --repo-root "$REPO_ROOT" >/dev/null
+done
+
 run_expect_status "unsettled_verdict_exit_12" 12 \
   env MOCK_HEAD_SHA="$HEAD_SHA" MOCK_CHECK_RUN_PAGES="$GREEN_CHECKS_PAGE" MOCK_COMMENTS_JSON="$CLEAN_COMMENTS" MOCK_LABELS="ready-for-regression" \
   bash "$HELPER" 42 --branch feature/test --repo owner/repo --no-label-mutation --repo-root "$REPO_ROOT" >/dev/null

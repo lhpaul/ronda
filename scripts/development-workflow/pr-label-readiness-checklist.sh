@@ -192,19 +192,20 @@ if ! "$SCRIPT_DIR/pr-ownership-guard.sh" --pr "$PR_NUMBER" \
   exit 14  # Exit code 14 = "PR ownership not verified"
 fi
 
-# Determine PR type (implementation vs. spec/plan)
-case "$BRANCH" in
-  feature/*|fix/*|hotfix/*|refactor/*|backport/hotfix/*)
-    IS_IMPLEMENTATION_PR=true
-    ;;
-  spec/*|implementation-plan/*)
-    IS_IMPLEMENTATION_PR=false
-    ;;
-  *)
-    IS_IMPLEMENTATION_PR=false
-    echo "WARNING: Branch '$BRANCH' does not match a recognized prefix (feature/*, fix/*, refactor/*, hotfix/*, backport/hotfix/*, spec/*, implementation-plan/*). Treating as non-implementation PR. Report this anomaly to the human."
-    ;;
-esac
+# Determine PR type (implementation vs. spec/plan) from branch_prefix() via
+# workflow_branch_is_implementation (#2183), the same classifier the
+# readiness-label helper uses.
+if workflow_branch_is_implementation "$BRANCH"; then
+  IS_IMPLEMENTATION_PR=true
+else
+  IS_IMPLEMENTATION_PR=false
+  case "$BRANCH" in
+    spec/*|implementation-plan/*) ;;
+    *)
+      echo "WARNING: Branch '$BRANCH' does not match a recognized prefix (feature/*, feat/*, fix/*, refactor/*, hotfix/*, backport/*, spec/*, implementation-plan/*). Treating as non-implementation PR. Report this anomaly to the human."
+      ;;
+  esac
+fi
 
 # Check 0: CI must be green on the PR's head SHA.
 # This is a hard gate — do NOT apply ready-for-human-review when any check is
